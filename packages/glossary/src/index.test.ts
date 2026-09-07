@@ -60,6 +60,13 @@ describe("paridade entre os glossários", () => {
     expect(abas).toHaveLength(4);
   });
 
+  it("cobre os nove estados e as quatro prioridades de Task da Fase 1", () => {
+    const estados = GLOSSARY_KEYS.filter((key) => key.startsWith("task.status."));
+    const prioridades = GLOSSARY_KEYS.filter((key) => key.startsWith("task.priority."));
+    expect(estados).toHaveLength(9);
+    expect(prioridades).toHaveLength(4);
+  });
+
   it("cobre os três filtros do Hall e os valores que eles oferecem", () => {
     const filtros = GLOSSARY_KEYS.filter((key) => key.startsWith("hall.filter."));
     expect(filtros).toHaveLength(3);
@@ -120,6 +127,18 @@ describe("tema", () => {
     expect(t("plain", "settings.theme.description")).not.toBe(
       t("dnd", "settings.theme.description"),
     );
+  });
+
+  it("estado e prioridade de Task não são tematizados", () => {
+    const chaves = GLOSSARY_KEYS.filter(
+      (key: GlossaryKey) => key.startsWith("task.status.") || key.startsWith("task.priority."),
+    );
+    for (const key of chaves) {
+      expect(t("dnd", key), key).toBe(t("plain", key));
+    }
+    expect(t("dnd", "task.status.inbox")).toBe("Capturada");
+    expect(t("plain", "task.status.running")).toBe("Em execução");
+    expect(t("dnd", "task.priority.urgent")).toBe("Urgente");
   });
 
   it("infraestrutura não é tematizada", () => {

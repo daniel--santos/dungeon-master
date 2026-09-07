@@ -2,8 +2,9 @@
  * Chaves canônicas do glossário.
  *
  * Uma chave por linha da tabela do planejamento v0.4, seção 14, mais os labels
- * de navegação da seção 8 e as abas do Hall (Fase 2.5D). As chaves são sempre
- * em inglês e estáveis: o texto muda, a chave não.
+ * de navegação da seção 8, os estados e as prioridades de Task da Fase 1 e as
+ * abas do Hall (Fase 2.5D). As chaves são sempre em inglês e estáveis: o texto
+ * muda, a chave não.
  *
  * A união `GlossaryKey` nasce desta lista, então acrescentar uma chave aqui
  * quebra a compilação dos dois glossários até que ambos a preencham. É essa a
@@ -65,6 +66,26 @@ export const GLOSSARY_KEYS = [
   "entity.artifact.plural",
   "entity.achievement",
   "entity.achievement.plural",
+
+  // ----------------------------------------------------------- task.status
+  // Os nove estados de Task da Fase 1. Não são tematizados: o texto é o mesmo
+  // nos dois glossários, e existe como chave para que nenhuma tela escreva o
+  // label direto no JSX (planejamento v0.4, Fase 1).
+  "task.status.inbox",
+  "task.status.ready",
+  "task.status.queued",
+  "task.status.running",
+  "task.status.waiting",
+  "task.status.blocked",
+  "task.status.completed",
+  "task.status.failed",
+  "task.status.cancelled",
+
+  // --------------------------------------------------------- task.priority
+  "task.priority.low",
+  "task.priority.medium",
+  "task.priority.high",
+  "task.priority.urgent",
 
   // ------------------------------------------------------------ agent.role
   "agent.role.architect",

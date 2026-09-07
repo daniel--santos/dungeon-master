@@ -63,6 +63,23 @@ export const dnd: Record<GlossaryKey, string> = {
   "entity.achievement": "Conquista",
   "entity.achievement.plural": "Conquistas",
 
+  // ----------------------------------------------------------- task.status
+  "task.status.inbox": "Capturada",
+  "task.status.ready": "Pronta",
+  "task.status.queued": "Na fila",
+  "task.status.running": "Em execução",
+  "task.status.waiting": "Aguardando",
+  "task.status.blocked": "Bloqueada",
+  "task.status.completed": "Concluída",
+  "task.status.failed": "Falhou",
+  "task.status.cancelled": "Cancelada",
+
+  // --------------------------------------------------------- task.priority
+  "task.priority.low": "Baixa",
+  "task.priority.medium": "Média",
+  "task.priority.high": "Alta",
+  "task.priority.urgent": "Urgente",
+
   // ------------------------------------------------------------ agent.role
   "agent.role.architect": "Arquiteto",
   "agent.role.engineer": "Engenheiro",
