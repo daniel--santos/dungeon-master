@@ -57,6 +57,26 @@ O banco escuta em `127.0.0.1:5433` e os dados ficam no volume nomeado
 `01996d00-0000-7000-8000-000000000001`. Não há login: toda tabela com `user_id` aponta
 para ele.
 
+#### Massa de demonstração
+
+```bash
+pnpm db:seed --demo
+```
+
+Acrescenta dois Projects — "Forja de Widgets" e "Expedição ao Legado" —, catorze Tasks
+variadas em tipo, prioridade e estado, com duas subtarefas, duas dependências e três
+capturas por triar na Inbox. Serve para abrir as telas com conteúdo em vez de decidir se
+o sistema está quebrado ou só vazio.
+
+Tudo é criado pelas **mesmas funções que a API usa**, nunca por `INSERT` direto: a massa
+respeita a máquina de estados e as regras de subtarefa e de dependência, e gera as linhas
+de `activity` e de `dashboard_event` na mesma transação de cada mudança. Nenhuma Task fica
+em `QUEUED` ou `RUNNING`, que só passam a significar algo com o runtime da Fase 2.
+
+O comando é idempotente: a chave estável é o título, então rodar duas vezes não duplica
+nada e o que já existe é reaproveitado, sem reaplicar transições. Ele também não remove
+nada — para começar do zero, `docker compose down -v` apaga o volume.
+
 ### 3. Build dos pacotes
 
 API, Worker e Web consomem os pacotes compilados, então o primeiro build é obrigatório.
@@ -80,11 +100,12 @@ fala com o backend por caminho relativo e não há CORS em desenvolvimento.
 
 Endpoints da API:
 
-| Caminho                    | O que faz                                             |
-| -------------------------- | ----------------------------------------------------- |
-| `GET /api/v1/health`       | estado do processo e resultado de `SELECT 1` no banco |
-| `GET /api/v1/openapi.json` | a spec, gerada dos schemas Zod                        |
-| `GET /api/v1/docs`         | Swagger UI sobre a spec                               |
+| Caminho                            | O que faz                                             |
+| ---------------------------------- | ----------------------------------------------------- |
+| `GET /api/v1/health`               | estado do processo e resultado de `SELECT 1` no banco |
+| `GET /api/v1/openapi.json`         | a spec, gerada dos schemas Zod                        |
+| `GET /api/v1/docs`                 | Swagger UI sobre a spec                               |
+| `GET /api/v1/achievements/catalog` | o catálogo de Conquistas, sem estado                  |
 
 ## Comandos
 
@@ -104,12 +125,13 @@ O CI roda exatamente esta sequência em `windows-latest` e `macos-latest`.
 
 ### Banco
 
-| Comando            | O que faz                                       |
-| ------------------ | ----------------------------------------------- |
-| `pnpm db:generate` | gera uma migração a partir da mudança no schema |
-| `pnpm db:migrate`  | aplica as migrações pendentes                   |
-| `pnpm db:seed`     | garante o usuário local; idempotente            |
-| `pnpm db:check`    | verifica que schema e migrações estão em dia    |
+| Comando               | O que faz                                       |
+| --------------------- | ----------------------------------------------- |
+| `pnpm db:generate`    | gera uma migração a partir da mudança no schema |
+| `pnpm db:migrate`     | aplica as migrações pendentes                   |
+| `pnpm db:seed`        | garante o usuário local; idempotente            |
+| `pnpm db:seed --demo` | acrescenta a massa de demonstração; idempotente |
+| `pnpm db:check`       | verifica que schema e migrações estão em dia    |
 
 ## Variáveis de ambiente
 
@@ -148,7 +170,7 @@ packages/
   platform/     processo, caminho e shell por SO (esqueleto)
   events/       ExecutionEvent, writers e cursor (esqueleto)
   glossary/     canônico → tema; labels da UI (esqueleto)
-  achievements/ catálogo e condições de Conquistas (esqueleto)
+  achievements/ catálogo, templates e vocabulário de condições de Conquistas
 docs/         planejamento, fundamentos e as análises das referências
 ```
 

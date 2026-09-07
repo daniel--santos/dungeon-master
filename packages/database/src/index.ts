@@ -9,6 +9,7 @@
 export * from "./activity.js";
 export * from "./client.js";
 export * from "./dashboard-event.js";
+export * from "./demo.js";
 export * from "./env.js";
 export * from "./health.js";
 export * from "./ids.js";
