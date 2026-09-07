@@ -1,0 +1,98 @@
+[
+  {
+    "key": "campaign_guardian",
+    "origin": "TEMPLATE",
+    "scope": "PROJECT",
+    "name": { "theme": "Guardião de {project}", "plain": "Veterano de {project}" },
+    "description": {
+      "theme": "Concluir Missões em {project} até que a Campanha não corra mais perigo.",
+      "plain": "Concluir tarefas no projeto {project}."
+    },
+    "flavor": "Toda Campanha acaba tendo alguém que aparece sempre que a coisa aperta.",
+    "icon": "shield",
+    "rarity": "RARE",
+    "hidden": true,
+    "condition": { "predicate": "count", "source": "task.completed", "thresholds": [25, 100] },
+    "tiers": ["I", "II"],
+    "tierRarities": ["RARE", "EPIC"],
+    "instantiatedBy": "project",
+    "scopeFrom": "project.id"
+  },
+  {
+    "key": "guild_ally",
+    "origin": "TEMPLATE",
+    "scope": "HARNESS",
+    "name": { "theme": "Aliado da Guilda {harness}", "plain": "Veterano do harness {harness}" },
+    "description": {
+      "theme": "Vencer cinquenta Expedições ao lado da Guilda {harness}.",
+      "plain": "Concluir cinquenta execuções bem-sucedidas com o harness {harness}."
+    },
+    "flavor": "Depois da quinquagésima, já não é contrato: é convivência.",
+    "icon": "handshake",
+    "rarity": "RARE",
+    "hidden": true,
+    "condition": { "predicate": "count", "source": "run.succeeded", "thresholds": [50] },
+    "instantiatedBy": "harness",
+    "scopeFrom": "run.harness"
+  },
+  {
+    "key": "nemesis",
+    "origin": "TEMPLATE",
+    "scope": "TASK",
+    "name": { "theme": "Nêmesis: {task}", "plain": "Bug reincidente resolvido: {task}" },
+    "description": {
+      "theme": "Derrotar de vez o Monstro {task}, que já havia voltado mais de uma vez.",
+      "plain": "Concluir o bug {task}, reaberto duas ou mais vezes."
+    },
+    "flavor": "Ele voltou tantas vezes que já tinha nome próprio no Bestiário.",
+    "icon": "skull",
+    "rarity": "EPIC",
+    "hidden": true,
+    "condition": {
+      "predicate": "first",
+      "source": "task.completed",
+      "filter": { "task.kind": "BUG" }
+    },
+    "instantiatedBy": "task.bug.reopened",
+    "scopeFrom": "task.id"
+  },
+  {
+    "key": "hero_veteran",
+    "origin": "TEMPLATE",
+    "scope": "AGENT",
+    "name": { "theme": "{agent} Veterano", "plain": "{agent} veterano" },
+    "description": {
+      "theme": "Levar {agent} a cem Expedições vitoriosas.",
+      "plain": "Acumular cem execuções bem-sucedidas com o agente {agent}."
+    },
+    "flavor": "Cem portões atravessados. O centésimo primeiro já não assusta ninguém.",
+    "icon": "medal",
+    "rarity": "EPIC",
+    "hidden": true,
+    "condition": { "predicate": "count", "source": "run.succeeded", "thresholds": [100] },
+    "instantiatedBy": "agent",
+    "scopeFrom": "agent.id"
+  },
+  {
+    "key": "campaign_record",
+    "origin": "TEMPLATE",
+    "scope": "PROJECT",
+    "name": { "theme": "Recorde de {project}", "plain": "Execução mais longa em {project}" },
+    "description": {
+      "theme": "Sustentar a Expedição vitoriosa mais longa de {project}.",
+      "plain": "Registrar a execução bem-sucedida mais longa do projeto {project}."
+    },
+    "flavor": "A marca fica pendurada na parede até que alguém resolva superá-la.",
+    "icon": "trophy",
+    "rarity": "RARE",
+    "hidden": true,
+    "condition": {
+      "predicate": "record",
+      "source": "run.succeeded",
+      "metric": "run.durationMs",
+      "direction": "max"
+    },
+    "instantiatedBy": "project",
+    "scopeFrom": "project.id"
+  }
+]
