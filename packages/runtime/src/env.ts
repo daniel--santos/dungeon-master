@@ -1,0 +1,96 @@
+/**
+ * Montagem do ambiente do agente, por allow-list.
+ *
+ * Nada de `{ ...process.env }`. O worker roda com as credenciais do usuário —
+ * chaves de nuvem, tokens de repositório, segredos de banco — e um agente sem
+ * isolamento herda tudo que o processo pai tiver. A allow-list inverte o
+ * padrão: nada passa a menos que alguém tenha dito que passa.
+ *
+ * O ambiente sai de três lugares, nesta ordem de precedência crescente:
+ *
+ * 1. o piso do sistema operacional (`essentialEnvKeys`), sem o qual quase
+ *    nenhum processo sobe;
+ * 2. as chaves que o adapter declara precisar (`HOME`, `APPDATA`, `CODEX_HOME`),
+ *    que são onde as CLIs guardam credencial;
+ * 3. a `environmentPolicy` do ExecutionProfile: a allow-list do usuário e as
+ *    variáveis que ele injeta de propósito.
+ *
+ * O Sandcastle resolve o mesmo problema lendo `<repo>/.sandcastle/.env`
+ * (documento técnico, seção 14). Aqui a política vem do Loadout e o arquivo no
+ * repositório não participa — um repositório clonado não deve conseguir
+ * declarar o que vaza para dentro do agente.
+ */
+
+import { buildEnv, essentialEnvKeys } from "@dungeon-master/platform";
+
+import type { EnvironmentPolicy } from "./types.js";
+
+export interface BuildExecutionEnvOptions {
+  readonly policy?: EnvironmentPolicy;
+  /** Chaves que o adapter precisa para achar credencial e configuração. */
+  readonly adapterKeys?: readonly string[];
+  /** Variáveis que o runtime injeta (nunca sobrescritas pela allow-list). */
+  readonly runtimeVariables?: Readonly<Record<string, string>>;
+  /** Origem das variáveis. Padrão: `process.env`. Existe para teste. */
+  readonly source?: NodeJS.ProcessEnv;
+  readonly platform?: NodeJS.Platform;
+}
+
+/**
+ * Monta o ambiente final do processo do agente.
+ *
+ * A política ganha do adapter na mesma chave, e as variáveis explícitas ganham
+ * de tudo — inclusive das do runtime, para que um Loadout consiga, por exemplo,
+ * apontar `CODEX_HOME` para outro lugar.
+ */
+export function buildExecutionEnv(options: BuildExecutionEnvOptions = {}): Record<string, string> {
+  const policy = options.policy;
+  const inheritEssential = policy?.inheritEssential ?? true;
+  const platform = options.platform ?? process.platform;
+
+  const allowList = [
+    ...(inheritEssential ? essentialEnvKeys(platform) : []),
+    ...(inheritEssential ? (options.adapterKeys ?? []) : []),
+    ...(policy?.allowList ?? []),
+  ];
+
+  const extra = {
+    ...(options.runtimeVariables ?? {}),
+    ...(policy?.variables ?? {}),
+  };
+
+  return buildEnv(allowList, extra, options.source ?? process.env);
+}
+
+/**
+ * As chaves de git que precisam atravessar para o `git` do `WorkspaceManager`.
+ *
+ * `GIT_CONFIG_GLOBAL` está na lista porque é ele que o isolamento de gitconfig
+ * dos testes usa; sem passar, cada `git worktree add` de teste voltaria a
+ * disputar o `.gitconfig.lock` global da máquina. `GIT_TERMINAL_PROMPT=0` é
+ * injetado sempre: um `git` que abre prompt num worker sem terminal trava para
+ * sempre em vez de falhar.
+ */
+export const GIT_ENV_KEYS: readonly string[] = [
+  "HOME",
+  "USERPROFILE",
+  "HOMEDRIVE",
+  "HOMEPATH",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "XDG_CONFIG_HOME",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_SYSTEM",
+  "GIT_CONFIG_NOSYSTEM",
+  "GIT_SSH",
+  "GIT_SSH_COMMAND",
+  "GIT_ASKPASS",
+  "SSH_AUTH_SOCK",
+  "GIT_EXEC_PATH",
+  "GIT_TEMPLATE_DIR",
+];
+
+/** Ambiente para os comandos `git` do runtime. */
+export function buildGitEnv(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  return buildEnv([...essentialEnvKeys(), ...GIT_ENV_KEYS], { GIT_TERMINAL_PROMPT: "0" }, source);
+}

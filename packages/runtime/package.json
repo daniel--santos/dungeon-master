@@ -1,0 +1,40 @@
+{
+  "name": "@dungeon-master/runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AgentRuntime, HarnessAdapter, capabilities, preflight, workspace e structured output.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./src/testing/index.ts",
+      "default": "./src/testing/index.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src/testing"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dungeon-master/contracts": "workspace:*",
+    "@dungeon-master/platform": "workspace:*",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@dungeon-master/tooling-vitest": "workspace:*",
+    "@types/node": "26.5.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}

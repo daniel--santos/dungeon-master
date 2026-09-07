@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  // `src/testing/**` é exportado como fonte (veja `exports` do package.json):
+  // ele importa `vitest`, que é dependência de desenvolvimento, e compilá-lo
+  // para `dist` colocaria o Vitest no caminho de produção.
+  "exclude": ["src/**/*.test.ts", "src/testing/**"]
+}
