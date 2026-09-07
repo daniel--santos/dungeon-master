@@ -63,11 +63,12 @@ export function registerRunRoutes(
     const input = c.req.valid("json");
 
     const created = await runs.create(id, {
-      loadoutId: input.loadoutId,
+      ...(input.loadoutId === undefined ? {} : { loadoutId: input.loadoutId }),
       ...(input.executionProfileId === undefined
         ? {}
         : { executionProfileId: input.executionProfileId }),
       ...(input.prompt === undefined ? {} : { prompt: input.prompt }),
+      ...(input.resumeFromRunId === undefined ? {} : { resumeFromRunId: input.resumeFromRunId }),
     });
 
     if (created === null) throw notFoundProblem("Task", id);

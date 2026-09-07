@@ -263,7 +263,12 @@ export interface RunsPort {
   get(runId: string): Promise<Run | null>;
   create(
     taskId: string,
-    input: { loadoutId: string; executionProfileId?: string; prompt?: string },
+    input: {
+      loadoutId?: string;
+      executionProfileId?: string;
+      prompt?: string;
+      resumeFromRunId?: string;
+    },
   ): Promise<Result<Run, RunWriteFailure> | null>;
   cancel(runId: string): Promise<Result<Run, RunWriteFailure> | null>;
   events(runId: string, input: { afterSequence: number; limit: number }): Promise<RunEvent[]>;
