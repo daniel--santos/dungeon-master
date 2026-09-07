@@ -166,6 +166,65 @@ injeção, e o pacote roda inteiro em teste sem infraestrutura.
   vive numa migração versionada, e não num `CREATE OR REPLACE` a cada boot, porque aqui
   o PostgreSQL é o único banco suportado.
 
+### Archon — Fase 2
+
+#### `packages/events/src/credential-sanitizer.ts` e `credential-sanitizer.test.ts`
+
+- Origem: Archon — `packages/core/src/utils/credential-sanitizer.ts@0773b97` e o `.test.ts` ao lado
+- Copyright: (c) 2026 Cole Medin. Licensed under the MIT License.
+- Modo: adaptar
+- Fase: 2
+- Testes: `packages/events/src/credential-sanitizer.test.ts`
+- Changes: a lista de variáveis sensíveis passou a incluir as chaves de API dos harnesses
+  (Anthropic, OpenAI, Google) além dos tokens de git, porque aqui o alvo é o payload de
+  evento de um agente e não a saída de um `git clone`; entrou `sanitizeJson`, que aplica a
+  mesma função a todo texto de uma estrutura JSON, que é a forma em que os payloads de
+  `run_event` chegam; entrou `MIN_SECRET_LENGTH`, para uma variável definida como `true`
+  não transformar toda ocorrência da palavra em `[REDACTED]`; a lista de nomes e a origem
+  dos valores deixaram de ser globais e viraram parâmetros opcionais, para o teste não
+  depender de `process.env`, que em execução paralela do Vitest é estado compartilhado. A
+  redação do `userinfo` de qualquer URL, que é o coração do arquivo, é do original.
+
+#### `packages/events/src/terminal-status-write.ts`
+
+- Origem: Archon — `packages/workflows/src/terminal-status-write.ts@0773b97`
+- Copyright: (c) 2026 Cole Medin. Licensed under the MIT License.
+- Modo: copiar
+- Fase: 2
+- Testes: `packages/events/src/terminal-status-write.test.ts` (o original não tem teste ao lado)
+- Changes: `workflowRunId` virou `runId`, porque aqui o terminal é de Run e não de workflow
+  run; o logger de `@archon/paths` virou o contrato opcional `EventsLogger` deste pacote,
+  para ele continuar sem infraestrutura; `cause` passou a usar a propriedade nativa de
+  `Error`; entrou `isTerminalStatusWriteError`, para o worker reconhecer o erro sem
+  `instanceof`, que falharia com duas cópias do pacote no `node_modules`.
+
+#### `packages/runs/src/capacity-lock.ts` e `capacity-lock.test.ts`
+
+- Origem: Archon — `packages/core/src/utils/conversation-lock.ts@0773b97` e o `.test.ts` ao lado
+- Copyright: (c) 2026 Cole Medin. Licensed under the MIT License.
+- Modo: adaptar
+- Fase: 2
+- Testes: `packages/runs/src/capacity-lock.test.ts`
+- Changes: `conversationId` virou `runId` e a fila por conversa virou fila por chave de
+  recurso; o logger de `@archon/paths` virou contrato opcional; `acquireLock` deixou de ser
+  fire-and-forget e passou a devolver também a promessa da execução, para o worker
+  conseguir esperar o próprio trabalho sem espiar o estado interno; entrou `drain()`, pelo
+  mesmo motivo, no desligamento; entraram o teto de fila e o descarte explícito, para uma
+  rajada não crescer a fila sem limite. A trava sequencial por chave, o teto global, a
+  distinção entre `queued-key` e `queued-capacity` e a liberação de capacidade que
+  reprocessa a fila global são do original.
+
+#### O trigger de `run_event` na migração `0004`
+
+- Origem: Archon — `packages/core/src/db/adapters/postgres.ts@0773b97` (o SQL de NOTIFY)
+- Copyright: (c) 2026 Cole Medin. Licensed under the MIT License.
+- Modo: adaptar
+- Fase: 2
+- Testes: `apps/api/test/runs.test.ts` (replay e stream por Run)
+- Changes: mesmo padrão do trigger de `dashboard_event` da migração `0001`, agora sobre
+  `run_event` e no canal `dm_run_event`. Sem payload e `FOR EACH STATEMENT`, para um
+  `INSERT` em lote de eventos de um Run acordar o drain uma vez.
+
 ## Licença deste projeto
 
 Dungeon Master é distribuído sob a licença MIT. Veja [`LICENSE`](./LICENSE).
