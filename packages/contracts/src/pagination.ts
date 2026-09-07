@@ -35,6 +35,20 @@ export const PageQuerySchema = z.object({
 export type PageQuery = z.infer<typeof PageQuerySchema>;
 
 /**
+ * Direção de ordenação, igual em toda listagem que aceita `sort`.
+ *
+ * Fica aqui, e não junto de cada recurso, porque a direção não depende do que
+ * está sendo ordenado: o que muda por recurso é a lista de campos.
+ */
+export const SORT_ORDER_VALUES = ["asc", "desc"] as const;
+
+export const SortOrderSchema = z
+  .enum(SORT_ORDER_VALUES)
+  .meta({ id: "SortOrder", description: "Direção de ordenação de uma listagem." });
+
+export type SortOrder = z.infer<typeof SortOrderSchema>;
+
+/**
  * Envelope de uma página de resultados.
  *
  * `total` é a contagem sem paginação, para a tela conseguir desenhar o

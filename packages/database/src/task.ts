@@ -1,10 +1,14 @@
-import type {
-  Task,
-  TaskDetail,
-  TaskKind,
-  TaskPriority,
-  TaskStatus,
-  TaskSummary,
+import {
+  DEFAULT_TASK_SORT,
+  DEFAULT_TASK_SORT_ORDER,
+  type SortOrder,
+  type Task,
+  type TaskDetail,
+  type TaskKind,
+  type TaskPriority,
+  type TaskSort,
+  type TaskStatus,
+  type TaskSummary,
 } from "@dungeon-master/contracts";
 import {
   checkTaskTransition,
@@ -13,7 +17,7 @@ import {
   taskStatusRequiresProject,
   wouldCreateDependencyCycle,
 } from "@dungeon-master/domain";
-import { and, asc, count, desc, eq, ilike, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNotNull, type SQL, sql } from "drizzle-orm";
 
 import { recordDomainEvent } from "./activity.js";
 import type { Database } from "./client.js";
@@ -112,14 +116,56 @@ export interface TaskFilters {
 export interface ListTasksInput extends PageInput {
   userId: string;
   filters?: TaskFilters;
+  /** Campo de ordenação. Padrão: `updatedAt`. */
+  sort?: TaskSort | undefined;
+  /** Direção. Padrão: `desc`. */
+  order?: SortOrder | undefined;
 }
 
 /**
- * A listagem com filtros, ordenada da última editada para a mais antiga.
+ * Prioridade em número, para `sort=priority` ordenar por urgência.
  *
- * O desempate é por `id` descendente: sem ele, duas Tasks com o mesmo
- * `updated_at` poderiam trocar de lugar entre uma página e a seguinte, e um
+ * `ORDER BY priority` sozinho ordenaria pela ordem do tipo `task_priority` no
+ * PostgreSQL, que hoje coincide com o peso mas é decisão de migração, não de
+ * apresentação; e um `ORDER BY priority::text` ordenaria pelo alfabeto, pondo
+ * `HIGH` antes de `URGENT`. O peso fica escrito aqui, onde alguém consegue lê-lo
+ * sem abrir a migração. Um valor novo de prioridade sem linha neste `CASE` cai
+ * no `else` e vai para o fim da lista.
+ */
+const PRIORITY_RANK = sql`case ${tasks.priority}
+  when 'URGENT' then 4
+  when 'HIGH' then 3
+  when 'MEDIUM' then 2
+  when 'LOW' then 1
+  else 0
+end`;
+
+/**
+ * A expressão de ordenação, já com o desempate.
+ *
+ * O desempate por `id` é obrigatório e vem sempre na mesma direção do pedido:
+ * sem ele, duas Tasks com o mesmo `updated_at` — ou com a mesma prioridade, que
+ * é o caso comum — poderiam trocar de lugar entre uma página e a seguinte, e um
  * item apareceria duas vezes ou nenhuma.
+ */
+function taskOrderBy(sort: TaskSort, order: SortOrder): SQL[] {
+  const direcao = order === "asc" ? asc : desc;
+
+  const campo: Record<TaskSort, SQL> = {
+    updatedAt: direcao(tasks.updatedAt),
+    createdAt: direcao(tasks.createdAt),
+    priority: direcao(PRIORITY_RANK),
+    title: direcao(tasks.title),
+  };
+
+  return [campo[sort], direcao(tasks.id)];
+}
+
+/**
+ * A listagem com filtros, ordenada por `sort` e `order`.
+ *
+ * O padrão é `updatedAt desc`, a ordem de "no que eu estava mexendo": é o que a
+ * tela abre mostrando, e o que valia antes de existir escolha.
  */
 export async function listTasks(
   db: DatabaseExecutor,
@@ -147,7 +193,9 @@ export async function listTasks(
     .select()
     .from(tasks)
     .where(where)
-    .orderBy(desc(tasks.updatedAt), desc(tasks.id))
+    .orderBy(
+      ...taskOrderBy(input.sort ?? DEFAULT_TASK_SORT, input.order ?? DEFAULT_TASK_SORT_ORDER),
+    )
     .limit(input.pageSize)
     .offset((input.page - 1) * input.pageSize);
 

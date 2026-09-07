@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { PageQuerySchema, paginatedSchema } from "./pagination.js";
+import { PageQuerySchema, paginatedSchema, SortOrderSchema } from "./pagination.js";
 
 /**
  * Task é a única entidade de trabalho do sistema.
@@ -228,6 +228,25 @@ export const TaskStatusFilterSchema = z
   .optional()
   .describe("Filtra por um estado ou por vários, repetindo o parâmetro.");
 
+/**
+ * Por qual campo a listagem ordena.
+ *
+ * `priority` ordena por urgência, não pelo alfabeto: `URGENT` vem antes de
+ * `HIGH`, que vem antes de `MEDIUM` e de `LOW`. Ordenar a prioridade como texto
+ * poria `HIGH` antes de `URGENT` e a tela mostraria a fila errada.
+ */
+export const TASK_SORT_VALUES = ["updatedAt", "createdAt", "priority", "title"] as const;
+
+export const TaskSortSchema = z
+  .enum(TASK_SORT_VALUES)
+  .meta({ id: "TaskSort", description: "Campo de ordenação de `GET /api/v1/tasks`." });
+
+export type TaskSort = z.infer<typeof TaskSortSchema>;
+
+/** Ordenação usada quando a requisição não pede nada. */
+export const DEFAULT_TASK_SORT: TaskSort = "updatedAt";
+export const DEFAULT_TASK_SORT_ORDER = "desc" as const;
+
 export const TaskListQuerySchema = PageQuerySchema.extend({
   projectId: z.uuid().optional().describe("Só as Tasks deste Project."),
   parentTaskId: z.uuid().optional().describe("Só as subtarefas desta Task mãe."),
@@ -241,6 +260,11 @@ export const TaskListQuerySchema = PageQuerySchema.extend({
     .max(TASK_TITLE_MAX_LENGTH)
     .optional()
     .describe("Busca por trecho do título, sem diferenciar maiúsculas."),
+  sort: TaskSortSchema.optional().describe(
+    `Campo de ordenação. Padrão: \`${DEFAULT_TASK_SORT}\`. ` +
+      "`priority` ordena por urgência (URGENT, HIGH, MEDIUM, LOW), não pelo alfabeto.",
+  ),
+  order: SortOrderSchema.optional().describe(`Direção. Padrão: \`${DEFAULT_TASK_SORT_ORDER}\`.`),
 }).meta({ id: "TaskListQuery" });
 
 export type TaskListQuery = z.infer<typeof TaskListQuerySchema>;
@@ -248,7 +272,7 @@ export type TaskListQuery = z.infer<typeof TaskListQuerySchema>;
 export const TaskPageSchema = paginatedSchema(
   TaskSchema,
   "TaskPage",
-  "Uma página de Tasks, da última editada para a mais antiga.",
+  "Uma página de Tasks, na ordem pedida por `sort` e `order`.",
 );
 
 export type TaskPage = z.infer<typeof TaskPageSchema>;

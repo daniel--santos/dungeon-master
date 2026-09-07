@@ -6,10 +6,12 @@ import type {
   Project,
   ProjectDetail,
   ProjectStatus,
+  SortOrder,
   Task,
   TaskDetail,
   TaskKind,
   TaskPriority,
+  TaskSort,
   TaskStatus,
   UserSettings,
   UserSettingsKey,
@@ -112,7 +114,13 @@ export interface UpdateTaskRequest {
 }
 
 export interface TasksPort {
-  list(input: PageRequest & { filters: TaskFilters }): Promise<PageResult<Task>>;
+  list(
+    input: PageRequest & {
+      filters: TaskFilters;
+      sort: TaskSort;
+      order: SortOrder;
+    },
+  ): Promise<PageResult<Task>>;
   create(input: CreateTaskRequest): Promise<Result<Task, TaskWriteFailure>>;
   get(taskId: string): Promise<TaskDetail | null>;
   update(

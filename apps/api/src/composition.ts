@@ -224,6 +224,8 @@ export function createWorkPort(options: WorkPortOptions): WorkPort {
           page: input.page,
           pageSize: input.pageSize,
           filters: input.filters,
+          sort: input.sort,
+          order: input.order,
         }),
       create: (input) => createTask(db, { userId, ...input }),
       get: (taskId) => getTaskDetail(db, { userId, taskId }),
