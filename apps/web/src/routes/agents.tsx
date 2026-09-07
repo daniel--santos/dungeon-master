@@ -8,6 +8,9 @@ export const Route = createFileRoute("/agents")({
 
 function AgentsPage() {
   return (
-    <PlaceholderPage to="/agents" note="O cadastro inicial chega ainda nesta fase, em breve." />
+    <PlaceholderPage
+      to="/agents"
+      note="O cadastro chega na Fase 2A, quando as entidades de que ele depende passarem a existir. Sem execução, ainda não há o que configurar."
+    />
   );
 }

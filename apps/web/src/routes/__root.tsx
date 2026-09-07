@@ -5,8 +5,10 @@ import { useEffect } from "react";
 import { CommandPalette, useCommandPalette } from "@/components/app-shell/command-palette";
 import { Header } from "@/components/app-shell/header";
 import { Sidebar } from "@/components/app-shell/sidebar";
+import { Toaster } from "@/components/ui/sonner";
 import { useEventsStore } from "@/lib/events";
 import { useThemeSetting } from "@/lib/glossary";
+import { useLiveQueries } from "@/lib/live";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -23,6 +25,10 @@ function RootLayout() {
   // Hidrata o glossário com `ui.theme` e mantém a store em dia quando a
   // configuração muda, aqui ou em outra aba.
   useThemeSetting();
+
+  // Uma escrita em qualquer aba — ou por outro processo — invalida a query
+  // correspondente aqui, pelo mesmo stream.
+  useLiveQueries();
 
   // Uma conexão SSE por aba, aberta no layout raiz e viva enquanto a aba
   // estiver. `connect` é idempotente, o que importa porque o StrictMode monta o
@@ -47,6 +53,7 @@ function RootLayout() {
       </div>
 
       <CommandPalette open={palette.open} onOpenChange={palette.setOpen} />
+      <Toaster />
     </div>
   );
 }
