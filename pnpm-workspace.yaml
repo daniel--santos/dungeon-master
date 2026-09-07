@@ -1,0 +1,17 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Scripts de instalação permitidos. O pnpm 10 bloqueia postinstall por padrão.
+# `@embedded-postgres/*` traz os binários do PostgreSQL usados nos testes e
+# precisa do postinstall para recriar os symlinks do pacote.
+onlyBuiltDependencies:
+  - "@embedded-postgres/darwin-arm64"
+  - "@embedded-postgres/darwin-x64"
+  - "@embedded-postgres/linux-arm64"
+  - "@embedded-postgres/linux-x64"
+  - "@embedded-postgres/windows-x64"
+  - "@tailwindcss/oxide"
+  - embedded-postgres
+  - esbuild
+  - unrs-resolver

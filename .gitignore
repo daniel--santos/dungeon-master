@@ -1,0 +1,36 @@
+# Dependências
+node_modules/
+.pnpm-store/
+
+# Saída de build
+dist/
+build/
+*.tsbuildinfo
+
+# Caches de ferramenta
+.turbo/
+.vite/
+coverage/
+.eslintcache
+
+# Ambiente local (o .env.example é versionado)
+.env
+.env.local
+.env.*.local
+
+# Dados de banco embutido usados em teste
+.embedded-postgres/
+**/.pgdata/
+
+# Sistema operacional e editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*

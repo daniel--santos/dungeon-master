@@ -1,0 +1,28 @@
+{
+  "name": "@dungeon-master/achievements",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Catálogo, templates e vocabulário de condições das Conquistas.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}

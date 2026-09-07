@@ -1,0 +1,40 @@
+{
+  "name": "dungeon-master",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dungeon Master — plataforma pessoal de trabalho com agentes de IA.",
+  "license": "MIT",
+  "author": "Daniel Santos (daniel--santos)",
+  "type": "module",
+  "packageManager": "pnpm@10.18.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "gen": "turbo run gen",
+    "gen:check": "pnpm run gen && git diff --exit-code -- packages/api-client/openapi.json packages/api-client/src/schema.d.ts",
+    "db:generate": "pnpm --filter @dungeon-master/database run db:generate",
+    "db:migrate": "pnpm --filter @dungeon-master/database run db:migrate",
+    "db:seed": "pnpm --filter @dungeon-master/database run db:seed",
+    "db:check": "pnpm --filter @dungeon-master/database run db:check",
+    "dev:api": "pnpm --filter @dungeon-master/api run dev",
+    "dev:web": "pnpm --filter @dungeon-master/web run dev",
+    "dev:worker": "pnpm --filter @dungeon-master/worker run dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.5.0",
+    "eslint": "10.10.0",
+    "globals": "17.12.0",
+    "prettier": "3.9.6",
+    "turbo": "2.10.12",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.69.0"
+  }
+}
