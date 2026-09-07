@@ -1,0 +1,23 @@
+{
+  "name": "@dungeon-master/tooling-vitest",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Setup compartilhado do Vitest: isolamento de gitconfig por worker.",
+  "exports": {
+    "./git-isolation": "./git-isolation.ts"
+  },
+  "files": [
+    "git-isolation.ts"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "26.5.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}
