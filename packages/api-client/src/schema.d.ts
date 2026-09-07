@@ -555,7 +555,7 @@ export interface paths {
         };
         /**
          * O diário do Project
-         * @description Append-only, do registro mais recente para o mais antigo. Cada criação, edição e transição de status gravou uma linha aqui na mesma transação da mudança.
+         * @description Append-only, do registro mais recente para o mais antigo. Cada criação, edição e transição de status gravou uma linha aqui na mesma transação da mudança. Inclui também os fatos das Tasks que hoje pertencem ao Project, mesmo os anteriores a esse pertencimento: a captura promovida aparece desde a criação, e não a partir da promoção.
          */
         get: {
             parameters: {
@@ -620,7 +620,7 @@ export interface paths {
         };
         /**
          * Lista as Tasks
-         * @description Da última editada para a mais antiga. `status` aceita um valor ou vários, repetindo o parâmetro. `q` busca por trecho do título, sem diferenciar maiúsculas, e os curingas do SQL são escapados.
+         * @description Ordena por `sort` e `order`; sem eles, da última editada para a mais antiga. `sort=priority` ordena por urgência (URGENT, HIGH, MEDIUM, LOW) e não pelo alfabeto. `status` aceita um valor ou vários, repetindo o parâmetro. `q` busca por trecho do título, sem diferenciar maiúsculas, e os curingas do SQL são escapados.
          */
         get: {
             parameters: {
@@ -641,6 +641,10 @@ export interface paths {
                     status?: components["schemas"]["TaskStatus"] | components["schemas"]["TaskStatus"][];
                     /** @description Busca por trecho do título, sem diferenciar maiúsculas. */
                     q?: string;
+                    /** @description Campo de ordenação. Padrão: `updatedAt`. `priority` ordena por urgência (URGENT, HIGH, MEDIUM, LOW), não pelo alfabeto. */
+                    sort?: "updatedAt" | "createdAt" | "priority" | "title";
+                    /** @description Direção. Padrão: `desc`. */
+                    order?: "asc" | "desc";
                 };
                 header?: never;
                 path?: never;
@@ -1229,6 +1233,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/achievements/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * O catálogo de Conquistas
+         * @description Sem estado: catálogo é dado. Lido e validado uma vez no boot, a partir dos arquivos versionados de `@dungeon-master/achievements`. Não há progresso nem desbloqueio aqui — o Hall dos Heróis da Fase 1 mostra tudo como bloqueado. Uma entrada que não passa no schema não aparece em `definitions` nem em `templates`; ela sai em `invalid`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O catálogo inteiro. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AchievementCatalog"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1455,7 +1498,7 @@ export interface components {
          * @enum {string}
          */
         ActivityType: "project.created" | "project.updated" | "task.created" | "task.updated" | "task.status_changed" | "task.dependency_created" | "task.dependency_removed";
-        /** @description Uma página de Tasks, da última editada para a mais antiga. */
+        /** @description Uma página de Tasks, na ordem pedida por `sort` e `order`. */
         TaskPage: {
             /** @description Os itens desta página, na ordem da listagem. */
             items: components["schemas"]["Task"][];
@@ -1665,6 +1708,390 @@ export interface components {
              * @enum {string}
              */
             priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+        };
+        /** @description O catálogo versionado de Conquistas, já validado. */
+        AchievementCatalog: {
+            /** @description As Conquistas fixas, iguais para todos, na ordem do arquivo. */
+            definitions: components["schemas"]["AchievementDefinition"][];
+            /** @description Os templates, que ainda não são Conquistas de ninguém. */
+            templates: components["schemas"]["AchievementTemplate"][];
+            /** @description O que foi recusado na carga. Vazio quando o catálogo está íntegro. */
+            invalid: components["schemas"]["AchievementCatalogInvalidEntry"][];
+        };
+        /** @description Uma Conquista concreta. `name` e `description` vêm nas duas versões, `theme` e `plain`, para acompanhar o interruptor de tema; `flavor` só existe no tema. `condition` é o objeto validado do vocabulário fechado de predicados, não uma expressão. */
+        AchievementDefinition: {
+            key: string;
+            /** @enum {string} */
+            origin: "CATALOG" | "TEMPLATE" | "FORGED";
+            /** @enum {string} */
+            scope: "GLOBAL" | "PROJECT" | "HARNESS" | "AGENT" | "TASK";
+            name: {
+                theme: string;
+                plain: string;
+            };
+            description: {
+                theme: string;
+                plain: string;
+            };
+            flavor?: string;
+            icon: string;
+            /** @enum {string} */
+            rarity: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
+            hidden: boolean;
+            condition: {
+                /** @enum {string} */
+                predicate: "count";
+                /** @enum {string} */
+                source: "run.succeeded" | "run.failed" | "run.cancelled" | "task.completed" | "task.dependency_created" | "approval.granted" | "approval.rejected" | "knowledge_item.promoted" | "project.created";
+                filter?: {
+                    /** @enum {string} */
+                    "task.kind"?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+                    /** Format: uuid */
+                    "task.id"?: string;
+                    /** @enum {string} */
+                    "run.executionMode"?: "HOST" | "DOCKER";
+                    "run.harness"?: string;
+                    /** @enum {string} */
+                    "run.resumedFrom"?: "PRESENT" | "ABSENT";
+                    /** @enum {string} */
+                    "run.workflowVersionId"?: "PRESENT" | "ABSENT";
+                    /** Format: uuid */
+                    "project.id"?: string;
+                    /** Format: uuid */
+                    "agent.id"?: string;
+                    hourLocal?: {
+                        from: number;
+                        to: number;
+                    };
+                };
+                thresholds: number[];
+            } | {
+                /** @enum {string} */
+                predicate: "streak";
+                /** @enum {string} */
+                source: "run.succeeded" | "run.failed" | "run.cancelled" | "task.completed" | "task.dependency_created" | "approval.granted" | "approval.rejected" | "knowledge_item.promoted" | "project.created";
+                filter?: {
+                    /** @enum {string} */
+                    "task.kind"?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+                    /** Format: uuid */
+                    "task.id"?: string;
+                    /** @enum {string} */
+                    "run.executionMode"?: "HOST" | "DOCKER";
+                    "run.harness"?: string;
+                    /** @enum {string} */
+                    "run.resumedFrom"?: "PRESENT" | "ABSENT";
+                    /** @enum {string} */
+                    "run.workflowVersionId"?: "PRESENT" | "ABSENT";
+                    /** Format: uuid */
+                    "project.id"?: string;
+                    /** Format: uuid */
+                    "agent.id"?: string;
+                    hourLocal?: {
+                        from: number;
+                        to: number;
+                    };
+                };
+                length: number;
+            } | {
+                /** @enum {string} */
+                predicate: "first";
+                /** @enum {string} */
+                source: "run.succeeded" | "run.failed" | "run.cancelled" | "task.completed" | "task.dependency_created" | "approval.granted" | "approval.rejected" | "knowledge_item.promoted" | "project.created";
+                filter?: {
+                    /** @enum {string} */
+                    "task.kind"?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+                    /** Format: uuid */
+                    "task.id"?: string;
+                    /** @enum {string} */
+                    "run.executionMode"?: "HOST" | "DOCKER";
+                    "run.harness"?: string;
+                    /** @enum {string} */
+                    "run.resumedFrom"?: "PRESENT" | "ABSENT";
+                    /** @enum {string} */
+                    "run.workflowVersionId"?: "PRESENT" | "ABSENT";
+                    /** Format: uuid */
+                    "project.id"?: string;
+                    /** Format: uuid */
+                    "agent.id"?: string;
+                    hourLocal?: {
+                        from: number;
+                        to: number;
+                    };
+                };
+            } | {
+                /** @enum {string} */
+                predicate: "set";
+                /** @enum {string} */
+                source: "run.succeeded" | "run.failed" | "run.cancelled" | "task.completed" | "task.dependency_created" | "approval.granted" | "approval.rejected" | "knowledge_item.promoted" | "project.created";
+                filter?: {
+                    /** @enum {string} */
+                    "task.kind"?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+                    /** Format: uuid */
+                    "task.id"?: string;
+                    /** @enum {string} */
+                    "run.executionMode"?: "HOST" | "DOCKER";
+                    "run.harness"?: string;
+                    /** @enum {string} */
+                    "run.resumedFrom"?: "PRESENT" | "ABSENT";
+                    /** @enum {string} */
+                    "run.workflowVersionId"?: "PRESENT" | "ABSENT";
+                    /** Format: uuid */
+                    "project.id"?: string;
+                    /** Format: uuid */
+                    "agent.id"?: string;
+                    hourLocal?: {
+                        from: number;
+                        to: number;
+                    };
+                };
+                /** @enum {string} */
+                dimension: "task.kind" | "run.executionMode" | "run.harness" | "project.id" | "agent.id";
+                values: string[];
+            } | {
+                /** @enum {string} */
+                predicate: "record";
+                /** @enum {string} */
+                source: "run.succeeded" | "run.failed" | "run.cancelled" | "task.completed" | "task.dependency_created" | "approval.granted" | "approval.rejected" | "knowledge_item.promoted" | "project.created";
+                filter?: {
+                    /** @enum {string} */
+                    "task.kind"?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+                    /** Format: uuid */
+                    "task.id"?: string;
+                    /** @enum {string} */
+                    "run.executionMode"?: "HOST" | "DOCKER";
+                    "run.harness"?: string;
+                    /** @enum {string} */
+                    "run.resumedFrom"?: "PRESENT" | "ABSENT";
+                    /** @enum {string} */
+                    "run.workflowVersionId"?: "PRESENT" | "ABSENT";
+                    /** Format: uuid */
+                    "project.id"?: string;
+                    /** Format: uuid */
+                    "agent.id"?: string;
+                    hourLocal?: {
+                        from: number;
+                        to: number;
+                    };
+                };
+                /** @enum {string} */
+                metric: "run.durationMs";
+                /** @enum {string} */
+                direction: "max" | "min";
+                min?: number;
+            };
+            tiers?: string[];
+            tierRarities?: ("COMMON" | "RARE" | "EPIC" | "LEGENDARY")[];
+            provenance?: {
+                catalogVersion?: string;
+                templateKey?: string;
+                /** Format: uuid */
+                runId?: string;
+                /** Format: uuid */
+                taskId?: string;
+                /** Format: date-time */
+                createdAt?: string;
+            };
+        };
+        /** @description A forma que a aplicação instancia com os dados do usuário. `name` e `description` carregam pelo menos um placeholder `{project}`, `{harness}`, `{agent}` ou `{task}`; `instantiatedBy` diz o que a cria e `scopeFrom` diz por qual campo a condição é escopada. */
+        AchievementTemplate: {
+            key: string;
+            /** @enum {string} */
+            origin: "TEMPLATE";
+            /** @enum {string} */
+            scope: "GLOBAL" | "PROJECT" | "HARNESS" | "AGENT" | "TASK";
+            name: {
+                theme: string;
+                plain: string;
+            };
+            description: {
+                theme: string;
+                plain: string;
+            };
+            flavor?: string;
+            icon: string;
+            /** @enum {string} */
+            rarity: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
+            hidden: boolean;
+            condition: {
+                /** @enum {string} */
+                predicate: "count";
+                /** @enum {string} */
+                source: "run.succeeded" | "run.failed" | "run.cancelled" | "task.completed" | "task.dependency_created" | "approval.granted" | "approval.rejected" | "knowledge_item.promoted" | "project.created";
+                filter?: {
+                    /** @enum {string} */
+                    "task.kind"?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+                    /** Format: uuid */
+                    "task.id"?: string;
+                    /** @enum {string} */
+                    "run.executionMode"?: "HOST" | "DOCKER";
+                    "run.harness"?: string;
+                    /** @enum {string} */
+                    "run.resumedFrom"?: "PRESENT" | "ABSENT";
+                    /** @enum {string} */
+                    "run.workflowVersionId"?: "PRESENT" | "ABSENT";
+                    /** Format: uuid */
+                    "project.id"?: string;
+                    /** Format: uuid */
+                    "agent.id"?: string;
+                    hourLocal?: {
+                        from: number;
+                        to: number;
+                    };
+                };
+                thresholds: number[];
+            } | {
+                /** @enum {string} */
+                predicate: "streak";
+                /** @enum {string} */
+                source: "run.succeeded" | "run.failed" | "run.cancelled" | "task.completed" | "task.dependency_created" | "approval.granted" | "approval.rejected" | "knowledge_item.promoted" | "project.created";
+                filter?: {
+                    /** @enum {string} */
+                    "task.kind"?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+                    /** Format: uuid */
+                    "task.id"?: string;
+                    /** @enum {string} */
+                    "run.executionMode"?: "HOST" | "DOCKER";
+                    "run.harness"?: string;
+                    /** @enum {string} */
+                    "run.resumedFrom"?: "PRESENT" | "ABSENT";
+                    /** @enum {string} */
+                    "run.workflowVersionId"?: "PRESENT" | "ABSENT";
+                    /** Format: uuid */
+                    "project.id"?: string;
+                    /** Format: uuid */
+                    "agent.id"?: string;
+                    hourLocal?: {
+                        from: number;
+                        to: number;
+                    };
+                };
+                length: number;
+            } | {
+                /** @enum {string} */
+                predicate: "first";
+                /** @enum {string} */
+                source: "run.succeeded" | "run.failed" | "run.cancelled" | "task.completed" | "task.dependency_created" | "approval.granted" | "approval.rejected" | "knowledge_item.promoted" | "project.created";
+                filter?: {
+                    /** @enum {string} */
+                    "task.kind"?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+                    /** Format: uuid */
+                    "task.id"?: string;
+                    /** @enum {string} */
+                    "run.executionMode"?: "HOST" | "DOCKER";
+                    "run.harness"?: string;
+                    /** @enum {string} */
+                    "run.resumedFrom"?: "PRESENT" | "ABSENT";
+                    /** @enum {string} */
+                    "run.workflowVersionId"?: "PRESENT" | "ABSENT";
+                    /** Format: uuid */
+                    "project.id"?: string;
+                    /** Format: uuid */
+                    "agent.id"?: string;
+                    hourLocal?: {
+                        from: number;
+                        to: number;
+                    };
+                };
+            } | {
+                /** @enum {string} */
+                predicate: "set";
+                /** @enum {string} */
+                source: "run.succeeded" | "run.failed" | "run.cancelled" | "task.completed" | "task.dependency_created" | "approval.granted" | "approval.rejected" | "knowledge_item.promoted" | "project.created";
+                filter?: {
+                    /** @enum {string} */
+                    "task.kind"?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+                    /** Format: uuid */
+                    "task.id"?: string;
+                    /** @enum {string} */
+                    "run.executionMode"?: "HOST" | "DOCKER";
+                    "run.harness"?: string;
+                    /** @enum {string} */
+                    "run.resumedFrom"?: "PRESENT" | "ABSENT";
+                    /** @enum {string} */
+                    "run.workflowVersionId"?: "PRESENT" | "ABSENT";
+                    /** Format: uuid */
+                    "project.id"?: string;
+                    /** Format: uuid */
+                    "agent.id"?: string;
+                    hourLocal?: {
+                        from: number;
+                        to: number;
+                    };
+                };
+                /** @enum {string} */
+                dimension: "task.kind" | "run.executionMode" | "run.harness" | "project.id" | "agent.id";
+                values: string[];
+            } | {
+                /** @enum {string} */
+                predicate: "record";
+                /** @enum {string} */
+                source: "run.succeeded" | "run.failed" | "run.cancelled" | "task.completed" | "task.dependency_created" | "approval.granted" | "approval.rejected" | "knowledge_item.promoted" | "project.created";
+                filter?: {
+                    /** @enum {string} */
+                    "task.kind"?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+                    /** Format: uuid */
+                    "task.id"?: string;
+                    /** @enum {string} */
+                    "run.executionMode"?: "HOST" | "DOCKER";
+                    "run.harness"?: string;
+                    /** @enum {string} */
+                    "run.resumedFrom"?: "PRESENT" | "ABSENT";
+                    /** @enum {string} */
+                    "run.workflowVersionId"?: "PRESENT" | "ABSENT";
+                    /** Format: uuid */
+                    "project.id"?: string;
+                    /** Format: uuid */
+                    "agent.id"?: string;
+                    hourLocal?: {
+                        from: number;
+                        to: number;
+                    };
+                };
+                /** @enum {string} */
+                metric: "run.durationMs";
+                /** @enum {string} */
+                direction: "max" | "min";
+                min?: number;
+            };
+            tiers?: string[];
+            tierRarities?: ("COMMON" | "RARE" | "EPIC" | "LEGENDARY")[];
+            provenance?: {
+                catalogVersion?: string;
+                templateKey?: string;
+                /** Format: uuid */
+                runId?: string;
+                /** Format: uuid */
+                taskId?: string;
+                /** Format: date-time */
+                createdAt?: string;
+            };
+            /** @enum {string} */
+            instantiatedBy: "project" | "harness" | "agent" | "task.bug.reopened";
+            /** @enum {string} */
+            scopeFrom: "project.id" | "run.harness" | "agent.id" | "task.id";
+        };
+        /** @description Uma entrada do catálogo que não passou no schema e ficou de fora. */
+        AchievementCatalogInvalidEntry: {
+            /**
+             * @description De qual dos dois arquivos versionados a entrada veio.
+             * @enum {string}
+             */
+            source: "catalog" | "templates";
+            /** @description A chave, quando legível; nulo quando nem isso deu. */
+            key: string | null;
+            /** @description Posição na lista; nulo quando o arquivo inteiro falhou. */
+            index: number | null;
+            /** @description Resumo do primeiro problema, para log. */
+            error: string;
+            /** @description Todos os problemas encontrados. */
+            issues: components["schemas"]["AchievementCatalogIssue"][];
+        };
+        /** @description Um problema de validação do catálogo. */
+        AchievementCatalogIssue: {
+            /** @description Caminho do campo, com pontos. Vazio quando o problema é da raiz. */
+            path: string;
+            /** @description A mensagem do schema. */
+            message: string;
         };
     };
     responses: never;
