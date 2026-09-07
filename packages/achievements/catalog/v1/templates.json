@@ -3,12 +3,12 @@
     "key": "campaign_guardian",
     "origin": "TEMPLATE",
     "scope": "PROJECT",
-    "name": { "theme": "Guardião de {project}", "plain": "Veterano de {project}" },
+    "name": { "theme": "Guardião de {project}", "plain": "Veterano do projeto {project}" },
     "description": {
-      "theme": "Concluir Missões em {project} até que a Campanha não corra mais perigo.",
-      "plain": "Concluir tarefas no projeto {project}."
+      "theme": "Concluir 25 e depois 100 Missões em {project}, até a Campanha parar de pedir socorro.",
+      "plain": "Concluir 25 e 100 tarefas no projeto {project}."
     },
-    "flavor": "Toda Campanha acaba tendo alguém que aparece sempre que a coisa aperta.",
+    "flavor": "Existe um padrão nessa Campanha: quando alguma coisa desanda, é sempre o mesmo nome que aparece na lista. Você pode chamar isso de lealdade. O Dungeon Master chama de trabalho mal distribuído.",
     "icon": "shield",
     "rarity": "RARE",
     "hidden": true,
@@ -27,7 +27,7 @@
       "theme": "Vencer cinquenta Expedições ao lado da Guilda {harness}.",
       "plain": "Concluir cinquenta execuções bem-sucedidas com o harness {harness}."
     },
-    "flavor": "Depois da quinquagésima, já não é contrato: é convivência.",
+    "flavor": "Cinquenta Expedições com a mesma Guilda. A essa altura já não é escolha, é hábito, e hábito é apenas uma dependência que aprendeu a se comportar em público.",
     "icon": "handshake",
     "rarity": "RARE",
     "hidden": true,
@@ -41,10 +41,10 @@
     "scope": "TASK",
     "name": { "theme": "Nêmesis: {task}", "plain": "Bug reincidente resolvido: {task}" },
     "description": {
-      "theme": "Derrotar de vez o Monstro {task}, que já havia voltado mais de uma vez.",
+      "theme": "Derrotar em definitivo o Monstro {task}, já dado como morto duas vezes.",
       "plain": "Concluir o bug {task}, reaberto duas ou mais vezes."
     },
-    "flavor": "Ele voltou tantas vezes que já tinha nome próprio no Bestiário.",
+    "flavor": "Você já tinha declarado esse Monstro morto. Duas vezes. Com convicção. O Bestiário guardou as duas declarações e arquiva agora a terceira, que talvez seja a definitiva.",
     "icon": "skull",
     "rarity": "EPIC",
     "hidden": true,
@@ -65,7 +65,7 @@
       "theme": "Levar {agent} a cem Expedições vitoriosas.",
       "plain": "Acumular cem execuções bem-sucedidas com o agente {agent}."
     },
-    "flavor": "Cem portões atravessados. O centésimo primeiro já não assusta ninguém.",
+    "flavor": "Cem vitórias. A essa altura o Herói já não é convocado por mérito, e sim por reflexo: é o nome que a sua mão escolhe antes de o seu cérebro ter qualquer opinião a respeito.",
     "icon": "medal",
     "rarity": "EPIC",
     "hidden": true,
@@ -82,7 +82,7 @@
       "theme": "Sustentar a Expedição vitoriosa mais longa de {project}.",
       "plain": "Registrar a execução bem-sucedida mais longa do projeto {project}."
     },
-    "flavor": "A marca fica pendurada na parede até que alguém resolva superá-la.",
+    "flavor": "O recorde fica pendurado na parede até que alguém o supere. Tratando-se de duração, não é bem o tipo de marca que se persegue de propósito, mas o Hall não faz distinção e a moldura já está pronta.",
     "icon": "trophy",
     "rarity": "RARE",
     "hidden": true,
