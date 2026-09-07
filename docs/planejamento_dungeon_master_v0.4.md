@@ -343,10 +343,9 @@ Ter a aplicação completa subindo localmente em Windows e macOS, sem Docker par
 
 ### Pendências ao fechar a Fase 0 (07/09/2026)
 
-Entregue e verificado localmente no Windows em 07/09/2026, em três rodadas: esqueleto do monorepo, depois `packages/platform` + `tooling/vitest`, `packages/glossary` + `packages/achievements` e SSE + settings em paralelo. Fica pendente:
+Entregue e verificada em 07/09/2026, em três rodadas: esqueleto do monorepo, depois `packages/platform` + `tooling/vitest`, `packages/glossary` + `packages/achievements` e SSE + settings em paralelo. **CI verde em `windows-latest` e `macos-latest`** na terceira execução, após duas correções que só o runner revelou: o teto de tempo do teste de rajada de gitconfig no Windows, e o Postgres de teste iniciado por `pg_ctl` porque `postgres.exe` recusa rodar como administrador (o runner do Windows é administrador). Os testes de kill de grupo POSIX passaram no macOS. **Fase 0 fechada pelo critério de conclusão.** Fica pendente para as fases seguintes:
 
-- **CI nunca rodou**, porque não houve push. O critério de conclusão exige a matriz verde nos dois sistemas.
-- **macOS sem prova local**: os testes de kill de grupo POSIX (`packages/platform`) e o caso case-sensitive de `buildEnv` aparecem como pulados aqui e só o CI no macOS vai provar. O caso `linux` de `isInside` não roda em nenhuma perna da matriz.
+- O caso `linux` de `isInside` (`packages/platform`) não roda em nenhuma perna da matriz.
 - **`apps/web` sem testes**, rodando com `--passWithNoTests`; entra na Fase 1 com as primeiras telas.
 - **Marca d'água do poller de eventos**: o cursor avança até a maior `sequence` vista; duas transações concorrentes que commitassem fora de ordem poderiam pular a menor. Irrelevante na Fase 0 (produtores de uma inserção só); tarefa registrada na Fase 2B.
 - **Achados para todo o repositório**, já registrados no `CLAUDE.md`: o TypeScript 6 não inclui `@types/node` automaticamente (todo pacote com builtins precisa de `types: ["node"]`), e a regra de fronteira do ESLint precisa de `regex`, não de `group` com glob.
