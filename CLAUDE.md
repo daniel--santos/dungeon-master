@@ -153,6 +153,10 @@ Além disso, quando a mudança tocar cada área:
 - **Worker**: `pnpm dev:worker`, veja o log de boot e confirme o shutdown com Ctrl+C.
 - **Web**: `pnpm dev:web` e confira a tela afetada.
 
+Não rode `pnpm dev:web` e `pnpm --filter web e2e` ao mesmo tempo: os dois Vite disputam
+`node_modules/.vite` e o e2e quebra. Scripts e testes nunca importam o próprio pacote pelo
+nome (`@dungeon-master/<pacote>`): no CI o `typecheck` roda sem o `dist` do próprio pacote.
+
 Nunca declare algo pronto sem ter rodado o comando. Se um passo falhou, relate a falha
 com a saída, em vez de descrevê-lo como pendente.
 

@@ -710,6 +710,16 @@ Canvas: https://claude.ai/code/artifact/b39beab6-6089-4ca2-8027-0d2c60b1f3c8 (fo
 - **Cancelar uma Expedição abre um diálogo de confirmação** (AlertDialog), e a Expedição só vira Retirada depois de `ProcessTreeTerminated`. Decisão do usuário sobre a proposta de confirmar no segundo toque.
 - **"Retomar a Expedição"** aparece só quando a Guilda declara `resume` nas capabilities e um `harnessSessionId` foi capturado.
 
+## Andamento da Fase 2 (08/09/2026)
+
+Mergeadas e verdes no CI: 2A (modelo, banco, API), 2B (runtime e adapters de host; ADR em `packages/runtime-sandcastle/README.md`: os adapters não dependem do Sandcastle em runtime), o Worker (laço, reconciliação, cancelamento confirmado, shutdown gracioso, `resumeFromRunId`, marca d'água do poller) e as telas (cadastros, Nova Expedição com aceite do modo host, Expedições, Cristal de Visão com diário ao vivo e AlertDialog de cancelamento).
+
+Decisões aceitas na rodada das telas: o aceite do modo host fica em `user_setting` (`execution.hostAcknowledged`), revogável em Settings; lista e cockpit no mesmo commit por causa da árvore de rotas gerada.
+
+Em curso na terceira rodada: allow-list de comandos por política (o modo configurado precisa commitar sem bypass); UI do `workspacePath` do Project (sem ela nenhuma Expedição nasce pela interface); "Retomar a Expedição"; `GET /runs` com `harnessKey` e `taskTitle`; Docker (2C) com spike de autenticação antes de qualquer promessa; projetor de Conquistas (2.5B).
+
+Pendências conhecidas: commits só coletados em `GIT_WORKTREE`; `COPY` recusado; `ApprovalRequested` não é emitido por nenhuma CLI no modo não interativo (Fase 4); Pi sem permissão por ferramenta (enforcement `ADVISORY`); rodar `pnpm dev:web` e o e2e ao mesmo tempo disputa o cache do Vite.
+
 ## 2D — Observabilidade mínima de Run
 
 ```text
