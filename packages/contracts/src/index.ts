@@ -22,3 +22,4 @@ export * from "./execution-profile.js";
 export * from "./harness.js";
 export * from "./loadout.js";
 export * from "./run.js";
+export * from "./execution-event.js";

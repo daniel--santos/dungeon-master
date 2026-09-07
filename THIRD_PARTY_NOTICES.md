@@ -225,6 +225,71 @@ injeção, e o pacote roda inteiro em teste sem infraestrutura.
   `run_event` e no canal `dm_run_event`. Sem payload e `FOR EACH STATEMENT`, para um
   `INSERT` em lote de eventos de um Run acordar o drain uma vez.
 
+### Sandcastle — packages/runtime e runtime-sandcastle (Fase 2)
+
+#### `packages/runtime/src/bounded-tail.ts` e `bounded-tail.test.ts`
+
+- Origem: Sandcastle — `src/boundedTail.ts@e99f832` e o `.test.ts` ao lado
+- Copyright: (c) 2026 Matt Pocock. Licensed under the MIT License.
+- Modo: copiar
+- Fase: 2
+- Testes: `packages/runtime/src/bounded-tail.test.ts`, com os oito casos da origem
+- Changes: comentários traduzidos para o português e ampliados com o motivo nosso (a
+  cauda é o texto de onde o bloco `<result>` é extraído); `items.shift()!` virou uma
+  checagem explícita, porque `noUncheckedIndexedAccess` está ligado aqui. Nenhuma
+  mudança de comportamento. O arquivo não tinha import de `effect` para remover.
+
+#### `packages/runtime/src/structured-output.ts`
+
+- Origem: Sandcastle — `src/extractStructuredOutput.ts@e99f832` e
+  `src/run.ts@e99f832` (`buildStructuredOutputRetryFeedback`)
+- Copyright: (c) 2026 Matt Pocock. Licensed under the MIT License.
+- Modo: adaptar
+- Fase: 2
+- Testes: `packages/runtime/src/structured-output.test.ts`
+- Changes: a extração deixou de lançar `StructuredOutputError` e passou a devolver um
+  resultado discriminado, porque o runtime nunca lança para o consumidor — toda falha
+  vira `ExecutionEvent`. A validação passou a aceitar qualquer Standard Schema pela
+  interface mínima declarada em `standard-schema.ts`, sem depender de
+  `@standard-schema/spec`. A montagem da instrução do prompt passou a viver aqui; no
+  original, `run()` apenas verifica se a tag aparece no prompt de quem chamou. O
+  contexto de commits, branch e worktree saiu do erro: aqui isso vive no evento. A regra
+  "última ocorrência vence" e o desembrulho de cerca de código são do original.
+
+#### `packages/runtime/src/workspace.ts` (par de flags do `worktree add`)
+
+- Origem: Sandcastle — `src/WorktreeManager.ts@e99f832` (`NO_CONFIG_LOCK_FLAGS`)
+- Copyright: (c) 2026 Matt Pocock. Licensed under the MIT License.
+- Modo: ler (reimplementado)
+- Fase: 2
+- Testes: `packages/runtime/src/workspace.test.ts`
+- Changes: só a ideia veio — `-c branch.autoSetupMerge=false -c push.autoSetupRemote=false`
+  evita que o `worktree add` escreva em `.git/config` e dispute o `.git/config.lock` com
+  outra criação concorrente. O resto do `WorktreeManager` não foi copiado: a nossa
+  localização de worktree, a nomeação por Run e a política de preservação são outras, e
+  a trava por par (repositório, caminho) vive no PostgreSQL.
+
+#### `packages/runtime-sandcastle/src/claude-code.ts`, `codex.ts` e `pi.ts`
+
+- Origem: Sandcastle — `src/AgentProvider.ts@e99f832` (providers `claudeCode`, `codex` e
+  `pi`, com `parseStreamJsonLine`, `parseCodexStreamLine`, `parsePiStreamLine`,
+  `parseCodexUsage` e `parseSessionUsage`)
+- Copyright: (c) 2026 Matt Pocock. Licensed under the MIT License.
+- Modo: ler (reimplementado com a mesma estrutura)
+- Fase: 2
+- Testes: `packages/runtime-sandcastle/src/parsers.test.ts`, com linhas reais das três
+  CLIs capturadas em 07/09/2026, e a suíte de contrato em `contract.test.ts`
+- Changes: o argv deixou de ser uma linha de comando de shell montada por concatenação e
+  virou array, porque este projeto nunca usa shell (CLAUDE.md, seção 8) e o `shellEscape`
+  do original usa aspas simples, que o `cmd.exe` não reconhece. Os parsers deixaram de
+  descartar as ferramentas fora de uma allow-list de quatro nomes e passaram a traduzir
+  todas, mais `tool_result`, `Artifact` e permissão negada; no Pi a comparação do
+  original é contra nomes em maiúsculas e a CLI emite em minúsculas, de modo que nenhuma
+  chamada de ferramenta sobrevivia. O bypass de permissões deixou de ser o padrão e
+  passou a exigir política explícita. `codex exec fork` não existe na CLI 0.147.0, então
+  `forkSession` é `false` em vez de prometido. O raciocínio de qual flag usar, qual linha
+  traz o id de sessão e como mapear o consumo de tokens de cada harness é do original.
+
 ## Licença deste projeto
 
 Dungeon Master é distribuído sob a licença MIT. Veja [`LICENSE`](./LICENSE).

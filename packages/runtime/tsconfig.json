@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // O pacote vive de builtins do Node (processo, caminho, timers) e o
+    // TypeScript 6 não puxa `@types/node` sozinho (CLAUDE.md, seção 7).
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}
