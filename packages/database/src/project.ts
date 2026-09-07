@@ -3,8 +3,9 @@ import type {
   ProjectDetail,
   ProjectStatus,
   TaskStatusCounts,
+  WorkspaceKind,
 } from "@dungeon-master/contracts";
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 
 import type { Database } from "./client.js";
 import type { DatabaseExecutor } from "./dashboard-event.js";
@@ -20,6 +21,8 @@ export function toProject(row: ProjectRow): Project {
     title: row.title,
     description: row.description,
     status: row.status,
+    workspaceKind: row.workspaceKind,
+    workspacePath: row.workspacePath,
     archivedAt: row.archivedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -52,10 +55,19 @@ export interface ListProjectsInput extends PageInput {
   status?: ProjectStatus | undefined;
 }
 
+/**
+ * A listagem, já com a contagem de Tasks por estado.
+ *
+ * A contagem vem numa **segunda consulta agregada** sobre os ids da página, e
+ * não numa leitura por linha: a tela mostra os números em toda carta, e vinte
+ * Projects viravam vinte requisições (pendência registrada no fechamento da
+ * Fase 1). Também não vem por `LEFT JOIN` com `GROUP BY` na mesma consulta, que
+ * obrigaria a paginar sobre o resultado agregado e quebraria o `LIMIT`.
+ */
 export async function listProjects(
   db: DatabaseExecutor,
   input: ListProjectsInput,
-): Promise<PageResult<Project>> {
+): Promise<PageResult<ProjectDetail>> {
   const conditions = [eq(projects.userId, input.userId)];
   if (input.status !== undefined) conditions.push(eq(projects.status, input.status));
   const where = and(...conditions);
@@ -70,7 +82,48 @@ export async function listProjects(
 
   const [counted] = await db.select({ total: count() }).from(projects).where(where);
 
-  return { items: rows.map(toProject), total: counted?.total ?? 0 };
+  const contagens = await countTasksByStatusForProjects(db, {
+    userId: input.userId,
+    projectIds: rows.map((row) => row.id),
+  });
+
+  return {
+    items: rows.map((row) => ({
+      ...toProject(row),
+      taskCounts: contagens.get(row.id) ?? zeroedTaskCounts(),
+    })),
+    total: counted?.total ?? 0,
+  };
+}
+
+/**
+ * A contagem por estado de vários Projects de uma vez.
+ *
+ * Um `GROUP BY (project_id, status)` restrito aos ids da página: uma consulta
+ * cobre a página inteira, e Projects sem Task nenhuma simplesmente não
+ * aparecem no resultado — quem chama completa com zeros.
+ */
+export async function countTasksByStatusForProjects(
+  db: DatabaseExecutor,
+  input: { userId: string; projectIds: readonly string[] },
+): Promise<Map<string, TaskStatusCounts>> {
+  const contagens = new Map<string, TaskStatusCounts>();
+  if (input.projectIds.length === 0) return contagens;
+
+  const rows = await db
+    .select({ projectId: tasks.projectId, status: tasks.status, total: count() })
+    .from(tasks)
+    .where(and(eq(tasks.userId, input.userId), inArray(tasks.projectId, [...input.projectIds])))
+    .groupBy(tasks.projectId, tasks.status);
+
+  for (const row of rows) {
+    if (row.projectId === null) continue;
+    const atual = contagens.get(row.projectId) ?? zeroedTaskCounts();
+    atual[row.status] = row.total;
+    contagens.set(row.projectId, atual);
+  }
+
+  return contagens;
 }
 
 /** A linha crua, já escopada pelo usuário. Base de toda checagem de posse. */
@@ -147,13 +200,24 @@ export async function createProject(db: Database, input: CreateProjectInput): Pr
   });
 }
 
+export interface UpdateProjectPatch {
+  title?: string;
+  description?: string | null;
+  workspaceKind?: WorkspaceKind;
+  /**
+   * Caminho absoluto já normalizado pela API com `normalizeAbsolutePath`.
+   *
+   * A normalização e a checagem de existência ficam na borda, e não aqui: o
+   * repositório não conhece o sistema de arquivos, e um caminho relativo ou
+   * inexistente precisa virar `400` com a explicação, não uma linha gravada.
+   */
+  workspacePath?: string | null;
+}
+
 export interface UpdateProjectInput {
   userId: string;
   projectId: string;
-  patch: {
-    title?: string;
-    description?: string | null;
-  };
+  patch: UpdateProjectPatch;
 }
 
 /**
@@ -172,7 +236,7 @@ export async function updateProject(
     if (current === null) return null;
 
     const changed: string[] = [];
-    const values: { title?: string; description?: string | null } = {};
+    const values: UpdateProjectPatch = {};
 
     if (input.patch.title !== undefined && input.patch.title !== current.title) {
       values.title = input.patch.title;
@@ -181,6 +245,20 @@ export async function updateProject(
     if (input.patch.description !== undefined && input.patch.description !== current.description) {
       values.description = input.patch.description;
       changed.push("description");
+    }
+    if (
+      input.patch.workspaceKind !== undefined &&
+      input.patch.workspaceKind !== current.workspaceKind
+    ) {
+      values.workspaceKind = input.patch.workspaceKind;
+      changed.push("workspaceKind");
+    }
+    if (
+      input.patch.workspacePath !== undefined &&
+      input.patch.workspacePath !== current.workspacePath
+    ) {
+      values.workspacePath = input.patch.workspacePath;
+      changed.push("workspacePath");
     }
 
     // Um PATCH que não muda nada não vira linha no diário: o diário conta o que

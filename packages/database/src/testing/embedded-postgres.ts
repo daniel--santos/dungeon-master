@@ -34,6 +34,7 @@ import { Client } from "pg";
 import { createDatabase } from "../client.js";
 import { runMigrations } from "../migrate.js";
 import { seedLocalUser } from "../seed.js";
+import { seedExecutionRegistry } from "../seed-execution.js";
 
 const TEST_USER = "dungeon";
 const TEST_PASSWORD = "dungeon";
@@ -282,7 +283,11 @@ export async function startTestPostgres(
 
     const handle = createDatabase({ url: databaseUrl, max: 1, applicationName: "vitest-seed" });
     try {
-      await seedLocalUser(handle.db);
+      // Os cadastros fechados entram junto do usuário local: sem Harness e sem
+      // ExecutionProfile nenhum Loadout pode ser criado, e um teste de execução
+      // começaria montando à mão o vocabulário que o `db:seed` já define.
+      const { userId } = await seedLocalUser(handle.db);
+      await seedExecutionRegistry(handle.db, { userId });
     } finally {
       await handle.close();
     }
