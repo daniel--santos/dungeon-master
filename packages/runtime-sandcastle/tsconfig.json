@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    // O pacote lê PATH, PATHEXT e arquivos de shim; o TypeScript 6 não puxa
+    // `@types/node` sozinho (CLAUDE.md, seção 7).
+    "types": ["node"]
+  },
+  // `scripts/` entra na verificação de tipos, mas não na compilação: a
+  // demonstração precisa ser checada como o resto do código, e `rootDir` mora
+  // só no tsconfig de build por isso.
+  "include": ["src/**/*.ts", "scripts/**/*.ts"]
+}

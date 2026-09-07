@@ -76,6 +76,13 @@ export interface HarnessContractSuiteOptions {
   /** Nome que aparece no `describe`. */
   readonly name: string;
   createAdapter(): HarnessAdapter | Promise<HarnessAdapter>;
+  /**
+   * Roda a suíte? Padrão: `true`.
+   *
+   * É por aqui que os adapters reais somem no CI e nas máquinas sem a CLI
+   * instalada, sem que a suíte precise saber o que é uma CLI.
+   */
+  readonly enabled?: boolean;
   readonly model?: ModelRef;
   readonly prompts?: Partial<ContractPrompts>;
   /** Casos pulados, com o motivo. Aparece no nome do teste. */
@@ -102,7 +109,7 @@ export function harnessContractSuite(options: HarnessContractSuiteOptions): void
   const completionMs = options.completionMs ?? 110_000;
   const cancelAfterMs = options.cancelAfterMs ?? 2_000;
 
-  describe(`contrato de harness: ${options.name}`, () => {
+  describe.skipIf(options.enabled === false)(`contrato de harness: ${options.name}`, () => {
     let adapter: HarnessAdapter;
     let runtime: AgentRuntime;
     let workdir: string;
