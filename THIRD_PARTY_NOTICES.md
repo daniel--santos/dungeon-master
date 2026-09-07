@@ -50,11 +50,53 @@ Cada arquivo importado recebe uma entrada nesta seção, no formato abaixo.
 - Changes: <resumo das adaptações>
 ```
 
-_Nenhuma entrada até o momento._ A Fase 0 do esqueleto do monorepo não copiou código
-de terceiros. Os itens de Fase 0 do manifesto (terminação de árvore de processos e
-validação de caminho do Archon, isolamento de gitconfig do Sandcastle, transport SSE
-e poller adaptados para Hono, regra de lint do frontend) entram junto com
-`packages/platform`, `packages/events` e o SSE da API.
+Os demais itens de Fase 0 do manifesto (transport SSE e poller adaptados para Hono,
+gatilho de NOTIFY, regra de lint do frontend) entram junto com `packages/events` e o
+SSE da API.
+
+### Archon — packages/platform
+
+#### `packages/platform/src/process-tree.ts`
+
+- Origem: Archon — `packages/cli/src/utils/detached-run-control.ts@0773b97`, linhas 454–572
+- Copyright: (c) 2026 Cole Medin. Licensed under the MIT License.
+- Modo: adaptar (extrair)
+- Fase: 0
+- Changes: extraídos só `processExists`, `waitUntilGone`, `processGroupExists`,
+  `commandTerminatedBySignal` e a terminação por sistema operacional; o IPC por socket
+  e a lease de execução, que são o resto do arquivo, não vieram.
+  `terminateDetachedProcessTree` virou `terminateProcessTree` e devolve
+  `TerminationResult` em vez de lançar: o contrato passou a ser nunca lançar por causa
+  do alvo, vivo ou morto, e lançar só por argumento inválido. As esperas viraram
+  parâmetros (`graceMs`, `confirmMs`). No POSIX, um alvo que não lidera grupo nenhum
+  deixou de ser erro e passa a ser sinalizado sozinho. Mensagens em português.
+
+#### `packages/platform/src/path-validation.ts` e `path-validation.test.ts`
+
+- Origem: Archon — `packages/core/src/utils/path-validation.ts@0773b97` e o `.test.ts` ao lado
+- Copyright: (c) 2026 Cole Medin. Licensed under the MIT License.
+- Modo: adaptar
+- Fase: 0
+- Changes: a raiz permitida deixou de vir de `@archon/paths` e virou o primeiro
+  argumento, porque aqui a restrição é por working directory de Run e não por um
+  diretório global; `isPathWithinWorkspace` virou `isPathWithinRoot`. A comparação
+  passou a ser case-insensitive no Windows e no macOS, onde o sistema de arquivos é
+  case-insensitive por padrão. Acrescentados `normalizeAbsolutePath`, `isInside` e
+  `samePath`. No teste, `bun:test` virou Vitest, os casos deixaram de depender de
+  variáveis de ambiente do Archon e os caminhos literais POSIX viraram caminhos válidos
+  no sistema que estiver rodando, para o mesmo arquivo servir Windows e macOS.
+
+### Sandcastle
+
+#### `tooling/vitest/git-isolation.ts`
+
+- Origem: Sandcastle — `src/testSetup.ts@e99f832`
+- Copyright: (c) 2026 Matt Pocock. Licensed under the MIT License.
+- Modo: copiar
+- Fase: 0
+- Changes: comentários traduzidos para o português; nenhuma mudança de comportamento.
+  O arquivo não tinha import de `effect` para remover. O teste que prova o isolamento
+  (`tooling/vitest/test/`) é nosso: o original não tinha um.
 
 ## Licença deste projeto
 

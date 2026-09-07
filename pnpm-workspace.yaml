@@ -1,6 +1,10 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # Ferramental compartilhado que não é publicado: setup do Vitest, geração de
+  # OpenAPI, matriz de CI. Pastas sem `package.json` (como `tooling/windows`)
+  # são ignoradas pelo pnpm.
+  - "tooling/*"
 
 # Scripts de instalação permitidos. O pnpm 10 bloqueia postinstall por padrão.
 # `@embedded-postgres/*` traz os binários do PostgreSQL usados nos testes e

@@ -2,7 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    // O TypeScript 6 não inclui mais sozinho todo `@types` visível. Este é o
+    // único pacote que vive de builtins do Node, então declara o que usa.
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"]
 }

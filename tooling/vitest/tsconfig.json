@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Pacote de setup: nunca é compilado para `dist`, o Vitest transforma o TS
+    // na hora. O `types` é explícito porque o TypeScript 6 não inclui mais
+    // sozinho todo `@types` visível.
+    "types": ["node"]
+  },
+  "include": ["git-isolation.ts", "test/**/*.ts", "vitest.config.ts"]
+}
