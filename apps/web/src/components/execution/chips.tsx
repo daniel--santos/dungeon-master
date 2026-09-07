@@ -41,12 +41,19 @@ export function RunStatusChip({ status, className }: { status: RunStatus; classN
 export function EnforcementText({
   level,
   className,
+  /** Só o identificador canônico, para linhas estreitas onde o label não cabe. */
+  compact = false,
 }: {
   level: EnforcementLevel;
   className?: string;
+  compact?: boolean;
 }) {
   const { t } = useGlossary();
   const { label, canonical, className: tone } = ENFORCEMENT[level];
+
+  if (compact) {
+    return <code className={cn("font-mono text-[11px]", tone, className)}>{canonical}</code>;
+  }
 
   return (
     <span className={cn("inline-flex items-center gap-1.5", className)}>

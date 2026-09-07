@@ -115,9 +115,16 @@ export function Timeline({ state, filter, onFilterChange, live }: TimelineProps)
 
           {rows.length === 0 && (
             <p className="text-muted-foreground px-1 py-6 text-sm">
-              {state.replayDone
-                ? format("Nenhum evento com esse filtro.", {})
-                : format("Lendo o {timeline}…", { timeline: t("run.timeline") })}
+              {!state.replayDone
+                ? format("Lendo o {timeline}…", { timeline: t("run.timeline") })
+                : state.events.length > 0
+                  ? "Nenhum evento com esse filtro."
+                  : live
+                    ? format(
+                        "Nenhum evento ainda. A primeira linha aparece quando o {worker} tirar esta {run} da fila.",
+                        { worker: t("infra.worker"), run: t("entity.run") },
+                      )
+                    : "Esta execução não registrou nenhum evento."}
             </p>
           )}
 
@@ -185,7 +192,7 @@ export function Timeline({ state, filter, onFilterChange, live }: TimelineProps)
         <div className="flex-1" />
 
         {live && (
-          <label className="flex cursor-pointer items-center gap-2 text-[12.5px]">
+          <label className="flex flex-none cursor-pointer items-center gap-2 text-[12.5px] whitespace-nowrap">
             <Switch
               aria-label="Seguir ao vivo"
               checked={follow}

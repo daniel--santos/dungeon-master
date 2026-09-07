@@ -2,6 +2,7 @@ import { Check, CircleStop, Copy, Cpu } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { EnforcementText } from "@/components/execution/chips";
+import { ENFORCEMENT } from "@/lib/execution-domain";
 import { Panel } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import type { RunRecord } from "@/lib/api-types";
@@ -20,7 +21,7 @@ const NUMBER = new Intl.NumberFormat("pt-BR");
  * ficam vazias enquanto ele não rodou — em vez de fingir um valor.
  */
 export function RuntimeCard({ run }: { run: RunRecord }) {
-  const { t } = useGlossary();
+  const { t, format } = useGlossary();
   const snapshot = run.loadoutSnapshot;
   const profile = run.executionProfileSnapshot;
   const usage = run.result?.usage;
@@ -66,10 +67,12 @@ export function RuntimeCard({ run }: { run: RunRecord }) {
         <code className="text-muted-foreground font-mono text-[11px]">advisory</code>
       </MetaRow>
       <MetaRow label={t("enforcement.applied")}>
-        <EnforcementText className="text-[11px]" level={profile.enforcement} />
+        <EnforcementText compact level={profile.enforcement} />
       </MetaRow>
       <p className="text-muted-foreground m-0 text-[11px] leading-4">
-        A política do perfil é um pedido. Quem barra de fato é quem o nível de enforcement diz.
+        {format("A política do perfil é um pedido. Quem barra de fato é {level}.", {
+          level: t(ENFORCEMENT[profile.enforcement].label).toLowerCase(),
+        })}
       </p>
     </Panel>
   );
