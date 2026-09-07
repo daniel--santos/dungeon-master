@@ -59,4 +59,9 @@ try {
   await postgres.stop();
 }
 
-process.exit(stopping && exitCode === 0 ? 1 : exitCode);
+const status = stopping && exitCode === 0 ? 1 : exitCode;
+
+// Os dois: `exitCode` sobrevive a qualquer hook de saída instalado por
+// dependência, e `exit` garante que um handle esquecido não segure o processo.
+process.exitCode = status;
+process.exit(status);
