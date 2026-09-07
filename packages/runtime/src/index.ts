@@ -22,3 +22,5 @@ export * from "./process.js";
 export * from "./registry.js";
 export * from "./standard-schema.js";
 export * from "./types.js";
+export * from "./workspace.js";
+export * from "./workspace-resolver.js";
