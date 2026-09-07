@@ -21,6 +21,9 @@ const WEB_BOUNDARY_MESSAGE =
 const DOMAIN_BOUNDARY_MESSAGE =
   "Fronteira: packages/domain não importa infraestrutura (banco, ORM, HTTP, logger, runtime, builtins do Node).";
 
+const PLATFORM_BOUNDARY_MESSAGE =
+  "Fronteira: packages/platform importa somente builtins do Node (node:*) e módulos do próprio pacote.";
+
 export default tseslint.config(
   {
     ignores: [
@@ -140,6 +143,33 @@ export default tseslint.config(
                 "**/apps/**",
               ],
               message: DOMAIN_BOUNDARY_MESSAGE,
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // --------------------------------------------------------- packages/platform
+  //
+  // O pacote é a casa de todo código que depende do sistema operacional, e a
+  // única forma de ele continuar sendo isso é não podendo importar mais nada:
+  // só builtins do Node e módulos do próprio pacote. Sem dependência de
+  // terceiro, sem pacote do workspace, sem atravessar para `apps/`.
+  //
+  // `regex` e não `group`: a sintaxe de `group` é a do gitignore, onde `*` e
+  // `**` já pegam o caminho relativo inteiro e as negações não conseguem
+  // devolvê-lo. Com regex a regra fica literal: passa `node:` e passa `./`.
+  {
+    files: ["packages/platform/src/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(?!node:|\\./)",
+              message: PLATFORM_BOUNDARY_MESSAGE,
             },
           ],
         },
