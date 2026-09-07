@@ -65,6 +65,15 @@ Aplicadas pelo ESLint em `eslint.config.mjs`. Quebrar qualquer uma falha em `pnp
   builtins do Node. O domínio computa; a infraestrutura entra por injeção de contrato.
 - **`packages/runtime`** (quando existir) não importa `packages/database`; recebe o store
   por contrato.
+- **`packages/glossary` e `packages/achievements`** são puros: só `zod` e `node:*`.
+- **`packages/platform`** importa somente builtins do Node e módulos do próprio pacote.
+- **`packages/events`** não depende de Hono nem de `pg`: writer, fonte e notificador entram
+  por injeção.
+
+Ao escrever uma regra nova, use `@typescript-eslint/no-restricted-imports` com `regex`, e
+não `group` com glob: na sintaxe do gitignore, `*` e `**` casam o caminho relativo inteiro e
+as negações não o devolvem. Prove que a regra dispara com um arquivo de sondagem e apague a
+sondagem antes de commitar.
 
 Antes de adicionar uma dependência entre pacotes, verifique se ela não atravessa uma
 dessas linhas. Se atravessar, o certo é inverter a dependência, não relaxar a regra.
@@ -144,6 +153,10 @@ com a saída, em vez de descrevê-lo como pendente.
   adicione-o a `onlyBuiltDependencies` em `pnpm-workspace.yaml`, com um comentário
   dizendo por quê.
 - Antes de adicionar uma biblioteca, verifique se ela funciona em Windows **e** macOS.
+- **TypeScript 6 não inclui `@types/node` sozinho.** Todo pacote que usa builtins ou globais
+  do Node (`process`, `setTimeout`, `Buffer`) precisa de `"types": ["node"]` no seu
+  `tsconfig.json`, mesmo com `@types/node` em `devDependencies`. Sem isso o erro só aparece
+  quando outra dependência deixa de trazer a referência por acaso.
 
 ## 8. Plataformas
 

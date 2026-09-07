@@ -318,28 +318,38 @@ Ter a aplicação completa subindo localmente em Windows e macOS, sem Docker par
 
 ### Entregas
 
-- [ ] Criar monorepo TypeScript com pnpm e Turborepo
-- [ ] Criar `apps/web` (React 19 + Vite + Tailwind + shadcn + TanStack Router)
-- [ ] Criar `apps/api` (Hono + zod-openapi)
-- [ ] Criar `apps/worker`
-- [ ] PostgreSQL 17 via `docker compose up db` para desenvolvimento; `embedded-postgres` nos testes e no CI
-- [ ] Configurar Drizzle e migrações versionadas, com check de divergência no CI
-- [ ] Criar `packages/contracts` com os primeiros schemas Zod
-- [ ] Pipeline de geração: `openapi.json` → `packages/api-client`, com check de diff no CI
-- [ ] Regras de lint de fronteira entre pacotes
-- [ ] Criar `packages/platform` com kill de árvore de processos (Windows e macOS), normalização de caminho e spawn sem shell, com testes nas duas plataformas
-- [ ] Criar `THIRD_PARTY_NOTICES.md` e importar os itens de Fase 0 do manifesto (seção 13): terminação de processo e validação de caminho do Archon, isolamento de gitconfig do Sandcastle, transport SSE e poller adaptados para Hono, regra de lint do frontend
-- [ ] Nomear o monorepo `dungeon-master` e o escopo de pacotes `@dungeon-master/*`; mover este planejamento e o documento técnico para `docs/`
-- [ ] Criar `packages/glossary` com dois glossários de chaves idênticas, `dnd` e `plain` (seção 14), paridade de chaves verificada em tempo de tipo, e um teste que falha se a Web renderizar um label de entidade fora do glossário ativo
-- [ ] Criar a tabela `user_setting` (chave/valor JSONB) e o endpoint de configurações, onde a preferência de tema é guardada
-- [ ] Criar `packages/achievements` apenas com o schema Zod de definição de Conquista, o vocabulário fechado de condições e o catálogo fixo v1 como dados JSON validados no CI; sem projetor ainda (Fase 2.5)
-- [ ] Configurar logging estruturado
-- [ ] Configurar health checks
-- [ ] Implementar SSE entre API e Web, com timeouts do servidor Node configurados e reconexão por cursor
-- [ ] Definir padrão de erros
-- [ ] Criar testes unitários base
-- [ ] CI com matriz `windows-latest` + `macos-latest` rodando lint, typecheck, testes e checks de artefatos gerados
-- [ ] Documentação de desenvolvimento local para os dois sistemas
+- [x] Criar monorepo TypeScript com pnpm e Turborepo
+- [x] Criar `apps/web` (React 19 + Vite + Tailwind + shadcn + TanStack Router)
+- [x] Criar `apps/api` (Hono + zod-openapi)
+- [x] Criar `apps/worker`
+- [x] PostgreSQL 17 via `docker compose up db` para desenvolvimento; `embedded-postgres` nos testes e no CI
+- [x] Configurar Drizzle e migrações versionadas, com check de divergência no CI
+- [x] Criar `packages/contracts` com os primeiros schemas Zod
+- [x] Pipeline de geração: `openapi.json` → `packages/api-client`, com check de diff no CI
+- [x] Regras de lint de fronteira entre pacotes
+- [x] Criar `packages/platform` com kill de árvore de processos (Windows e macOS), normalização de caminho e spawn sem shell, com testes nas duas plataformas
+- [x] Criar `THIRD_PARTY_NOTICES.md` e importar os itens de Fase 0 do manifesto (seção 13): terminação de processo e validação de caminho do Archon, isolamento de gitconfig do Sandcastle, transport SSE e poller adaptados para Hono, regra de lint do frontend
+- [x] Nomear o monorepo `dungeon-master` e o escopo de pacotes `@dungeon-master/*`; mover este planejamento e o documento técnico para `docs/`
+- [x] Criar `packages/glossary` com dois glossários de chaves idênticas, `dnd` e `plain` (seção 14), paridade de chaves verificada em tempo de tipo, e um teste que falha se a Web renderizar um label de entidade fora do glossário ativo
+- [x] Criar a tabela `user_setting` (chave/valor JSONB) e o endpoint de configurações, onde a preferência de tema é guardada
+- [x] Criar `packages/achievements` apenas com o schema Zod de definição de Conquista, o vocabulário fechado de condições e o catálogo fixo v1 como dados JSON validados no CI; sem projetor ainda (Fase 2.5)
+- [x] Configurar logging estruturado
+- [x] Configurar health checks
+- [x] Implementar SSE entre API e Web, com timeouts do servidor Node configurados e reconexão por cursor
+- [x] Definir padrão de erros
+- [x] Criar testes unitários base
+- [x] CI com matriz `windows-latest` + `macos-latest` rodando lint, typecheck, testes e checks de artefatos gerados
+- [x] Documentação de desenvolvimento local para os dois sistemas
+
+### Pendências ao fechar a Fase 0 (07/09/2026)
+
+Entregue e verificado localmente no Windows em 07/09/2026, em três rodadas: esqueleto do monorepo, depois `packages/platform` + `tooling/vitest`, `packages/glossary` + `packages/achievements` e SSE + settings em paralelo. Fica pendente:
+
+- **CI nunca rodou**, porque não houve push. O critério de conclusão exige a matriz verde nos dois sistemas.
+- **macOS sem prova local**: os testes de kill de grupo POSIX (`packages/platform`) e o caso case-sensitive de `buildEnv` aparecem como pulados aqui e só o CI no macOS vai provar. O caso `linux` de `isInside` não roda em nenhuma perna da matriz.
+- **`apps/web` sem testes**, rodando com `--passWithNoTests`; entra na Fase 1 com as primeiras telas.
+- **Marca d'água do poller de eventos**: o cursor avança até a maior `sequence` vista; duas transações concorrentes que commitassem fora de ordem poderiam pular a menor. Irrelevante na Fase 0 (produtores de uma inserção só); tarefa registrada na Fase 2B.
+- **Achados para todo o repositório**, já registrados no `CLAUDE.md`: o TypeScript 6 não inclui `@types/node` automaticamente (todo pacote com builtins precisa de `types: ["node"]`), e a regra de fronteira do ESLint precisa de `regex`, não de `group` com glob.
 
 ### Critério de conclusão
 
@@ -505,7 +515,8 @@ writeTerminalStatus(runId, status) // falha vira TerminalStatusWriteError: nenhu
 - [ ] **Structured output via Sandcastle Output**, com o schema `TaskExecutionResult` já definido em `packages/contracts`
 - [ ] Persistência de eventos com os dois contratos de escrita
 - [ ] Sanitização de credenciais em todo payload de evento, com o sanitizador do Archon (seção 13.2)
-- [ ] Streaming SSE para a interface via NOTIFY + drain
+- [ ] Streaming SSE para a interface via NOTIFY + drain (base entregue na Fase 0: `packages/events`, `dashboard_event`, `GET /api/v1/events/stream`)
+- [ ] Marca d'água no poller de eventos: o cursor só avança até a primeira lacuna de `sequence`, para que transações concorrentes que commitem fora de ordem não sejam puladas (risco registrado ao fechar a Fase 0)
 - [ ] Tela de execução ao vivo (Run Cockpit, "Cristal de Visão" no tema)
 - [ ] Canal de dashboard no SSE para eventos fora de um Run (desbloqueio de Conquista, stats de herói), no padrão do canal de dashboard do Archon
 - [ ] Testes de contrato de harness rodando na matriz Windows + macOS
@@ -1279,8 +1290,8 @@ Também como processo, adaptados ao nosso repositório: o questionário de `docs
 | `packages/core/src/utils/path-validation.ts` + `.test.ts` | 46 | Copiar | `packages/platform/src/path-validation.ts` | 0 | Restrição de working directory |
 | `packages/workflows/src/terminal-status-write.ts` | 59 | Copiar | `packages/events/src/terminal-status-write.ts` | 2 | O erro terminal de escrita de status |
 | `packages/providers/src/shared/effort.ts` + `.test.ts` | 90 | Copiar | `packages/loadouts/src/effort.ts` | 2 | Escada única de effort; `clampEffort` desce primeiro |
-| `packages/server/src/adapters/web/transport.ts` | 302 | Adaptar | `apps/api/src/sse/transport.ts` | 0 | `Bun.serve` vira `streamSSE` do Hono. Manter o buffer de replay e o invariante `EVENT_BUFFER_TTL_MS >= RECONNECT_GRACE_MS` |
-| `packages/server/src/adapters/web/dashboard-event-poller.ts` | 149 | Adaptar | `apps/api/src/sse/event-poller.ts` | 0 | Drain por cursor disparado pelo NOTIFY |
+| `packages/server/src/adapters/web/transport.ts` | 302 | Adaptar | `packages/events/src/sse-transport.ts` (desvio registrado: sem dependência de Hono nem de pg, writer por injeção) | 0 | `Bun.serve` vira `streamSSE` do Hono. Manter o buffer de replay e o invariante `EVENT_BUFFER_TTL_MS >= RECONNECT_GRACE_MS` |
+| `packages/server/src/adapters/web/dashboard-event-poller.ts` | 149 | Adaptar | `packages/events/src/dashboard-event-poller.ts` | 0 | Drain por cursor disparado pelo NOTIFY |
 | `packages/core/src/db/adapters/postgres.ts` (trigger de NOTIFY e `listen()`) | trecho de 304 | Adaptar | `packages/database/src/notify.ts` + migração | 0 | O NOTIFY não carrega payload |
 | `packages/core/src/db/workflows.ts` (`resolveApprovalGate`) | função de 2145 | Ler | `packages/workflows/src/approval-gate.ts` | 4 | Copiar a forma do `UPDATE` condicional mais inserção de eventos na mesma transação |
 | `packages/workflows/src/workflow-source.ts` | — | Ler | `packages/workflows/src/workflow-version.ts` | 4 | Captura congelada; o original está amarrado ao layout `.archon` |
