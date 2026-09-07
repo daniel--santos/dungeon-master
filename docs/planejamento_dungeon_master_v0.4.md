@@ -349,6 +349,7 @@ Entregue e verificada em 07/09/2026, em três rodadas: esqueleto do monorepo, de
 - **`apps/web` sem testes**, rodando com `--passWithNoTests`; entra na Fase 1 com as primeiras telas.
 - **Marca d'água do poller de eventos**: o cursor avança até a maior `sequence` vista; duas transações concorrentes que commitassem fora de ordem poderiam pular a menor. Irrelevante na Fase 0 (produtores de uma inserção só); tarefa registrada na Fase 2B.
 - **Achados para todo o repositório**, já registrados no `CLAUDE.md`: o TypeScript 6 não inclui `@types/node` automaticamente (todo pacote com builtins precisa de `types: ["node"]`), e a regra de fronteira do ESLint precisa de `regex`, não de `group` com glob.
+- **Correção posterior (07/09/2026, Fase 1)**: importar `embedded-postgres` em runtime instalava um `async-exit-hook` que devolvia código 0 ao Vitest mesmo com teste falhando, e o CI ficou verde com uma suíte vermelha por algumas horas. O helper de testes passou a chamar `initdb` e `pg_ctl` direto sobre os binários, sem importar o pacote; regra e método de prova ("teste vermelho de propósito, conferir exit 1") no `CLAUDE.md`.
 
 ### Critério de conclusão
 

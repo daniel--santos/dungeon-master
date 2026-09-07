@@ -179,7 +179,12 @@ Windows 11 e macOS são de primeira classe; o CI roda nos dois em todo commit.
 - Testes e CI usam `embedded-postgres`, nunca Docker: os runners não têm Docker Linux.
   O servidor é iniciado e parado por `pg_ctl`, via `@dungeon-master/database/testing`
   (`startTestPostgres`), porque `postgres.exe` recusa rodar como administrador no Windows
-  e o runner do GitHub é administrador. Não chame `start()`/`stop()` do pacote diretamente.
+  e o runner do GitHub é administrador. **Nunca importe `embedded-postgres` em runtime**: o
+  pacote instala um `async-exit-hook` global que intercepta `process.exit` e devolve código 0
+  mesmo com teste falhando, o que deixou o CI verde com suíte vermelha. Ele fica em
+  devDependencies só para instalar os binários; o helper chama `initdb` e `pg_ctl` direto.
+- **Prove que o vermelho é vermelho.** Ao mexer em infraestrutura de teste, crie um teste que
+  falha de propósito, rode o pacote e confira `exit 1`; depois apague o teste.
 
 ## 9. Erros, eventos e logs
 

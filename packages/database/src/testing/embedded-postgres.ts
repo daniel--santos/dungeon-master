@@ -1,37 +1,34 @@
 /**
- * PostgreSQL embutido para testes, iniciado e parado por `pg_ctl`.
+ * PostgreSQL embutido para testes: `initdb`, `pg_ctl start` e `pg_ctl stop`
+ * chamados diretamente sobre os binários que o pacote `embedded-postgres`
+ * instala. O pacote em si **nunca é importado em runtime**; ele fica em
+ * devDependencies só para trazer `@embedded-postgres/<plataforma>`.
  *
- * Por que não usar `start()`/`stop()` do pacote `embedded-postgres`:
+ * Três motivos, todos descobertos no CI:
  *
- * - `start()` lança `postgres.exe` diretamente, e o servidor **recusa rodar com
- *   privilégios de administrador** no Windows ("Execution of PostgreSQL by a
- *   user with administrative permissions is not permitted"). O runner
- *   `windows-latest` do GitHub Actions é administrador, e o CI caía nisso.
- *   `pg_ctl` é o caminho oficial: quando é chamado por um administrador, cria um
- *   token restrito e lança o servidor com ele.
- * - `stop()` mata o servidor com `taskkill /f` no Windows e `SIGINT` no POSIX,
- *   mantendo o servidor como filho do processo do Vitest. Backends órfãos
- *   herdavam os pipes e impediam o Vitest de encerrar ("something prevents Vite
- *   servers from exiting"). Com `pg_ctl` o servidor é desanexado, o log vai
- *   para arquivo, e `pg_ctl stop -m fast -w` desliga tudo de forma limpa.
+ * - `start()` do pacote lança `postgres.exe` diretamente, e o servidor
+ *   **recusa rodar com privilégios de administrador** no Windows. O runner
+ *   `windows-latest` do GitHub Actions é administrador. `pg_ctl` é o caminho
+ *   oficial: chamado por um administrador, cria um token restrito.
+ * - `stop()` do pacote mata o servidor com `taskkill /f` ou `SIGINT` mantendo-o
+ *   como filho do Vitest; backends órfãos herdavam pipes e impediam o Vitest
+ *   de encerrar. Com `pg_ctl` o servidor é desanexado e `stop -m fast -w`
+ *   desliga tudo limpo.
+ * - **Importar o pacote instala um `async-exit-hook` global** que intercepta
+ *   `process.exit` e devolvia código 0 mesmo com teste falhando. O CI ficava
+ *   verde com suíte vermelha. Sem o import, o hook não existe.
  *
- * O pacote `embedded-postgres` continua responsável por baixar os binários e
- * por `initialise()` (initdb). O `createDatabase()` dele exige que o servidor
- * tenha sido iniciado pelo próprio pacote, então o banco de teste é criado
- * aqui com um `Client` do `pg`.
- *
- * Este módulo é **só para testes** (subpath `@dungeon-master/database/testing`);
- * `embedded-postgres` é devDependency deste pacote.
+ * Este módulo é **só para testes** (subpath `@dungeon-master/database/testing`).
  */
 import { spawn } from "node:child_process";
-import { closeSync, mkdtempSync, openSync, readFileSync, rmSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { closeSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { arch, platform, tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import EmbeddedPostgres from "embedded-postgres";
 import { Client } from "pg";
 
 import { createDatabase } from "../client.js";
@@ -56,6 +53,11 @@ export interface TestPostgres {
   readonly port: number;
   /** Desliga o servidor com `pg_ctl stop -m fast -w` e apaga o diretório de dados. */
   stop(): Promise<void>;
+}
+
+interface PostgresBinaries {
+  readonly initdb: string;
+  readonly pg_ctl: string;
 }
 
 /** Pede uma porta livre ao sistema operacional em vez de chutar um número. */
@@ -103,23 +105,25 @@ function binariesPackageName(): string {
 }
 
 /**
- * Caminho do `pg_ctl` que acompanha os binários do `embedded-postgres`.
+ * Caminhos de `initdb` e `pg_ctl` que acompanham os binários do
+ * `embedded-postgres`.
  *
  * O pacote de binários é dependência opcional do `embedded-postgres`, não
  * nossa; com o `node_modules` estrito do pnpm ele só resolve a partir da pasta
- * do próprio `embedded-postgres`. Daí a cadeia de dois `createRequire`.
+ * do próprio `embedded-postgres`. `require.resolve` só localiza o arquivo, não
+ * o executa: o pacote e seu exit hook nunca são carregados.
  */
-async function resolvePgCtl(): Promise<string> {
+async function resolveBinaries(): Promise<PostgresBinaries> {
   const requireFromHere = createRequire(import.meta.url);
   const embeddedEntry = requireFromHere.resolve("embedded-postgres");
   const requireFromEmbedded = createRequire(embeddedEntry);
   const binariesEntry = requireFromEmbedded.resolve(binariesPackageName());
-  const binaries = (await import(pathToFileURL(binariesEntry).href)) as { pg_ctl: string };
-  return binaries.pg_ctl;
+  const binaries = (await import(pathToFileURL(binariesEntry).href)) as PostgresBinaries;
+  return { initdb: binaries.initdb, pg_ctl: binaries.pg_ctl };
 }
 
 /**
- * Roda `pg_ctl` com a saída em arquivo, nunca em pipe.
+ * Roda um binário do PostgreSQL com a saída em arquivo, nunca em pipe.
  *
  * No Windows, `pg_ctl start` cria o servidor com `bInheritHandles`, e o
  * postmaster herda **todos** os handles herdáveis, inclusive os pipes que o
@@ -127,6 +131,65 @@ async function resolvePgCtl(): Promise<string> {
  * chamada nunca retorna. Com stdio em descritor de arquivo não há pipe a
  * herdar, e o evento `exit` basta.
  */
+async function runBinary(
+  binary: string,
+  args: readonly string[],
+  logFile: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  const fd = openSync(logFile, "a");
+  const exitCode = await new Promise<number | null>((resolve, reject) => {
+    const child = spawn(binary, [...args], { stdio: ["ignore", fd, fd], windowsHide: true, env });
+    child.once("error", reject);
+    child.once("exit", (code) => resolve(code));
+  }).finally(() => closeSync(fd));
+
+  if (exitCode !== 0) {
+    let detail = "";
+    try {
+      detail = readFileSync(logFile, "utf8").trim().split("\n").slice(-20).join("\n");
+    } catch {
+      // Sem log; o código de saída já diz o essencial.
+    }
+    throw new Error(
+      `${binary} ${args[0] ?? ""} saiu com código ${String(exitCode)}${detail ? `:\n${detail}` : ""}`,
+    );
+  }
+}
+
+/**
+ * `initdb` com os mesmos flags que o `embedded-postgres` usaria, mais os que
+ * fixam a locale: sem eles o initdb herda a do sistema (WIN1252 e `portuguese`
+ * no Windows, UTF8 e `en_US` no macOS) e ordenação e busca textual passariam a
+ * depender da máquina. A senha vai por arquivo, como o initdb exige.
+ */
+async function initCluster(
+  binaries: PostgresBinaries,
+  dataDir: string,
+  logFile: string,
+): Promise<void> {
+  const passwordFile = join(tmpdir(), `dm-pgpw-${randomBytes(6).toString("hex")}`);
+  writeFileSync(passwordFile, `${TEST_PASSWORD}\n`, { mode: 0o600 });
+  try {
+    await runBinary(
+      binaries.initdb,
+      [
+        `--pgdata=${dataDir}`,
+        "--auth=password",
+        `--username=${TEST_USER}`,
+        `--pwfile=${passwordFile}`,
+        "--encoding=UTF8",
+        "--locale=C",
+        "--lc-messages=C",
+      ],
+      logFile,
+      { ...process.env, LC_MESSAGES: "C" },
+    );
+  } finally {
+    rmSync(passwordFile, { force: true });
+  }
+}
+
 /** `CREATE DATABASE` no banco de manutenção `postgres`, com o superusuário do initdb. */
 async function createTestDatabase(port: number, name: string): Promise<void> {
   if (!/^[a-z_][a-z0-9_]*$/.test(name)) {
@@ -147,27 +210,6 @@ async function createTestDatabase(port: number, name: string): Promise<void> {
   }
 }
 
-async function pgCtl(pgCtlPath: string, args: readonly string[], logFile: string): Promise<void> {
-  const fd = openSync(logFile, "a");
-  const exitCode = await new Promise<number | null>((resolve, reject) => {
-    const child = spawn(pgCtlPath, [...args], { stdio: ["ignore", fd, fd], windowsHide: true });
-    child.once("error", reject);
-    child.once("exit", (code) => resolve(code));
-  }).finally(() => closeSync(fd));
-
-  if (exitCode !== 0) {
-    let detail = "";
-    try {
-      detail = readFileSync(logFile, "utf8").trim().split("\n").slice(-20).join("\n");
-    } catch {
-      // Sem log; o código de saída já diz o essencial.
-    }
-    throw new Error(
-      `pg_ctl ${args[0] ?? ""} saiu com código ${String(exitCode)}${detail ? `:\n${detail}` : ""}`,
-    );
-  }
-}
-
 /**
  * Sobe um PostgreSQL embutido em porta livre, cria o banco de teste, aplica as
  * migrações e semeia o usuário local. Use no `globalSetup` do Vitest e
@@ -181,23 +223,12 @@ export async function startTestPostgres(
 
   const dataDir = mkdtempSync(join(tmpdir(), prefix));
   const port = await findFreePort();
-  const pgCtlPath = await resolvePgCtl();
+  const binaries = await resolveBinaries();
 
-  const embedded = new EmbeddedPostgres({
-    databaseDir: dataDir,
-    user: TEST_USER,
-    password: TEST_PASSWORD,
-    port,
-    persistent: true, // nós apagamos o diretório; `stop()` do pacote nunca é chamado
-    // Sem estes flags o initdb herda a locale do sistema: WIN1252 e
-    // `portuguese` no Windows, UTF8 e `en_US` no macOS. Ordenação e busca
-    // textual passariam a depender da máquina.
-    initdbFlags: ["--encoding=UTF8", "--locale=C"],
-    onLog: () => undefined,
-    onError: (message) => process.stderr.write(String(message)),
-  });
-
-  await embedded.initialise();
+  // O initdb exige um diretório vazio ou inexistente; o log vai para um irmão.
+  const initdbLog = `${dataDir}.initdb.log`;
+  await initCluster(binaries, dataDir, initdbLog);
+  rmSync(initdbLog, { force: true });
 
   const logFile = join(dataDir, "server.log");
   const pgCtlLog = join(dataDir, "pg_ctl.log");
@@ -210,9 +241,9 @@ export async function startTestPostgres(
   ].join(" ");
 
   // `-w` espera o servidor aceitar conexões; `-l` é obrigatório, senão o
-  // servidor herda os pipes deste processo e o `execFile` nunca retorna.
-  await pgCtl(
-    pgCtlPath,
+  // servidor herda os pipes deste processo e a chamada nunca retorna.
+  await runBinary(
+    binaries.pg_ctl,
     [
       "start",
       "-D",
@@ -232,8 +263,8 @@ export async function startTestPostgres(
   const stop = async (): Promise<void> => {
     if (stopped) return;
     stopped = true;
-    await pgCtl(
-      pgCtlPath,
+    await runBinary(
+      binaries.pg_ctl,
       ["stop", "-D", dataDir, "-m", "fast", "-w", "-t", String(STOP_TIMEOUT_S)],
       pgCtlLog,
     );
