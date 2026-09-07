@@ -230,10 +230,22 @@ describe(`POST ${API_BASE_PATH}/tasks/{id}/status`, () => {
     ]);
   });
 
+  it("conclui manualmente de READY para COMPLETED, sem passar por Run", async () => {
+    const task = await criarTask({ title: "feito à mão" });
+
+    const response = await mover(task.id, "COMPLETED");
+
+    expect(response.status).toBe(200);
+    const body = TaskSchema.parse(await response.json());
+    expect(body.status).toBe("COMPLETED");
+    expect(body.completedAt).not.toBeNull();
+  });
+
   it("uma transição fora da máquina vira 409 dizendo o que era possível", async () => {
     const task = await criarTask({ title: "atalho" });
 
-    const response = await mover(task.id, "COMPLETED");
+    // READY → RUNNING pula a fila; só o runtime leva uma Task a RUNNING.
+    const response = await mover(task.id, "RUNNING");
 
     expect(response.status).toBe(409);
     expect(response.headers.get("content-type")).toContain(PROBLEM_CONTENT_TYPE);

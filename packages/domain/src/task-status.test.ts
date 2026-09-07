@@ -23,6 +23,7 @@ const TRANSICOES_VALIDAS: ReadonlyArray<readonly [TaskStatus, TaskStatus]> = [
   ["INBOX", "READY"],
   ["INBOX", "CANCELLED"],
   ["READY", "QUEUED"],
+  ["READY", "COMPLETED"],
   ["READY", "CANCELLED"],
   ["QUEUED", "RUNNING"],
   ["QUEUED", "CANCELLED"],
@@ -60,7 +61,7 @@ describe("canTransitionTask", () => {
     expect(recusadas).toEqual([]);
   });
 
-  it("cobre os 81 pares possíveis, e só 14 passam", () => {
+  it("cobre os 81 pares possíveis, e só 15 passam", () => {
     const total = TASK_STATUS_VALUES.length * TASK_STATUS_VALUES.length;
     const validas = TASK_STATUS_VALUES.flatMap((from) =>
       TASK_STATUS_VALUES.filter((to) => canTransitionTask(from, to)),

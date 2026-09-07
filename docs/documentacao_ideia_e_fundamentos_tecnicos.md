@@ -1409,7 +1409,10 @@ stateDiagram-v2
     READY --> CANCELLED
     QUEUED --> CANCELLED
     RUNNING --> CANCELLED
+    READY --> COMPLETED: conclusão manual
 ```
+
+`READY → COMPLETED` é a **conclusão manual**, feita pelo usuário na interface sem passar por um Run. Existe porque a Fase 1 entrega o gerenciador de tarefas antes do runtime, e continua válida depois: nem todo trabalho precisa de um agente. Toda outra chegada a `COMPLETED` vem de um Run. Regras aplicadas em qualquer chegada a `COMPLETED`: todas as filhas precisam estar `COMPLETED` ou `CANCELLED`. Uma Task só entra em `QUEUED` quando todas as dependências estão `COMPLETED`; uma dependência `CANCELLED` continua bloqueando, e cabe ao usuário remover a aresta (decisão da Fase 1, revisável).
 
 ## Run
 

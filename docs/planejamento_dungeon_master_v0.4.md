@@ -410,6 +410,15 @@ FAILED
 CANCELLED
 ```
 
+### Decisões de modelagem da Fase 1 (07/09/2026, backend entregue)
+
+- **A Inbox são Tasks em `INBOX`**, sem Project; promover atribui o Project e leva a `READY`; descartar leva a `CANCELLED`. Restrição no banco: `project_id IS NOT NULL OR status IN ('INBOX','CANCELLED')`.
+- **Conclusão manual**: `READY → COMPLETED` existe para o usuário marcar trabalho feito sem Run (seção 36 do documento técnico). As demais chegadas a `COMPLETED` vêm de Run, a partir da Fase 2.
+- **Regras de domínio em `packages/domain`**: transições; filhas `COMPLETED`/`CANCELLED` antes de concluir a mãe; toda entrada em `QUEUED` exige dependências `COMPLETED` (inclusive a retentativa `FAILED → QUEUED`); dependência `CANCELLED` continua bloqueando até a aresta ser removida; ciclo direto ou indireto de dependências é recusado.
+- **`activity`** é append-only por Project e Task; seus tipos são o mesmo vocabulário dos eventos de dashboard de domínio (`project.*`, `task.*`). Arquivar é `project.updated` com `from`/`to`.
+- **Trocar o Project de uma Task** só é permitido sem mãe e sem filhas; mover subárvore é Fase 5.
+- **Pendências**: a `activity` de criação de uma captura nasce sem Project e não aparece no diário do Project após a promoção; `GET /tasks` só ordena por `updatedAt desc`; texto de captura limitado a 200 caracteres.
+
 ### Critério de conclusão
 
 A aplicação já pode ser usada manualmente para gerenciar projetos, tarefas, subtarefas e dependências através da interface web. Alternar o interruptor de tema troca todos os labels da interface sem recarregar, e nenhuma rota, URL ou payload muda entre os dois modos.

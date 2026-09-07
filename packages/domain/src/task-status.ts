@@ -5,13 +5,19 @@ import type { TaskStatus } from "@dungeon-master/contracts";
  *
  * ```text
  * INBOX   → READY | CANCELLED
- * READY   → QUEUED | CANCELLED
+ * READY   → QUEUED | COMPLETED | CANCELLED
  * QUEUED  → RUNNING | CANCELLED
  * RUNNING → COMPLETED | FAILED | WAITING | BLOCKED | CANCELLED
  * WAITING → RUNNING
  * BLOCKED → READY
  * FAILED  → QUEUED
  * ```
+ *
+ * `READY → COMPLETED` é a **conclusão manual**: o usuário marca o trabalho como
+ * feito na interface, sem Run. Existe porque a Fase 1 entrega o gerenciador de
+ * tarefas antes do runtime, e continua válida depois: nem todo trabalho precisa
+ * de um agente. As regras de vizinhança (filhas resolvidas) valem para qualquer
+ * chegada a `COMPLETED`, manual ou não.
  *
  * `QUEUED` e `RUNNING` só passam a ser alcançados de verdade pela Fase 2, com o
  * runtime de execução, mas a máquina entra inteira agora: uma transição que só
@@ -23,7 +29,7 @@ import type { TaskStatus } from "@dungeon-master/contracts";
  */
 export const TASK_TRANSITIONS = {
   INBOX: ["READY", "CANCELLED"],
-  READY: ["QUEUED", "CANCELLED"],
+  READY: ["QUEUED", "COMPLETED", "CANCELLED"],
   QUEUED: ["RUNNING", "CANCELLED"],
   RUNNING: ["COMPLETED", "FAILED", "WAITING", "BLOCKED", "CANCELLED"],
   WAITING: ["RUNNING"],
