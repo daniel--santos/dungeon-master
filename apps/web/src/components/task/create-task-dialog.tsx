@@ -98,9 +98,7 @@ export function CreateTaskDialog({
         <DialogHeader>
           <DialogTitle>{format("Nova {task}", { task: t("entity.task") })}</DialogTitle>
           <DialogDescription>
-            {format("Nasce pronta para ser trabalhada, dentro de {project}.", {
-              project: t("entity.project"),
-            })}
+            {format("Nasce pronta para ser trabalhada. Escolha onde ela vive.", {})}
           </DialogDescription>
         </DialogHeader>
 

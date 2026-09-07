@@ -17,7 +17,7 @@ test("captura, promove para uma campanha e conclui à mão", async ({ page }) =>
   // 1. Uma campanha para receber a captura: promover exige projeto, porque
   //    `READY` sem projeto é um estado que o banco recusa.
   await page.goto("/projects");
-  await page.getByRole("button", { name: `Nova ${dnd["entity.project"]}` }).click();
+  await page.getByRole("button", { name: `Criar ${dnd["entity.project"]}` }).click();
 
   const projectDialog = page.getByRole("dialog");
   await projectDialog.getByLabel("Título").fill(PROJECT);

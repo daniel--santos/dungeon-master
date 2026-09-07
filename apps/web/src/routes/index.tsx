@@ -44,14 +44,14 @@ function DashboardPage() {
         <StatCard
           icon={Folder}
           label={t("entity.project.plural")}
-          note="ativas agora"
+          note="em atividade"
           to="/projects"
           value={projects.data?.total}
         />
         <StatCard
           icon={ListChecks}
           label={t("entity.task.plural")}
-          note={format("em {status}", { status: t("task.status.ready") })}
+          note={format("no estado {status}", { status: t("task.status.ready") })}
           to="/tasks"
           value={ready.data?.total}
         />

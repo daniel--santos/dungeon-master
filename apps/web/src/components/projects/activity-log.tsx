@@ -35,17 +35,18 @@ function describe(activity: Activity, glossary: UseGlossary): string {
   const payload = read(activity.payload);
 
   switch (activity.type) {
+    // As linhas de Project não nomeiam a entidade: `entity.project` muda de
+    // gênero entre os dois glossários (Campanha, Projeto), e uma frase com
+    // artigo ou particípio concordaria certo em um tema e errado no outro.
     case "project.created":
-      return format("{project} aberta.", { project: t("entity.project") });
+      return "Começou aqui.";
 
     case "project.updated": {
       const changed = Array.isArray(payload.changed) ? (payload.changed as unknown[]) : [];
       if (changed.includes("status")) {
-        return payload.to === "ARCHIVED"
-          ? format("{project} arquivada.", { project: t("entity.project") })
-          : format("{project} de volta à ativa.", { project: t("entity.project") });
+        return payload.to === "ARCHIVED" ? "Foi para o arquivo." : "Voltou do arquivo.";
       }
-      return format("{project} editada.", { project: t("entity.project") });
+      return "Título ou descrição mudou.";
     }
 
     case "task.created":

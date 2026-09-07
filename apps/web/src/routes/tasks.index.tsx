@@ -103,7 +103,7 @@ function TasksPage() {
       <PageHeader
         title={t("nav.tasks")}
         description={format(
-          "Tudo que {agents} podem receber. Filtre por {project}, tipo, status e prioridade.",
+          "Tudo que os {agents} podem receber. Filtre por {project}, tipo, status e prioridade.",
           { agents: t("entity.agent.plural"), project: t("entity.project") },
         )}
         actions={
@@ -131,7 +131,7 @@ function TasksPage() {
             empty={
               <EmptyState icon={ListChecks} title="Nada aqui com esse filtro">
                 {format(
-                  "Nenhum item casa com o que você pediu. Limpe os filtros, ou crie a primeira em {projects}.",
+                  "Nenhum item casa com o que você pediu. Limpe os filtros, ou comece em {projects}.",
                   { projects: t("entity.project.plural") },
                 )}
               </EmptyState>

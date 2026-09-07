@@ -88,8 +88,8 @@ export function PromoteDialog({ capture, onOpenChange }: PromoteDialogProps) {
           <DialogTitle>{format("Virar {task}", { task: t("entity.task") })}</DialogTitle>
           <DialogDescription>
             {format(
-              "Escolha onde este item vive e o que ele é. A captura passa a valer como trabalho de verdade em {project}.",
-              { project: t("entity.project") },
+              "Escolha onde este item vive e o que ele é. Só depois disto ele deixa de ser uma anotação solta.",
+              {},
             )}
           </DialogDescription>
         </DialogHeader>
@@ -125,9 +125,7 @@ export function PromoteDialog({ capture, onOpenChange }: PromoteDialogProps) {
               <p className="text-muted-foreground text-xs">
                 Nada ativo ainda.{" "}
                 <Link className="underline underline-offset-2" to="/projects">
-                  {format("Abra a primeira em {projects}.", {
-                    projects: t("entity.project.plural"),
-                  })}
+                  {format("Comece em {projects}.", { projects: t("entity.project.plural") })}
                 </Link>
               </p>
             )}

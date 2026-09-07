@@ -166,7 +166,7 @@ function HallPage() {
           )}
 
           {cards.length > 0 && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {cards.map((card) => (
                 <AchievementCard key={card.key} card={card} />
               ))}
@@ -189,8 +189,8 @@ function HallPage() {
           <Panel>
             <EmptyState icon={BugIcon} title={t("hall.tab.bestiary")}>
               {format(
-                "Aqui vão aparecer as {bugs} concluídas, com destaque para as que voltaram e foram vencidas de vez. Chega na Fase 2.5, quando houver execução para vencê-las.",
-                { bugs: t("entity.task.kind.bug.plural") },
+                "Aqui vai aparecer tudo do tipo {bug} que você resolveu, com destaque para o que voltou e foi vencido de vez. Chega na Fase 2.5, quando houver execução para vencer.",
+                { bug: t("entity.task.kind.bug") },
               )}
             </EmptyState>
           </Panel>

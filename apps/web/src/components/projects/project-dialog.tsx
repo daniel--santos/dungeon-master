@@ -74,7 +74,7 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
           <DialogTitle>
             {editing
               ? format("Editar {project}", { project: t("entity.project") })
-              : format("Nova {project}", { project: t("entity.project") })}
+              : format("Criar {project}", { project: t("entity.project") })}
           </DialogTitle>
           <DialogDescription>
             {format("A unidade que guarda o contexto: {tasks}, diário e, na Fase 6, {knowledge}.", {

@@ -102,7 +102,9 @@ function ProjectDetailPage() {
             </h1>
             <p className="text-muted-foreground text-sm leading-5">
               {detail.description ??
-                format("Sem descrição. Aberta em {when}.", { when: formatDate(detail.createdAt) })}
+                format("Sem descrição. Existe desde {when}.", {
+                  when: formatDate(detail.createdAt),
+                })}
             </p>
           </div>
 
@@ -138,7 +140,7 @@ function ProjectDetailPage() {
         <TaskCounts counts={detail.taskCounts} />
         {archived && (
           <p className="text-muted-foreground text-xs">
-            {format("Arquivada em {when}. Não aceita {tasks} novas enquanto estiver assim.", {
+            {format("No arquivo desde {when}. Não aceita {tasks} novas enquanto estiver assim.", {
               when: detail.archivedAt === null ? "—" : formatDate(detail.archivedAt),
               tasks: t("entity.task.plural"),
             })}
@@ -169,9 +171,7 @@ function ProjectDetailPage() {
               icon={ListChecks}
               title={format("Nenhuma {task} aqui", { task: t("entity.task") })}
             >
-              {format("O que for capturado e promovido para esta {project} aparece nesta tabela.", {
-                project: t("entity.project"),
-              })}
+              {format("O que for capturado e promovido para cá aparece nesta tabela.", {})}
             </EmptyState>
           }
           error={tasks.error}

@@ -86,7 +86,7 @@ function ProjectsPage() {
       <PageHeader
         title={t("nav.projects")}
         description={format(
-          "Onde o trabalho mora. Cada uma guarda as suas {tasks}, o seu diário e o contexto que não cabe numa delas.",
+          "Onde o trabalho mora. Cada linha daqui guarda as suas {tasks}, o seu diário e o contexto que não cabe numa delas.",
           { tasks: t("entity.task.plural") },
         )}
         actions={
@@ -96,7 +96,7 @@ function ProjectsPage() {
             }}
           >
             <Plus aria-hidden />
-            <span>{format("Nova {project}", { project: t("entity.project") })}</span>
+            <span>{format("Criar {project}", { project: t("entity.project") })}</span>
           </Button>
         }
       />
@@ -116,9 +116,9 @@ function ProjectsPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ANY}>Todas</SelectItem>
-              <SelectItem value="ACTIVE">Ativas</SelectItem>
-              <SelectItem value="ARCHIVED">Arquivadas</SelectItem>
+              <SelectItem value={ANY}>Qualquer estado</SelectItem>
+              <SelectItem value="ACTIVE">Em atividade</SelectItem>
+              <SelectItem value="ARCHIVED">No arquivo</SelectItem>
             </SelectContent>
           </Select>
 
@@ -143,10 +143,10 @@ function ProjectsPage() {
           {!projects.isPending && !projects.isError && items.length === 0 && (
             <EmptyState
               icon={Folder}
-              title={format("Nenhuma {project} ainda", { project: t("entity.project") })}
+              title={format("Sem {projects} ainda", { projects: t("entity.project.plural") })}
             >
               {format(
-                "Abra a primeira e o resto passa a ter onde morar: {tasks}, dependências e o diário de tudo que aconteceu.",
+                "Sem isso o resto não tem onde morar: {tasks}, dependências e o diário de tudo que aconteceu.",
                 { tasks: t("entity.task.plural") },
               )}
             </EmptyState>
@@ -176,7 +176,7 @@ function ProjectsPage() {
                       </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground px-4 text-xs">
-                      {project.status === "ACTIVE" ? "Ativa" : "Arquivada"}
+                      {project.status === "ACTIVE" ? "Em atividade" : "No arquivo"}
                     </TableCell>
                     <TableCell className="px-4 whitespace-normal">
                       {(() => {
@@ -252,10 +252,10 @@ function ProjectsPage() {
             <AlertDialogDescription>
               {archiving?.status === "ACTIVE"
                 ? format(
-                    "Nada é apagado: o que está aqui continua legível, e o que estava arquivado deixa de aceitar {tasks} novas.",
+                    "Nada é apagado: o que está aqui continua legível, e o que vai para o arquivo deixa de aceitar {tasks} novas.",
                     { tasks: t("entity.task.plural") },
                   )
-                : format("Volta a aceitar {tasks} novas, com todo o histórico intacto.", {
+                : format("Volta a aceitar {tasks} novas, com todo o diário intacto.", {
                     tasks: t("entity.task.plural"),
                   })}
             </AlertDialogDescription>
