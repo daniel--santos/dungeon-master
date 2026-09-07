@@ -95,12 +95,14 @@ Endpoints da API:
 | `pnpm lint`      | ESLint em todo o workspace, incluindo as regras de fronteira     |
 | `pnpm typecheck` | `tsc --noEmit` em cada pacote                                    |
 | `pnpm test`      | Vitest; os testes de banco sobem `embedded-postgres`, sem Docker |
+| `pnpm e2e`       | Playwright na web; sobe API, Vite e um PostgreSQL só dele        |
 | `pnpm build`     | compila todos os pacotes na ordem do grafo                       |
 | `pnpm gen`       | regenera `openapi.json` e o cliente tipado                       |
 | `pnpm gen:check` | regenera e falha se houver diff                                  |
 | `pnpm db:check`  | falha se o schema Drizzle e as migrações divergirem              |
 
-O CI roda exatamente esta sequência em `windows-latest` e `macos-latest`.
+O CI roda exatamente esta sequência em `windows-latest` e `macos-latest`. O `pnpm e2e`
+precisa do navegador instalado uma vez: `pnpm --filter web exec playwright install chromium`.
 
 ### Banco
 
