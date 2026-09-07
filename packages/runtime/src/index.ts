@@ -24,3 +24,4 @@ export * from "./standard-schema.js";
 export * from "./types.js";
 export * from "./workspace.js";
 export * from "./workspace-resolver.js";
+export * from "./structured-output.js";
