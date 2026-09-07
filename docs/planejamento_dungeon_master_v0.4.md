@@ -417,6 +417,7 @@ CANCELLED
 - **Regras de domínio em `packages/domain`**: transições; filhas `COMPLETED`/`CANCELLED` antes de concluir a mãe; toda entrada em `QUEUED` exige dependências `COMPLETED` (inclusive a retentativa `FAILED → QUEUED`); dependência `CANCELLED` continua bloqueando até a aresta ser removida; ciclo direto ou indireto de dependências é recusado.
 - **`activity`** é append-only por Project e Task; seus tipos são o mesmo vocabulário dos eventos de dashboard de domínio (`project.*`, `task.*`). Arquivar é `project.updated` com `from`/`to`.
 - **Trocar o Project de uma Task** só é permitido sem mãe e sem filhas; mover subárvore é Fase 5.
+- **Labels de status e prioridade de Task** aprovados como chaves do glossário, iguais nos dois temas: Capturada, Pronta, Na fila, Em execução, Aguardando, Bloqueada, Concluída, Falhou, Cancelada; Baixa, Média, Alta, Urgente.
 - **Pendências**: a `activity` de criação de uma captura nasce sem Project e não aparece no diário do Project após a promoção; `GET /tasks` só ordena por `updatedAt desc`; texto de captura limitado a 200 caracteres.
 
 ### Critério de conclusão
@@ -674,6 +675,11 @@ record  { source, metric, direction }        # "expedição vitoriosa mais longa
 - [ ] `HeroStats`: por Agent (herói) e por Loadout (equipamento): experiência, nível, expedições, vitórias, derrotas, monstros derrotados, guilda mais usada
 
 Tudo escopado por `user_id` desde o início, mesmo single-user.
+
+### Voz e apresentação das Conquistas (decisões de 07/09/2026)
+
+- **Carta Heráldica**: raridade como borda e brilho sutil da carta, ícone em medalhão, nome em serif com versalete. Escolhida pelo usuário no canvas de design da Fase 1 (`docs/design/fase1/`), sobre a alternativa Sóbria.
+- **Voz do Dungeon Master**: os textos `theme` (nome, descrição, `flavor`) têm humor ácido, sarcástico e deadpan, no espírito das conquistas da série *Dungeon Crawler Carl*, que é a referência do usuário para a ideia. **Texto sempre original**: a série é referência de tom, nunca de conteúdo. O guia de voz vive em `packages/achievements/VOICE.md` e será a base do prompt das Conquistas forjadas (Fase 6). A versão `plain` continua sóbria e literal.
 
 ### Experiência e nível
 
