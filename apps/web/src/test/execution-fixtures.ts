@@ -130,6 +130,7 @@ export const RUN: RunRecord = {
   harnessKey: "CLAUDE_CODE",
   harnessVersion: "claude 2.1.263",
   harnessSessionId: "sess_01K7QW3M8ZP4RN",
+  resumedFromRunId: null,
   modelKey: null,
   executionMode: "HOST",
   workspacePath: "D:\\Dev\\Claude\\Estudo\\dungeon-master\\.runs\\exp-241",
