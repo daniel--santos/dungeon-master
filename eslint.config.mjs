@@ -10,6 +10,9 @@ import tseslint from "typescript-eslint";
  *   `@dungeon-master/contracts`. Nenhum pacote interno de backend.
  * - `packages/domain` não importa infraestrutura: banco, ORM, HTTP, logger,
  *   runtime de agente ou builtins do Node.
+ * - `packages/glossary` e `packages/achievements` são puros: só `zod` e
+ *   `node:*` (para ler os próprios arquivos de catálogo). Sem banco, sem rede,
+ *   sem outro pacote do workspace.
  *
  * A regra é `@typescript-eslint/no-restricted-imports` porque só ela distingue
  * `import type` de import de valor (`allowTypeImports`).
@@ -20,6 +23,9 @@ const WEB_BOUNDARY_MESSAGE =
 
 const DOMAIN_BOUNDARY_MESSAGE =
   "Fronteira: packages/domain não importa infraestrutura (banco, ORM, HTTP, logger, runtime, builtins do Node).";
+
+const PURE_BOUNDARY_MESSAGE =
+  "Fronteira: glossary e achievements são puros e só importam zod e node:*.";
 
 export default tseslint.config(
   {
@@ -140,6 +146,33 @@ export default tseslint.config(
                 "**/apps/**",
               ],
               message: DOMAIN_BOUNDARY_MESSAGE,
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // ------------------------------- packages/glossary e packages/achievements
+  // Lista de permissão, não de bloqueio: de pacote externo, só `zod` e
+  // `node:*`. Os dois pacotes são dados e funções puras, e o único I/O é ler os
+  // próprios arquivos de catálogo. A primeira regra recusa todo especificador
+  // que não seja relativo, `node:*` ou `zod`; a segunda impede que um import
+  // relativo escape do pacote.
+  {
+    files: ["packages/glossary/src/**/*.ts", "packages/achievements/src/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(?!\\.\\.?/|node:|zod$)",
+              message: PURE_BOUNDARY_MESSAGE,
+            },
+            {
+              group: ["../../*", "**/packages/**", "**/apps/**"],
+              message: PURE_BOUNDARY_MESSAGE,
             },
           ],
         },
