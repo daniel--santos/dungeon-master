@@ -23,10 +23,10 @@
 
 import { buildEnv, essentialEnvKeys } from "@dungeon-master/platform";
 
-import type { EnvironmentPolicy } from "./types.js";
+import type { RuntimeEnvironmentPolicy } from "./types.js";
 
 export interface BuildExecutionEnvOptions {
-  readonly policy?: EnvironmentPolicy;
+  readonly policy?: RuntimeEnvironmentPolicy;
   /** Chaves que o adapter precisa para achar credencial e configuração. */
   readonly adapterKeys?: readonly string[];
   /** Variáveis que o runtime injeta (nunca sobrescritas pela allow-list). */

@@ -11,31 +11,20 @@
  * montar o argv de retomada **e** capturar o id de sessão do stream. Prometer
  * o que não se cumpre é pior que dizer não.
  */
-export interface HarnessCapabilities {
-  /** Emite eventos incrementais enquanto trabalha, e não só no fim. */
-  readonly streaming: boolean;
-  /** Consegue produzir o bloco `<result>` validado por schema. */
-  readonly structuredOutput: boolean;
-  /** Retoma uma sessão anterior pelo `harnessSessionId`. */
-  readonly resume: boolean;
+
+import type { HarnessCapabilities as HarnessCapabilitiesContract } from "@dungeon-master/contracts";
+/**
+ * A matriz do runtime é a de `@dungeon-master/contracts` mais um campo.
+ *
+ * Estender em vez de redeclarar: os onze campos do contrato são o que a API
+ * expõe e o banco guarda, e uma segunda lista deles divergiria no primeiro
+ * campo novo. `forkSession` ainda não está no contrato — o Claude Code tem
+ * `--fork-session`, e retomar mutando a sessão é diferente de retomar criando
+ * uma nova. Quando o contrato ganhar o campo, esta extensão some.
+ */
+export interface HarnessCapabilities extends HarnessCapabilitiesContract {
   /** Retoma criando uma sessão nova em vez de mutar a original (fork). */
   readonly forkSession: boolean;
-  /** Mantém um processo vivo por vários turnos. Nenhum adapter do host faz. */
-  readonly multiTurnProcess: boolean;
-  /** Traduz chamadas de ferramenta para `ToolCall`/`ToolResult`. */
-  readonly toolEvents: boolean;
-  /** Reporta consumo de tokens no próprio stream. */
-  readonly tokenUsage: boolean;
-  /** Aceita escolha de modelo por argumento. */
-  readonly modelSelection: boolean;
-  /** Aceita escolha de agente/persona por argumento. */
-  readonly agentSelection: boolean;
-  /** Tem mecanismo próprio de permissão (`HARNESS_NATIVE`). */
-  readonly nativePermissions: boolean;
-  /** Roda no host. */
-  readonly hostExecution: boolean;
-  /** Roda em container. Fase 2C; hoje nenhum adapter do host promete. */
-  readonly dockerExecution: boolean;
 }
 
 /**

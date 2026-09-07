@@ -1,41 +1,31 @@
 /**
- * Os tipos mínimos que o runtime consome do domínio.
+ * Os tipos que o runtime consome do domínio.
  *
  * `Loadout` e `ExecutionProfile` são entidades de banco, com id, versão e dono;
  * o runtime nunca vê a entidade, só o **snapshot** congelado no início do Run.
  * O snapshot é o que torna um Run antigo auditável depois que o Loadout mudou
  * (documento técnico, seção 13).
  *
- * Enquanto as entidades não existem em `@dungeon-master/contracts`, estes são
- * os campos que o runtime realmente lê. Quando os schemas chegarem, o
- * snapshot passa a ser derivado deles; nada aqui muda de forma.
+ * **A costura com `@dungeon-master/contracts`.** Os enums de execução
+ * (`ExecutionMode`, `WorkspaceStrategy`, `EnforcementLevel`) vêm de lá: são a
+ * mesma coisa, e duas declarações da mesma forma criariam duas verdades. Já
+ * `ExecutionProfileSnapshot` e `LoadoutSnapshot` existem nos dois lugares com
+ * formas diferentes de propósito: o de contracts é o que a API expõe e o banco
+ * guarda (política declarativa — `workspaceWrite`, `commandExecution`,
+ * `allowedVariables`), e o daqui é o que o runtime precisa para montar um argv
+ * e um ambiente. **Quem traduz um no outro é o worker**, e é ele quem decide,
+ * por exemplo, que `commandExecution: ALL` vira qual modo de permissão de CLI.
+ * Essa decisão é de domínio e não cabe a um adapter tomá-la sozinho.
  */
 
-import type { HarnessKey } from "@dungeon-master/contracts";
+import type {
+  EnforcementLevel,
+  ExecutionMode,
+  HarnessKey,
+  WorkspaceStrategy,
+} from "@dungeon-master/contracts";
 
-/** Onde o processo do agente roda. `DOCKER` chega na Fase 2C. */
-export const EXECUTION_MODE_VALUES = ["HOST", "DOCKER"] as const;
-export type ExecutionMode = (typeof EXECUTION_MODE_VALUES)[number];
-
-/**
- * Como o código é isolado operacionalmente. Eixo **ortogonal** ao modo de
- * execução: worktree não é backend (planejamento v0.4, Fase 2C).
- *
- * - `CURRENT` roda no próprio `workspace_path` do Run.
- * - `GIT_WORKTREE` roda num worktree por Run, criado por nós, com trava por
- *   par (repositório, caminho) no PostgreSQL antes de qualquer processo subir.
- * - `COPY` ainda não existe; pedir por ele falha com mensagem clara.
- */
-export const WORKSPACE_STRATEGY_VALUES = ["CURRENT", "GIT_WORKTREE", "COPY"] as const;
-export type WorkspaceStrategy = (typeof WORKSPACE_STRATEGY_VALUES)[number];
-
-/**
- * O quanto a política de permissão é realmente imposta (documento técnico,
- * seção 15). A UI mostra a diferença; `ADVISORY` nunca é apresentado como
- * proteção.
- */
-export const ENFORCEMENT_LEVEL_VALUES = ["ADVISORY", "HARNESS_NATIVE", "SANDBOX_ENFORCED"] as const;
-export type EnforcementLevel = (typeof ENFORCEMENT_LEVEL_VALUES)[number];
+export type { EnforcementLevel, ExecutionMode, WorkspaceStrategy };
 
 /**
  * Modo de permissão pedido ao harness (planejamento v0.4, Fase 3C).
@@ -49,7 +39,7 @@ export type EnforcementLevel = (typeof ENFORCEMENT_LEVEL_VALUES)[number];
 export const PERMISSION_MODE_VALUES = ["DEFAULT", "CONFIGURED", "BYPASS"] as const;
 export type PermissionMode = (typeof PERMISSION_MODE_VALUES)[number];
 
-export interface PermissionPolicy {
+export interface RuntimePermissionPolicy {
   readonly mode: PermissionMode;
   /** Modo nativo do harness, usado quando `mode` é `CONFIGURED`. */
   readonly harnessMode?: string;
@@ -71,7 +61,7 @@ export interface PermissionPolicy {
  * (`.sandcastle/.env`); aqui ele é nosso, e é por isso que um `AWS_SECRET…` no
  * ambiente do worker não vaza para um agente por acidente.
  */
-export interface EnvironmentPolicy {
+export interface RuntimeEnvironmentPolicy {
   /** Chaves do ambiente do worker que podem passar. */
   readonly allowList?: readonly string[];
   /** Valores injetados de propósito. Ganham da allow-list na mesma chave. */
@@ -130,8 +120,8 @@ export interface ExecutionProfileSnapshot {
   readonly name?: string;
   readonly mode: ExecutionMode;
   readonly workspaceStrategy: WorkspaceStrategy;
-  readonly permissionPolicy?: PermissionPolicy;
-  readonly environmentPolicy?: EnvironmentPolicy;
+  readonly permissionPolicy?: RuntimePermissionPolicy;
+  readonly environmentPolicy?: RuntimeEnvironmentPolicy;
 }
 
 /**
