@@ -140,7 +140,9 @@ export const projectsActivityRoute = createRoute({
   description:
     "Append-only, do registro mais recente para o mais antigo. Cada criação, " +
     "edição e transição de status gravou uma linha aqui na mesma transação da " +
-    "mudança.",
+    "mudança. Inclui também os fatos das Tasks que hoje pertencem ao Project, " +
+    "mesmo os anteriores a esse pertencimento: a captura promovida aparece " +
+    "desde a criação, e não a partir da promoção.",
   request: { params: ProjectIdParamSchema, query: ActivityListQuerySchema },
   responses: {
     200: {
