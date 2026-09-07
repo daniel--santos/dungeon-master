@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    // Nenhum arquivo deste pacote importa `node:*` — ele é lógica pura —, mas
+    // usa `setTimeout`/`setInterval`, que só existem como global. Sem esta
+    // linha o TypeScript não carrega `@types/node` e os timers somem.
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"]
 }
