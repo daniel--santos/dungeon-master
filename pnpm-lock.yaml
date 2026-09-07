@@ -233,6 +233,9 @@ importers:
       '@dungeon-master/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@dungeon-master/domain':
+        specifier: workspace:*
+        version: link:../domain
       dotenv:
         specifier: 17.4.2
         version: 17.4.2
