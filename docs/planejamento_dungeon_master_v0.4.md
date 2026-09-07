@@ -368,35 +368,35 @@ Criar uma aplicação utilizável como gerenciador pessoal de projetos e tarefas
 
 #### Web
 
-- [ ] Layout principal com shadcn (sidebar, header, command palette), com todos os labels de entidade vindos do glossário ativo via um hook único (`useGlossary`)
-- [ ] Settings com o interruptor **"Tema Dungeon Master"**, ligado por padrão, persistido em `user_setting` e aplicado sem recarregar a página; também acessível pela command palette
-- [ ] Hall dos Heróis em modo catálogo: todas as Conquistas fixas visíveis como bloqueadas, com raridade e descrição; sem progresso ainda
-- [ ] Dashboard
-- [ ] Inbox
-- [ ] Projects
-- [ ] Tasks, com TanStack Table e filtros em parâmetros de busca tipados do TanStack Router
-- [ ] Task details
-- [ ] Runs (estrutura vazia inicialmente)
-- [ ] Agents (cadastro inicial)
-- [ ] Loadouts (cadastro inicial)
-- [ ] Visualização de dependências de tarefas com React Flow (leitura; edição fica para a Fase 5)
+- [x] Layout principal com shadcn (sidebar, header, command palette), com todos os labels de entidade vindos do glossário ativo via um hook único (`useGlossary`)
+- [x] Settings com o interruptor **"Tema Dungeon Master"**, ligado por padrão, persistido em `user_setting` e aplicado sem recarregar a página; também acessível pela command palette
+- [x] Hall dos Heróis em modo catálogo: todas as Conquistas fixas visíveis como bloqueadas, com raridade e descrição; sem progresso ainda
+- [x] Dashboard
+- [x] Inbox
+- [x] Projects
+- [x] Tasks, com TanStack Table e filtros em parâmetros de busca tipados do TanStack Router
+- [x] Task details
+- [x] Runs (estrutura vazia inicialmente)
+- [x] Agents (cadastro inicial) — adiado para a Fase 2A, quando existirem as entidades Agent, Harness, Model e Loadout
+- [x] Loadouts (cadastro inicial) — adiado para a Fase 2A, quando existirem as entidades Agent, Harness, Model e Loadout
+- [x] Visualização de dependências de tarefas com React Flow (leitura; edição fica para a Fase 5)
 
 #### Project
 
-- [ ] Criar, editar, arquivar
-- [ ] Overview
-- [ ] Tasks do projeto
-- [ ] Activity básica
+- [x] Criar, editar, arquivar
+- [x] Overview
+- [x] Tasks do projeto
+- [x] Activity básica
 
 #### Task
 
-- [ ] Criar, editar
-- [ ] Prioridade e status
-- [ ] Tipo (`kind`): `BUG`, `FEATURE`, `RESEARCH`, `CHORE`. No tema, `BUG` é Monstro e alimenta o Bestiário e as Conquistas
-- [ ] Parent task
-- [ ] Dependências
-- [ ] Subtarefas
-- [ ] Inbox -> Task
+- [x] Criar, editar
+- [x] Prioridade e status
+- [x] Tipo (`kind`): `BUG`, `FEATURE`, `RESEARCH`, `CHORE`. No tema, `BUG` é Monstro e alimenta o Bestiário e as Conquistas
+- [x] Parent task
+- [x] Dependências
+- [x] Subtarefas
+- [x] Inbox -> Task
 
 ### Estados iniciais de Task
 
@@ -421,6 +421,25 @@ CANCELLED
 - **Trocar o Project de uma Task** só é permitido sem mãe e sem filhas; mover subárvore é Fase 5.
 - **Labels de status e prioridade de Task** aprovados como chaves do glossário, iguais nos dois temas: Capturada, Pronta, Na fila, Em execução, Aguardando, Bloqueada, Concluída, Falhou, Cancelada; Baixa, Média, Alta, Urgente.
 - **Pendências**: a `activity` de criação de uma captura nasce sem Project e não aparece no diário do Project após a promoção; `GET /tasks` só ordena por `updatedAt desc`; texto de captura limitado a 200 caracteres.
+
+### Fechamento da Fase 1 (07/09/2026)
+
+Entregue em quatro rodadas de agentes: backend (domínio, banco, API), textos das Conquistas, pendências de API com o catálogo, shell da web, e as telas. Verificado localmente (44 tarefas do Turborepo, cliente gerado e migrações em dia, 5 testes de ponta a ponta) e no CI nos dois sistemas.
+
+Decisões da rodada das telas, aceitas:
+
+- A 16ª carta do Hall é **uma** carta oculta representando os cinco templates, e não cinco cartas: um template só vira Conquista quando os dados o instanciam.
+- O glossário não carrega gênero, então os textos ao redor de um label evitam concordância ("Criar" em vez de "Nova").
+- A carta mostra o `flavor` em itálico no tema `dnd` e o esconde no `plain`.
+- As capturas em `INBOX` aparecem na lista de Missões com o estado "Capturada"; o filtro de status as tira.
+- O detalhe de Missão oferece Concluir, Reabrir e Cancelar só quando a aresta existe na máquina de estados; `409` vira toast com o `detail` do problem details.
+
+Pendências, todas na API, para a próxima rodada de backend:
+
+- `GET /projects` sem `taskCounts`; a lista faz uma leitura por linha.
+- `GET /tasks` sem filtro de exclusão de estado (para tirar capturas sem oito parâmetros na URL).
+- O payload de `activity` não traz o título da Task; o diário diz "Missão criada" sem dizer qual.
+- Agentes e Equipamentos seguem como placeholders até a Fase 2A.
 
 ### Critério de conclusão
 
