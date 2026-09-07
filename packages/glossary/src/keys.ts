@@ -82,7 +82,7 @@ export const GLOSSARY_KEYS = [
   "achievement.rarity.legendary",
   "achievement.state.locked",
   "achievement.state.hidden",
-  "achievement.state.in_progress",
+  "achievement.state.inProgress",
   "achievement.state.unlocked",
 
   // ------------------------------------------------------------------- run

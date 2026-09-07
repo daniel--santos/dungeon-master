@@ -25,7 +25,7 @@ describe("chaves", () => {
 
   it("usa apenas o formato canônico em inglês", () => {
     for (const key of GLOSSARY_KEYS) {
-      expect(key).toMatch(/^[a-z][A-Za-z0-9_]*(\.[a-z][A-Za-z0-9_]*)*$/);
+      expect(key).toMatch(/^[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)*$/);
     }
   });
 

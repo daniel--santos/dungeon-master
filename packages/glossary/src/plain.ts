@@ -80,7 +80,7 @@ export const plain: Record<GlossaryKey, string> = {
   "achievement.rarity.legendary": "Lendária",
   "achievement.state.locked": "Bloqueada",
   "achievement.state.hidden": "Oculta",
-  "achievement.state.in_progress": "Em progresso",
+  "achievement.state.inProgress": "Em progresso",
   "achievement.state.unlocked": "Desbloqueada",
 
   // ------------------------------------------------------------------- run
