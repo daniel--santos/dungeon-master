@@ -6,19 +6,22 @@
   "description": "Control Plane do Dungeon Master: React 19, Vite, Tailwind, shadcn/ui e TanStack.",
   "scripts": {
     "build": "vite build",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.e2e.json --noEmit",
     "lint": "eslint .",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "dev": "vite",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "e2e": "turbo run build --filter=@dungeon-master/api... && node ./e2e/run-e2e.mjs"
   },
   "dependencies": {
     "@dungeon-master/api-client": "workspace:*",
     "@dungeon-master/contracts": "workspace:*",
+    "@dungeon-master/glossary": "workspace:*",
     "@tanstack/react-query": "5.102.8",
     "@tanstack/react-router": "1.170.33",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
+    "cmdk": "1.1.1",
     "lucide-react": "1.42.0",
     "radix-ui": "1.6.7",
     "react": "19.2.8",
@@ -27,11 +30,16 @@
     "zustand": "5.0.15"
   },
   "devDependencies": {
+    "@dungeon-master/database": "workspace:*",
+    "@playwright/test": "1.63.0",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/router-plugin": "1.168.36",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
     "@vitejs/plugin-react": "6.1.1",
+    "jsdom": "30.0.1",
     "tailwindcss": "4.3.3",
     "tw-animate-css": "1.4.0",
     "typescript": "6.0.3",

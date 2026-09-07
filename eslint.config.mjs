@@ -6,8 +6,12 @@ import tseslint from "typescript-eslint";
 /**
  * Fronteiras entre pacotes (planejamento v0.4, seção 5).
  *
- * - `apps/web` importa somente `@dungeon-master/api-client` e tipos de
- *   `@dungeon-master/contracts`. Nenhum pacote interno de backend.
+ * - `apps/web` importa somente `@dungeon-master/api-client`, `@dungeon-master/glossary`
+ *   e tipos de `@dungeon-master/contracts`. Nenhum pacote interno de backend.
+ *   O glossário é a exceção declarada e não abre precedente: é um pacote puro
+ *   de labels da interface, sem banco, rede nem Node, e a seção 47.1 do
+ *   documento técnico manda que a UI o consuma direto — é de lá que sai todo
+ *   label de entidade que a web renderiza.
  * - `packages/domain` não importa infraestrutura: banco, ORM, HTTP, logger,
  *   runtime de agente ou builtins do Node.
  * - `packages/glossary` e `packages/achievements` são puros: só `zod` e
@@ -21,7 +25,7 @@ import tseslint from "typescript-eslint";
  */
 
 const WEB_BOUNDARY_MESSAGE =
-  "Fronteira: apps/web importa somente @dungeon-master/api-client e tipos de @dungeon-master/contracts.";
+  "Fronteira: apps/web importa somente @dungeon-master/api-client, @dungeon-master/glossary e tipos de @dungeon-master/contracts.";
 
 const DOMAIN_BOUNDARY_MESSAGE =
   "Fronteira: packages/domain não importa infraestrutura (banco, ORM, HTTP, logger, runtime, builtins do Node).";
@@ -97,6 +101,7 @@ export default tseslint.config(
                 "!@dungeon-master/api-client",
                 "!@dungeon-master/api-client/*",
                 "!@dungeon-master/contracts",
+                "!@dungeon-master/glossary",
               ],
               message: WEB_BOUNDARY_MESSAGE,
             },
@@ -213,8 +218,10 @@ export default tseslint.config(
   },
 
   // Testes podem usar utilitários que a fronteira proíbe no código de produção.
+  // `e2e/` entra na lista porque o Playwright sobe o PostgreSQL de teste por
+  // `@dungeon-master/database/testing`, que é código de teste, não da web.
   {
-    files: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}", "**/test/**/*.ts"],
+    files: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}", "**/test/**/*.ts", "**/e2e/**/*.{ts,mjs}"],
     rules: {
       "@typescript-eslint/no-restricted-imports": "off",
       "no-console": "off",
