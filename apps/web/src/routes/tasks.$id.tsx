@@ -1,12 +1,14 @@
 import type { components } from "@dungeon-master/api-client";
 import type { TaskStatus } from "@dungeon-master/contracts";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronRight, CirclePlay, GitBranch, Package, Plus, X } from "lucide-react";
+import { ChevronRight, CirclePlay, GitBranch, Package, Plus, Swords, X } from "lucide-react";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/empty-state";
 import { Panel } from "@/components/panel";
+import { NewRunDialog } from "@/components/run/new-run-dialog";
+import { RunTable } from "@/components/run/run-table";
 import { KindChip, PriorityText, StatusChip } from "@/components/task/chips";
 import { DependencyPicker } from "@/components/task/dependency-picker";
 import { EnvironmentCard } from "@/components/task/environment-card";
@@ -19,6 +21,7 @@ import { formatDate, relativeTime } from "@/lib/datetime";
 import { canTransition, TASK_KIND } from "@/lib/domain";
 import { useGlossary } from "@/lib/glossary";
 import { useProject } from "@/lib/projects";
+import { useRuns } from "@/lib/runs";
 import {
   useChangeTaskStatus,
   useCreateTask,
@@ -64,6 +67,7 @@ function Detail({ detail }: { detail: TaskDetail }) {
   const change = useChangeTaskStatus();
 
   const [editing, setEditing] = useState(false);
+  const [departing, setDeparting] = useState(false);
   const [title, setTitle] = useState(detail.title);
   const [description, setDescription] = useState(detail.description ?? "");
 
@@ -110,6 +114,10 @@ function Detail({ detail }: { detail: TaskDetail }) {
     );
   }
 
+  // Criar um Run exige a Task em READY, ou em FAILED como retentativa
+  // (documento técnico, seção 36). As outras regras — dependência pendente,
+  // Project sem workspace — a API confere, e a recusa chega com o motivo.
+  const canDepart = detail.status === "READY" || detail.status === "FAILED";
   const canComplete = canTransition(detail.status, "COMPLETED");
   const canCancel = canTransition(detail.status, "CANCELLED");
   const canReopen = canTransition(detail.status, "READY");
@@ -192,9 +200,22 @@ function Detail({ detail }: { detail: TaskDetail }) {
                 </Button>
               </>
             ) : (
-              <Button onClick={startEditing} size="sm" variant="outline">
-                Editar
-              </Button>
+              <>
+                <Button onClick={startEditing} size="sm" variant="outline">
+                  Editar
+                </Button>
+                {canDepart && (
+                  <Button
+                    onClick={() => {
+                      setDeparting(true);
+                    }}
+                    size="sm"
+                  >
+                    <Swords aria-hidden />
+                    <span>{format("Nova {run}", { run: t("entity.run") })}</span>
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -282,15 +303,7 @@ function Detail({ detail }: { detail: TaskDetail }) {
               </div>
 
               <TabsContent value="runs">
-                <EmptyState
-                  icon={CirclePlay}
-                  title={format("Nenhuma {run} ainda", { run: t("entity.run") })}
-                >
-                  {format(
-                    "A execução chega na Fase 2. Por enquanto esta {task} é planejada e acompanhada à mão; quando o runtime existir, cada tentativa aparece aqui com o seu {timeline}.",
-                    { task: t("entity.task"), timeline: t("run.timeline") },
-                  )}
-                </EmptyState>
+                <TaskRuns detail={detail} />
               </TabsContent>
 
               <TabsContent value="artifacts">
@@ -342,7 +355,7 @@ function Detail({ detail }: { detail: TaskDetail }) {
                 out: detail.dependents.length,
               })}
             </MetaRow>
-            <MetaRow label="Criada">{formatDate(detail.createdAt)}</MetaRow>
+            <MetaRow label={t("task.field.createdAt")}>{formatDate(detail.createdAt)}</MetaRow>
             {detail.completedAt !== null && (
               <MetaRow label={format("{status} em", { status: t("task.status.completed") })}>
                 {formatDate(detail.completedAt)}
@@ -355,7 +368,46 @@ function Detail({ detail }: { detail: TaskDetail }) {
           <EnvironmentCard />
         </div>
       </div>
+
+      <NewRunDialog onOpenChange={setDeparting} open={departing} task={detail} />
     </>
+  );
+}
+
+/**
+ * As Expedições desta Task, na mesma tabela da lista.
+ *
+ * Reaproveitar a tabela é o que garante que o ambiente, o status e a duração
+ * sejam lidos do mesmo jeito nos dois lugares. Aqui a coluna da Task sai: ela
+ * repetiria o título que está no cabeçalho da tela.
+ */
+function TaskRuns({ detail }: { detail: TaskDetail }) {
+  const { t, format } = useGlossary();
+  const [page, setPage] = useState(1);
+  const runs = useRuns({ taskId: detail.id, page, pageSize: 10 });
+
+  return (
+    <RunTable
+      empty={
+        <EmptyState
+          icon={CirclePlay}
+          title={format("Nenhuma {run} ainda", { run: t("entity.run") })}
+        >
+          {format(
+            "Cada tentativa de resolver esta {task} aparece aqui, com o seu {timeline} e o resultado.",
+            { task: t("entity.task"), timeline: t("run.timeline") },
+          )}
+        </EmptyState>
+      }
+      error={runs.error}
+      isPending={runs.isPending}
+      onPageChange={setPage}
+      page={page}
+      pageSize={10}
+      runs={runs.data?.items ?? []}
+      showTask={false}
+      total={runs.data?.total ?? 0}
+    />
   );
 }
 

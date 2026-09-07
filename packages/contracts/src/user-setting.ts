@@ -24,12 +24,23 @@ export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
 export type JsonValue =
   string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
-/** Chave de configuração: minúsculas, dígitos, ponto, hífen e sublinhado. */
+/**
+ * Chave de configuração: começa em minúscula e segue em `camelCase` pontuado.
+ *
+ * O primeiro caractere continua tendo de ser minúsculo, para que `UI.Theme`
+ * nunca seja aceito como sinônimo de `ui.theme` — duas grafias da mesma chave
+ * seriam duas configurações no banco. Depois dele, maiúsculas são permitidas
+ * porque a chave é um campo de JSON, e campo de JSON é `camelCase` neste
+ * projeto (CLAUDE.md, seção 1): `execution.hostAcknowledged`.
+ */
 export const UserSettingKeySchema = z
   .string()
   .min(1)
   .max(128)
-  .regex(/^[a-z0-9][a-z0-9._-]*$/, "A chave usa minúsculas, dígitos, ponto, hífen e sublinhado.")
+  .regex(
+    /^[a-z0-9][A-Za-z0-9._-]*$/,
+    "A chave começa em minúscula e segue em camelCase, com ponto, hífen e sublinhado.",
+  )
   .meta({ id: "UserSettingKey" });
 
 export type UserSettingKey = z.infer<typeof UserSettingKeySchema>;
@@ -73,6 +84,20 @@ export const UiThemeSchema = z
 export type UiTheme = z.infer<typeof UiThemeSchema>;
 
 /**
+ * O aceite explícito de executar no modo `HOST`, sem isolamento.
+ *
+ * A Fase 2B exige aceite explícito antes de um Run em `HOST` (planejamento
+ * v0.4, "Segurança obrigatória no modo HOST"). Perguntar a cada Expedição
+ * treinaria o usuário a clicar sem ler, então o aceite fica gravado aqui e a
+ * interface oferece revogá-lo em Settings. Guardar a preferência **não** apaga
+ * o aviso: o badge de ambiente e o texto canônico continuam em toda tela.
+ */
+export const HostAcknowledgedSchema = z.boolean().meta({
+  id: "HostAcknowledged",
+  description: "O usuário já aceitou explicitamente executar sem isolamento no host.",
+});
+
+/**
  * O objeto completo de configurações do usuário, com todas as chaves conhecidas
  * sempre presentes.
  *
@@ -82,6 +107,7 @@ export type UiTheme = z.infer<typeof UiThemeSchema>;
 export const UserSettingsSchema = z
   .object({
     "ui.theme": UiThemeSchema,
+    "execution.hostAcknowledged": HostAcknowledgedSchema,
   })
   .meta({
     id: "UserSettings",
@@ -93,6 +119,8 @@ export type UserSettings = z.infer<typeof UserSettingsSchema>;
 /** Padrões aplicados sobre o que não estiver gravado em `user_setting`. */
 export const DEFAULT_USER_SETTINGS: UserSettings = Object.freeze({
   "ui.theme": "dnd",
+  // O padrão é não ter aceitado: o aviso do modo host aparece na primeira vez.
+  "execution.hostAcknowledged": false,
 });
 
 /**
@@ -104,6 +132,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = Object.freeze({
  */
 export const USER_SETTING_VALUE_SCHEMAS = {
   "ui.theme": UiThemeSchema,
+  "execution.hostAcknowledged": HostAcknowledgedSchema,
 } as const satisfies Record<keyof UserSettings, z.ZodType>;
 
 /** As chaves conhecidas, na ordem em que aparecem no objeto. */

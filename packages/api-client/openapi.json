@@ -240,10 +240,14 @@
         "properties": {
           "ui.theme": {
             "$ref": "#/components/schemas/UiTheme"
+          },
+          "execution.hostAcknowledged": {
+            "$ref": "#/components/schemas/HostAcknowledged"
           }
         },
         "required": [
-          "ui.theme"
+          "ui.theme",
+          "execution.hostAcknowledged"
         ],
         "description": "Configurações do usuário com os padrões já aplicados."
       },
@@ -254,6 +258,10 @@
           "plain"
         ],
         "description": "Glossário ativo da interface."
+      },
+      "HostAcknowledged": {
+        "type": "boolean",
+        "description": "O usuário já aceitou explicitamente executar sem isolamento no host."
       },
       "UpdateUserSetting": {
         "type": "object",
@@ -4525,7 +4533,7 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 128,
-              "pattern": "^[a-z0-9][a-z0-9._-]*$",
+              "pattern": "^[a-z0-9][A-Za-z0-9._-]*$",
               "description": "Chave da configuração, como gravada em `user_setting`."
             },
             "required": true,

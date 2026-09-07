@@ -15,11 +15,12 @@ import { Route as HallRouteImport } from './routes/hall'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as LoadoutsRouteImport } from './routes/loadouts'
-import { Route as RunsRouteImport } from './routes/runs'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as WorkflowsRouteImport } from './routes/workflows'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsIdRouteImport } from './routes/projects.$id'
+import { Route as RunsIndexRouteImport } from './routes/runs.index'
+import { Route as RunsIdRouteImport } from './routes/runs.$id'
 import { Route as TasksIndexRouteImport } from './routes/tasks.index'
 import { Route as TasksIdRouteImport } from './routes/tasks.$id'
 
@@ -53,11 +54,6 @@ const LoadoutsRoute = LoadoutsRouteImport.update({
   path: '/loadouts',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RunsRoute = RunsRouteImport.update({
-  id: '/runs',
-  path: '/runs',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -78,6 +74,16 @@ const ProjectsIdRoute = ProjectsIdRouteImport.update({
   path: '/projects/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RunsIndexRoute = RunsIndexRouteImport.update({
+  id: '/runs/',
+  path: '/runs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RunsIdRoute = RunsIdRouteImport.update({
+  id: '/runs/$id',
+  path: '/runs/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TasksIndexRoute = TasksIndexRouteImport.update({
   id: '/tasks/',
   path: '/tasks/',
@@ -96,12 +102,13 @@ export interface FileRoutesByFullPath {
   '/inbox': typeof InboxRoute
   '/knowledge': typeof KnowledgeRoute
   '/loadouts': typeof LoadoutsRoute
-  '/runs': typeof RunsRoute
   '/settings': typeof SettingsRoute
   '/workflows': typeof WorkflowsRoute
   '/projects/$id': typeof ProjectsIdRoute
+  '/runs/$id': typeof RunsIdRoute
   '/tasks/$id': typeof TasksIdRoute
   '/projects/': typeof ProjectsIndexRoute
+  '/runs/': typeof RunsIndexRoute
   '/tasks/': typeof TasksIndexRoute
 }
 export interface FileRoutesByTo {
@@ -111,12 +118,13 @@ export interface FileRoutesByTo {
   '/inbox': typeof InboxRoute
   '/knowledge': typeof KnowledgeRoute
   '/loadouts': typeof LoadoutsRoute
-  '/runs': typeof RunsRoute
   '/settings': typeof SettingsRoute
   '/workflows': typeof WorkflowsRoute
   '/projects/$id': typeof ProjectsIdRoute
+  '/runs/$id': typeof RunsIdRoute
   '/tasks/$id': typeof TasksIdRoute
   '/projects': typeof ProjectsIndexRoute
+  '/runs': typeof RunsIndexRoute
   '/tasks': typeof TasksIndexRoute
 }
 export interface FileRoutesById {
@@ -127,12 +135,13 @@ export interface FileRoutesById {
   '/inbox': typeof InboxRoute
   '/knowledge': typeof KnowledgeRoute
   '/loadouts': typeof LoadoutsRoute
-  '/runs': typeof RunsRoute
   '/settings': typeof SettingsRoute
   '/workflows': typeof WorkflowsRoute
   '/projects/$id': typeof ProjectsIdRoute
+  '/runs/$id': typeof RunsIdRoute
   '/tasks/$id': typeof TasksIdRoute
   '/projects/': typeof ProjectsIndexRoute
+  '/runs/': typeof RunsIndexRoute
   '/tasks/': typeof TasksIndexRoute
 }
 export interface FileRouteTypes {
@@ -144,12 +153,13 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/knowledge'
     | '/loadouts'
-    | '/runs'
     | '/settings'
     | '/workflows'
     | '/projects/$id'
+    | '/runs/$id'
     | '/tasks/$id'
     | '/projects/'
+    | '/runs/'
     | '/tasks/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -159,12 +169,13 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/knowledge'
     | '/loadouts'
-    | '/runs'
     | '/settings'
     | '/workflows'
     | '/projects/$id'
+    | '/runs/$id'
     | '/tasks/$id'
     | '/projects'
+    | '/runs'
     | '/tasks'
   id:
     | '__root__'
@@ -174,12 +185,13 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/knowledge'
     | '/loadouts'
-    | '/runs'
     | '/settings'
     | '/workflows'
     | '/projects/$id'
+    | '/runs/$id'
     | '/tasks/$id'
     | '/projects/'
+    | '/runs/'
     | '/tasks/'
   fileRoutesById: FileRoutesById
 }
@@ -190,12 +202,13 @@ export interface RootRouteChildren {
   InboxRoute: typeof InboxRoute
   KnowledgeRoute: typeof KnowledgeRoute
   LoadoutsRoute: typeof LoadoutsRoute
-  RunsRoute: typeof RunsRoute
   SettingsRoute: typeof SettingsRoute
   WorkflowsRoute: typeof WorkflowsRoute
   ProjectsIdRoute: typeof ProjectsIdRoute
+  RunsIdRoute: typeof RunsIdRoute
   TasksIdRoute: typeof TasksIdRoute
   ProjectsIndexRoute: typeof ProjectsIndexRoute
+  RunsIndexRoute: typeof RunsIndexRoute
   TasksIndexRoute: typeof TasksIndexRoute
 }
 
@@ -243,13 +256,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoadoutsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/runs': {
-      id: '/runs'
-      path: '/runs'
-      fullPath: '/runs'
-      preLoaderRoute: typeof RunsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -278,6 +284,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/runs/': {
+      id: '/runs/'
+      path: '/runs'
+      fullPath: '/runs/'
+      preLoaderRoute: typeof RunsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/runs/$id': {
+      id: '/runs/$id'
+      path: '/runs/$id'
+      fullPath: '/runs/$id'
+      preLoaderRoute: typeof RunsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tasks/': {
       id: '/tasks/'
       path: '/tasks'
@@ -302,12 +322,13 @@ const rootRouteChildren: RootRouteChildren = {
   InboxRoute: InboxRoute,
   KnowledgeRoute: KnowledgeRoute,
   LoadoutsRoute: LoadoutsRoute,
-  RunsRoute: RunsRoute,
   SettingsRoute: SettingsRoute,
   WorkflowsRoute: WorkflowsRoute,
   ProjectsIdRoute: ProjectsIdRoute,
+  RunsIdRoute: RunsIdRoute,
   TasksIdRoute: TasksIdRoute,
   ProjectsIndexRoute: ProjectsIndexRoute,
+  RunsIndexRoute: RunsIndexRoute,
   TasksIndexRoute: TasksIndexRoute,
 }
 export const routeTree = rootRouteImport

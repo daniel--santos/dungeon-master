@@ -76,6 +76,41 @@ describe("paridade entre os glossários", () => {
   });
 });
 
+describe("decisões de UX da Fase 2", () => {
+  it("cobre os nove estados de Run", () => {
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("run.status."))).toHaveLength(9);
+  });
+
+  it("só o Selo é tematizado entre os estados não terminais", () => {
+    for (const key of [
+      "run.status.created",
+      "run.status.queued",
+      "run.status.preparing",
+      "run.status.running",
+    ] as const) {
+      expect(t("dnd", key), key).toBe(t("plain", key));
+    }
+    expect(t("dnd", "run.status.waitingApproval")).toBe("Aguardando o Selo");
+    expect(t("plain", "run.status.waitingApproval")).toBe("Aguardando aprovação");
+  });
+
+  it("enforcement não é tematizado: a barreira é informação de segurança", () => {
+    const chaves = GLOSSARY_KEYS.filter((key: GlossaryKey) => key.startsWith("enforcement."));
+    expect(chaves.length).toBeGreaterThan(0);
+    for (const key of chaves) {
+      expect(t("dnd", key), key).toBe(t("plain", key));
+    }
+  });
+
+  it("cobre os onze campos de HarnessCapabilities", () => {
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("harness.capability."))).toHaveLength(11);
+  });
+
+  it("cobre as três estratégias de workspace", () => {
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("workspaceStrategy."))).toHaveLength(3);
+  });
+});
+
 describe("regra de segurança da seção 14", () => {
   it("HOST no tema é 'Campo aberto'", () => {
     expect(dnd["env.host"]).toBe("Campo aberto");

@@ -42,6 +42,8 @@ export const plain: Record<GlossaryKey, string> = {
   "entity.model.plural": "Modelos",
   "entity.loadout": "Loadout",
   "entity.loadout.plural": "Loadouts",
+  "entity.executionProfile": "Perfil de execução",
+  "entity.executionProfile.plural": "Perfis de execução",
   "entity.skill": "Skill",
   "entity.skill.plural": "Skills",
   "entity.tool": "Ferramenta",
@@ -75,6 +77,9 @@ export const plain: Record<GlossaryKey, string> = {
   "task.status.failed": "Falhou",
   "task.status.cancelled": "Cancelada",
 
+  // ------------------------------------------------------------ task.field
+  "task.field.createdAt": "Criada",
+
   // --------------------------------------------------------- task.priority
   "task.priority.low": "Baixa",
   "task.priority.medium": "Média",
@@ -101,6 +106,11 @@ export const plain: Record<GlossaryKey, string> = {
   "achievement.state.unlocked": "Desbloqueada",
 
   // ------------------------------------------------------------------- run
+  "run.status.created": "Criada",
+  "run.status.queued": "Na fila",
+  "run.status.preparing": "Preparando",
+  "run.status.running": "Em andamento",
+  "run.status.waitingApproval": "Aguardando aprovação",
   "run.status.succeeded": "Concluída",
   "run.status.failed": "Falhou",
   "run.status.cancelled": "Cancelada",
@@ -114,6 +124,31 @@ export const plain: Record<GlossaryKey, string> = {
   "env.host.canonical": "HOST · UNISOLATED",
   "env.docker": "Docker",
   "env.docker.canonical": "DOCKER · ISOLATED",
+
+  // ----------------------------------------------------------- enforcement
+  "enforcement.advisory": "Pedido sem barreira",
+  "enforcement.harnessNative": "Permissão nativa da CLI",
+  "enforcement.sandboxEnforced": "Imposto pelo sandbox",
+  "enforcement.requested": "Permissão pedida",
+  "enforcement.applied": "Permissão aplicada",
+
+  // ------------------------------------------------------ workspaceStrategy
+  "workspaceStrategy.current": "Diretório do projeto",
+  "workspaceStrategy.gitWorktree": "Worktree por execução",
+  "workspaceStrategy.copy": "Cópia do diretório",
+
+  // ----------------------------------------------------- harness.capability
+  "harness.capability.streaming": "Saída incremental",
+  "harness.capability.structuredOutput": "Saída estruturada",
+  "harness.capability.resume": "Retomar",
+  "harness.capability.multiTurnProcess": "Processo de vários turnos",
+  "harness.capability.toolEvents": "Eventos de ferramenta",
+  "harness.capability.tokenUsage": "Uso de tokens",
+  "harness.capability.modelSelection": "Escolha de modelo",
+  "harness.capability.agentSelection": "Escolha de sub-agente",
+  "harness.capability.nativePermissions": "Permissões próprias",
+  "harness.capability.hostExecution": "Host",
+  "harness.capability.dockerExecution": "Docker",
 
   // ------------------------------------------------------------------ hero
   "hero.xp": "Pontos",

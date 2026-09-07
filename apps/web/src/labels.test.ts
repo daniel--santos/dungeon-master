@@ -12,6 +12,12 @@ import { describe, expect, it } from "vitest";
  *
  * `src/lib/glossary.ts` é a fronteira e está fora da varredura, junto da árvore
  * de rotas gerada e dos próprios testes.
+ *
+ * `src/lib/api-types.ts` é a segunda fronteira, e existe porque dois nomes
+ * canônicos do contrato — `Loadout` e `Harness` — são letra por letra os labels
+ * do glossário `plain`. A varredura não distingue uma chave de tipo de um
+ * label renderizado, então os apelidos ficam todos naquele arquivo e o resto de
+ * `src` continua sob a regra estrita.
  */
 
 const SRC = import.meta.dirname;
@@ -27,7 +33,7 @@ const SCANNED_PREFIXES = [
   "task.priority.",
 ] as const;
 
-const EXEMPT_FILES = new Set(["lib/glossary.ts", "routeTree.gen.ts"]);
+const EXEMPT_FILES = new Set(["lib/glossary.ts", "lib/api-types.ts", "routeTree.gen.ts"]);
 
 const SCANNED_KEYS = GLOSSARY_KEYS.filter((key) =>
   SCANNED_PREFIXES.some((prefix) => key.startsWith(prefix)),
