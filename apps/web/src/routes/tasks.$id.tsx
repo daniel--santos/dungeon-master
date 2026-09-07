@@ -342,7 +342,7 @@ function Detail({ detail }: { detail: TaskDetail }) {
                 out: detail.dependents.length,
               })}
             </MetaRow>
-            <MetaRow label="Criada">{formatDate(detail.createdAt)}</MetaRow>
+            <MetaRow label={t("task.field.createdAt")}>{formatDate(detail.createdAt)}</MetaRow>
             {detail.completedAt !== null && (
               <MetaRow label={format("{status} em", { status: t("task.status.completed") })}>
                 {formatDate(detail.completedAt)}

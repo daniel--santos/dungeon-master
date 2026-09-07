@@ -2723,12 +2723,15 @@ export interface components {
         /** @description Configurações do usuário com os padrões já aplicados. */
         UserSettings: {
             "ui.theme": components["schemas"]["UiTheme"];
+            "execution.hostAcknowledged": components["schemas"]["HostAcknowledged"];
         };
         /**
          * @description Glossário ativo da interface.
          * @enum {string}
          */
         UiTheme: "dnd" | "plain";
+        /** @description O usuário já aceitou explicitamente executar sem isolamento no host. */
+        HostAcknowledged: boolean;
         /** @description Novo valor de uma configuração. */
         UpdateUserSetting: {
             /** @description Novo valor da configuração. Validado pelo schema da chave. */

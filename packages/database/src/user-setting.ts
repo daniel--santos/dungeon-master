@@ -47,7 +47,12 @@ export async function readUserSettings(
     const parsed = USER_SETTING_VALUE_SCHEMAS[row.key].safeParse(row.value);
     if (!parsed.success) continue;
 
-    settings[row.key] = parsed.data;
+    // `row.key` é a união das chaves conhecidas, e uma escrita em `obj[união]`
+    // exige o tipo comum a todas — que não existe assim que há duas chaves de
+    // tipos diferentes. O schema indexado pela mesma chave já validou o valor
+    // na linha acima, então a correlação é real; o que falta é o TypeScript
+    // conseguir enxergá-la sem um parâmetro genérico.
+    Object.assign(settings, { [row.key]: parsed.data });
   }
 
   return settings;

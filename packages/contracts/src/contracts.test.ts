@@ -80,8 +80,15 @@ describe("UserSettingSchema", () => {
     expect(parsed.value).toEqual({ enabled: true, glossary: "dnd" });
   });
 
-  it("rejeita chave com maiúsculas", () => {
+  it("rejeita chave que começa em maiúscula", () => {
     expect(() => UserSettingKeySchema.parse("UI.Theme")).toThrow();
+    expect(() => UserSettingKeySchema.parse("Execution.hostAcknowledged")).toThrow();
+  });
+
+  it("aceita camelCase depois do primeiro caractere", () => {
+    expect(UserSettingKeySchema.parse("execution.hostAcknowledged")).toBe(
+      "execution.hostAcknowledged",
+    );
   });
 });
 
@@ -125,7 +132,11 @@ describe("DashboardEventSchema", () => {
 
 describe("UserSettingsSchema", () => {
   it("os padrões passam no próprio schema", () => {
-    expect(UserSettingsSchema.parse(DEFAULT_USER_SETTINGS)).toEqual({ "ui.theme": "dnd" });
+    const parsed = UserSettingsSchema.parse(DEFAULT_USER_SETTINGS);
+
+    expect(parsed["ui.theme"]).toBe("dnd");
+    // O aceite do modo host nasce falso: o aviso aparece na primeira Expedição.
+    expect(parsed["execution.hostAcknowledged"]).toBe(false);
   });
 
   it("toda chave conhecida tem schema de valor e padrão", () => {

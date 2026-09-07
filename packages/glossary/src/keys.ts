@@ -45,6 +45,8 @@ export const GLOSSARY_KEYS = [
   "entity.model.plural",
   "entity.loadout",
   "entity.loadout.plural",
+  "entity.executionProfile",
+  "entity.executionProfile.plural",
   "entity.skill",
   "entity.skill.plural",
   "entity.tool",
@@ -81,6 +83,12 @@ export const GLOSSARY_KEYS = [
   "task.status.failed",
   "task.status.cancelled",
 
+  // ------------------------------------------------------------ task.field
+  // Rótulos de campo do detalhe de Task. Existem como chave porque "Criada" é
+  // também o label de `run.status.created`, e a regra da seção 2 do CLAUDE.md
+  // proíbe que o mesmo texto apareça escrito à mão em qualquer tela.
+  "task.field.createdAt",
+
   // --------------------------------------------------------- task.priority
   "task.priority.low",
   "task.priority.medium",
@@ -107,6 +115,14 @@ export const GLOSSARY_KEYS = [
   "achievement.state.unlocked",
 
   // ------------------------------------------------------------------- run
+  // Os nove estados de Run. Os cinco não terminais são iguais nos dois temas,
+  // menos `waitingApproval`, que é o Selo da Guilda do glossário (decisões de
+  // UX da Fase 2). Os quatro terminais vêm da tabela da seção 14.
+  "run.status.created",
+  "run.status.queued",
+  "run.status.preparing",
+  "run.status.running",
+  "run.status.waitingApproval",
   "run.status.succeeded",
   "run.status.failed",
   "run.status.cancelled",
@@ -120,6 +136,35 @@ export const GLOSSARY_KEYS = [
   "env.host.canonical",
   "env.docker",
   "env.docker.canonical",
+
+  // ----------------------------------------------------------- enforcement
+  // Quão forte é a barreira (documento técnico, seção 15). Não é tematizado:
+  // a diferença entre política pedida e política imposta é informação de
+  // segurança, e o tema nunca a suaviza.
+  "enforcement.advisory",
+  "enforcement.harnessNative",
+  "enforcement.sandboxEnforced",
+  "enforcement.requested",
+  "enforcement.applied",
+
+  // ------------------------------------------------------ workspaceStrategy
+  "workspaceStrategy.current",
+  "workspaceStrategy.gitWorktree",
+  "workspaceStrategy.copy",
+
+  // ----------------------------------------------------- harness.capability
+  // Os onze campos de `HarnessCapabilities`, na ordem do contrato.
+  "harness.capability.streaming",
+  "harness.capability.structuredOutput",
+  "harness.capability.resume",
+  "harness.capability.multiTurnProcess",
+  "harness.capability.toolEvents",
+  "harness.capability.tokenUsage",
+  "harness.capability.modelSelection",
+  "harness.capability.agentSelection",
+  "harness.capability.nativePermissions",
+  "harness.capability.hostExecution",
+  "harness.capability.dockerExecution",
 
   // ------------------------------------------------------------------ hero
   "hero.xp",

@@ -147,7 +147,11 @@ describe(`GET ${API_BASE_PATH}/settings`, () => {
     const response = await app.request(`${API_BASE_PATH}/settings`);
 
     expect(response.status).toBe(200);
-    expect(UserSettingsSchema.parse(await response.json())).toEqual({ "ui.theme": "dnd" });
+
+    const body = UserSettingsSchema.parse(await response.json());
+
+    expect(body["ui.theme"]).toBe("dnd");
+    expect(body["execution.hostAcknowledged"]).toBe(false);
   });
 
   it("devolve o que está gravado por cima do padrão", async () => {
@@ -176,7 +180,7 @@ describe(`PUT ${API_BASE_PATH}/settings/{key}`, () => {
     const response = await put("ui.theme", "plain");
 
     expect(response.status).toBe(200);
-    expect(UserSettingsSchema.parse(await response.json())).toEqual({ "ui.theme": "plain" });
+    expect(UserSettingsSchema.parse(await response.json())["ui.theme"]).toBe("plain");
 
     const rows = await lerConfiguracoesCruas();
 

@@ -41,6 +41,8 @@ export const dnd: Record<GlossaryKey, string> = {
   "entity.model.plural": "Patronos",
   "entity.loadout": "Equipamento",
   "entity.loadout.plural": "Equipamentos",
+  "entity.executionProfile": "Perfil de execução",
+  "entity.executionProfile.plural": "Perfis de execução",
   "entity.skill": "Habilidade",
   "entity.skill.plural": "Habilidades",
   "entity.tool": "Item",
@@ -74,6 +76,9 @@ export const dnd: Record<GlossaryKey, string> = {
   "task.status.failed": "Falhou",
   "task.status.cancelled": "Cancelada",
 
+  // ------------------------------------------------------------ task.field
+  "task.field.createdAt": "Criada",
+
   // --------------------------------------------------------- task.priority
   "task.priority.low": "Baixa",
   "task.priority.medium": "Média",
@@ -100,6 +105,11 @@ export const dnd: Record<GlossaryKey, string> = {
   "achievement.state.unlocked": "Desbloqueada",
 
   // ------------------------------------------------------------------- run
+  "run.status.created": "Criada",
+  "run.status.queued": "Na fila",
+  "run.status.preparing": "Preparando",
+  "run.status.running": "Em andamento",
+  "run.status.waitingApproval": "Aguardando o Selo",
   "run.status.succeeded": "Vitória",
   "run.status.failed": "Derrota",
   "run.status.cancelled": "Retirada",
@@ -113,6 +123,31 @@ export const dnd: Record<GlossaryKey, string> = {
   "env.host.canonical": "HOST · UNISOLATED",
   "env.docker": "Masmorra selada",
   "env.docker.canonical": "DOCKER · ISOLATED",
+
+  // ----------------------------------------------------------- enforcement
+  "enforcement.advisory": "Pedido sem barreira",
+  "enforcement.harnessNative": "Permissão nativa da CLI",
+  "enforcement.sandboxEnforced": "Imposto pelo sandbox",
+  "enforcement.requested": "Permissão pedida",
+  "enforcement.applied": "Permissão aplicada",
+
+  // ------------------------------------------------------ workspaceStrategy
+  "workspaceStrategy.current": "Diretório do projeto",
+  "workspaceStrategy.gitWorktree": "Worktree por Expedição",
+  "workspaceStrategy.copy": "Cópia do diretório",
+
+  // ----------------------------------------------------- harness.capability
+  "harness.capability.streaming": "Saída incremental",
+  "harness.capability.structuredOutput": "Saída estruturada",
+  "harness.capability.resume": "Retomar",
+  "harness.capability.multiTurnProcess": "Processo de vários turnos",
+  "harness.capability.toolEvents": "Eventos de Item",
+  "harness.capability.tokenUsage": "Uso de tokens",
+  "harness.capability.modelSelection": "Escolha de Patrono",
+  "harness.capability.agentSelection": "Escolha de sub-Herói",
+  "harness.capability.nativePermissions": "Permissões próprias",
+  "harness.capability.hostExecution": "Campo aberto",
+  "harness.capability.dockerExecution": "Masmorra selada",
 
   // ------------------------------------------------------------------ hero
   "hero.xp": "Experiência",
