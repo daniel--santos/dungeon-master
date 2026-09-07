@@ -5,10 +5,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Primeira Expedição", "plain": "Primeira execução" },
     "description": {
-      "theme": "Vencer a primeira Expedição. Uma. O requisito é esse mesmo e não vai subir tão cedo.",
+      "theme": "Vencer a primeira Expedição. Uma. A plateia chegou cedo esperando um desastre e saiu decepcionada.",
       "plain": "Concluir a primeira execução com sucesso."
     },
-    "flavor": "Uma vitória. A primeira. O Dungeon Master conferiu duas vezes, porque as expectativas aqui eram outras. A carta já está no Hall, ao lado de gente que fez bem mais, e vai passar um tempo visivelmente constrangida.",
+    "flavor": "Uma vitória. A primeira. A transmissão cortou para a arquibancada e pegou três pessoas conferindo se era mesmo com você. O Dungeon Master registra o feito e mantém as expectativas exatamente onde estavam.",
     "icon": "flag",
     "rarity": "COMMON",
     "hidden": false,
@@ -20,10 +20,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Caçador de Monstros", "plain": "Caçador de bugs" },
     "description": {
-      "theme": "Derrotar 10, 50 e 200 Monstros. Eles continuam nascendo, e sim, alguém está contando.",
+      "theme": "Derrotar 10, 50 e 200 Monstros. A plateia adora a caçada e finge não perguntar de onde vêm tantos.",
       "plain": "Concluir 10, 50 e 200 tarefas do tipo bug."
     },
-    "flavor": "O Bestiário anota e não julga. O Dungeon Master julga. E observa que todos esses Monstros nasceram no mesmo território, sob a mesma administração. A sua.",
+    "flavor": "O Bestiário anota e não julga. A arquibancada julga, e julga alto. Todos esses Monstros nasceram no mesmo território, sob a mesma administração, e a plateia já descobriu de quem é. A câmera está em você.",
     "icon": "swords",
     "rarity": "COMMON",
     "hidden": false,
@@ -42,10 +42,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Sem Baixas", "plain": "Sequência impecável" },
     "description": {
-      "theme": "Encadear dez Expedições vitoriosas seguidas. Uma derrota no meio zera tudo. É essa a graça.",
+      "theme": "Encadear dez Expedições vitoriosas seguidas. Uma derrota zera tudo, e a arquibancada conta junto.",
       "plain": "Encadear dez execuções bem-sucedidas seguidas."
     },
-    "flavor": "Dez seguidas, sem uma única derrota. Impressionante e insustentável, nessa ordem. O Dungeon Master já deixou o texto da décima primeira redigido e revisado. Ficou bom. Você vai gostar.",
+    "flavor": "Dez seguidas. A audiência subiu, as apostas viraram contra você e a câmera não sai mais do seu lado. O Dungeon Master já gravou a narração da décima primeira. Ficou emocionante. Você vai gostar.",
     "icon": "shield-check",
     "rarity": "RARE",
     "hidden": false,
@@ -57,10 +57,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Retirada Tática", "plain": "Primeiro cancelamento" },
     "description": {
-      "theme": "Cancelar uma Expedição em andamento pela primeira vez. Antes tarde do que no dobro do prejuízo.",
+      "theme": "Cancelar uma Expedição em andamento pela primeira vez. A plateia vaiou; o prejuízo, não.",
       "plain": "Cancelar uma execução em andamento pela primeira vez."
     },
-    "flavor": "Tática. Claro. O registro diz Retirada Tática porque Pânico Administrativo não constava na lista de opções. O Herói saiu do campo sem perguntar nada, o que foi mais dignidade do que a ocasião pedia.",
+    "flavor": "Tática. Claro. A transmissão anunciou Retirada Tática porque Pânico ao Vivo não constava no roteiro. Houve vaia, houve replay, e houve uma minoria na arquibancada que aplaudiu, porque entendeu.",
     "icon": "flag-off",
     "rarity": "COMMON",
     "hidden": false,
@@ -72,10 +72,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Masmorra Selada", "plain": "Primeira execução isolada" },
     "description": {
-      "theme": "Vencer a primeira Expedição inteira dentro de uma Masmorra selada, sem nada escapando para fora.",
+      "theme": "Vencer a primeira Expedição inteira dentro de uma Masmorra selada. Sem vazamento, sem câmera lá dentro.",
       "plain": "Concluir com sucesso a primeira execução em Docker."
     },
-    "flavor": "Você trancou o Herói numa caixa de pedra sem saída e mandou trabalhar. Não por elegância. Por desconfiança. O Dungeon Master aprova, e sugere estender essa política a praticamente todo o resto.",
+    "flavor": "Você trancou o Herói numa caixa de pedra sem saída e mandou trabalhar. A plateia odiou: não há câmera lá dentro, não há o que assistir. O Dungeon Master, que também não viu nada, aprova mesmo assim.",
     "icon": "container",
     "rarity": "RARE",
     "hidden": false,
@@ -91,10 +91,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Aliado das Quatro Guildas", "plain": "Quatro harnesses" },
     "description": {
-      "theme": "Vencer ao menos uma Expedição com cada uma das quatro Guildas.",
+      "theme": "Vencer ao menos uma Expedição com cada uma das quatro Guildas. A plateia queria um favorito; você deu um empate.",
       "plain": "Concluir uma execução bem-sucedida com cada um dos quatro harnesses."
     },
-    "flavor": "Quatro Guildas, quatro juramentos de superioridade, quatro vitórias praticamente idênticas. Nenhuma delas notou. Você terminou com quatro contratos e nenhuma preferência. Parabéns pela indecisão.",
+    "flavor": "Quatro Guildas, quatro vitórias, nenhuma preferência. A arquibancada apostou em qual delas você abandonaria primeiro e perdeu em bloco. O Dungeon Master agradece a audiência recorde e anota: indeciso, porém rentável.",
     "icon": "users",
     "rarity": "EPIC",
     "hidden": false,
@@ -111,10 +111,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Segundo Fôlego", "plain": "Retomada bem-sucedida" },
     "description": {
-      "theme": "Retomar uma Expedição interrompida e terminá-la em vitória, pela primeira vez.",
+      "theme": "Retomar uma Expedição interrompida e terminá-la em vitória. A plateia já tinha ido embora.",
       "plain": "Concluir com sucesso uma execução retomada de outra."
     },
-    "flavor": "A primeira tentativa morreu no caminho. Você a ressuscitou e mandou de volta pelo mesmo trajeto, o que é teimosia e não estratégia. Deu certo. O Dungeon Master vai fingir que sempre foi um plano.",
+    "flavor": "A primeira tentativa morreu no ar, com a arquibancada meio vazia. Você mandou o mesmo Herói de volta pelo mesmo caminho, o que é teimosia e não plano. Deu certo. A transmissão vai chamar de reviravolta.",
     "icon": "rotate-ccw",
     "rarity": "RARE",
     "hidden": false,
@@ -130,10 +130,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Selo da Guilda", "plain": "Primeira aprovação" },
     "description": {
-      "theme": "Conceder o primeiro Selo da Guilda ao trabalho de um Herói, e tudo o que vem junto.",
+      "theme": "Aprovar um plano pela primeira vez. Carimbo dado, plateia avisada, responsabilidade transferida em rede.",
       "plain": "Conceder a primeira aprovação."
     },
-    "flavor": "Você carimbou. Está feito. Daqui em diante, se algo desandar, o registro mostra um Herói que executou e um nome que autorizou, e não é o do Herói que aparece em negrito.",
+    "flavor": "Você carimbou. A transmissão mostrou o carimbo em câmera lenta, três vezes, para ninguém alegar depois que não viu. Se algo desandar, a plateia já sabe quem executou e quem autorizou, e vai vaiar o nome certo.",
     "icon": "stamp",
     "rarity": "COMMON",
     "hidden": false,
@@ -145,10 +145,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Veto", "plain": "Primeira rejeição" },
     "description": {
-      "theme": "Negar o Selo da Guilda pela primeira vez a um trabalho que não convenceu.",
+      "theme": "Negar o Selo da Guilda pela primeira vez. A plateia veio ver trabalho aprovado e viu você dizer não.",
       "plain": "Recusar uma aprovação pela primeira vez."
     },
-    "flavor": "Você disse não. O Herói acatou na hora, porque Heróis não discutem, o que talvez explique por que ele fez aquilo em primeiro lugar. Mantenha o hábito: dizer não é a única coisa barata por aqui.",
+    "flavor": "Você disse não, ao vivo. O Herói acatou na hora, porque Heróis não discutem, e a arquibancada vaiou por reflexo. Vão entender na semana que vem. A vaia é agora, o prejuízo evitado é depois.",
     "icon": "thumbs-down",
     "rarity": "COMMON",
     "hidden": false,
@@ -160,10 +160,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Escriba do Grimório", "plain": "Escriba do conhecimento" },
     "description": {
-      "theme": "Promover 10, 100 e 500 Páginas do Grimório com o que as Expedições aprenderam.",
+      "theme": "Promover 10, 100 e 500 Páginas do Grimório. É a parte da transmissão em que a plateia sai para comer.",
       "plain": "Promover 10, 100 e 500 itens de conhecimento do projeto."
     },
-    "flavor": "Você está escrevendo para uma pessoa muito específica: você mesmo, às duas da manhã, daqui a sete meses, sem lembrar de absolutamente nada. Ele não vai agradecer. Ele nem vai saber que você existiu.",
+    "flavor": "Ninguém liga a transmissão para ver alguém escrever. A arquibancada esvazia, o painel de audiência despenca, e o Dungeon Master fica sozinho vendo você preparar a única coisa aqui que vai durar.",
     "icon": "book-open",
     "rarity": "RARE",
     "hidden": false,
@@ -181,10 +181,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Ritualista", "plain": "Primeira execução por workflow" },
     "description": {
-      "theme": "Vencer a primeira Expedição guiada por um Ritual, do primeiro passo ao último.",
+      "theme": "Vencer a primeira Expedição guiada por um Ritual. Roteiro seguido à risca, sem improviso no ar.",
       "plain": "Concluir com sucesso a primeira execução guiada por um workflow."
     },
-    "flavor": "Você seguiu os passos na ordem em que estavam escritos e funcionou de primeira. O Dungeon Master não vai comentar as outras vezes. O Dungeon Master vai só deixar esta frase registrada, para consulta futura.",
+    "flavor": "Você seguiu o roteiro na ordem em que estava escrito e funcionou de primeira. A plateia, que veio pelo improviso, ficou visivelmente frustrada. O Dungeon Master não vai comentar as outras vezes. Está tudo gravado.",
     "icon": "wand-sparkles",
     "rarity": "RARE",
     "hidden": false,
@@ -200,10 +200,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Cartógrafo", "plain": "Primeira dependência" },
     "description": {
-      "theme": "Criar a primeira dependência entre Missões e traçar a primeira ligação no Mapa da masmorra.",
+      "theme": "Criar a primeira dependência entre Missões. A plateia acompanhou pelo telão e entendeu antes de você.",
       "plain": "Criar a primeira dependência entre tarefas."
     },
-    "flavor": "Você desenhou uma ligação que já existia há meses. Ela estava guardada na sua cabeça, que é o pior meio de armazenamento já homologado pela Guilda, e que perde dados toda vez que você dorme.",
+    "flavor": "Você desenhou uma ligação que já existia há meses. A arquibancada sabia. A arquibancada gritou. Você não ouviu, porque a informação estava guardada na sua cabeça, o pior arquivo já homologado pela Guilda.",
     "icon": "map",
     "rarity": "COMMON",
     "hidden": false,
@@ -215,10 +215,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Marcha Longa", "plain": "Execução mais longa" },
     "description": {
-      "theme": "Registrar a Expedição vitoriosa mais longa da Campanha, acima de uma hora de duração.",
+      "theme": "Registrar a Expedição vitoriosa mais longa da Campanha, acima de uma hora. A plateia envelheceu junto.",
       "plain": "Registrar a execução bem-sucedida mais longa, acima de sessenta minutos."
     },
-    "flavor": "Mais de uma hora, e o Herói voltou inteiro. Ninguém aqui confunde longo com bom, mas existe um mérito e é este: você não apertou o cancelar. Chegou perto. O Dungeon Master viu.",
+    "flavor": "Mais de uma hora no ar. A audiência caiu pela metade no minuto quarenta, junto com a sua vontade de continuar. Você não apertou o cancelar. Chegou perto, e a câmera estava bem ali.",
     "icon": "hourglass",
     "rarity": "EPIC",
     "hidden": false,
@@ -236,10 +236,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Vigília Noturna", "plain": "Execução de madrugada" },
     "description": {
-      "theme": "Vencer uma Expedição entre a meia-noite e as cinco da manhã, no seu horário local.",
+      "theme": "Vencer uma Expedição entre a meia-noite e as cinco da manhã. Horário nobre em algum outro lugar.",
       "plain": "Concluir com sucesso uma execução entre zero e cinco horas."
     },
-    "flavor": "Vitória registrada. Horário registrado. O Dungeon Master é obrigado a premiar isso e faz questão que conste em ata que não recomenda, não incentiva e não vai perguntar quantas vezes já aconteceu antes.",
+    "flavor": "Vitória registrada às tantas da madrugada, para uma arquibancada de onze pessoas e nenhuma delas descansada. O Dungeon Master é obrigado a premiar isso, faz constar que não recomenda, e não vai perguntar nada.",
     "icon": "moon",
     "rarity": "COMMON",
     "hidden": false,
@@ -255,10 +255,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Fundador de Campanhas", "plain": "Cinco projetos" },
     "description": {
-      "theme": "Fundar cinco Campanhas. Fundar. O que acontece depois é problema de outra Conquista.",
+      "theme": "Fundar cinco Campanhas. Fundar. A plateia lota a estreia e some por volta do terceiro episódio.",
       "plain": "Criar cinco projetos."
     },
-    "flavor": "Cinco Campanhas abertas. O Dungeon Master tem o número de Campanhas concluídas bem aqui, na mesma tela, e vai se comportar. Fundar é a parte fácil. É exatamente por isso que esta Conquista é comum.",
+    "flavor": "Cinco Campanhas abertas, cinco estreias, cinco arquibancadas cheias. O Dungeon Master tem o número de Campanhas concluídas no painel ao lado e vai se comportar. Estreia é fácil. Por isso esta Conquista é comum.",
     "icon": "folder-plus",
     "rarity": "COMMON",
     "hidden": false,

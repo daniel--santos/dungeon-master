@@ -5,10 +5,10 @@
     "scope": "PROJECT",
     "name": { "theme": "Guardião de {project}", "plain": "Veterano do projeto {project}" },
     "description": {
-      "theme": "Concluir 25 e depois 100 Missões em {project}, até a Campanha parar de pedir socorro.",
+      "theme": "Concluir 25 e depois 100 Missões em {project}. A plateia já sabe de cor quem vai aparecer.",
       "plain": "Concluir 25 e 100 tarefas no projeto {project}."
     },
-    "flavor": "Toda Campanha desenvolve um padrão, e o padrão desta é você. Deu problema, aparece o mesmo nome. Pode ser lealdade. Pode ser uma falha grave de distribuição de trabalho. O Dungeon Master aposta na segunda.",
+    "flavor": "Toda Campanha vira um programa de elenco fixo, e o desta é você. Deu problema, a câmera já sabe para onde virar. A arquibancada chama isso de lealdade. O Dungeon Master chama de escala mal feita.",
     "icon": "shield",
     "rarity": "RARE",
     "hidden": true,
@@ -24,10 +24,10 @@
     "scope": "HARNESS",
     "name": { "theme": "Aliado da Guilda {harness}", "plain": "Veterano do harness {harness}" },
     "description": {
-      "theme": "Vencer cinquenta Expedições ao lado da Guilda {harness}.",
+      "theme": "Vencer cinquenta Expedições ao lado da Guilda {harness}. A plateia parou de apostar contra.",
       "plain": "Concluir cinquenta execuções bem-sucedidas com o harness {harness}."
     },
-    "flavor": "Cinquenta Expedições com a mesma Guilda. Isso deixou de ser escolha por volta da décima. O Dungeon Master classificou o vínculo como hábito, arquivou o caso e não pretende reabrir o assunto.",
+    "flavor": "Cinquenta Expedições com a mesma Guilda. As apostas da plateia morreram por falta de graça por volta da décima. O Dungeon Master classificou o vínculo como previsível, arquivou, e cortou o replay.",
     "icon": "handshake",
     "rarity": "RARE",
     "hidden": true,
@@ -41,10 +41,10 @@
     "scope": "TASK",
     "name": { "theme": "Nêmesis: {task}", "plain": "Bug reincidente resolvido: {task}" },
     "description": {
-      "theme": "Derrotar em definitivo o Monstro {task}, já dado como morto duas vezes.",
+      "theme": "Derrotar em definitivo o Monstro {task}, já dado como morto duas vezes no ar.",
       "plain": "Concluir o bug {task}, reaberto duas ou mais vezes."
     },
-    "flavor": "Você já matou esse Monstro. Duas vezes. Com testemunhas. O Bestiário guardou as duas certidões de óbito e acaba de abrir espaço para a terceira, ao lado das outras, por precaução.",
+    "flavor": "Você já matou esse Monstro. Duas vezes. Ao vivo, com replay e comemoração. A arquibancada aprendeu a não levantar cedo demais e desta vez esperou sentada, o que foi sensato, e continua sendo.",
     "icon": "skull",
     "rarity": "EPIC",
     "hidden": true,
@@ -62,10 +62,10 @@
     "scope": "AGENT",
     "name": { "theme": "{agent} Veterano", "plain": "{agent} veterano" },
     "description": {
-      "theme": "Levar {agent} a cem Expedições vitoriosas.",
+      "theme": "Levar {agent} a cem Expedições vitoriosas. A plateia grita o nome antes de você escolher.",
       "plain": "Acumular cem execuções bem-sucedidas com o agente {agent}."
     },
-    "flavor": "Cem vitórias. A esta altura você não escolhe mais esse Herói, você o digita por reflexo, antes de qualquer pensamento consciente participar da decisão. Ele sabe. Ele conta com isso.",
+    "flavor": "Cem vitórias. A esta altura a arquibancada canta o nome dele antes de a sua mão chegar à escolha, o que economiza suspense e encerra qualquer dúvida sobre quem manda aqui. Ele sabe. Ele conta com isso.",
     "icon": "medal",
     "rarity": "EPIC",
     "hidden": true,
@@ -79,10 +79,10 @@
     "scope": "PROJECT",
     "name": { "theme": "Recorde de {project}", "plain": "Execução mais longa em {project}" },
     "description": {
-      "theme": "Sustentar a Expedição vitoriosa mais longa de {project}.",
+      "theme": "Sustentar a Expedição vitoriosa mais longa de {project}. Fica no telão até alguém tirá-la de lá.",
       "plain": "Registrar a execução bem-sucedida mais longa do projeto {project}."
     },
-    "flavor": "O recorde fica pendurado até alguém superá-lo. Como é um recorde de duração, superá-lo significa passar ainda mais tempo esperando. O Dungeon Master registra a marca e recomenda não persegui-la.",
+    "flavor": "A marca subiu no telão e fica lá até alguém superá-la. Como é recorde de duração, bater significa fazer a plateia esperar ainda mais. O Dungeon Master registra, exibe, e não recomenda a ninguém.",
     "icon": "trophy",
     "rarity": "RARE",
     "hidden": true,
