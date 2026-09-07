@@ -73,6 +73,17 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # Só o Chromium: um navegador basta para o e2e e o download é o passo
+      # mais caro deste job. `--with-deps` existe só para o Linux, e a matriz
+      # aqui é Windows e macOS, onde a flag não tem o que instalar.
+      - name: Instalar o Chromium do Playwright
+        run: pnpm --filter @dungeon-master/web exec playwright install chromium
+
+      # Sobe a API e o Vite com um PostgreSQL embutido próprio, em portas
+      # separadas das de desenvolvimento.
+      - name: Testes de ponta a ponta da web
+        run: pnpm run e2e
+
       - name: Cliente OpenAPI está atualizado
         run: pnpm run gen:check
 

@@ -16,6 +16,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "gen": "turbo run gen",
+    "e2e": "pnpm --filter @dungeon-master/web run e2e",
     "gen:check": "pnpm run gen && git diff --exit-code -- packages/api-client/openapi.json packages/api-client/src/schema.d.ts",
     "db:generate": "pnpm --filter @dungeon-master/database run db:generate",
     "db:migrate": "pnpm --filter @dungeon-master/database run db:migrate",

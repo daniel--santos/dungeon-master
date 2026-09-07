@@ -1,0 +1,20 @@
+{
+  // Os testes de ponta a ponta rodam no Node, não no browser: precisam dos
+  // tipos de `node` e não têm nada a ver com o bundle da web. Ficam num
+  // projeto à parte para o código de `src/` continuar sem acesso a builtins.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "checkJs": false,
+    "types": ["node"]
+  },
+  "include": ["e2e/**/*.ts", "e2e/**/*.mjs", "playwright.config.ts"]
+}

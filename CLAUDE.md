@@ -58,9 +58,11 @@ e mensagens de erro voltadas ao usuário podem ser em português.
 
 Aplicadas pelo ESLint em `eslint.config.mjs`. Quebrar qualquer uma falha em `pnpm lint`.
 
-- **`apps/web`** importa somente `@dungeon-master/api-client` e **tipos** de
-  `@dungeon-master/contracts`. Nenhum pacote interno de backend, nenhum import relativo
-  para fora do app.
+- **`apps/web`** importa somente `@dungeon-master/api-client`, `@dungeon-master/glossary`
+  e **tipos** de `@dungeon-master/contracts`. Nenhum pacote interno de backend, nenhum
+  import relativo para fora do app. O glossário é a única exceção, e é declarada: é um
+  pacote puro de labels da interface, e a seção 2 aqui só existe porque a web o consome
+  direto. Código de teste (`**/*.test.*`, `test/`, `e2e/`) está fora da regra.
 - **`packages/domain`** não importa banco, ORM, HTTP, logger, runtime de agente nem
   builtins do Node. O domínio computa; a infraestrutura entra por injeção de contrato.
 - **`packages/runtime`** (quando existir) não importa `packages/database`; recebe o store
