@@ -269,6 +269,9 @@ importers:
       '@dungeon-master/domain':
         specifier: workspace:*
         version: link:../domain
+      '@dungeon-master/events':
+        specifier: workspace:*
+        version: link:../events
       dotenv:
         specifier: 17.4.2
         version: 17.4.2
