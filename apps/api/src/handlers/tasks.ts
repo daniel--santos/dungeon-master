@@ -47,6 +47,7 @@ export function registerTaskRoutes(app: OpenAPIHono, tasks: TasksPort): void {
       kind: query.kind,
       priority: query.priority,
       status: normalizarStatus(query.status),
+      excludeStatus: normalizarStatus(query.excludeStatus),
       q: query.q,
     };
 
