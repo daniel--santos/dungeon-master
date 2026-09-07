@@ -149,6 +149,8 @@ describe("ProjectDetailSchema", () => {
       title: "Dungeon Master",
       description: null,
       status: "ACTIVE",
+      workspaceKind: "GIT_REPO",
+      workspacePath: null,
       archivedAt: null,
       createdAt: "2026-09-07T12:00:00.000Z",
       updatedAt: "2026-09-07T12:00:00.000Z",

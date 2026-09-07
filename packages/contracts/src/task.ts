@@ -253,6 +253,18 @@ export const TaskListQuerySchema = PageQuerySchema.extend({
   kind: TaskKindSchema.optional(),
   priority: TaskPrioritySchema.optional(),
   status: TaskStatusFilterSchema,
+  /**
+   * O avesso de `status`, para o caso mais comum da tela de Missões: "tudo
+   * menos as capturas". Sem ele, tirar um único estado obrigaria a listar os
+   * outros oito na URL, e cada estado novo da máquina quebraria o filtro em
+   * silêncio, deixando de fora exatamente o que acabou de ser criado.
+   *
+   * Aplicado depois de `status`, e não no lugar dele: pedir os dois é legítimo
+   * e a interseção é o resultado.
+   */
+  excludeStatus: TaskStatusFilterSchema.describe(
+    "Esconde um estado ou vários, repetindo o parâmetro. Aplicado depois de `status`.",
+  ),
   q: z
     .string()
     .trim()

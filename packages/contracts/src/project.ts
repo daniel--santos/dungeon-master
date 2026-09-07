@@ -21,9 +21,29 @@ export type ProjectStatus = z.infer<typeof ProjectStatusSchema>;
 
 export const PROJECT_TITLE_MAX_LENGTH = 200;
 export const PROJECT_DESCRIPTION_MAX_LENGTH = 20_000;
+export const WORKSPACE_PATH_MAX_LENGTH = 4_000;
 
 const TitleSchema = z.string().trim().min(1).max(PROJECT_TITLE_MAX_LENGTH);
 const DescriptionSchema = z.string().max(PROJECT_DESCRIPTION_MAX_LENGTH);
+
+/**
+ * Que tipo de diretório o Project aponta.
+ *
+ * `GIT_REPO` habilita a estratégia de worktree por Run; `FOLDER` é um diretório
+ * comum, em que só `CURRENT` e `COPY` fazem sentido. A distinção mora aqui, e
+ * não numa detecção em tempo de execução, porque o worker precisa saber a
+ * resposta antes de subir processo, e "é um repositório git?" respondido no
+ * meio da preparação já seria tarde.
+ */
+export const WORKSPACE_KIND_VALUES = ["GIT_REPO", "FOLDER"] as const;
+
+export const WorkspaceKindSchema = z
+  .enum(WORKSPACE_KIND_VALUES)
+  .meta({ id: "WorkspaceKind", description: "Se o workspace do Project é um repositório git." });
+
+export type WorkspaceKind = z.infer<typeof WorkspaceKindSchema>;
+
+const WorkspacePathSchema = z.string().trim().min(1).max(WORKSPACE_PATH_MAX_LENGTH);
 
 export const ProjectSchema = z
   .object({
@@ -31,6 +51,14 @@ export const ProjectSchema = z
     title: z.string().describe("Título do Project."),
     description: z.string().nullable().describe("Descrição livre."),
     status: ProjectStatusSchema,
+    workspaceKind: WorkspaceKindSchema,
+    workspacePath: z
+      .string()
+      .nullable()
+      .describe(
+        "Caminho absoluto do workspace na máquina local. " +
+          "Um Project sem ele não pode ter Run: não há onde o agente trabalhar.",
+      ),
     archivedAt: z.iso
       .datetime()
       .nullable()
@@ -74,6 +102,11 @@ export const UpdateProjectSchema = z
   .object({
     title: TitleSchema.optional(),
     description: DescriptionSchema.nullish(),
+    workspaceKind: WorkspaceKindSchema.optional(),
+    workspacePath: WorkspacePathSchema.nullish().describe(
+      "Caminho absoluto de um diretório existente na máquina que roda a API. " +
+        "`null` desliga o workspace, e o Project deixa de aceitar Run novo.",
+    ),
   })
   .meta({ id: "UpdateProject", description: "Corpo de `PATCH /api/v1/projects/{id}`." });
 
@@ -85,10 +118,18 @@ export const ProjectListQuerySchema = PageQuerySchema.extend({
 
 export type ProjectListQuery = z.infer<typeof ProjectListQuerySchema>;
 
+/**
+ * A listagem devolve `ProjectDetail`, e não `Project`.
+ *
+ * A contagem de Tasks por estado aparece em toda carta da lista de Projects, e
+ * sem ela na resposta a tela fazia uma leitura por linha — vinte Projects na
+ * página viravam vinte requisições. Uma agregação com `GROUP BY` cobre a página
+ * inteira em uma consulta (pendência registrada no fechamento da Fase 1).
+ */
 export const ProjectPageSchema = paginatedSchema(
-  ProjectSchema,
+  ProjectDetailSchema,
   "ProjectPage",
-  "Uma página de Projects, do último editado para o mais antigo.",
+  "Uma página de Projects com a contagem de Tasks, do último editado para o mais antigo.",
 );
 
 export type ProjectPage = z.infer<typeof ProjectPageSchema>;
