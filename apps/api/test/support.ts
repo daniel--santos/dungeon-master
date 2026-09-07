@@ -24,6 +24,7 @@ export function criarApp(handle: DatabaseHandle): App {
     events: inertes.events,
     settings: inertes.settings,
     work: createWorkPort({ db: handle.db, userId: LOCAL_USER_ID }),
+    achievements: inertes.achievements,
     pingEnabled: false,
   });
 }

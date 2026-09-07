@@ -1,4 +1,9 @@
-import type { TaskPage, TaskStatus } from "@dungeon-master/contracts";
+import {
+  DEFAULT_TASK_SORT,
+  DEFAULT_TASK_SORT_ORDER,
+  type TaskPage,
+  type TaskStatus,
+} from "@dungeon-master/contracts";
 import type { TaskFilters } from "@dungeon-master/database";
 import type { OpenAPIHono } from "@hono/zod-openapi";
 
@@ -45,7 +50,16 @@ export function registerTaskRoutes(app: OpenAPIHono, tasks: TasksPort): void {
       q: query.q,
     };
 
-    const result = await tasks.list({ page, pageSize, filters });
+    // O padrão é resolvido aqui, e não no repositório, porque é o contrato da
+    // rota que o anuncia na spec: quem chama a API sabe o que recebe sem pedir.
+    const result = await tasks.list({
+      page,
+      pageSize,
+      filters,
+      sort: query.sort ?? DEFAULT_TASK_SORT,
+      order: query.order ?? DEFAULT_TASK_SORT_ORDER,
+    });
+
     const body: TaskPage = { items: result.items, page, pageSize, total: result.total };
 
     return c.json(body, 200);

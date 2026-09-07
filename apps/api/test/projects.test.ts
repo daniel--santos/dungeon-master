@@ -315,6 +315,70 @@ describe(`GET ${API_BASE_PATH}/projects/{id}/activity`, () => {
     expect(corpo2.total).toBe(3);
   });
 
+  it("a captura promovida aparece no diário desde a criação", async () => {
+    const project = await criarProjeto("destino da captura");
+
+    const capturada = await pedir({
+      app,
+      method: "POST",
+      path: `${API_BASE_PATH}/inbox`,
+      body: { text: "anotar a ideia do relatório" },
+    });
+    expect(capturada.status).toBe(201);
+    const captura = (await capturada.json()) as { id: string };
+
+    // A captura nasce sem Project: o `task.created` dela foi gravado com
+    // `project_id` nulo, e é justamente esse fato que a promoção não reescreve.
+    const antes = ActivityPageSchema.parse(
+      await (await app.request(`${API_BASE_PATH}/projects/${project.id}/activity`)).json(),
+    );
+    expect(antes.items.map((item) => item.type)).toEqual(["project.created"]);
+
+    const promovida = await pedir({
+      app,
+      method: "POST",
+      path: `${API_BASE_PATH}/inbox/${captura.id}/promote`,
+      body: { projectId: project.id },
+    });
+    expect(promovida.status).toBe(200);
+
+    const depois = ActivityPageSchema.parse(
+      await (await app.request(`${API_BASE_PATH}/projects/${project.id}/activity`)).json(),
+    );
+
+    expect(depois.items.map((item) => item.type)).toEqual([
+      "task.status_changed",
+      "task.updated",
+      "task.created",
+      "project.created",
+    ]);
+    expect(depois.total).toBe(4);
+
+    // A linha da criação continua com `project_id` nulo na tabela: ela entrou
+    // no diário pelo vínculo da Task, e não porque alguém a reescreveu.
+    const criacao = depois.items.find((item) => item.type === "task.created");
+    expect(criacao?.projectId).toBeNull();
+    expect(criacao?.taskId).toBe(captura.id);
+  });
+
+  it("o diário não mistura as Tasks de outro Project", async () => {
+    const meu = await criarProjeto("meu");
+    const outro = await criarProjeto("outro");
+
+    await pedir({
+      app,
+      method: "POST",
+      path: `${API_BASE_PATH}/tasks`,
+      body: { projectId: outro.id, title: "task do outro" },
+    });
+
+    const diario = ActivityPageSchema.parse(
+      await (await app.request(`${API_BASE_PATH}/projects/${meu.id}/activity`)).json(),
+    );
+
+    expect(diario.items.map((item) => item.type)).toEqual(["project.created"]);
+  });
+
   it("o diário de um Project inexistente é 404, e não uma página vazia", async () => {
     const response = await app.request(
       `${API_BASE_PATH}/projects/01996d00-0000-7000-8000-0000000000ff/activity`,

@@ -33,9 +33,11 @@ export const tasksListRoute = createRoute({
   tags: ["tasks"],
   summary: "Lista as Tasks",
   description:
-    "Da última editada para a mais antiga. `status` aceita um valor ou vários, " +
-    "repetindo o parâmetro. `q` busca por trecho do título, sem diferenciar " +
-    "maiúsculas, e os curingas do SQL são escapados.",
+    "Ordena por `sort` e `order`; sem eles, da última editada para a mais " +
+    "antiga. `sort=priority` ordena por urgência (URGENT, HIGH, MEDIUM, LOW) " +
+    "e não pelo alfabeto. `status` aceita um valor ou vários, repetindo o " +
+    "parâmetro. `q` busca por trecho do título, sem diferenciar maiúsculas, e " +
+    "os curingas do SQL são escapados.",
   request: { query: TaskListQuerySchema },
   responses: {
     200: {

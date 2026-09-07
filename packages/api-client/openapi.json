@@ -39,6 +39,10 @@
     {
       "name": "inbox",
       "description": "Captura de intenção: as Tasks em INBOX."
+    },
+    {
+      "name": "achievements",
+      "description": "O catálogo versionado de Conquistas."
     }
   ],
   "components": {
@@ -617,7 +621,7 @@
           "pageSize",
           "total"
         ],
-        "description": "Uma página de Tasks, da última editada para a mais antiga."
+        "description": "Uma página de Tasks, na ordem pedida por `sort` e `order`."
       },
       "Task": {
         "type": "object",
@@ -1077,6 +1081,1597 @@
           "projectId"
         ],
         "description": "Corpo de `POST /api/v1/inbox/{id}/promote`."
+      },
+      "AchievementCatalog": {
+        "type": "object",
+        "properties": {
+          "definitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AchievementDefinition"
+            },
+            "description": "As Conquistas fixas, iguais para todos, na ordem do arquivo."
+          },
+          "templates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AchievementTemplate"
+            },
+            "description": "Os templates, que ainda não são Conquistas de ninguém."
+          },
+          "invalid": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AchievementCatalogInvalidEntry"
+            },
+            "description": "O que foi recusado na carga. Vazio quando o catálogo está íntegro."
+          }
+        },
+        "required": [
+          "definitions",
+          "templates",
+          "invalid"
+        ],
+        "description": "O catálogo versionado de Conquistas, já validado."
+      },
+      "AchievementDefinition": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "CATALOG",
+              "TEMPLATE",
+              "FORGED"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "GLOBAL",
+              "PROJECT",
+              "HARNESS",
+              "AGENT",
+              "TASK"
+            ]
+          },
+          "name": {
+            "type": "object",
+            "properties": {
+              "theme": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "plain": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              }
+            },
+            "required": [
+              "theme",
+              "plain"
+            ],
+            "additionalProperties": false
+          },
+          "description": {
+            "type": "object",
+            "properties": {
+              "theme": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "plain": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              }
+            },
+            "required": [
+              "theme",
+              "plain"
+            ],
+            "additionalProperties": false
+          },
+          "flavor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "icon": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "rarity": {
+            "type": "string",
+            "enum": [
+              "COMMON",
+              "RARE",
+              "EPIC",
+              "LEGENDARY"
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "condition": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "predicate": {
+                    "type": "string",
+                    "enum": [
+                      "count"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "run.succeeded",
+                      "run.failed",
+                      "run.cancelled",
+                      "task.completed",
+                      "task.dependency_created",
+                      "approval.granted",
+                      "approval.rejected",
+                      "knowledge_item.promoted",
+                      "project.created"
+                    ]
+                  },
+                  "filter": {
+                    "type": "object",
+                    "properties": {
+                      "task.kind": {
+                        "type": "string",
+                        "enum": [
+                          "BUG",
+                          "FEATURE",
+                          "RESEARCH",
+                          "CHORE"
+                        ]
+                      },
+                      "task.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "run.executionMode": {
+                        "type": "string",
+                        "enum": [
+                          "HOST",
+                          "DOCKER"
+                        ]
+                      },
+                      "run.harness": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      },
+                      "run.resumedFrom": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "run.workflowVersionId": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "project.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "agent.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "hourLocal": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          },
+                          "to": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          }
+                        },
+                        "required": [
+                          "from",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "thresholds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "minItems": 1,
+                    "maxItems": 8
+                  }
+                },
+                "required": [
+                  "predicate",
+                  "source",
+                  "thresholds"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "predicate": {
+                    "type": "string",
+                    "enum": [
+                      "streak"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "run.succeeded",
+                      "run.failed",
+                      "run.cancelled",
+                      "task.completed",
+                      "task.dependency_created",
+                      "approval.granted",
+                      "approval.rejected",
+                      "knowledge_item.promoted",
+                      "project.created"
+                    ]
+                  },
+                  "filter": {
+                    "type": "object",
+                    "properties": {
+                      "task.kind": {
+                        "type": "string",
+                        "enum": [
+                          "BUG",
+                          "FEATURE",
+                          "RESEARCH",
+                          "CHORE"
+                        ]
+                      },
+                      "task.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "run.executionMode": {
+                        "type": "string",
+                        "enum": [
+                          "HOST",
+                          "DOCKER"
+                        ]
+                      },
+                      "run.harness": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      },
+                      "run.resumedFrom": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "run.workflowVersionId": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "project.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "agent.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "hourLocal": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          },
+                          "to": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          }
+                        },
+                        "required": [
+                          "from",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "length": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 1000
+                  }
+                },
+                "required": [
+                  "predicate",
+                  "source",
+                  "length"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "predicate": {
+                    "type": "string",
+                    "enum": [
+                      "first"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "run.succeeded",
+                      "run.failed",
+                      "run.cancelled",
+                      "task.completed",
+                      "task.dependency_created",
+                      "approval.granted",
+                      "approval.rejected",
+                      "knowledge_item.promoted",
+                      "project.created"
+                    ]
+                  },
+                  "filter": {
+                    "type": "object",
+                    "properties": {
+                      "task.kind": {
+                        "type": "string",
+                        "enum": [
+                          "BUG",
+                          "FEATURE",
+                          "RESEARCH",
+                          "CHORE"
+                        ]
+                      },
+                      "task.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "run.executionMode": {
+                        "type": "string",
+                        "enum": [
+                          "HOST",
+                          "DOCKER"
+                        ]
+                      },
+                      "run.harness": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      },
+                      "run.resumedFrom": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "run.workflowVersionId": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "project.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "agent.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "hourLocal": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          },
+                          "to": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          }
+                        },
+                        "required": [
+                          "from",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "predicate",
+                  "source"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "predicate": {
+                    "type": "string",
+                    "enum": [
+                      "set"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "run.succeeded",
+                      "run.failed",
+                      "run.cancelled",
+                      "task.completed",
+                      "task.dependency_created",
+                      "approval.granted",
+                      "approval.rejected",
+                      "knowledge_item.promoted",
+                      "project.created"
+                    ]
+                  },
+                  "filter": {
+                    "type": "object",
+                    "properties": {
+                      "task.kind": {
+                        "type": "string",
+                        "enum": [
+                          "BUG",
+                          "FEATURE",
+                          "RESEARCH",
+                          "CHORE"
+                        ]
+                      },
+                      "task.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "run.executionMode": {
+                        "type": "string",
+                        "enum": [
+                          "HOST",
+                          "DOCKER"
+                        ]
+                      },
+                      "run.harness": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      },
+                      "run.resumedFrom": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "run.workflowVersionId": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "project.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "agent.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "hourLocal": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          },
+                          "to": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          }
+                        },
+                        "required": [
+                          "from",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "dimension": {
+                    "type": "string",
+                    "enum": [
+                      "task.kind",
+                      "run.executionMode",
+                      "run.harness",
+                      "project.id",
+                      "agent.id"
+                    ]
+                  },
+                  "values": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 2,
+                    "maxItems": 32
+                  }
+                },
+                "required": [
+                  "predicate",
+                  "source",
+                  "dimension",
+                  "values"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "predicate": {
+                    "type": "string",
+                    "enum": [
+                      "record"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "run.succeeded",
+                      "run.failed",
+                      "run.cancelled",
+                      "task.completed",
+                      "task.dependency_created",
+                      "approval.granted",
+                      "approval.rejected",
+                      "knowledge_item.promoted",
+                      "project.created"
+                    ]
+                  },
+                  "filter": {
+                    "type": "object",
+                    "properties": {
+                      "task.kind": {
+                        "type": "string",
+                        "enum": [
+                          "BUG",
+                          "FEATURE",
+                          "RESEARCH",
+                          "CHORE"
+                        ]
+                      },
+                      "task.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "run.executionMode": {
+                        "type": "string",
+                        "enum": [
+                          "HOST",
+                          "DOCKER"
+                        ]
+                      },
+                      "run.harness": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      },
+                      "run.resumedFrom": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "run.workflowVersionId": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "project.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "agent.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "hourLocal": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          },
+                          "to": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          }
+                        },
+                        "required": [
+                          "from",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "metric": {
+                    "type": "string",
+                    "enum": [
+                      "run.durationMs"
+                    ]
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "max",
+                      "min"
+                    ]
+                  },
+                  "min": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "predicate",
+                  "source",
+                  "metric",
+                  "direction"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8
+            },
+            "minItems": 1,
+            "maxItems": 8
+          },
+          "tierRarities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "COMMON",
+                "RARE",
+                "EPIC",
+                "LEGENDARY"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 8
+          },
+          "provenance": {
+            "type": "object",
+            "properties": {
+              "catalogVersion": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16
+              },
+              "templateKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "runId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "key",
+          "origin",
+          "scope",
+          "name",
+          "description",
+          "icon",
+          "rarity",
+          "hidden",
+          "condition"
+        ],
+        "additionalProperties": false,
+        "description": "Uma Conquista concreta. `name` e `description` vêm nas duas versões, `theme` e `plain`, para acompanhar o interruptor de tema; `flavor` só existe no tema. `condition` é o objeto validado do vocabulário fechado de predicados, não uma expressão."
+      },
+      "AchievementTemplate": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "TEMPLATE"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "GLOBAL",
+              "PROJECT",
+              "HARNESS",
+              "AGENT",
+              "TASK"
+            ]
+          },
+          "name": {
+            "type": "object",
+            "properties": {
+              "theme": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "plain": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              }
+            },
+            "required": [
+              "theme",
+              "plain"
+            ],
+            "additionalProperties": false
+          },
+          "description": {
+            "type": "object",
+            "properties": {
+              "theme": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "plain": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              }
+            },
+            "required": [
+              "theme",
+              "plain"
+            ],
+            "additionalProperties": false
+          },
+          "flavor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "icon": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "rarity": {
+            "type": "string",
+            "enum": [
+              "COMMON",
+              "RARE",
+              "EPIC",
+              "LEGENDARY"
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "condition": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "predicate": {
+                    "type": "string",
+                    "enum": [
+                      "count"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "run.succeeded",
+                      "run.failed",
+                      "run.cancelled",
+                      "task.completed",
+                      "task.dependency_created",
+                      "approval.granted",
+                      "approval.rejected",
+                      "knowledge_item.promoted",
+                      "project.created"
+                    ]
+                  },
+                  "filter": {
+                    "type": "object",
+                    "properties": {
+                      "task.kind": {
+                        "type": "string",
+                        "enum": [
+                          "BUG",
+                          "FEATURE",
+                          "RESEARCH",
+                          "CHORE"
+                        ]
+                      },
+                      "task.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "run.executionMode": {
+                        "type": "string",
+                        "enum": [
+                          "HOST",
+                          "DOCKER"
+                        ]
+                      },
+                      "run.harness": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      },
+                      "run.resumedFrom": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "run.workflowVersionId": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "project.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "agent.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "hourLocal": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          },
+                          "to": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          }
+                        },
+                        "required": [
+                          "from",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "thresholds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "minItems": 1,
+                    "maxItems": 8
+                  }
+                },
+                "required": [
+                  "predicate",
+                  "source",
+                  "thresholds"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "predicate": {
+                    "type": "string",
+                    "enum": [
+                      "streak"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "run.succeeded",
+                      "run.failed",
+                      "run.cancelled",
+                      "task.completed",
+                      "task.dependency_created",
+                      "approval.granted",
+                      "approval.rejected",
+                      "knowledge_item.promoted",
+                      "project.created"
+                    ]
+                  },
+                  "filter": {
+                    "type": "object",
+                    "properties": {
+                      "task.kind": {
+                        "type": "string",
+                        "enum": [
+                          "BUG",
+                          "FEATURE",
+                          "RESEARCH",
+                          "CHORE"
+                        ]
+                      },
+                      "task.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "run.executionMode": {
+                        "type": "string",
+                        "enum": [
+                          "HOST",
+                          "DOCKER"
+                        ]
+                      },
+                      "run.harness": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      },
+                      "run.resumedFrom": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "run.workflowVersionId": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "project.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "agent.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "hourLocal": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          },
+                          "to": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          }
+                        },
+                        "required": [
+                          "from",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "length": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 1000
+                  }
+                },
+                "required": [
+                  "predicate",
+                  "source",
+                  "length"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "predicate": {
+                    "type": "string",
+                    "enum": [
+                      "first"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "run.succeeded",
+                      "run.failed",
+                      "run.cancelled",
+                      "task.completed",
+                      "task.dependency_created",
+                      "approval.granted",
+                      "approval.rejected",
+                      "knowledge_item.promoted",
+                      "project.created"
+                    ]
+                  },
+                  "filter": {
+                    "type": "object",
+                    "properties": {
+                      "task.kind": {
+                        "type": "string",
+                        "enum": [
+                          "BUG",
+                          "FEATURE",
+                          "RESEARCH",
+                          "CHORE"
+                        ]
+                      },
+                      "task.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "run.executionMode": {
+                        "type": "string",
+                        "enum": [
+                          "HOST",
+                          "DOCKER"
+                        ]
+                      },
+                      "run.harness": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      },
+                      "run.resumedFrom": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "run.workflowVersionId": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "project.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "agent.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "hourLocal": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          },
+                          "to": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          }
+                        },
+                        "required": [
+                          "from",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "predicate",
+                  "source"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "predicate": {
+                    "type": "string",
+                    "enum": [
+                      "set"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "run.succeeded",
+                      "run.failed",
+                      "run.cancelled",
+                      "task.completed",
+                      "task.dependency_created",
+                      "approval.granted",
+                      "approval.rejected",
+                      "knowledge_item.promoted",
+                      "project.created"
+                    ]
+                  },
+                  "filter": {
+                    "type": "object",
+                    "properties": {
+                      "task.kind": {
+                        "type": "string",
+                        "enum": [
+                          "BUG",
+                          "FEATURE",
+                          "RESEARCH",
+                          "CHORE"
+                        ]
+                      },
+                      "task.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "run.executionMode": {
+                        "type": "string",
+                        "enum": [
+                          "HOST",
+                          "DOCKER"
+                        ]
+                      },
+                      "run.harness": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      },
+                      "run.resumedFrom": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "run.workflowVersionId": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "project.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "agent.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "hourLocal": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          },
+                          "to": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          }
+                        },
+                        "required": [
+                          "from",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "dimension": {
+                    "type": "string",
+                    "enum": [
+                      "task.kind",
+                      "run.executionMode",
+                      "run.harness",
+                      "project.id",
+                      "agent.id"
+                    ]
+                  },
+                  "values": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 2,
+                    "maxItems": 32
+                  }
+                },
+                "required": [
+                  "predicate",
+                  "source",
+                  "dimension",
+                  "values"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "predicate": {
+                    "type": "string",
+                    "enum": [
+                      "record"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "run.succeeded",
+                      "run.failed",
+                      "run.cancelled",
+                      "task.completed",
+                      "task.dependency_created",
+                      "approval.granted",
+                      "approval.rejected",
+                      "knowledge_item.promoted",
+                      "project.created"
+                    ]
+                  },
+                  "filter": {
+                    "type": "object",
+                    "properties": {
+                      "task.kind": {
+                        "type": "string",
+                        "enum": [
+                          "BUG",
+                          "FEATURE",
+                          "RESEARCH",
+                          "CHORE"
+                        ]
+                      },
+                      "task.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "run.executionMode": {
+                        "type": "string",
+                        "enum": [
+                          "HOST",
+                          "DOCKER"
+                        ]
+                      },
+                      "run.harness": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      },
+                      "run.resumedFrom": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "run.workflowVersionId": {
+                        "type": "string",
+                        "enum": [
+                          "PRESENT",
+                          "ABSENT"
+                        ]
+                      },
+                      "project.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "agent.id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "hourLocal": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          },
+                          "to": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          }
+                        },
+                        "required": [
+                          "from",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "metric": {
+                    "type": "string",
+                    "enum": [
+                      "run.durationMs"
+                    ]
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "max",
+                      "min"
+                    ]
+                  },
+                  "min": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "predicate",
+                  "source",
+                  "metric",
+                  "direction"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8
+            },
+            "minItems": 1,
+            "maxItems": 8
+          },
+          "tierRarities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "COMMON",
+                "RARE",
+                "EPIC",
+                "LEGENDARY"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 8
+          },
+          "provenance": {
+            "type": "object",
+            "properties": {
+              "catalogVersion": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16
+              },
+              "templateKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "runId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "additionalProperties": false
+          },
+          "instantiatedBy": {
+            "type": "string",
+            "enum": [
+              "project",
+              "harness",
+              "agent",
+              "task.bug.reopened"
+            ]
+          },
+          "scopeFrom": {
+            "type": "string",
+            "enum": [
+              "project.id",
+              "run.harness",
+              "agent.id",
+              "task.id"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "origin",
+          "scope",
+          "name",
+          "description",
+          "icon",
+          "rarity",
+          "hidden",
+          "condition",
+          "instantiatedBy",
+          "scopeFrom"
+        ],
+        "additionalProperties": false,
+        "description": "A forma que a aplicação instancia com os dados do usuário. `name` e `description` carregam pelo menos um placeholder `{project}`, `{harness}`, `{agent}` ou `{task}`; `instantiatedBy` diz o que a cria e `scopeFrom` diz por qual campo a condição é escopada."
+      },
+      "AchievementCatalogInvalidEntry": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "catalog",
+              "templates"
+            ],
+            "description": "De qual dos dois arquivos versionados a entrada veio."
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A chave, quando legível; nulo quando nem isso deu."
+          },
+          "index": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Posição na lista; nulo quando o arquivo inteiro falhou."
+          },
+          "error": {
+            "type": "string",
+            "description": "Resumo do primeiro problema, para log."
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AchievementCatalogIssue"
+            },
+            "description": "Todos os problemas encontrados."
+          }
+        },
+        "required": [
+          "source",
+          "key",
+          "index",
+          "error",
+          "issues"
+        ],
+        "description": "Uma entrada do catálogo que não passou no schema e ficou de fora."
+      },
+      "AchievementCatalogIssue": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Caminho do campo, com pontos. Vazio quando o problema é da raiz."
+          },
+          "message": {
+            "type": "string",
+            "description": "A mensagem do schema."
+          }
+        },
+        "required": [
+          "path",
+          "message"
+        ],
+        "description": "Um problema de validação do catálogo."
       }
     },
     "parameters": {}
@@ -1594,7 +3189,7 @@
           "projects"
         ],
         "summary": "O diário do Project",
-        "description": "Append-only, do registro mais recente para o mais antigo. Cada criação, edição e transição de status gravou uma linha aqui na mesma transação da mudança.",
+        "description": "Append-only, do registro mais recente para o mais antigo. Cada criação, edição e transição de status gravou uma linha aqui na mesma transação da mudança. Inclui também os fatos das Tasks que hoje pertencem ao Project, mesmo os anteriores a esse pertencimento: a captura promovida aparece desde a criação, e não a partir da promoção.",
         "parameters": [
           {
             "schema": {
@@ -1670,7 +3265,7 @@
           "tasks"
         ],
         "summary": "Lista as Tasks",
-        "description": "Da última editada para a mais antiga. `status` aceita um valor ou vários, repetindo o parâmetro. `q` busca por trecho do título, sem diferenciar maiúsculas, e os curingas do SQL são escapados.",
+        "description": "Ordena por `sort` e `order`; sem eles, da última editada para a mais antiga. `sort=priority` ordena por urgência (URGENT, HIGH, MEDIUM, LOW) e não pelo alfabeto. `status` aceita um valor ou vários, repetindo o parâmetro. `q` busca por trecho do título, sem diferenciar maiúsculas, e os curingas do SQL são escapados.",
         "parameters": [
           {
             "schema": {
@@ -1764,6 +3359,36 @@
             "required": false,
             "description": "Busca por trecho do título, sem diferenciar maiúsculas.",
             "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "updatedAt",
+                "createdAt",
+                "priority",
+                "title"
+              ],
+              "description": "Campo de ordenação. Padrão: `updatedAt`. `priority` ordena por urgência (URGENT, HIGH, MEDIUM, LOW), não pelo alfabeto."
+            },
+            "required": false,
+            "description": "Campo de ordenação. Padrão: `updatedAt`. `priority` ordena por urgência (URGENT, HIGH, MEDIUM, LOW), não pelo alfabeto.",
+            "name": "sort",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "description": "Direção. Padrão: `desc`."
+            },
+            "required": false,
+            "description": "Direção. Padrão: `desc`.",
+            "name": "order",
             "in": "query"
           }
         ],
@@ -2372,6 +3997,27 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/achievements/catalog": {
+      "get": {
+        "tags": [
+          "achievements"
+        ],
+        "summary": "O catálogo de Conquistas",
+        "description": "Sem estado: catálogo é dado. Lido e validado uma vez no boot, a partir dos arquivos versionados de `@dungeon-master/achievements`. Não há progresso nem desbloqueio aqui — o Hall dos Heróis da Fase 1 mostra tudo como bloqueado. Uma entrada que não passa no schema não aparece em `definitions` nem em `templates`; ela sai em `invalid`.",
+        "responses": {
+          "200": {
+            "description": "O catálogo inteiro.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AchievementCatalog"
                 }
               }
             }

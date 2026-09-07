@@ -1,10 +1,11 @@
 import type { Activity, ActivityType, JsonValue } from "@dungeon-master/contracts";
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, or, sql } from "drizzle-orm";
 
 import { appendDashboardEvent, type DatabaseExecutor } from "./dashboard-event.js";
 import { newId } from "./ids.js";
 import type { PageInput, PageResult } from "./result.js";
 import { activities, type ActivityRow } from "./schema/activity.js";
+import { tasks } from "./schema/task.js";
 
 /**
  * Converte a linha do banco no contrato.
@@ -82,6 +83,17 @@ export interface ListProjectActivityInput extends PageInput {
 /**
  * O diário de um Project, do mais recente para o mais antigo.
  *
+ * Duas origens, unidas por `or`: a linha que já nasceu com este `project_id`, e
+ * a linha de uma Task que **hoje** pertence a este Project. A segunda existe
+ * por causa da Inbox — uma captura nasce sem Project, então o `task.created`
+ * dela é gravado com `project_id` nulo, e sem o vínculo pela Task a história da
+ * Task promovida começaria no meio, na promoção, como se ela tivesse surgido do
+ * nada. `activity` continua append-only: nada é reescrito na promoção; o
+ * pertencimento é resolvido na leitura, que é onde ele pode mudar.
+ *
+ * É `or` numa condição, e não um `join`: com `join` uma linha que casa pelos
+ * dois lados apareceria duas vezes.
+ *
  * O desempate é por `id` descendente, e não arbitrário: o id é UUIDv7, então a
  * ordem dele dentro do mesmo instante é a ordem de inserção. Sem desempate,
  * duas linhas do mesmo milissegundo poderiam trocar de lugar entre uma página e
@@ -91,7 +103,18 @@ export async function listProjectActivity(
   db: DatabaseExecutor,
   input: ListProjectActivityInput,
 ): Promise<PageResult<Activity>> {
-  const where = and(eq(activities.userId, input.userId), eq(activities.projectId, input.projectId));
+  const daTaskDesteProject = sql`exists (
+    select 1
+    from ${tasks}
+    where ${tasks.id} = ${activities.taskId}
+      and ${tasks.userId} = ${input.userId}
+      and ${tasks.projectId} = ${input.projectId}
+  )`;
+
+  const where = and(
+    eq(activities.userId, input.userId),
+    or(eq(activities.projectId, input.projectId), daTaskDesteProject),
+  );
 
   const rows = await db
     .select()

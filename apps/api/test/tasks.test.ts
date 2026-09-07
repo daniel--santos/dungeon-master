@@ -534,6 +534,107 @@ describe(`GET ${API_BASE_PATH}/tasks`, () => {
     expect(pagina2.total).toBe(3);
   });
 
+  it("sort=priority ordena por urgência, e não pelo alfabeto", async () => {
+    // Criadas fora de ordem de propósito: se a ordenação não existisse, o
+    // resultado sairia por `updatedAt`, que é a ordem inversa desta criação.
+    await criarTask({ title: "média", priority: "MEDIUM" });
+    await criarTask({ title: "urgente", priority: "URGENT" });
+    await criarTask({ title: "baixa", priority: "LOW" });
+    await criarTask({ title: "alta", priority: "HIGH" });
+
+    const desc = TaskPageSchema.parse(
+      await (await app.request(`${API_BASE_PATH}/tasks?sort=priority&order=desc`)).json(),
+    );
+    expect(desc.items.map((item) => item.priority)).toEqual(["URGENT", "HIGH", "MEDIUM", "LOW"]);
+
+    const asc = TaskPageSchema.parse(
+      await (await app.request(`${API_BASE_PATH}/tasks?sort=priority&order=asc`)).json(),
+    );
+    expect(asc.items.map((item) => item.priority)).toEqual(["LOW", "MEDIUM", "HIGH", "URGENT"]);
+  });
+
+  it("sort=title ordena pelo título nas duas direções", async () => {
+    await criarTask({ title: "Beta" });
+    await criarTask({ title: "Alfa" });
+    await criarTask({ title: "Gama" });
+
+    const asc = TaskPageSchema.parse(
+      await (await app.request(`${API_BASE_PATH}/tasks?sort=title&order=asc`)).json(),
+    );
+    expect(asc.items.map((item) => item.title)).toEqual(["Alfa", "Beta", "Gama"]);
+
+    const desc = TaskPageSchema.parse(
+      await (await app.request(`${API_BASE_PATH}/tasks?sort=title&order=desc`)).json(),
+    );
+    expect(desc.items.map((item) => item.title)).toEqual(["Gama", "Beta", "Alfa"]);
+  });
+
+  it("sort=createdAt não segue o updatedAt", async () => {
+    const primeira = await criarTask({ title: "primeira" });
+    const segunda = await criarTask({ title: "segunda" });
+
+    // Editar a primeira a joga para o topo de `updatedAt`, mas não mexe na
+    // ordem de criação: é o que separa os dois campos.
+    await pedir({
+      app,
+      method: "PATCH",
+      path: `${API_BASE_PATH}/tasks/${primeira.id}`,
+      body: { title: "primeira, editada" },
+    });
+
+    const porEdicao = TaskPageSchema.parse(
+      await (await app.request(`${API_BASE_PATH}/tasks?sort=updatedAt&order=desc`)).json(),
+    );
+    expect(porEdicao.items.map((item) => item.id)).toEqual([primeira.id, segunda.id]);
+
+    const porCriacao = TaskPageSchema.parse(
+      await (await app.request(`${API_BASE_PATH}/tasks?sort=createdAt&order=asc`)).json(),
+    );
+    expect(porCriacao.items.map((item) => item.id)).toEqual([primeira.id, segunda.id]);
+
+    const porCriacaoDesc = TaskPageSchema.parse(
+      await (await app.request(`${API_BASE_PATH}/tasks?sort=createdAt&order=desc`)).json(),
+    );
+    expect(porCriacaoDesc.items.map((item) => item.id)).toEqual([segunda.id, primeira.id]);
+  });
+
+  it("sem sort e order, o padrão continua updatedAt desc", async () => {
+    await criarTask({ title: "antiga", priority: "URGENT" });
+    const nova = await criarTask({ title: "nova", priority: "LOW" });
+
+    const body = TaskPageSchema.parse(await (await app.request(`${API_BASE_PATH}/tasks`)).json());
+
+    expect(body.items[0]?.id).toBe(nova.id);
+  });
+
+  it("a ordenação por prioridade se mantém estável entre as páginas", async () => {
+    for (const title of ["a", "b", "c", "d"]) {
+      await criarTask({ title, priority: "HIGH" });
+    }
+
+    const pagina1 = TaskPageSchema.parse(
+      await (
+        await app.request(`${API_BASE_PATH}/tasks?sort=priority&order=desc&page=1&pageSize=2`)
+      ).json(),
+    );
+    const pagina2 = TaskPageSchema.parse(
+      await (
+        await app.request(`${API_BASE_PATH}/tasks?sort=priority&order=desc&page=2&pageSize=2`)
+      ).json(),
+    );
+
+    const ids = [...pagina1.items, ...pagina2.items].map((item) => item.id);
+    expect(new Set(ids).size).toBe(4);
+  });
+
+  it("um sort ou um order fora da lista vira 400", async () => {
+    const porCampo = await app.request(`${API_BASE_PATH}/tasks?sort=completedAt`);
+    expect(porCampo.status).toBe(400);
+
+    const porDirecao = await app.request(`${API_BASE_PATH}/tasks?sort=title&order=cima`);
+    expect(porDirecao.status).toBe(400);
+  });
+
   it("um pageSize acima do teto é reduzido, e não recusado", async () => {
     const response = await app.request(`${API_BASE_PATH}/tasks?pageSize=9999`);
     const body = TaskPageSchema.parse(await response.json());

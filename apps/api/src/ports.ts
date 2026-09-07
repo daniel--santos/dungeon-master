@@ -6,10 +6,12 @@ import type {
   Project,
   ProjectDetail,
   ProjectStatus,
+  SortOrder,
   Task,
   TaskDetail,
   TaskKind,
   TaskPriority,
+  TaskSort,
   TaskStatus,
   UserSettings,
   UserSettingsKey,
@@ -23,6 +25,8 @@ import type {
   TaskWriteFailure,
 } from "@dungeon-master/database";
 import { SseTransport } from "@dungeon-master/events";
+
+import type { AchievementCatalog } from "./routes/achievements.js";
 
 /**
  * As dependências que `createApp` recebe de fora.
@@ -110,7 +114,13 @@ export interface UpdateTaskRequest {
 }
 
 export interface TasksPort {
-  list(input: PageRequest & { filters: TaskFilters }): Promise<PageResult<Task>>;
+  list(
+    input: PageRequest & {
+      filters: TaskFilters;
+      sort: TaskSort;
+      order: SortOrder;
+    },
+  ): Promise<PageResult<Task>>;
   create(input: CreateTaskRequest): Promise<Result<Task, TaskWriteFailure>>;
   get(taskId: string): Promise<TaskDetail | null>;
   update(
@@ -161,6 +171,7 @@ export function createSpecPorts(): {
   events: DashboardEventsPort;
   settings: SettingsPort;
   work: WorkPort;
+  achievements: AchievementCatalog;
 } {
   const recusar = (recurso: string): never => {
     throw new Error(`Porta inerte: ${recurso} não está disponível nesta instância da app.`);
@@ -212,5 +223,9 @@ export function createSpecPorts(): {
         discard: inerte("o descarte de uma captura"),
       },
     },
+    // Vazio, e não o catálogo de verdade: o `pnpm gen` instancia a app só pela
+    // forma das rotas, e ler o disco ali faria a spec depender de um arquivo
+    // que nada na spec descreve. O catálogo real entra por injeção no boot.
+    achievements: { definitions: [], templates: [], invalid: [] },
   };
 }

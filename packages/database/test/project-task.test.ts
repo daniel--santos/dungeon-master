@@ -154,7 +154,7 @@ describe("gravação na mesma transação", () => {
     const criada = await createTask(handle.db, {
       userId: LOCAL_USER_ID,
       projectId: project.id,
-      title: "não vai concluir",
+      title: "não vai executar",
     });
     if (!criada.ok) throw new Error("a criação deveria ter passado");
 
@@ -163,11 +163,13 @@ describe("gravação na mesma transação", () => {
       .from(dashboardEvents)
       .where(eq(dashboardEvents.userId, LOCAL_USER_ID));
 
-    // `READY → COMPLETED` não existe na máquina de estados.
+    // `READY → RUNNING` pula a fila e não existe na máquina de estados. Não é
+    // `READY → COMPLETED`: essa aresta existe desde a conclusão manual, e o que
+    // este teste precisa é de uma transição que o domínio realmente recuse.
     const recusada = await changeTaskStatus(handle.db, {
       userId: LOCAL_USER_ID,
       taskId: criada.value.id,
-      to: "COMPLETED",
+      to: "RUNNING",
     });
 
     expect(recusada?.ok).toBe(false);

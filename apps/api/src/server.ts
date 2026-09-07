@@ -6,7 +6,12 @@ import { createAdaptorServer } from "@hono/node-server";
 import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/database";
 
 import { createApp } from "./app.js";
-import { createEventsRuntime, createSettingsPort, createWorkPort } from "./composition.js";
+import {
+  createEventsRuntime,
+  createSettingsPort,
+  createWorkPort,
+  loadAchievementCatalog,
+} from "./composition.js";
 import { API_BASE_PATH, loadConfig } from "./config.js";
 import { createLogger } from "./logger.js";
 
@@ -29,11 +34,16 @@ const events = await createEventsRuntime({
   heartbeatIntervalMs: config.sse.heartbeatIntervalMs,
 });
 
+// Uma leitura de disco só, no boot: o catálogo é arquivo versionado, e reler a
+// cada abertura do Hall seria I/O por um dado que não muda em execução.
+const achievements = loadAchievementCatalog({ logger });
+
 const app = createApp({
   probeDatabase: () => pingDatabase(database.db),
   events: events.port,
   settings: createSettingsPort({ db: database.db, userId: LOCAL_USER_ID }),
   work: createWorkPort({ db: database.db, userId: LOCAL_USER_ID }),
+  achievements,
   logger,
   pingEnabled: config.nodeEnv !== "production",
 });
@@ -61,6 +71,11 @@ server.listen(config.port, config.host, () => {
       env: config.nodeEnv,
       timeouts: config.timeouts,
       sse: config.sse,
+      achievements: {
+        definitions: achievements.definitions.length,
+        templates: achievements.templates.length,
+        invalid: achievements.invalid.length,
+      },
       health: `http://${config.host}:${config.port}${API_BASE_PATH}/health`,
       events: `http://${config.host}:${config.port}${API_BASE_PATH}/events/stream`,
       openapi: `http://${config.host}:${config.port}${API_BASE_PATH}/openapi.json`,
