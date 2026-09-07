@@ -13,6 +13,7 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
 import { type App, createApp } from "../src/app.js";
+import { createSpecPorts } from "../src/ports.js";
 import {
   createEventsRuntime,
   type EventsRuntime,
@@ -49,6 +50,9 @@ beforeAll(async () => {
     events: runtime.port,
     settings: createSettingsPort({ db: handle.db, userId: LOCAL_USER_ID }),
     work: createWorkPort({ db: handle.db, userId: LOCAL_USER_ID }),
+    // As rotas deste arquivo não tocam execução; a porta inerte lança se
+    // alguma delas for exercitada por engano.
+    execution: createSpecPorts().execution,
     achievements: { definitions: [], templates: [], invalid: [] },
     pingEnabled: true,
   });
@@ -396,6 +400,7 @@ describe(`POST ${API_BASE_PATH}/events/ping`, () => {
       events: runtime.port,
       settings: createSettingsPort({ db: handle.db, userId: LOCAL_USER_ID }),
       work: createWorkPort({ db: handle.db, userId: LOCAL_USER_ID }),
+      execution: createSpecPorts().execution,
       achievements: { definitions: [], templates: [], invalid: [] },
       pingEnabled: false,
     });

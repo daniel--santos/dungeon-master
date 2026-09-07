@@ -1,6 +1,8 @@
 import type {
   DependencyWriteFailure,
   InboxFailure,
+  RegistryWriteFailure,
+  RunWriteFailure,
   TaskWriteFailure,
 } from "@dungeon-master/database";
 
@@ -177,6 +179,213 @@ export function inboxFailureProblem(failure: InboxFailure): HttpProblem {
         title: "Project arquivado",
         detail: `O Project ${failure.projectId} está arquivado e não aceita Tasks novas.`,
       });
+  }
+}
+
+/**
+ * Traduz as recusas dos cadastros de execução.
+ *
+ * Uma união só para as cinco entidades, então um tradutor só: os motivos se
+ * repetem, e cinco funções quase iguais divergiriam na primeira adição.
+ */
+export function registryFailureProblem(failure: RegistryWriteFailure): HttpProblem {
+  switch (failure.code) {
+    case "NAME_TAKEN":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Nome já usado",
+        detail: `Já existe um registro com o nome ${JSON.stringify(failure.name)}. Escolha outro.`,
+      });
+    case "MODEL_KEY_TAKEN":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Chave de Model já usada",
+        detail: `O Harness já tem um Model com a chave ${JSON.stringify(failure.key)}.`,
+      });
+    case "HARNESS_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Harness não encontrado",
+        detail: `Não existe Harness com o id ${failure.harnessId}.`,
+      });
+    case "HARNESS_DISABLED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Harness desligado",
+        detail:
+          `O Harness ${failure.harnessId} está desligado e não aceita execuções novas. ` +
+          "Ligue-o em PATCH /api/v1/harnesses/{id}.",
+      });
+    case "MODEL_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Model não encontrado",
+        detail: `Não existe Model com o id ${failure.modelId}.`,
+      });
+    case "MODEL_IN_OTHER_HARNESS":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Model de outro Harness",
+        detail:
+          `O Model ${failure.modelId} não pertence ao Harness ${failure.harnessId}. ` +
+          "A chave de um modelo é do vocabulário do harness que a aceita.",
+      });
+    case "AGENT_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Agent não encontrado",
+        detail: `Não existe Agent com o id ${failure.agentId}.`,
+      });
+    case "EXECUTION_PROFILE_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "ExecutionProfile não encontrado",
+        detail: `Não existe ExecutionProfile com o id ${failure.executionProfileId}.`,
+      });
+    case "EXECUTION_PROFILE_DISABLED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "ExecutionProfile desligado",
+        detail:
+          `O perfil ${failure.executionProfileId} está desligado e não pode ser escolhido. ` +
+          "O perfil Docker só é ligado quando a execução isolada existir.",
+      });
+    case "IN_USE_BY_LOADOUT":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Registro em uso",
+        detail:
+          "Estes Loadouts ainda apontam para o registro e precisam ser ajustados antes: " +
+          `${listar(failure.loadoutIds)}.`,
+      });
+    case "IN_USE_BY_RUN":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Loadout em uso",
+        detail:
+          "Estes Runs referenciam o Loadout e o histórico deles ficaria sem o fio que " +
+          `liga a execução ao equipamento: ${listar(failure.runIds)}.`,
+      });
+  }
+}
+
+/** Traduz as recusas de escrita de Run. */
+export function runFailureProblem(failure: RunWriteFailure): HttpProblem {
+  switch (failure.code) {
+    case "LOADOUT_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Loadout não encontrado",
+        detail: `Não existe Loadout com o id ${failure.loadoutId}.`,
+      });
+    case "EXECUTION_PROFILE_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "ExecutionProfile não encontrado",
+        detail: `Não existe ExecutionProfile com o id ${failure.executionProfileId}.`,
+      });
+    case "EXECUTION_PROFILE_DISABLED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "ExecutionProfile desligado",
+        detail: `O perfil ${failure.executionProfileId} está desligado e não pode ser escolhido.`,
+      });
+    case "HARNESS_DISABLED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Harness desligado",
+        detail: `O Harness ${failure.harnessId} do Loadout está desligado.`,
+      });
+    case "LOADOUT_BROKEN":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Loadout incompleto",
+        detail:
+          `O Loadout ${failure.loadoutId} aponta para um ${failure.missing} que não existe mais. ` +
+          "Edite o Loadout antes de executar.",
+      });
+    case "RUN_NOT_ALLOWED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Execução não permitida",
+        detail: descreverRecusaDeExecucao(failure.rejection),
+      });
+    case "TASK_TRANSITION_REJECTED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Transição da Task não permitida",
+        detail: descreverRecusaDeTransicao(failure.rejection),
+      });
+    case "RUN_TRANSITION_REJECTED": {
+      const destinos =
+        failure.rejection.allowed.length === 0
+          ? "nenhum: é um estado terminal"
+          : listar(failure.rejection.allowed);
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Transição do Run não permitida",
+        detail:
+          `Um Run em ${failure.rejection.from} não pode ir para ${failure.rejection.to}. ` +
+          `A partir de ${failure.rejection.from} os estados possíveis são: ${destinos}.`,
+      });
+    }
+    case "RUN_ALREADY_FINISHED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Run já terminou",
+        detail: `O Run está em ${failure.status}, que é um estado terminal, e não há o que cancelar.`,
+      });
+  }
+}
+
+function descreverRecusaDeExecucao(
+  rejection: Extract<RunWriteFailure, { code: "RUN_NOT_ALLOWED" }>["rejection"],
+): string {
+  switch (rejection.code) {
+    case "TASK_NOT_RUNNABLE":
+      return (
+        `A Task está em ${rejection.status}. Só uma Task em ${listar(rejection.allowed)} ` +
+        "aceita um Run novo: os demais estados ou já têm um Run em voo, ou são trabalho " +
+        "que ninguém pediu para executar, ou já estão resolvidos."
+      );
+    case "TASK_WITHOUT_PROJECT":
+      return (
+        "A Task não pertence a nenhum Project, então não há workspace onde executar. " +
+        "Promova a captura antes."
+      );
+    case "PROJECT_ARCHIVED":
+      return `O Project ${rejection.projectId} está arquivado e não aceita execuções.`;
+    case "PROJECT_WITHOUT_WORKSPACE":
+      return (
+        `O Project ${rejection.projectId} não tem workspace configurado, e um agente sem ` +
+        "diretório de trabalho não pode nem começar. Defina `workspacePath` em " +
+        "PATCH /api/v1/projects/{id}."
+      );
+    case "DEPENDENCIES_NOT_COMPLETED":
+      return (
+        "A Task depende de outras que ainda não estão COMPLETED: " +
+        `${listar(rejection.blocking)}. Conclua-as ou remova a dependência.`
+      );
   }
 }
 

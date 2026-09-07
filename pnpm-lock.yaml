@@ -47,6 +47,9 @@ importers:
       '@dungeon-master/events':
         specifier: workspace:*
         version: link:../../packages/events
+      '@dungeon-master/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
       '@hono/node-server':
         specifier: 2.1.1
         version: 2.1.1(hono@4.13.7)

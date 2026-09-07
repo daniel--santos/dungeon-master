@@ -14,9 +14,23 @@ import { API_BASE_PATH, API_VERSION } from "./config.js";
 import { registerAchievementRoutes } from "./handlers/achievements.js";
 import { registerInboxRoutes } from "./handlers/inbox.js";
 import { registerProjectRoutes } from "./handlers/projects.js";
+import {
+  registerAgentRoutes,
+  registerExecutionProfileRoutes,
+  registerHarnessRoutes,
+  registerLoadoutRoutes,
+  registerModelRoutes,
+} from "./handlers/registry.js";
+import { registerRunRoutes } from "./handlers/runs.js";
 import { registerTaskRoutes } from "./handlers/tasks.js";
 import type { Logger } from "./logger.js";
-import type { DashboardEventsPort, DatabaseProbe, SettingsPort, WorkPort } from "./ports.js";
+import type {
+  DashboardEventsPort,
+  DatabaseProbe,
+  ExecutionPort,
+  SettingsPort,
+  WorkPort,
+} from "./ports.js";
 import type { AchievementCatalog } from "./routes/achievements.js";
 import {
   buildProblem,
@@ -44,6 +58,8 @@ export interface CreateAppOptions {
   settings: SettingsPort;
   /** Project, Task e Inbox: as rotas de trabalho da Fase 1. */
   work: WorkPort;
+  /** Harness, Model, Agent, ExecutionProfile, Loadout e Run: a Fase 2A. */
+  execution: ExecutionPort;
   /**
    * O catálogo de Conquistas já validado.
    *
@@ -254,6 +270,15 @@ export function createApp(options: CreateAppOptions) {
   registerTaskRoutes(app, options.work.tasks);
   registerInboxRoutes(app, options.work.inbox);
 
+  // ------------------------------------------------------------- execução
+
+  registerHarnessRoutes(app, options.execution.harnesses);
+  registerModelRoutes(app, options.execution.models);
+  registerAgentRoutes(app, options.execution.agents);
+  registerExecutionProfileRoutes(app, options.execution.executionProfiles);
+  registerLoadoutRoutes(app, options.execution.loadouts);
+  registerRunRoutes(app, options.execution.runs, logger === undefined ? {} : { logger });
+
   // ------------------------------------------------------------- Conquistas
 
   registerAchievementRoutes(app, options.achievements);
@@ -276,6 +301,11 @@ export function createApp(options: CreateAppOptions) {
       { name: "projects", description: "Projects: a unidade persistente de contexto." },
       { name: "tasks", description: "Tasks, subtarefas e dependências." },
       { name: "inbox", description: "Captura de intenção: as Tasks em INBOX." },
+      {
+        name: "execution",
+        description: "Cadastros de execução: Harness, Model, Agent, ExecutionProfile e Loadout.",
+      },
+      { name: "runs", description: "Runs: as tentativas concretas de realizar uma Task." },
       { name: "achievements", description: "O catálogo versionado de Conquistas." },
     ],
   });
