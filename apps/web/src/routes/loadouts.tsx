@@ -8,6 +8,9 @@ export const Route = createFileRoute("/loadouts")({
 
 function LoadoutsPage() {
   return (
-    <PlaceholderPage to="/loadouts" note="O cadastro inicial chega ainda nesta fase, em breve." />
+    <PlaceholderPage
+      to="/loadouts"
+      note="O cadastro chega na Fase 2A, pelo mesmo motivo da tela anterior: sem execução, não há combinação a montar."
+    />
   );
 }
