@@ -1,13 +1,17 @@
 /**
  * `@dungeon-master/glossary` — canônico para tema.
  *
- * Esqueleto da Fase 0. Recebe depois os dois glossários de chaves idênticas,
- * `dnd` e `plain`, com paridade garantida em tempo de tipo (planejamento v0.4,
- * seção 14). Nenhum label de entidade da UI pode existir fora daqui.
+ * Fonte única dos labels da interface. Os dois glossários, `dnd` e `plain`,
+ * têm exatamente o mesmo conjunto de chaves, garantido em tempo de tipo
+ * (planejamento v0.4, seção 14 e princípio 17). Nenhum componente escreve
+ * "Campanha" ou "Projeto" direto no JSX: o label vem daqui.
+ *
+ * O pacote é puro. Não importa nada além de si mesmo, não lê arquivo, não
+ * conhece banco, HTTP nem React.
  */
 
-/** Temas disponíveis. Um terceiro tema é só um terceiro arquivo com as mesmas chaves. */
-export type GlossaryName = "dnd" | "plain";
-
-/** O pacote ainda não exporta chaves nem labels. */
-export const GLOSSARY_PACKAGE = "@dungeon-master/glossary" as const;
+export * from "./dnd.js";
+export * from "./format.js";
+export * from "./keys.js";
+export * from "./plain.js";
+export * from "./theme.js";

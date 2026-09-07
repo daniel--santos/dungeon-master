@@ -1,0 +1,267 @@
+[
+  {
+    "key": "first_expedition",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Primeira Expedição", "plain": "Primeira execução" },
+    "description": {
+      "theme": "Voltar vitorioso da primeira Expedição.",
+      "plain": "Concluir a primeira execução com sucesso."
+    },
+    "flavor": "Toda lenda começa com alguém que cruzou o portão sem saber o que havia do outro lado.",
+    "icon": "flag",
+    "rarity": "COMMON",
+    "hidden": false,
+    "condition": { "predicate": "first", "source": "run.succeeded" }
+  },
+  {
+    "key": "monster_slayer",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Caçador de Monstros", "plain": "Caçador de bugs" },
+    "description": {
+      "theme": "Derrotar Monstros e devolver a paz à Campanha.",
+      "plain": "Concluir tarefas do tipo bug."
+    },
+    "flavor": "Contam-se as cicatrizes, não os monstros. Mas alguém insistiu em contar os dois.",
+    "icon": "swords",
+    "rarity": "COMMON",
+    "hidden": false,
+    "condition": {
+      "predicate": "count",
+      "source": "task.completed",
+      "filter": { "task.kind": "BUG" },
+      "thresholds": [10, 50, 200]
+    },
+    "tiers": ["I", "II", "III"],
+    "tierRarities": ["COMMON", "RARE", "EPIC"]
+  },
+  {
+    "key": "flawless_streak",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Sem Baixas", "plain": "Sequência impecável" },
+    "description": {
+      "theme": "Encadear dez Expedições vitoriosas, sem uma única derrota.",
+      "plain": "Encadear dez execuções bem-sucedidas seguidas."
+    },
+    "flavor": "Dez portões, dez retornos. O décimo primeiro é sempre o que preocupa.",
+    "icon": "shield-check",
+    "rarity": "RARE",
+    "hidden": false,
+    "condition": { "predicate": "streak", "source": "run.succeeded", "length": 10 }
+  },
+  {
+    "key": "tactical_retreat",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Retirada Tática", "plain": "Primeiro cancelamento" },
+    "description": {
+      "theme": "Interromper uma Expedição antes que ela cobrasse caro.",
+      "plain": "Cancelar uma execução em andamento pela primeira vez."
+    },
+    "flavor": "Saber a hora de voltar é metade do ofício. A outra metade é admitir isso em voz alta.",
+    "icon": "flag-off",
+    "rarity": "COMMON",
+    "hidden": false,
+    "condition": { "predicate": "first", "source": "run.cancelled" }
+  },
+  {
+    "key": "sealed_dungeon",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Masmorra Selada", "plain": "Primeira execução isolada" },
+    "description": {
+      "theme": "Vencer uma Expedição inteira dentro de uma Masmorra selada.",
+      "plain": "Concluir com sucesso a primeira execução em Docker."
+    },
+    "flavor": "Paredes de pedra, uma porta só, e nada que escape para o mundo lá fora.",
+    "icon": "container",
+    "rarity": "RARE",
+    "hidden": false,
+    "condition": {
+      "predicate": "first",
+      "source": "run.succeeded",
+      "filter": { "run.executionMode": "DOCKER" }
+    }
+  },
+  {
+    "key": "four_guilds",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Aliado das Quatro Guildas", "plain": "Quatro harnesses" },
+    "description": {
+      "theme": "Vencer ao menos uma Expedição com cada uma das quatro Guildas.",
+      "plain": "Concluir uma execução bem-sucedida com cada um dos quatro harnesses."
+    },
+    "flavor": "Cada Guilda jura ser a melhor. O Mestre da Guilda apenas anota os resultados.",
+    "icon": "users",
+    "rarity": "EPIC",
+    "hidden": false,
+    "condition": {
+      "predicate": "set",
+      "source": "run.succeeded",
+      "dimension": "run.harness",
+      "values": ["claude", "codex", "pi", "antigravity"]
+    }
+  },
+  {
+    "key": "second_wind",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Segundo Fôlego", "plain": "Retomada bem-sucedida" },
+    "description": {
+      "theme": "Retomar uma Expedição interrompida e terminá-la em vitória.",
+      "plain": "Concluir com sucesso uma execução retomada de outra."
+    },
+    "flavor": "O caminho já era conhecido. Faltava apenas quem quisesse voltar a ele.",
+    "icon": "rotate-ccw",
+    "rarity": "RARE",
+    "hidden": false,
+    "condition": {
+      "predicate": "first",
+      "source": "run.succeeded",
+      "filter": { "run.resumedFrom": "PRESENT" }
+    }
+  },
+  {
+    "key": "guild_seal",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Selo da Guilda", "plain": "Primeira aprovação" },
+    "description": {
+      "theme": "Estampar o primeiro Selo da Guilda sobre o trabalho de um Herói.",
+      "plain": "Aprovar uma execução pela primeira vez."
+    },
+    "flavor": "Cera quente, um carimbo e a responsabilidade de ter dito sim.",
+    "icon": "stamp",
+    "rarity": "COMMON",
+    "hidden": false,
+    "condition": { "predicate": "first", "source": "approval.granted" }
+  },
+  {
+    "key": "veto",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Veto", "plain": "Primeira rejeição" },
+    "description": {
+      "theme": "Negar o Selo da Guilda quando o trabalho não estava pronto.",
+      "plain": "Rejeitar uma execução pela primeira vez."
+    },
+    "flavor": "Dizer não custa uma tarde. Dizer sim cedo demais costuma custar a semana.",
+    "icon": "thumbs-down",
+    "rarity": "COMMON",
+    "hidden": false,
+    "condition": { "predicate": "first", "source": "approval.rejected" }
+  },
+  {
+    "key": "grimoire_scribe",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Escriba do Grimório", "plain": "Escriba do conhecimento" },
+    "description": {
+      "theme": "Promover Páginas do Grimório a partir do que as Expedições aprenderam.",
+      "plain": "Promover itens de conhecimento do projeto."
+    },
+    "flavor": "O que não é escrito precisa ser descoberto de novo, e ninguém tem tempo para isso.",
+    "icon": "book-open",
+    "rarity": "RARE",
+    "hidden": false,
+    "condition": {
+      "predicate": "count",
+      "source": "knowledge_item.promoted",
+      "thresholds": [10, 100, 500]
+    },
+    "tiers": ["I", "II", "III"],
+    "tierRarities": ["RARE", "EPIC", "LEGENDARY"]
+  },
+  {
+    "key": "ritualist",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Ritualista", "plain": "Primeira execução por workflow" },
+    "description": {
+      "theme": "Conduzir uma Expedição vitoriosa seguindo um Ritual do começo ao fim.",
+      "plain": "Concluir com sucesso a primeira execução guiada por um workflow."
+    },
+    "flavor": "Os passos são sempre os mesmos. É justamente por isso que funcionam.",
+    "icon": "wand-sparkles",
+    "rarity": "RARE",
+    "hidden": false,
+    "condition": {
+      "predicate": "first",
+      "source": "run.succeeded",
+      "filter": { "run.workflowVersionId": "PRESENT" }
+    }
+  },
+  {
+    "key": "cartographer",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Cartógrafo", "plain": "Primeira dependência" },
+    "description": {
+      "theme": "Desenhar a primeira ligação no Mapa da masmorra.",
+      "plain": "Criar a primeira dependência entre tarefas."
+    },
+    "flavor": "Nenhuma masmorra é grande demais depois que alguém desenha o mapa.",
+    "icon": "map",
+    "rarity": "COMMON",
+    "hidden": false,
+    "condition": { "predicate": "first", "source": "task.dependency_created" }
+  },
+  {
+    "key": "long_march",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Marcha Longa", "plain": "Execução mais longa" },
+    "description": {
+      "theme": "Sustentar a Expedição vitoriosa mais longa da Campanha, acima de uma hora.",
+      "plain": "Registrar a execução bem-sucedida mais longa, acima de sessenta minutos."
+    },
+    "flavor": "Não foi a mais brilhante. Foi a que ninguém abandonou no meio do caminho.",
+    "icon": "hourglass",
+    "rarity": "EPIC",
+    "hidden": false,
+    "condition": {
+      "predicate": "record",
+      "source": "run.succeeded",
+      "metric": "run.durationMs",
+      "direction": "max",
+      "min": 3600000
+    }
+  },
+  {
+    "key": "night_watch",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Vigília Noturna", "plain": "Execução de madrugada" },
+    "description": {
+      "theme": "Vencer uma Expedição entre a meia-noite e o amanhecer.",
+      "plain": "Concluir com sucesso uma execução entre zero e cinco horas."
+    },
+    "flavor": "A masmorra não dorme, e naquela noite o Mestre da Guilda também não.",
+    "icon": "moon",
+    "rarity": "COMMON",
+    "hidden": false,
+    "condition": {
+      "predicate": "first",
+      "source": "run.succeeded",
+      "filter": { "hourLocal": { "from": 0, "to": 5 } }
+    }
+  },
+  {
+    "key": "campaign_founder",
+    "origin": "CATALOG",
+    "scope": "GLOBAL",
+    "name": { "theme": "Fundador de Campanhas", "plain": "Cinco projetos" },
+    "description": {
+      "theme": "Abrir cinco Campanhas e dar a cada uma o seu próprio Grimório.",
+      "plain": "Criar cinco projetos."
+    },
+    "flavor": "Cinco mapas na parede, cinco histórias em aberto e uma agenda em pedaços.",
+    "icon": "folder-plus",
+    "rarity": "COMMON",
+    "hidden": false,
+    "condition": { "predicate": "count", "source": "project.created", "thresholds": [5] }
+  }
+]
