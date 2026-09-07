@@ -4,10 +4,15 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import { API_BASE_PATH } from "./config.js";
 import { buildOpenApiDocument } from "./openapi.js";
+import { createSpecPorts } from "./ports.js";
 import { PROBLEM_CONTENT_TYPE } from "./problem.js";
 
 function appWithDatabase(ok: boolean) {
   return createApp({
+    // As portas de evento e de configuração são inertes: estes testes só
+    // exercitam `/health`, e uma chamada acidental a elas lança em vez de
+    // passar por acidente. Os caminhos com banco estão em `test/`.
+    ...createSpecPorts(),
     probeDatabase: async () => ({
       ok,
       latencyMs: 1,

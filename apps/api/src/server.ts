@@ -3,9 +3,10 @@ import "dotenv/config";
 import type { Server as HttpServer } from "node:http";
 
 import { createAdaptorServer } from "@hono/node-server";
-import { createDatabase, pingDatabase } from "@dungeon-master/database";
+import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/database";
 
 import { createApp } from "./app.js";
+import { createEventsRuntime, createSettingsPort } from "./composition.js";
 import { API_BASE_PATH, loadConfig } from "./config.js";
 import { createLogger } from "./logger.js";
 
@@ -17,10 +18,26 @@ const database = createDatabase({
   applicationName: "dungeon-master-api",
 });
 
+// Um conjunto de transporte, poller e ouvinte de NOTIFY por processo: a conexão
+// do `LISTEN` é dedicada e não volta ao pool.
+const events = await createEventsRuntime({
+  db: database.db,
+  pool: database.pool,
+  userId: LOCAL_USER_ID,
+  logger,
+  fallbackIntervalMs: config.sse.fallbackIntervalMs,
+  heartbeatIntervalMs: config.sse.heartbeatIntervalMs,
+});
+
 const app = createApp({
   probeDatabase: () => pingDatabase(database.db),
+  events: events.port,
+  settings: createSettingsPort({ db: database.db, userId: LOCAL_USER_ID }),
   logger,
+  pingEnabled: config.nodeEnv !== "production",
 });
+
+await events.start();
 
 // `createAdaptorServer` tipa o retorno como a união HTTP/HTTPS/HTTP2. Sem
 // `createServer` customizado o adapter usa `node:http`, e só o `http.Server`
@@ -42,7 +59,9 @@ server.listen(config.port, config.host, () => {
       port: config.port,
       env: config.nodeEnv,
       timeouts: config.timeouts,
+      sse: config.sse,
       health: `http://${config.host}:${config.port}${API_BASE_PATH}/health`,
+      events: `http://${config.host}:${config.port}${API_BASE_PATH}/events/stream`,
       openapi: `http://${config.host}:${config.port}${API_BASE_PATH}/openapi.json`,
       docs: `http://${config.host}:${config.port}${API_BASE_PATH}/docs`,
     },
@@ -58,6 +77,9 @@ async function shutdown(signal: string): Promise<void> {
 
   logger.info({ signal }, "encerrando a API");
 
+  // Os streams SSE primeiro: `server.close()` espera as conexões terminarem, e
+  // uma conexão SSE não termina sozinha — o processo ficaria pendurado.
+  await events.stop();
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await database.close();
 

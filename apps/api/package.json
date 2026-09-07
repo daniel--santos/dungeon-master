@@ -17,6 +17,7 @@
   "dependencies": {
     "@dungeon-master/contracts": "workspace:*",
     "@dungeon-master/database": "workspace:*",
+    "@dungeon-master/events": "workspace:*",
     "@hono/node-server": "2.1.1",
     "@hono/swagger-ui": "0.6.1",
     "@hono/zod-openapi": "1.6.3",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@types/node": "26.5.0",
+    "embedded-postgres": "17.10.0-beta.17",
     "tsx": "4.23.13",
     "typescript": "6.0.3",
     "vitest": "5.0.0"

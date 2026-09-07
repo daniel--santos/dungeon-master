@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
 
+import { DashboardEventSchema, DashboardEventTypeSchema } from "./dashboard-event.js";
 import { HealthResponseSchema } from "./health.js";
 import { PROBLEM_TYPE_BASE_URI, ProblemDetailsSchema } from "./problem-details.js";
-import { UserSettingKeySchema, UserSettingSchema } from "./user-setting.js";
+import {
+  DEFAULT_USER_SETTINGS,
+  isUserSettingsKey,
+  USER_SETTING_VALUE_SCHEMAS,
+  USER_SETTINGS_KEYS,
+  UserSettingKeySchema,
+  UserSettingSchema,
+  UserSettingsSchema,
+} from "./user-setting.js";
 
 describe("HealthResponseSchema", () => {
   it("aceita uma resposta saudável", () => {
@@ -73,5 +82,68 @@ describe("UserSettingSchema", () => {
 
   it("rejeita chave com maiúsculas", () => {
     expect(() => UserSettingKeySchema.parse("UI.Theme")).toThrow();
+  });
+});
+
+describe("DashboardEventSchema", () => {
+  it("aceita um evento com payload arbitrário", () => {
+    const parsed = DashboardEventSchema.parse({
+      sequence: 42,
+      type: "settings.changed",
+      payload: { key: "ui.theme", value: "plain" },
+      createdAt: "2026-09-07T12:00:00.000Z",
+    });
+
+    expect(parsed.sequence).toBe(42);
+  });
+
+  it("tolera na leitura um tipo que ainda não existe no enum de escrita", () => {
+    const parsed = DashboardEventSchema.parse({
+      sequence: 1,
+      type: "achievement.unlocked",
+      payload: null,
+      createdAt: "2026-09-07T12:00:00.000Z",
+    });
+
+    expect(parsed.type).toBe("achievement.unlocked");
+    expect(DashboardEventTypeSchema.safeParse("achievement.unlocked").success).toBe(false);
+  });
+
+  it("rejeita sequence zero ou negativo", () => {
+    for (const sequence of [0, -1, 1.5]) {
+      expect(
+        DashboardEventSchema.safeParse({
+          sequence,
+          type: "system.ping",
+          payload: null,
+          createdAt: "2026-09-07T12:00:00.000Z",
+        }).success,
+      ).toBe(false);
+    }
+  });
+});
+
+describe("UserSettingsSchema", () => {
+  it("os padrões passam no próprio schema", () => {
+    expect(UserSettingsSchema.parse(DEFAULT_USER_SETTINGS)).toEqual({ "ui.theme": "dnd" });
+  });
+
+  it("toda chave conhecida tem schema de valor e padrão", () => {
+    for (const key of USER_SETTINGS_KEYS) {
+      expect(USER_SETTING_VALUE_SCHEMAS[key]).toBeDefined();
+      expect(DEFAULT_USER_SETTINGS[key]).toBeDefined();
+    }
+    expect(USER_SETTINGS_KEYS).toEqual(Object.keys(DEFAULT_USER_SETTINGS));
+  });
+
+  it("isUserSettingsKey separa conhecida de desconhecida", () => {
+    expect(isUserSettingsKey("ui.theme")).toBe(true);
+    expect(isUserSettingsKey("ui.desconhecida")).toBe(false);
+    // Não pode achar que herdou uma chave de Object.prototype.
+    expect(isUserSettingsKey("toString")).toBe(false);
+  });
+
+  it("rejeita um tema fora da união", () => {
+    expect(USER_SETTING_VALUE_SCHEMAS["ui.theme"].safeParse("neon").success).toBe(false);
   });
 });

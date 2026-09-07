@@ -1,15 +1,16 @@
 import { createApp } from "./app.js";
+import { createSpecPorts } from "./ports.js";
 
 /**
  * Gera o documento OpenAPI sem subir servidor e sem tocar o banco.
  *
- * A checagem de banco é um stub porque a geração da spec só percorre as rotas
- * declaradas; nenhum handler é executado.
+ * As dependências são portas inertes porque a geração da spec só percorre as
+ * rotas declaradas; nenhum handler é executado. Se algum dia um handler for
+ * executado aqui, a porta lança e a falha aparece em vez de virar uma spec
+ * silenciosamente errada.
  */
 export function buildOpenApiDocument(): Record<string, unknown> {
-  const app = createApp({
-    probeDatabase: async () => ({ ok: true, latencyMs: 0, error: null }),
-  });
+  const app = createApp(createSpecPorts());
 
   return app.getOpenAPI31Document({
     openapi: "3.1.0",
@@ -22,6 +23,10 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       license: { name: "MIT", url: "https://opensource.org/licenses/MIT" },
     },
     servers: [{ url: "http://127.0.0.1:3333", description: "Desenvolvimento local" }],
-    tags: [{ name: "system", description: "Saúde, versão e documentação." }],
+    tags: [
+      { name: "system", description: "Saúde, versão e documentação." },
+      { name: "events", description: "Stream SSE de eventos de dashboard." },
+      { name: "settings", description: "Configurações do usuário local." },
+    ],
   }) as unknown as Record<string, unknown>;
 }

@@ -1,5 +1,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
+import { useEffect } from "react";
+
+import { useEventsStore } from "@/lib/events";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -10,6 +13,15 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function RootLayout() {
+  const connect = useEventsStore((state) => state.connect);
+
+  // Uma conexão SSE por aba, aberta no layout raiz e viva enquanto a aba
+  // estiver. `connect` é idempotente, o que importa porque o StrictMode monta o
+  // componente duas vezes em desenvolvimento.
+  useEffect(() => {
+    connect();
+  }, [connect]);
+
   return (
     <div className="bg-background text-foreground min-h-screen">
       <header className="border-border border-b">

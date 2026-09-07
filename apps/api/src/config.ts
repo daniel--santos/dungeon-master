@@ -33,6 +33,24 @@ export interface ApiConfig {
     /** Ociosidade tolerada entre requisições na mesma conexão. */
     readonly keepAliveTimeoutMs: number;
   };
+  readonly sse: {
+    /**
+     * Intervalo do comentário de heartbeat. `0` desliga.
+     *
+     * Precisa ficar bem abaixo do timeout de qualquer proxy no caminho, senão
+     * uma conexão sem eventos por alguns minutos é cortada e o browser
+     * reconecta sem necessidade.
+     */
+    readonly heartbeatIntervalMs: number;
+    /**
+     * Tique de segurança do drain.
+     *
+     * O caminho normal é o `NOTIFY` acordando o drain na hora; este intervalo
+     * cobre o caso de uma notificação perdida, por exemplo durante a reconexão
+     * da conexão dedicada do `LISTEN`.
+     */
+    readonly fallbackIntervalMs: number;
+  };
 }
 
 export function loadConfig(): ApiConfig {
@@ -59,6 +77,10 @@ export function loadConfig(): ApiConfig {
       requestTimeoutMs: readInt("API_REQUEST_TIMEOUT_MS", 0),
       headersTimeoutMs,
       keepAliveTimeoutMs,
+    },
+    sse: {
+      heartbeatIntervalMs: readInt("API_SSE_HEARTBEAT_MS", 15_000),
+      fallbackIntervalMs: readInt("API_SSE_FALLBACK_INTERVAL_MS", 5_000),
     },
   };
 }
