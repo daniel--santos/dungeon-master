@@ -12,6 +12,8 @@ build/
 .vite/
 coverage/
 .eslintcache
+# Temporários do plugin do TanStack Router (o routeTree.gen.ts é versionado)
+.tanstack/
 
 # Ambiente local (o .env.example é versionado)
 .env
@@ -38,3 +40,9 @@ pnpm-debug.log*
 # Canvas de design montado (2+ MB, regenerado a partir dos .dc.html)
 docs/design/**/*.html
 !docs/design/**/*.dc.html
+
+# Saída do Playwright
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
+apps/web/.playwright/
