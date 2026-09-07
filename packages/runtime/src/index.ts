@@ -25,3 +25,5 @@ export * from "./types.js";
 export * from "./workspace.js";
 export * from "./workspace-resolver.js";
 export * from "./structured-output.js";
+export * from "./agent-runtime.js";
+export * from "./host-adapter.js";
