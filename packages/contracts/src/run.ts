@@ -130,6 +130,10 @@ export const RunSchema = z
       .uuid()
       .nullable()
       .describe("Captura congelada do Workflow. Sempre nulo até a Fase 4."),
+    resumedFromRunId: z
+      .uuid()
+      .nullable()
+      .describe("Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero."),
     loadoutId: z.uuid(),
     loadoutVersion: z
       .number()
@@ -160,7 +164,13 @@ export type Run = z.infer<typeof RunSchema>;
 
 export const CreateRunSchema = z
   .object({
-    loadoutId: z.uuid().describe("Equipamento do Run. Decide Agent, Harness e Model."),
+    loadoutId: z
+      .uuid()
+      .optional()
+      .describe(
+        "Equipamento do Run. Decide Agent, Harness e Model. " +
+          "Só pode faltar quando `resumeFromRunId` estiver presente: aí o Loadout é o do Run de origem.",
+      ),
     executionProfileId: z
       .uuid()
       .optional()
@@ -172,7 +182,19 @@ export const CreateRunSchema = z
       .max(RUN_PROMPT_MAX_LENGTH)
       .optional()
       .describe("Ausente monta o prompt a partir do título e da descrição da Task."),
+    resumeFromRunId: z
+      .uuid()
+      .optional()
+      .describe(
+        "Retoma a sessão do harness deste Run. Exige que ele tenha `harnessSessionId` " +
+          "capturado e que o Harness declare a capability `resume`. Loadout e " +
+          "ExecutionProfile são copiados dele quando não vierem no corpo.",
+      ),
   })
+  // A exigência de "um dos dois" não é um `refine` de propósito: um refinamento
+  // vira `ZodCustom` e some da spec OpenAPI, que só sabe descrever a forma. A
+  // regra mora no repositório, junto das outras recusas de criação de Run, e
+  // sai como `409` com o código explicando qual campo faltou.
   .meta({ id: "CreateRun", description: "Corpo de `POST /api/v1/tasks/{id}/runs`." });
 
 export type CreateRun = z.infer<typeof CreateRunSchema>;
@@ -278,3 +300,22 @@ export type RunEventList = z.infer<typeof RunEventListSchema>;
 
 /** Canal de `LISTEN`/`NOTIFY` de `run_event`. O `NOTIFY` não carrega payload. */
 export const RUN_EVENT_CHANNEL = "dm_run_event" as const;
+
+/**
+ * Canal que avisa o Worker de que há Run novo na fila.
+ *
+ * Sem payload, como todos: ele só acorda o `claimNextQueuedRun` antes do
+ * próximo tique. É o que faz um Run criado pela API começar em milissegundos
+ * em vez de esperar o intervalo do laço.
+ */
+export const RUN_QUEUE_CHANNEL = "dm_run_queue" as const;
+
+/**
+ * Canal que avisa o Worker de um pedido de cancelamento.
+ *
+ * Também sem payload: o Worker consulta `cancel_requested_at` dos Runs que ele
+ * mesmo tem em voo. Mandar o id no payload obrigaria a tratar notificação
+ * perdida ou coalescida como cancelamento perdido, e a consulta por cursor já
+ * é a autoridade.
+ */
+export const RUN_CANCEL_CHANNEL = "dm_run_cancel" as const;

@@ -2248,6 +2248,8 @@ export interface paths {
         /**
          * Enfileira uma execução para a Task
          * @description Cria o Run em `QUEUED`, com o Loadout e o ExecutionProfile congelados em snapshot, e leva a Task a `QUEUED` na mesma transação. Sem `prompt`, ele é montado a partir do título e da descrição da Task. Exige Task em `READY` ou `FAILED` (retentativa), dependências `COMPLETED` e um Project com `workspacePath`.
+         *
+         *     Com `resumeFromRunId`, o Run continua a sessão do harness de um Run anterior: Loadout e ExecutionProfile são herdados dele quando não vierem no corpo, e o Run de origem precisa ter `harnessSessionId` capturado e um Harness que declare a capability `resume`. A retomada é sempre um Run novo, com `attempt` maior.
          */
         post: {
             parameters: {
@@ -2885,7 +2887,7 @@ export interface components {
          * @description O que aconteceu. Mesmo vocabulário dos eventos de dashboard de domínio.
          * @enum {string}
          */
-        ActivityType: "project.created" | "project.updated" | "task.created" | "task.updated" | "task.status_changed" | "task.dependency_created" | "task.dependency_removed" | "run.created" | "run.status_changed" | "run.cancel_requested";
+        ActivityType: "project.created" | "project.updated" | "task.created" | "task.updated" | "task.status_changed" | "task.dependency_created" | "task.dependency_removed" | "run.created" | "run.status_changed" | "run.cancel_requested" | "run.permission_bypassed";
         /** @description Uma página de Tasks, na ordem pedida por `sort` e `order`. */
         TaskPage: {
             /** @description Os itens desta página, na ordem da listagem. */
@@ -3306,6 +3308,8 @@ export interface components {
             allowedCommands: string[];
             /** @description Comandos recusados mesmo em `ALL`. */
             deniedCommands: string[];
+            /** @description Autoriza desligar as checagens da CLI (`bypass`) fora de um ambiente com isolamento imposto. Opt-in visível e nunca o padrão: sem ele, `commandExecution: ALL` em `HOST` vira o modo de auto-aprovação nativo do harness, e não bypass. Ligado, o Run registra um `Diagnostic` e uma linha de diário dizendo que rodou sem barreira. */
+            allowUnsafeBypass?: boolean;
         };
         /**
          * @description Quais comandos o agente pode executar.
@@ -3345,6 +3349,8 @@ export interface components {
                 allowedCommands: string[];
                 /** @description Comandos recusados mesmo em `ALL`. */
                 deniedCommands: string[];
+                /** @description Autoriza desligar as checagens da CLI (`bypass`) fora de um ambiente com isolamento imposto. Opt-in visível e nunca o padrão: sem ele, `commandExecution: ALL` em `HOST` vira o modo de auto-aprovação nativo do harness, e não bypass. Ligado, o Run registra um `Diagnostic` e uma linha de diário dizendo que rodou sem barreira. */
+                allowUnsafeBypass?: boolean;
             };
             /** @description Padrão: nenhuma variável repassada além de `PATH`. */
             environmentPolicy?: {
@@ -3526,6 +3532,11 @@ export interface components {
              * @description Captura congelada do Workflow. Sempre nulo até a Fase 4.
              */
             workflowVersionId: string | null;
+            /**
+             * Format: uuid
+             * @description Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero.
+             */
+            resumedFromRunId: string | null;
             /** Format: uuid */
             loadoutId: string;
             /** @description Versão do Loadout no instante da criação. */
@@ -3658,9 +3669,9 @@ export interface components {
         CreateRun: {
             /**
              * Format: uuid
-             * @description Equipamento do Run. Decide Agent, Harness e Model.
+             * @description Equipamento do Run. Decide Agent, Harness e Model. Só pode faltar quando `resumeFromRunId` estiver presente: aí o Loadout é o do Run de origem.
              */
-            loadoutId: string;
+            loadoutId?: string;
             /**
              * Format: uuid
              * @description Sobrepõe o ExecutionProfile do Loadout, sem alterar o Loadout.
@@ -3668,6 +3679,11 @@ export interface components {
             executionProfileId?: string;
             /** @description Ausente monta o prompt a partir do título e da descrição da Task. */
             prompt?: string;
+            /**
+             * Format: uuid
+             * @description Retoma a sessão do harness deste Run. Exige que ele tenha `harnessSessionId` capturado e que o Harness declare a capability `resume`. Loadout e ExecutionProfile são copiados dele quando não vierem no corpo.
+             */
+            resumeFromRunId?: string;
         };
         /** @description Uma página de Runs, do mais recente para o mais antigo. */
         RunPage: {

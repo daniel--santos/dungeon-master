@@ -1,10 +1,11 @@
 import "dotenv/config";
 
-import { createDatabase, pingDatabase } from "@dungeon-master/database";
+import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/database";
+import { hostAdapters } from "@dungeon-master/runtime-sandcastle";
 
 import { loadConfig } from "./config.js";
-import { startIdleLoop } from "./idle-loop.js";
 import { createLogger } from "./logger.js";
+import { createWorker } from "./worker.js";
 
 const config = loadConfig();
 const logger = createLogger({ level: config.logLevel, pretty: config.isDevelopment });
@@ -12,17 +13,21 @@ const logger = createLogger({ level: config.logLevel, pretty: config.isDevelopme
 logger.info(
   {
     env: config.nodeEnv,
+    workerId: config.workerId,
     pid: process.pid,
     node: process.version,
     platform: process.platform,
     tickIntervalMs: config.tickIntervalMs,
+    maxConcurrentRuns: config.maxConcurrentRuns,
   },
   "Worker iniciando",
 );
 
 const database = createDatabase({
   url: config.databaseUrl,
-  max: 4,
+  // Uma conexão por Run concorrente, mais o laço, mais as duas dedicadas de
+  // `LISTEN` — que saem do pool e não voltam.
+  max: config.maxConcurrentRuns + 4,
   applicationName: "dungeon-master-worker",
 });
 
@@ -37,20 +42,27 @@ if (!boot.ok) {
 
 logger.info({ latencyMs: boot.latencyMs }, "PostgreSQL respondeu ao SELECT 1");
 
-const loop = startIdleLoop({
-  intervalMs: config.tickIntervalMs,
-  onTick: async (tick) => {
-    // Fase 0: nenhuma fila ainda. O tick apenas confirma que o processo e a
-    // conexão continuam vivos. Na Fase 2 este ponto vira o polling da fila.
-    const ping = await pingDatabase(database.db);
-    logger.debug({ tick, databaseOk: ping.ok, latencyMs: ping.latencyMs }, "tick ocioso");
-  },
-  onError: (error, tick) => {
-    logger.error({ tick, err: error }, "erro no tick; o laço continua");
-  },
+const worker = createWorker({
+  db: database.db,
+  pool: database.pool,
+  userId: LOCAL_USER_ID,
+  config,
+  adapters: hostAdapters(),
+  logger,
 });
 
-logger.info("Worker no ar; aguardando trabalho");
+const relatorio = await worker.boot();
+
+if (relatorio.reconciled.length > 0) {
+  logger.warn(
+    { runs: relatorio.reconciled.map((run) => run.runId) },
+    "runs órfãos de uma partida anterior foram encerrados como FAILED retentável",
+  );
+}
+
+worker.start();
+
+logger.info({ workerId: config.workerId }, "Worker no ar; consumindo a fila de Runs");
 
 let shuttingDown = false;
 
@@ -63,17 +75,20 @@ async function shutdown(signal: string): Promise<void> {
 
   logger.info({ signal }, "encerrando o Worker");
 
+  // A margem sobre o prazo do desligamento existe para o log final sair: sem
+  // ela, a saída forçada dispararia junto com o fim do `drain` e o operador não
+  // saberia se o Worker terminou limpo.
   const timeout = setTimeout(() => {
     logger.error(
       { timeoutMs: config.shutdownTimeoutMs },
       "shutdown excedeu o tempo; encerrando à força",
     );
     process.exit(1);
-  }, config.shutdownTimeoutMs);
+  }, config.shutdownTimeoutMs + 10_000);
   timeout.unref();
 
   try {
-    await loop.stop();
+    await worker.stop(signal);
     await database.close();
     clearTimeout(timeout);
     logger.info("Worker encerrado com o trabalho em andamento concluído");

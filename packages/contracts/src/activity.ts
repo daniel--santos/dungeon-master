@@ -28,6 +28,10 @@ export const ACTIVITY_TYPE_VALUES = [
   "run.created",
   "run.status_changed",
   "run.cancel_requested",
+  // Um Run que rodou com as checagens da CLI desligadas precisa deixar rastro
+  // fora do log de execução: o diário é o que sobra quando alguém pergunta,
+  // meses depois, por que aquele agente teve permissão para tudo.
+  "run.permission_bypassed",
 ] as const;
 
 export const ActivityTypeSchema = z.enum(ACTIVITY_TYPE_VALUES).meta({

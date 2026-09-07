@@ -36,7 +36,12 @@ export const runsCreateRoute = createRoute({
     "snapshot, e leva a Task a `QUEUED` na mesma transação. Sem `prompt`, ele é " +
     "montado a partir do título e da descrição da Task. Exige Task em `READY` " +
     "ou `FAILED` (retentativa), dependências `COMPLETED` e um Project com " +
-    "`workspacePath`.",
+    "`workspacePath`.\n\n" +
+    "Com `resumeFromRunId`, o Run continua a sessão do harness de um Run " +
+    "anterior: Loadout e ExecutionProfile são herdados dele quando não vierem " +
+    "no corpo, e o Run de origem precisa ter `harnessSessionId` capturado e um " +
+    "Harness que declare a capability `resume`. A retomada é sempre um Run " +
+    "novo, com `attempt` maior.",
   request: {
     params: TaskIdParamSchema,
     body: { required: true, content: { "application/json": { schema: CreateRunSchema } } },

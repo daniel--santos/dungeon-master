@@ -141,19 +141,23 @@ Todas têm padrão sensato para desenvolvimento local. Os arquivos `.env.example
 `apps/api` e `apps/worker` listam o conjunto completo; copie para um `.env` na raiz se
 quiser mudar algo.
 
-| Variável                     | Padrão                                                       | Onde                   |
-| ---------------------------- | ------------------------------------------------------------ | ---------------------- |
-| `DATABASE_URL`               | `postgresql://dungeon:dungeon@127.0.0.1:5433/dungeon_master` | API, Worker, migrações |
-| `API_HOST`                   | `127.0.0.1`                                                  | API                    |
-| `API_PORT`                   | `3333`                                                       | API                    |
-| `API_REQUEST_TIMEOUT_MS`     | `0` (sem limite, por causa do SSE)                           | API                    |
-| `API_HEADERS_TIMEOUT_MS`     | `65000`                                                      | API                    |
-| `API_KEEP_ALIVE_TIMEOUT_MS`  | `61000`                                                      | API                    |
-| `WORKER_TICK_INTERVAL_MS`    | `15000`                                                      | Worker                 |
-| `WORKER_SHUTDOWN_TIMEOUT_MS` | `10000`                                                      | Worker                 |
-| `VITE_API_PROXY_TARGET`      | `http://127.0.0.1:3333`                                      | Web (dev)              |
-| `LOG_LEVEL`                  | `info`                                                       | API, Worker            |
-| `NODE_ENV`                   | `development`                                                | tudo                   |
+| Variável                           | Padrão                                                       | Onde                   |
+| ---------------------------------- | ------------------------------------------------------------ | ---------------------- |
+| `DATABASE_URL`                     | `postgresql://dungeon:dungeon@127.0.0.1:5433/dungeon_master` | API, Worker, migrações |
+| `API_HOST`                         | `127.0.0.1`                                                  | API                    |
+| `API_PORT`                         | `3333`                                                       | API                    |
+| `API_REQUEST_TIMEOUT_MS`           | `0` (sem limite, por causa do SSE)                           | API                    |
+| `API_HEADERS_TIMEOUT_MS`           | `65000`                                                      | API                    |
+| `API_KEEP_ALIVE_TIMEOUT_MS`        | `61000`                                                      | API                    |
+| `WORKER_TICK_INTERVAL_MS`          | `1000`                                                       | Worker                 |
+| `WORKER_SHUTDOWN_TIMEOUT_MS`       | `30000`                                                      | Worker                 |
+| `WORKER_MAX_CONCURRENT_RUNS`       | `2`                                                          | Worker                 |
+| `WORKER_RUN_IDLE_TIMEOUT_MS`       | `600000`                                                     | Worker                 |
+| `WORKER_RUN_COMPLETION_TIMEOUT_MS` | `3600000`                                                    | Worker                 |
+| `WORKER_WORKTREES_ROOT`            | `<pai do repositório>/.dm-worktrees/<nome do repositório>`   | Worker                 |
+| `VITE_API_PROXY_TARGET`            | `http://127.0.0.1:3333`                                      | Web (dev)              |
+| `LOG_LEVEL`                        | `info`                                                       | API, Worker            |
+| `NODE_ENV`                         | `development`                                                | tudo                   |
 
 Portas: **3333** API, **5173** Web, **5433** PostgreSQL de desenvolvimento.
 

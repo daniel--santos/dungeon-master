@@ -355,6 +355,37 @@ export function runFailureProblem(failure: RunWriteFailure): HttpProblem {
         title: "Run já terminou",
         detail: `O Run está em ${failure.status}, que é um estado terminal, e não há o que cancelar.`,
       });
+    case "LOADOUT_REQUIRED":
+      return new HttpProblem({
+        status: 400,
+        type: ProblemType.validation,
+        title: "Falta o Loadout",
+        detail:
+          "Informe `loadoutId`, ou `resumeFromRunId` para herdar o equipamento do Run de origem.",
+      });
+    case "RESUME_SOURCE_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Run de origem não encontrado",
+        detail: `Não existe Run com o id ${failure.runId} para retomar.`,
+      });
+    case "RESUME_SOURCE_WITHOUT_SESSION":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Run de origem sem sessão",
+        detail:
+          `O Run ${failure.runId} não capturou um id de sessão do harness, então não há ` +
+          "conversa a retomar. Comece um Run novo.",
+      });
+    case "RESUME_UNSUPPORTED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Harness não retoma sessão",
+        detail: `O Harness ${failure.harnessKey} não declara a capability \`resume\`.`,
+      });
   }
 }
 

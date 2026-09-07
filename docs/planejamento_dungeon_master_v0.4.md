@@ -565,28 +565,28 @@ Fica pendente para as rodadas seguintes da Fase 2:
 
 ### Implementação
 
-- [ ] Integrar Sandcastle `noSandbox()`
-- [ ] Claude Code via host
-- [ ] Codex via host
-- [ ] Pi via host
-- [ ] Preflight de CLIs instaladas e descoberta de versão, por SO
+- [x] Integrar Sandcastle `noSandbox()` — decidido **não** vendorizar o Sandcastle; os adapters de host implementam o mesmo papel direto sobre `packages/platform` (ADR em `packages/runtime-sandcastle/README.md`)
+- [x] Claude Code via host
+- [x] Codex via host
+- [x] Pi via host
+- [x] Preflight de CLIs instaladas e descoberta de versão, por SO — no boot do Worker, gravando `installed_version`, `checked_at` e `capabilities`
 - [ ] Verificação de autenticação quando possível
-- [ ] Working directory explícito
-- [ ] **Git worktree por Run como default**, com trava por (repositório, caminho) no PostgreSQL antes de subir qualquer processo — a tabela `workspace_lock` e `acquireWorkspaceLock`/`releaseWorkspaceLock`/`getActiveRunByPath` entregues na 2A; falta criar o worktree
+- [x] Working directory explícito
+- [x] **Git worktree por Run como default**, com trava por (repositório, caminho) no PostgreSQL antes de subir qualquer processo — a trava é adquirida, a posse é confirmada com `getActiveRunByPath` imediatamente antes do processo, e o worktree é criado pelo Worker
 - [x] Teto de capacidade de runs concorrentes, com a trava por chave do Archon (seção 13.2) — `packages/runs/src/capacity-lock.ts`
-- [ ] **Cancelamento por kill de árvore de processos** (`packages/platform`), com confirmação de término por polling, adaptado da terminação de processo do Archon (seção 13.2)
-- [ ] **Timeout de ociosidade e de conclusão**, ambos nossos, com distinção entre timeout real e abort
-- [ ] Tradução da política de ambiente do Loadout para o allow-list do Sandcastle (`.sandcastle/.env`) ou montagem própria do ambiente
-- [ ] Captura de stdout, stderr e eventos estruturados
-- [ ] Captura de `harnessSessionId` e `usage`
-- [ ] **Structured output via Sandcastle Output**, com o schema `TaskExecutionResult` já definido em `packages/contracts`
+- [x] **Cancelamento por kill de árvore de processos** (`packages/platform`), com confirmação de término por polling, adaptado da terminação de processo do Archon (seção 13.2)
+- [x] **Timeout de ociosidade e de conclusão**, ambos nossos, com distinção entre timeout real e abort
+- [x] Tradução da política de ambiente do Loadout — montagem própria por allow-list (`buildExecutionEnv`); o `.sandcastle/.env` foi recusado porque um repositório clonado não deve declarar o que vaza para dentro do agente
+- [x] Captura de stdout, stderr e eventos estruturados
+- [x] Captura de `harnessSessionId` e `usage`
+- [x] **Structured output** pelo bloco `<result>`, com o schema `TaskExecutionResult` em `packages/contracts` e síntese do desfecho quando o harness não sabe produzi-lo
 - [x] Persistência de eventos com os dois contratos de escrita — `appendRunEvent` e `persistRunEvent`
 - [x] Sanitização de credenciais em todo payload de evento, com o sanitizador do Archon (seção 13.2) — aplicada em `insertRunEvent`
-- [ ] Streaming SSE para a interface via NOTIFY + drain (base entregue na Fase 0: `packages/events`, `dashboard_event`, `GET /api/v1/events/stream`)
-- [ ] Marca d'água no poller de eventos: o cursor só avança até a primeira lacuna de `sequence`, para que transações concorrentes que commitem fora de ordem não sejam puladas (risco registrado ao fechar a Fase 0)
+- [x] Streaming SSE para a interface via NOTIFY + drain — `GET /api/v1/runs/{id}/events/stream`, um poller por Run olhado, canal `dm_run_event` sem payload
+- [x] Marca d'água no poller de eventos: o cursor só avança até a primeira lacuna de `sequence`, com prazo curto para desistir de uma lacuna que um `ROLLBACK` queimou
 - [ ] Tela de execução ao vivo (Run Cockpit, "Cristal de Visão" no tema)
 - [ ] Canal de dashboard no SSE para eventos fora de um Run (desbloqueio de Conquista, stats de herói), no padrão do canal de dashboard do Archon
-- [ ] Testes de contrato de harness rodando na matriz Windows + macOS
+- [x] Testes de contrato de harness rodando na matriz Windows + macOS — sempre com o harness falso, e com as CLIs reais onde elas existem
 
 ### Segurança obrigatória no modo HOST
 
@@ -594,15 +594,68 @@ Fica pendente para as rodadas seguintes da Fase 2:
 - [ ] Aceite explícito para execução host
 - [ ] Working directory restrito ao esperado
 - [ ] Nunca assumir que o agente está restrito ao diretório
-- [ ] Não expor segredos desnecessários; o allow-list do Sandcastle ajuda aqui
-- [ ] Registrar comandos e tool calls quando o harness disponibilizar
-- [ ] Política de permissões por Loadout
-- [ ] Diferenciar `policy requested` de `policy enforced`
-- [ ] Nunca usar `sandbox.interactive()` do Sandcastle, que pula permissões incondicionalmente
+- [x] Não expor segredos desnecessários — allow-list própria, nunca `{ ...process.env }`
+- [x] Registrar comandos e tool calls quando o harness disponibilizar — `ToolCall`/`ToolResult` em `run_event`
+- [x] Política de permissões por Loadout — traduzida pelo Worker, que é quem decide o que `commandExecution: ALL` significa em cada harness
+- [x] Diferenciar `policy requested` de `policy enforced` — `enforcement` viaja no `RunStarted`, e todo rebaixamento de política vira `Diagnostic`
+- [x] Nunca pular permissões incondicionalmente — `bypass` só com isolamento imposto ou opt-in explícito, e nesse caso com `Diagnostic` e linha no diário
 
 ```ts
 type EnforcementLevel = "advisory" | "harness-native" | "sandbox-enforced";
 ```
+
+### Entrega do Worker de execução (07/09/2026)
+
+O processo que junta a 2A (modelo, banco, API) com a 2B (runtime e adapters):
+ele consome a fila, prepara o workspace, executa pelo `AgentRuntime`, persiste
+os eventos, escreve o desfecho e devolve o estado à Task.
+
+Decisões desta rodada, todas comentadas no código:
+
+- **`claimed_by` por processo, e reconciliação na partida.** Um `worker_id` novo
+  a cada processo é o que distingue "meu Run" de "rastro de um Worker morto".
+  Runs em `PREPARING`/`RUNNING` sem dono viram `FAILED` **retentável**, e não
+  `CANCELLED`: ninguém pediu para cancelar, e `CANCELLED` devolveria a Task a
+  `READY` como se fosse decisão do usuário. Nada é retomado sozinho e nenhum
+  worktree é apagado.
+- **Duas travas, de propósito.** A `workspace_lock` do PostgreSQL sobrevive a um
+  restart e coordena processos; a `CapacityLock` em memória ordena o que já está
+  dentro do Worker. A chave da segunda é o **caminho de checkout**: dois Runs com
+  `GIT_WORKTREE` no mesmo repositório rodam em paralelo, dois com `CURRENT` se
+  enfileiram.
+- **O laço nunca reclama mais do que pode rodar.** Reclamar leva o Run a
+  `PREPARING` e a Task a `RUNNING`, e não existe volta para `QUEUED`.
+- **`commandExecution: ALL` em `HOST` vira o modo de auto-aprovação nativo do
+  harness, nunca `bypass`.** `bypass` só sai com `SANDBOX_ENFORCED` ou com
+  `permissionPolicy.allowUnsafeBypass = true`, e nesse caso o Run emite um
+  `Diagnostic` e grava `run.permission_bypassed` no diário do Project. A
+  consequência aceita: em `acceptEdits` o Claude Code continua pedindo aprovação
+  para comandos de shell, e o agente reporta `blocked` honestamente em vez de
+  fingir que fez.
+- **Um `RunCompleted` sem `output` estruturado é sintetizado**, com um
+  `Diagnostic` dizendo que foi sintetizado. A regra do domínio "`SUCCEEDED` sem
+  resultado → Task `FAILED`" continua valendo, mas passa a ser rede de segurança:
+  um agente que fez o trabalho e esqueceu o bloco não deveria custar a Task. O
+  `outputSchema` só é pedido a quem declara `structuredOutput`.
+- **Worktree preservado em falha, timeout, cancelamento e sujeira**, com um
+  `Diagnostic` de recuperação trazendo os comandos copiáveis; removido só num
+  sucesso limpo, depois de os commits terem sido coletados para `result.commits`.
+- **`resumeFromRunId` cria um Run novo**, com `attempt` maior, que herda Loadout e
+  ExecutionProfile do Run de origem e exige dele `harness_session_id` capturado
+  mais a capability `resume`.
+- **Dois canais de `NOTIFY` sem payload para o Worker** (`dm_run_queue`,
+  `dm_run_cancel`), no padrão de `dashboard_event`: eles só acordam quem já sabe
+  consultar, então uma notificação perdida vira latência, nunca trabalho perdido.
+- **`TerminalStatusWriteError` não tem compensação.** O Worker loga em nível fatal
+  e deixa a reconciliação da próxima partida resolver.
+
+Fica pendente para as rodadas seguintes:
+
+- Run Cockpit e o aceite explícito de execução host continuam sendo tela, e a web
+  ainda não os tem; o indicador `UNISOLATED` também.
+- Commits só são coletados na estratégia `GIT_WORKTREE`: em `CURRENT` faltaria
+  guardar o `HEAD` de antes do Run.
+- `COPY` como estratégia de workspace continua recusada com mensagem.
 
 ---
 

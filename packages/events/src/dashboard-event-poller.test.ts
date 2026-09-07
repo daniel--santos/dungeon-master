@@ -169,6 +169,94 @@ describe("drain por cursor", () => {
   });
 });
 
+describe("marca d'água", () => {
+  function montarComRelogio(gapGraceMs = 1_000) {
+    const source = new FonteEmMemoria();
+    const transport = new TransporteFalso();
+    let agora = 0;
+    const poller = new DashboardEventPoller<FakeEvent>({
+      source,
+      transport,
+      gapGraceMs,
+      now: () => agora,
+    });
+    return {
+      source,
+      transport,
+      poller,
+      avancar: (ms: number) => {
+        agora += ms;
+      },
+    };
+  }
+
+  it("segura o cursor na primeira lacuna", async () => {
+    const { source, transport, poller } = montarComRelogio();
+    // A transação da 3 ainda não commitou; a 4 e a 5 chegaram antes dela.
+    source.adicionar(1, 2, 4, 5);
+
+    await poller.drainNow();
+
+    expect(transport.emitidos.map((event) => event.sequence)).toEqual([1, 2]);
+    expect(poller.cursor).toBe(2);
+    expect(poller.heldCount).toBe(2);
+  });
+
+  it("entrega em ordem quando a lacuna fecha", async () => {
+    const { source, transport, poller } = montarComRelogio();
+    source.adicionar(1, 2, 4, 5);
+    await poller.drainNow();
+
+    source.adicionar(3);
+    await poller.drainNow();
+
+    expect(transport.emitidos.map((event) => event.sequence)).toEqual([1, 2, 3, 4, 5]);
+    expect(poller.cursor).toBe(5);
+    expect(poller.heldCount).toBe(0);
+  });
+
+  it("desiste da lacuna depois do prazo e não trava o stream", async () => {
+    const { source, transport, poller, avancar } = montarComRelogio(1_000);
+    source.adicionar(1, 4, 5);
+
+    await poller.drainNow();
+    expect(transport.emitidos.map((event) => event.sequence)).toEqual([1]);
+
+    // As transações de 2 e 3 sofreram ROLLBACK: os números foram queimados e
+    // esperar por eles pararia a tela para sempre.
+    avancar(1_500);
+    await poller.drainNow();
+
+    expect(transport.emitidos.map((event) => event.sequence)).toEqual([1, 4, 5]);
+    expect(poller.cursor).toBe(5);
+  });
+
+  it("um evento que chega fora de ordem numa leitura sozinha também espera", async () => {
+    const { source, transport, poller } = montarComRelogio();
+    source.adicionar(2);
+
+    await poller.drainNow();
+    expect(transport.emitidos).toHaveLength(0);
+
+    source.adicionar(1);
+    await poller.drainNow();
+    expect(transport.emitidos.map((event) => event.sequence)).toEqual([1, 2]);
+  });
+
+  it("não relê a mesma página para sempre quando tudo está retido", async () => {
+    const { source, poller } = montarComRelogio();
+    source.adicionar(2, 3);
+
+    await poller.drainNow();
+    const primeiras = source.chamadas;
+    await poller.drainNow();
+
+    // Duas leituras por drain no máximo: a que traz a página e a que confirma
+    // que não veio mais nada. Um laço por cursor de entrega não terminaria.
+    expect(source.chamadas - primeiras).toBeLessThanOrEqual(2);
+  });
+});
+
 describe("tique de segurança", () => {
   it("drena sozinho no intervalo e para no stop", async () => {
     vi.useFakeTimers();

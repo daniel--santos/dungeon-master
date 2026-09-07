@@ -1,4 +1,4 @@
-import type { Harness, HarnessKey, Model } from "@dungeon-master/contracts";
+import type { Harness, HarnessCapabilities, HarnessKey, Model } from "@dungeon-master/contracts";
 import { and, asc, eq, ne } from "drizzle-orm";
 
 import type { Database } from "./client.js";
@@ -116,15 +116,45 @@ export async function setHarnessEnabled(
  * worker. Está aqui porque a coluna é desta tabela, e um segundo caminho de
  * escrita em `packages/runtime` faria o pacote importar o banco, o que a
  * fronteira proíbe.
+ *
+ * `capabilities` é opcional e, quando vem, **sobrescreve** o que o `db:seed`
+ * declarou. As duas fontes existem por motivos diferentes: a semente precisa
+ * responder à interface antes de qualquer Worker ter subido, e o adapter é a
+ * verdade sobre o que o código realmente faz. Quando as duas discordam, quem
+ * executa ganha — prometer na tela o que o adapter não cumpre é pior que
+ * mostrar uma matriz mais modesta.
  */
 export async function recordHarnessPreflight(
   db: DatabaseExecutor,
-  input: { userId: string; harnessId: string; installedVersion: string | null; checkedAt?: Date },
+  input: {
+    userId: string;
+    harnessId: string;
+    installedVersion: string | null;
+    capabilities?: HarnessCapabilities;
+    checkedAt?: Date;
+  },
 ): Promise<void> {
   await db
     .update(harnesses)
-    .set({ installedVersion: input.installedVersion, checkedAt: input.checkedAt ?? new Date() })
+    .set({
+      installedVersion: input.installedVersion,
+      checkedAt: input.checkedAt ?? new Date(),
+      ...(input.capabilities === undefined ? {} : { capabilities: input.capabilities }),
+    })
     .where(and(eq(harnesses.id, input.harnessId), eq(harnesses.userId, input.userId)));
+}
+
+/** O Harness de uma `key`, para o Worker casar adapter com linha do banco. */
+export async function findHarnessRowByKey(
+  db: DatabaseExecutor,
+  input: { userId: string; key: HarnessKey },
+): Promise<HarnessRow | null> {
+  const [row] = await db
+    .select()
+    .from(harnesses)
+    .where(and(eq(harnesses.key, input.key), eq(harnesses.userId, input.userId)));
+
+  return row ?? null;
 }
 
 // --------------------------------------------------------------------------

@@ -60,6 +60,7 @@ export function toRun(row: RunRow, projectId: string | null): Run {
     executionMode: row.executionMode,
     workspacePath: row.workspacePath,
     workflowVersionId: row.workflowVersionId,
+    resumedFromRunId: row.resumedFromRunId,
     loadoutId: row.loadoutId,
     loadoutVersion: row.loadoutVersion,
     loadoutSnapshot: row.loadoutSnapshot,
@@ -89,7 +90,11 @@ export type RunWriteFailure =
   | { readonly code: "RUN_NOT_ALLOWED"; readonly rejection: RunCreationRejection }
   | { readonly code: "TASK_TRANSITION_REJECTED"; readonly rejection: TaskTransitionRejection }
   | { readonly code: "RUN_TRANSITION_REJECTED"; readonly rejection: RunTransitionRejection }
-  | { readonly code: "RUN_ALREADY_FINISHED"; readonly status: RunStatus };
+  | { readonly code: "RUN_ALREADY_FINISHED"; readonly status: RunStatus }
+  | { readonly code: "LOADOUT_REQUIRED" }
+  | { readonly code: "RESUME_SOURCE_NOT_FOUND"; readonly runId: string }
+  | { readonly code: "RESUME_SOURCE_WITHOUT_SESSION"; readonly runId: string }
+  | { readonly code: "RESUME_UNSUPPORTED"; readonly harnessKey: string };
 
 // --------------------------------------------------------------------------
 // Leitura
@@ -333,11 +338,21 @@ async function applyRunStatus(
 export interface CreateRunInput {
   userId: string;
   taskId: string;
-  loadoutId: string;
+  /** Só pode faltar com `resumeFromRunId`, de onde o Loadout é copiado. */
+  loadoutId?: string | undefined;
   /** Sobrepõe o ExecutionProfile do Loadout, sem alterar o Loadout. */
   executionProfileId?: string | undefined;
   /** Ausente monta o prompt a partir do título e da descrição da Task. */
   prompt?: string | undefined;
+  /**
+   * Retoma a sessão do harness deste Run.
+   *
+   * A retomada é sempre um Run **novo**, com `attempt` maior: um Run é uma
+   * tentativa concreta, e reabrir a tentativa antiga apagaria o que ela já
+   * contou. O vínculo fica em `resumed_from_run_id`, e é de lá que o Worker lê
+   * o `harness_session_id` a passar para a CLI.
+   */
+  resumeFromRunId?: string | undefined;
 }
 
 /**
@@ -407,9 +422,43 @@ export async function createRun(
       return failed<RunWriteFailure>({ code: "RUN_NOT_ALLOWED", rejection: podeRodar.rejection });
     }
 
-    const loadout = await findLoadoutRow(tx, { userId: input.userId, loadoutId: input.loadoutId });
+    // A retomada é resolvida antes do Loadout porque é ela que o fornece
+    // quando o corpo não traz nenhum: "retomar a Expedição" na interface é um
+    // botão só, sem escolher equipamento de novo.
+    let origem: RunRow | null = null;
+    if (input.resumeFromRunId !== undefined) {
+      origem = await findRunRow(tx, { userId: input.userId, runId: input.resumeFromRunId });
+      if (origem === null) {
+        return failed<RunWriteFailure>({
+          code: "RESUME_SOURCE_NOT_FOUND",
+          runId: input.resumeFromRunId,
+        });
+      }
+      if (origem.harnessSessionId === null || origem.harnessSessionId === "") {
+        // Sem id de sessão não há o que retomar: o Run de origem nunca chegou a
+        // ter uma conversa com o harness, e mandar `--resume` sem id faria a
+        // CLI abrir uma sessão nova fingindo continuidade.
+        return failed<RunWriteFailure>({
+          code: "RESUME_SOURCE_WITHOUT_SESSION",
+          runId: origem.id,
+        });
+      }
+      if (!origem.loadoutSnapshot.harness.capabilities.resume) {
+        return failed<RunWriteFailure>({
+          code: "RESUME_UNSUPPORTED",
+          harnessKey: origem.harnessKey,
+        });
+      }
+    }
+
+    const loadoutId = input.loadoutId ?? origem?.loadoutId;
+    if (loadoutId === undefined) {
+      return failed<RunWriteFailure>({ code: "LOADOUT_REQUIRED" });
+    }
+
+    const loadout = await findLoadoutRow(tx, { userId: input.userId, loadoutId });
     if (loadout === null) {
-      return failed<RunWriteFailure>({ code: "LOADOUT_NOT_FOUND", loadoutId: input.loadoutId });
+      return failed<RunWriteFailure>({ code: "LOADOUT_NOT_FOUND", loadoutId });
     }
 
     const agent = await findAgentRow(tx, { userId: input.userId, agentId: loadout.agentId });
@@ -436,7 +485,13 @@ export async function createRun(
       return failed<RunWriteFailure>({ code: "HARNESS_DISABLED", harnessId: harness.id });
     }
 
-    const executionProfileId = input.executionProfileId ?? loadout.executionProfileId;
+    // A ordem é a da especificidade: o que o corpo pediu, depois o perfil que o
+    // Run de origem de fato usou, e só então o do Loadout. Retomar com um
+    // perfil diferente do original mudaria o ambiente no meio da conversa.
+    const executionProfileId =
+      input.executionProfileId ??
+      origem?.executionProfileSnapshot.executionProfileId ??
+      loadout.executionProfileId;
     const profile = await findExecutionProfileRow(tx, { userId: input.userId, executionProfileId });
     if (profile === null) {
       return failed<RunWriteFailure>({ code: "EXECUTION_PROFILE_NOT_FOUND", executionProfileId });
@@ -474,6 +529,7 @@ export async function createRun(
         loadoutVersion: loadout.version,
         loadoutSnapshot,
         executionProfileSnapshot: toExecutionProfileSnapshot(profile, capturedAt),
+        ...(origem === null ? {} : { resumedFromRunId: origem.id }),
         prompt: input.prompt ?? defaultRunPrompt(task),
         attempt,
       })
@@ -496,6 +552,7 @@ export async function createRun(
         harnessKey: harness.key,
         executionMode: profile.mode,
         attempt,
+        ...(origem === null ? {} : { resumedFromRunId: origem.id }),
       },
     });
 
@@ -552,7 +609,7 @@ export interface ClaimedRun {
  */
 export async function claimNextQueuedRun(
   db: Database,
-  input: { userId?: string } = {},
+  input: { userId?: string; claimedBy?: string } = {},
 ): Promise<ClaimedRun | null> {
   return await db.transaction(async (tx) => {
     const escopo = input.userId === undefined ? sql`` : sql` and ${runs.userId} = ${input.userId}`;
@@ -570,6 +627,15 @@ export async function claimNextQueuedRun(
 
     const [row] = await tx.select().from(runs).where(eq(runs.id, id));
     if (row === undefined) return null;
+
+    // A marca de dono sai na **mesma transação** do `PREPARING`. Gravá-la
+    // depois deixaria uma janela em que o Run já está em preparação e ninguém
+    // o reclama como seu — que é exatamente o estado que a reconciliação de
+    // partida trata como órfão.
+    if (input.claimedBy !== undefined) {
+      await tx.update(runs).set({ claimedBy: input.claimedBy }).where(eq(runs.id, row.id));
+      row.claimedBy = input.claimedBy;
+    }
 
     const aplicado = await applyRunStatus(tx, {
       userId: row.userId,
@@ -856,6 +922,108 @@ export async function requestRunCancellation(
 
     return ok(toRun(aplicado.value, task.projectId));
   });
+}
+
+// --------------------------------------------------------------------------
+// O que o Worker precisa e a API não
+// --------------------------------------------------------------------------
+
+export interface UpdateRunExecutionFieldsInput {
+  userId: string;
+  runId: string;
+  harnessVersion?: string;
+  harnessSessionId?: string;
+  workspacePath?: string;
+}
+
+/**
+ * Grava campos de execução **sem** mexer no status.
+ *
+ * Existe porque nem todo fato de um Run é uma transição: o worktree é criado
+ * enquanto o Run está em `PREPARING`, e o id de sessão do harness costuma
+ * aparecer com o Run já em `RUNNING`. Passar esses dois por `transitionRun`
+ * pediria uma aresta `RUNNING → RUNNING`, que a máquina de estados não tem — e
+ * com razão, porque ela não é uma transição.
+ *
+ * Devolve a linha, e não o contrato `Run`: o `projectId` do contrato vem de uma
+ * junção com `task`, e inventar um `null` aqui seria afirmar que a Task não tem
+ * Project. Quem chama é o Worker, que quer os campos, não a projeção da API.
+ */
+export async function updateRunExecutionFields(
+  db: DatabaseExecutor,
+  input: UpdateRunExecutionFieldsInput,
+): Promise<RunRow | null> {
+  const values = {
+    ...(input.harnessVersion === undefined ? {} : { harnessVersion: input.harnessVersion }),
+    ...(input.harnessSessionId === undefined ? {} : { harnessSessionId: input.harnessSessionId }),
+    ...(input.workspacePath === undefined ? {} : { workspacePath: input.workspacePath }),
+  };
+
+  if (Object.keys(values).length === 0) return await findRunRow(db, input);
+
+  const [row] = await db
+    .update(runs)
+    .set(values)
+    .where(and(eq(runs.id, input.runId), eq(runs.userId, input.userId)))
+    .returning();
+
+  return row ?? null;
+}
+
+/**
+ * Quais destes Runs têm cancelamento pedido.
+ *
+ * O Worker pergunta pelos Runs que ele mesmo tem em voo, e não pela tabela
+ * inteira: quem não é dele não é dele para matar. Uma consulta só por tique,
+ * com a lista de ids em `IN`, custa menos que uma leitura por Run.
+ */
+export async function listCancelRequestedRunIds(
+  db: DatabaseExecutor,
+  input: { userId: string; runIds: readonly string[] },
+): Promise<string[]> {
+  if (input.runIds.length === 0) return [];
+
+  const rows = await db
+    .select({ id: runs.id })
+    .from(runs)
+    .where(
+      and(
+        eq(runs.userId, input.userId),
+        inArray(runs.id, [...input.runIds]),
+        sql`${runs.cancelRequestedAt} is not null`,
+      ),
+    );
+
+  return rows.map((row) => row.id);
+}
+
+/**
+ * Runs que ficaram em execução sem um Worker vivo por trás.
+ *
+ * `PREPARING` e `RUNNING` são estados que só um Worker sustenta. Um Run nesses
+ * estados cujo `claimed_by` não é o do processo atual é rastro de um Worker que
+ * morreu: o processo do agente foi embora junto, e ninguém mais vai escrever o
+ * desfecho dele.
+ *
+ * O `claimed_by` nulo entra na conta porque um Run reclamado por uma versão
+ * anterior do sistema — antes desta coluna existir — tem exatamente a mesma
+ * natureza de órfão.
+ */
+export async function listOrphanRunRows(
+  db: DatabaseExecutor,
+  input: { userId?: string; workerId: string },
+): Promise<RunRow[]> {
+  const conditions: SQL[] = [
+    inArray(runs.status, ["PREPARING", "RUNNING"]),
+    sql`(${runs.claimedBy} is null or ${runs.claimedBy} <> ${input.workerId})`,
+  ];
+  if (input.userId !== undefined) conditions.push(eq(runs.userId, input.userId));
+
+  return await db
+    .select()
+    .from(runs)
+    .where(and(...conditions))
+    .orderBy(asc(runs.createdAt), asc(runs.id));
 }
 
 /** O último Run de uma Task, para a tela de detalhe. */

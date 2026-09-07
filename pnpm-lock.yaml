@@ -190,9 +190,27 @@ importers:
 
   apps/worker:
     dependencies:
+      '@dungeon-master/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@dungeon-master/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@dungeon-master/events':
+        specifier: workspace:*
+        version: link:../../packages/events
+      '@dungeon-master/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
+      '@dungeon-master/runs':
+        specifier: workspace:*
+        version: link:../../packages/runs
+      '@dungeon-master/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@dungeon-master/runtime-sandcastle':
+        specifier: workspace:*
+        version: link:../../packages/runtime-sandcastle
       dotenv:
         specifier: 17.4.2
         version: 17.4.2
@@ -203,9 +221,21 @@ importers:
         specifier: 13.1.3
         version: 13.1.3
     devDependencies:
+      '@dungeon-master/tooling-vitest':
+        specifier: workspace:*
+        version: link:../../tooling/vitest
       '@types/node':
         specifier: 26.5.0
         version: 26.5.0
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
+      pg:
+        specifier: 8.23.0
+        version: 8.23.0
       tsx:
         specifier: 4.23.13
         version: 4.23.13
@@ -215,6 +245,9 @@ importers:
       vitest:
         specifier: 5.0.0
         version: 5.0.0(@types/node@26.5.0)(jsdom@30.0.1)(vite@8.2.2(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
 
   packages/achievements:
     dependencies:
