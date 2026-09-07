@@ -1,0 +1,203 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Dungeon Master API",
+    "version": "0.0.0",
+    "description": "Control Plane do Dungeon Master. Erros seguem a RFC 9457 (`application/problem+json`). Todos os instantes são UTC.",
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3333",
+      "description": "Desenvolvimento local"
+    }
+  ],
+  "tags": [
+    {
+      "name": "system",
+      "description": "Saúde, versão e documentação."
+    }
+  ],
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/HealthStatus"
+          },
+          "service": {
+            "type": "string",
+            "description": "Nome do processo que respondeu."
+          },
+          "version": {
+            "type": "string",
+            "description": "Versão do pacote da API."
+          },
+          "uptimeSeconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Segundos desde o boot do processo."
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante da checagem, em UTC (ISO 8601)."
+          },
+          "database": {
+            "$ref": "#/components/schemas/DatabaseHealth"
+          }
+        },
+        "required": [
+          "status",
+          "service",
+          "version",
+          "uptimeSeconds",
+          "checkedAt",
+          "database"
+        ],
+        "description": "Saúde da API e de suas dependências."
+      },
+      "HealthStatus": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "degraded"
+        ]
+      },
+      "DatabaseHealth": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "Verdadeiro quando o `SELECT 1` respondeu."
+          },
+          "latencyMs": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tempo da consulta, em milissegundos."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Mensagem do erro quando a consulta falhou; nulo caso contrário."
+          }
+        },
+        "required": [
+          "ok",
+          "latencyMs",
+          "error"
+        ],
+        "description": "Estado da conexão com o banco."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "URI que identifica o tipo do problema. `about:blank` quando genérico."
+          },
+          "title": {
+            "type": "string",
+            "description": "Resumo curto e estável do tipo do problema."
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599,
+            "description": "Código HTTP da resposta."
+          },
+          "detail": {
+            "type": "string",
+            "description": "Explicação específica desta ocorrência."
+          },
+          "instance": {
+            "type": "string",
+            "description": "URI da ocorrência: o caminho da requisição."
+          },
+          "requestId": {
+            "type": "string",
+            "description": "Identificador da requisição, para casar com os logs."
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssue"
+            },
+            "description": "Presente quando a validação de entrada falhou."
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "instance"
+        ],
+        "description": "Erro no formato RFC 9457 (`application/problem+json`)."
+      },
+      "ValidationIssue": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Caminho do campo com problema, em notação de ponto. Vazio para a raiz."
+          },
+          "message": {
+            "type": "string",
+            "description": "Descrição legível do problema."
+          },
+          "code": {
+            "type": "string",
+            "description": "Código do problema, vindo do schema Zod."
+          }
+        },
+        "required": [
+          "path",
+          "message",
+          "code"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Saúde da API",
+        "description": "Reporta o estado do processo e o resultado de um `SELECT 1` no PostgreSQL. Responde 200 mesmo com o banco fora, com `status: degraded`, para que a diferença entre 'processo caiu' e 'dependência caiu' fique visível.",
+        "responses": {
+          "200": {
+            "description": "Estado atual da API e do banco.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Falha inesperada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

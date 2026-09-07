@@ -1,0 +1,36 @@
+{
+  "name": "@dungeon-master/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cliente tipado gerado da spec OpenAPI. Único import de backend permitido na web.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./openapi.json": "./openapi.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "openapi.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-schema.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "gen": "openapi-typescript ./openapi.json --output ./src/schema.d.ts"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "@dungeon-master/api": "workspace:*",
+    "openapi-typescript": "7.13.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}
