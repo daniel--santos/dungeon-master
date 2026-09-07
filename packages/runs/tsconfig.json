@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // O pacote é lógica pura, mas usa `setTimeout` e `Date.now`, que só existem
+    // como global. Sem esta linha o TypeScript não carrega `@types/node` e os
+    // timers somem (CLAUDE.md, seção 7).
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}
