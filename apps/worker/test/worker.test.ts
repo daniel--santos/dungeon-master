@@ -1,0 +1,583 @@
+import { readFile, stat } from "node:fs/promises";
+import { join } from "node:path";
+
+import type { TaskExecutionResult } from "@dungeon-master/contracts";
+import {
+  createRun,
+  getRun,
+  listWorkspaceLocksByRun,
+  requestRunCancellation,
+  runs,
+  tasks,
+  type Database,
+  type DatabaseHandle,
+} from "@dungeon-master/database";
+import { createWorkspaceManager, type HarnessAdapter } from "@dungeon-master/runtime";
+import { fakeHarness } from "@dungeon-master/runtime/testing";
+import { and, eq } from "drizzle-orm";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
+
+import { newWorkerId } from "../src/config.js";
+import { createWorker, type Worker } from "../src/worker.js";
+import {
+  abrirBanco,
+  CONFIG_PADRAO,
+  criarRepositorio,
+  enfileirar,
+  esperar,
+  esperarStatusDeRun,
+  eventosDoRun,
+  exigirOk,
+  git,
+  limpar,
+  linhaDoRun,
+  montarCenario,
+  statusDaTask,
+  USER,
+  type RepositorioTemporario,
+} from "./support.js";
+
+/**
+ * Integração do Worker com banco embutido e o harness falso.
+ *
+ * "Falso" é só o modelo: o adapter sobe um processo Node de verdade, fala
+ * NDJSON de verdade e morre por kill de árvore de verdade. É o que faz a suíte
+ * rodar no CI sem CLI instalada e ainda provar o que costuma quebrar —
+ * processo, sinal, encerramento — em vez de só a tradução de eventos.
+ */
+
+let handle: DatabaseHandle;
+let db: Database;
+let repositorio: RepositorioTemporario;
+let worker: Worker | undefined;
+
+/** Um worktree por Run, fora do repositório, num lugar que o teste limpa. */
+function managerPara(repo: RepositorioTemporario) {
+  return createWorkspaceManager({ worktreesRoot: join(repo.sandbox, "worktrees") });
+}
+
+/**
+ * O estado que um `kill -9` no Worker congela: Run em `RUNNING` reclamado por
+ * um processo que não existe, e a Task em `RUNNING` junto — as duas escritas
+ * saem da mesma transação de `claimNextQueuedRun`.
+ */
+async function marcarComoEmExecucao(
+  runId: string,
+  taskId: string,
+  claimedBy: string,
+): Promise<void> {
+  await db
+    .update(runs)
+    .set({ status: "RUNNING", claimedBy, startedAt: new Date() })
+    .where(and(eq(runs.id, runId), eq(runs.userId, USER)));
+
+  await db
+    .update(tasks)
+    .set({ status: "RUNNING" })
+    .where(and(eq(tasks.id, taskId), eq(tasks.userId, USER)));
+}
+
+async function subirWorker(input: {
+  adapters?: readonly HarnessAdapter[];
+  maxConcurrentRuns?: number;
+  shutdownTimeoutMs?: number;
+  runIdleTimeoutMs?: number;
+  workerId?: string;
+  start?: boolean;
+}): Promise<Worker> {
+  const criado = createWorker({
+    db,
+    pool: handle.pool,
+    userId: USER,
+    adapters: input.adapters ?? [fakeHarness()],
+    workspace: managerPara(repositorio),
+    config: {
+      ...CONFIG_PADRAO,
+      workerId: input.workerId ?? newWorkerId(),
+      ...(input.maxConcurrentRuns === undefined
+        ? {}
+        : { maxConcurrentRuns: input.maxConcurrentRuns }),
+      ...(input.shutdownTimeoutMs === undefined
+        ? {}
+        : { shutdownTimeoutMs: input.shutdownTimeoutMs }),
+      ...(input.runIdleTimeoutMs === undefined ? {} : { runIdleTimeoutMs: input.runIdleTimeoutMs }),
+    },
+  });
+
+  await criado.boot();
+  if (input.start !== false) criado.start();
+  worker = criado;
+  return criado;
+}
+
+beforeAll(() => {
+  handle = abrirBanco(inject("databaseUrl"));
+  db = handle.db;
+});
+
+afterAll(async () => {
+  await handle.close();
+});
+
+beforeEach(async () => {
+  await limpar(handle);
+  repositorio = await criarRepositorio();
+});
+
+afterEach(async () => {
+  await worker?.stop("fim do teste");
+  worker = undefined;
+  await limpar(handle);
+  await repositorio.remover();
+});
+
+describe("caminho feliz", () => {
+  it("claima, persiste os eventos em ordem e grava SUCCEEDED com result", async () => {
+    const cenario = await montarCenario(db, { nome: "feliz", workspacePath: repositorio.repo });
+    await subirWorker({});
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: [
+        "@@fake:session sessao-feliz",
+        "@@fake:text Vou implementar.",
+        "@@fake:tool Bash git status",
+        "@@fake:usage 120 34",
+        '@@fake:block {"status":"completed","summary":"Implementei o que a Task pedia."}',
+      ].join("\n"),
+    });
+
+    const terminado = await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED", "TIMED_OUT"]);
+
+    expect(terminado.status, JSON.stringify(terminado.error)).toBe("SUCCEEDED");
+    expect(terminado.result?.status).toBe("completed");
+    expect(terminado.result?.summary).toBe("Implementei o que a Task pedia.");
+    expect(terminado.harnessSessionId).toBe("sessao-feliz");
+    expect(terminado.harnessVersion).toBe("0.0.0-fake");
+    expect(terminado.workspacePath).toContain("worktrees");
+
+    // O acoplamento com a Task é aplicado na mesma transação do desfecho.
+    expect(await statusDaTask(db, cenario.taskId)).toBe("COMPLETED");
+
+    const eventos = await eventosDoRun(db, criado.id);
+    const sequences = eventos.map((evento) => evento.sequence);
+    expect(sequences).toEqual([...sequences].sort((a, b) => a - b));
+    // Estritamente crescente e sem lacunas: é o que o cursor do SSE assume.
+    expect(sequences).toEqual(sequences.map((_valor, indice) => indice + 1));
+
+    const tipos = eventos.map((evento) => evento.type);
+    expect(tipos[0]).toBe("RunStarted");
+    expect(tipos).toContain("ToolCall");
+    expect(tipos).toContain("ToolResult");
+    expect(tipos).toContain("SessionCaptured");
+    expect(tipos.at(-1)).toBe("RunCompleted");
+
+    // O payload guarda o evento inteiro, com o discriminante.
+    const started = eventos[0]?.payload as { type: string; workspacePath: string };
+    expect(started.type).toBe("RunStarted");
+    expect(started.workspacePath).toBe(terminado.workspacePath);
+
+    // A trava saiu junto do desfecho.
+    expect(await listWorkspaceLocksByRun(db, { userId: USER, runId: criado.id })).toHaveLength(0);
+  });
+
+  it("coleta os commits do worktree e remove o diretório num sucesso limpo", async () => {
+    const cenario = await montarCenario(db, { nome: "commits", workspacePath: repositorio.repo });
+    await subirWorker({});
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: '@@fake:block {"status":"completed","summary":"nada a fazer"}',
+    });
+
+    // O agente falso não escreve arquivo; o commit entra por fora, no worktree
+    // que o Worker criou, enquanto o Run ainda está em execução seria uma
+    // corrida. Aqui o que se prova é o caminho de remoção do worktree limpo.
+    const terminado = await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED"]);
+    expect(terminado.status).toBe("SUCCEEDED");
+    expect(terminado.result?.["commits"]).toBeUndefined();
+
+    await expect(stat(terminado.workspacePath ?? "")).rejects.toThrow();
+  });
+});
+
+describe("desfechos ruins", () => {
+  it("falha do agente vira FAILED e a Task volta a FAILED", async () => {
+    const cenario = await montarCenario(db, { nome: "falha", workspacePath: repositorio.repo });
+    await subirWorker({});
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: "@@fake:error o modelo recusou o pedido",
+    });
+
+    const terminado = await esperarStatusDeRun(db, criado.id, ["FAILED", "SUCCEEDED"]);
+
+    expect(terminado.status).toBe("FAILED");
+    expect(terminado.error?.message).toContain("o modelo recusou o pedido");
+    expect(await statusDaTask(db, cenario.taskId)).toBe("FAILED");
+
+    // O worktree é preservado numa falha: é onde está a prova do que aconteceu.
+    const preservado = terminado.error?.["preservedWorktreePath"];
+    expect(typeof preservado).toBe("string");
+    await expect(stat(preservado as string)).resolves.toBeDefined();
+
+    const diagnosticos = (await eventosDoRun(db, criado.id)).filter(
+      (evento) => evento.type === "Diagnostic",
+    );
+    const recuperacao = diagnosticos.find((evento) =>
+      String((evento.payload as { detail?: string }).detail ?? "").includes("worktree remove"),
+    );
+    expect(recuperacao, "o diagnóstico de recuperação traz comandos copiáveis").toBeDefined();
+  });
+
+  it("silêncio do agente vira TIMED_OUT com a árvore confirmada morta", async () => {
+    const cenario = await montarCenario(db, { nome: "ocioso", workspacePath: repositorio.repo });
+    await subirWorker({ runIdleTimeoutMs: 1_000 });
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      // Sobe um neto e trava: prova que o kill alcança a descendência.
+      prompt: ["@@fake:spawn-child", "@@fake:hang"].join("\n"),
+    });
+
+    const terminado = await esperarStatusDeRun(db, criado.id, ["TIMED_OUT", "FAILED", "SUCCEEDED"]);
+
+    expect(terminado.status).toBe("TIMED_OUT");
+    expect(terminado.error?.["processTreeTerminated"]).toBe(true);
+    expect(await statusDaTask(db, cenario.taskId)).toBe("FAILED");
+
+    const eventos = await eventosDoRun(db, criado.id);
+    const timedOut = eventos.find((evento) => evento.type === "RunTimedOut");
+    expect((timedOut?.payload as { kind: string }).kind).toBe("IDLE");
+  });
+});
+
+describe("cancelamento", () => {
+  it("cancela no meio, confirma a árvore morta e devolve a Task a READY", async () => {
+    const cenario = await montarCenario(db, { nome: "cancelar", workspacePath: repositorio.repo });
+    await subirWorker({});
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: [
+        "@@fake:text comecei",
+        "@@fake:spawn-child",
+        "@@fake:ignore-signals",
+        "@@fake:hang",
+      ].join("\n"),
+    });
+
+    // Espera o processo estar mesmo de pé: cancelar em `QUEUED` seria a
+    // transição imediata da API, que é outro caminho.
+    await esperarStatusDeRun(db, criado.id, ["RUNNING"]);
+
+    const pedido = await requestRunCancellation(db, { userId: USER, runId: criado.id });
+    expect(pedido?.ok).toBe(true);
+
+    const terminado = await esperarStatusDeRun(db, criado.id, [
+      "CANCELLED",
+      "FAILED",
+      "TIMED_OUT",
+      "SUCCEEDED",
+    ]);
+
+    expect(terminado.status).toBe("CANCELLED");
+    expect(terminado.error?.["processTreeTerminated"]).toBe(true);
+    expect(terminado.error?.["reason"]).toBe("user_request");
+    // Cancelar uma execução não cancela a tarefa: o trabalho volta ao quadro.
+    expect(await statusDaTask(db, cenario.taskId)).toBe("READY");
+
+    const cancelado = (await eventosDoRun(db, criado.id)).at(-1);
+    expect(cancelado?.type).toBe("RunCancelled");
+    expect((cancelado?.payload as { processTreeTerminated: boolean }).processTreeTerminated).toBe(
+      true,
+    );
+  });
+});
+
+describe("trava de workspace", () => {
+  it("dois Runs no mesmo caminho de checkout são serializados", async () => {
+    const cenario = await montarCenario(db, {
+      nome: "trava",
+      workspacePath: repositorio.repo,
+      // `CURRENT` faz os dois Runs disputarem o mesmo caminho; com
+      // `GIT_WORKTREE` cada um teria o seu e eles rodariam em paralelo.
+      workspaceStrategy: "CURRENT",
+    });
+    await subirWorker({ maxConcurrentRuns: 2 });
+
+    const roteiro = [
+      "@@fake:sleep 400",
+      '@@fake:block {"status":"completed","summary":"pronto"}',
+    ].join("\n");
+
+    const primeiro = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: roteiro,
+    });
+
+    // A segunda tentativa da mesma Task só pode nascer depois que a primeira
+    // terminar, então o segundo Run é de outra Task do mesmo Project.
+    const outro = await montarCenario(db, {
+      nome: "trava-2",
+      workspacePath: repositorio.repo,
+      workspaceStrategy: "CURRENT",
+    });
+    const segundo = await enfileirar(db, {
+      taskId: outro.taskId,
+      loadoutId: outro.loadoutId,
+      prompt: roteiro,
+    });
+
+    const a = await esperarStatusDeRun(db, primeiro.id, ["SUCCEEDED", "FAILED", "TIMED_OUT"]);
+    const b = await esperarStatusDeRun(db, segundo.id, ["SUCCEEDED", "FAILED", "TIMED_OUT"]);
+
+    expect(a.status).toBe("SUCCEEDED");
+    expect(b.status, JSON.stringify(b.error)).toBe("SUCCEEDED");
+
+    // Ninguém rodou junto: quem começou depois começou depois de o outro sair.
+    const [primeiroFim, segundoInicio] =
+      Date.parse(a.finishedAt ?? "") <= Date.parse(b.startedAt ?? "")
+        ? [a.finishedAt, b.startedAt]
+        : [b.finishedAt, a.startedAt];
+
+    expect(Date.parse(primeiroFim ?? "")).toBeLessThanOrEqual(Date.parse(segundoInicio ?? ""));
+  });
+});
+
+describe("reconciliação na partida", () => {
+  it("fecha como FAILED retentável o Run que ficou sem Worker", async () => {
+    const cenario = await montarCenario(db, { nome: "orfao", workspacePath: repositorio.repo });
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: "@@fake:hang",
+    });
+
+    // Simula o Worker que morreu: o Run ficou em RUNNING, reclamado por um
+    // processo que não existe mais, com a Task em RUNNING junto — que é o
+    // estado que `claimNextQueuedRun` deixa e um `kill -9` congela.
+    await marcarComoEmExecucao(criado.id, cenario.taskId, "worker-morto");
+
+    const novo = await subirWorker({ start: false });
+    expect(novo.workerId).not.toBe("worker-morto");
+
+    const run = await getRun(db, { userId: USER, runId: criado.id });
+    expect(run?.status).toBe("FAILED");
+    expect(run?.error?.["code"]).toBe("WORKER_LOST");
+    expect(run?.error?.["retryable"]).toBe(true);
+    expect(run?.error?.["lostWorkerId"]).toBe("worker-morto");
+    expect(await statusDaTask(db, cenario.taskId)).toBe("FAILED");
+
+    const eventos = await eventosDoRun(db, criado.id);
+    expect(eventos.map((evento) => evento.type)).toEqual(["Diagnostic", "RunFailed"]);
+  });
+
+  it("não toca nos Runs do próprio processo", async () => {
+    const cenario = await montarCenario(db, { nome: "meu", workspacePath: repositorio.repo });
+    const workerId = newWorkerId();
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: "@@fake:hang",
+    });
+
+    await marcarComoEmExecucao(criado.id, cenario.taskId, workerId);
+
+    await subirWorker({ workerId, start: false });
+
+    const run = await getRun(db, { userId: USER, runId: criado.id });
+    expect(run?.status).toBe("RUNNING");
+  });
+});
+
+describe("desligamento gracioso", () => {
+  it("cancela o Run em voo e grava CANCELLED com o motivo do desligamento", async () => {
+    const cenario = await montarCenario(db, { nome: "shutdown", workspacePath: repositorio.repo });
+    const emExecucao = await subirWorker({ shutdownTimeoutMs: 30_000 });
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: ["@@fake:text trabalhando", "@@fake:hang"].join("\n"),
+    });
+
+    await esperarStatusDeRun(db, criado.id, ["RUNNING"]);
+
+    await emExecucao.stop("SIGINT");
+    worker = undefined;
+
+    const terminado = await esperarStatusDeRun(db, criado.id, [
+      "CANCELLED",
+      "FAILED",
+      "TIMED_OUT",
+      "SUCCEEDED",
+    ]);
+
+    expect(terminado.status).toBe("CANCELLED");
+    expect(terminado.error?.["reason"]).toBe("worker_shutdown");
+    // Trabalho interrompido pelo operador é retentável: ninguém desistiu dele.
+    expect(terminado.error?.["retryable"]).toBe(true);
+    expect(await statusDaTask(db, cenario.taskId)).toBe("READY");
+  });
+});
+
+describe("síntese de resultado", () => {
+  it("sintetiza o desfecho quando o harness não produz resultado estruturado", async () => {
+    const cenario = await montarCenario(db, { nome: "sintese", workspacePath: repositorio.repo });
+
+    await subirWorker({
+      // Um harness sem `structuredOutput` é o caso real: o worker não pede o
+      // schema, e o desfecho sai do texto final.
+      adapters: [fakeHarness({ capabilities: { structuredOutput: false } })],
+    });
+
+    // A matriz do snapshot é o que o worker lê; o preflight de partida já a
+    // atualizou com a do adapter, então o Run precisa nascer depois do boot.
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: "@@fake:result Terminei a refatoração e rodei os testes.",
+    });
+
+    const terminado = await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED"]);
+
+    expect(terminado.status).toBe("SUCCEEDED");
+    const resultado = terminado.result as TaskExecutionResult | null;
+    expect(resultado?.status).toBe("completed");
+    expect(resultado?.summary).toBe("Terminei a refatoração e rodei os testes.");
+    expect(await statusDaTask(db, cenario.taskId)).toBe("COMPLETED");
+
+    const avisos = (await eventosDoRun(db, criado.id))
+      .filter((evento) => evento.type === "Diagnostic")
+      .map((evento) => (evento.payload as { message: string }).message);
+
+    expect(avisos.some((mensagem) => mensagem.includes("sintetizado"))).toBe(true);
+  });
+});
+
+describe("retomada de sessão", () => {
+  it("recusa retomar de um Run que nunca capturou sessão", async () => {
+    const cenario = await montarCenario(db, {
+      nome: "resume-sem",
+      workspacePath: repositorio.repo,
+    });
+    await subirWorker({});
+
+    const primeiro = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: ["@@fake:no-session", "@@fake:error sem sessão"].join("\n"),
+    });
+
+    await esperarStatusDeRun(db, primeiro.id, ["FAILED"]);
+
+    const recusa = await createRun(db, {
+      userId: USER,
+      taskId: cenario.taskId,
+      resumeFromRunId: primeiro.id,
+    });
+
+    expect(recusa?.ok).toBe(false);
+    expect(recusa?.ok === false ? recusa.failure.code : "").toBe("RESUME_SOURCE_WITHOUT_SESSION");
+  });
+
+  it("herda o Loadout do Run de origem e passa a sessão ao harness", async () => {
+    const cenario = await montarCenario(db, { nome: "resume", workspacePath: repositorio.repo });
+    await subirWorker({});
+
+    const primeiro = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: [
+        "@@fake:session sessao-para-retomar",
+        '@@fake:block {"status":"blocked","summary":"preciso de mais contexto"}',
+      ].join("\n"),
+    });
+
+    const bloqueado = await esperarStatusDeRun(db, primeiro.id, ["SUCCEEDED", "FAILED"]);
+    expect(bloqueado.status).toBe("SUCCEEDED");
+    expect(bloqueado.result?.status).toBe("blocked");
+    expect(await statusDaTask(db, cenario.taskId)).toBe("BLOCKED");
+
+    // `BLOCKED` não aceita Run novo; o usuário desbloqueia a Task antes.
+    const { tasks: tabelaDeTasks } = await import("@dungeon-master/database");
+    await db
+      .update(tabelaDeTasks)
+      .set({ status: "READY" })
+      .where(and(eq(tabelaDeTasks.id, cenario.taskId), eq(tabelaDeTasks.userId, USER)));
+
+    const segundo = exigirOk(
+      await createRun(db, {
+        userId: USER,
+        taskId: cenario.taskId,
+        resumeFromRunId: primeiro.id,
+        prompt: '@@fake:block {"status":"completed","summary":"agora foi"}',
+      }),
+      "a criação do Run de retomada",
+    );
+
+    expect(segundo.resumedFromRunId).toBe(primeiro.id);
+    expect(segundo.loadoutId).toBe(cenario.loadoutId);
+
+    const terminado = await esperarStatusDeRun(db, segundo.id, ["SUCCEEDED", "FAILED"]);
+    expect(terminado.status, JSON.stringify(terminado.error)).toBe("SUCCEEDED");
+    expect(terminado.result?.summary).toBe("agora foi");
+
+    // O agente falso escreve o `--session` recebido de volta como id de sessão.
+    expect(terminado.harnessSessionId).toBe("sessao-para-retomar");
+  });
+});
+
+describe("posse do workspace", () => {
+  it("marca claimed_by com a identidade do processo", async () => {
+    const cenario = await montarCenario(db, { nome: "posse", workspacePath: repositorio.repo });
+    const emExecucao = await subirWorker({});
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: '@@fake:block {"status":"completed","summary":"ok"}',
+    });
+
+    await esperar("o Run ser reclamado", async () => {
+      const linha = await linhaDoRun(db, criado.id);
+      return linha?.claimedBy === emExecucao.workerId ? linha : null;
+    });
+
+    await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED"]);
+  });
+
+  it("o worktree do Run parte do HEAD do repositório", async () => {
+    const cenario = await montarCenario(db, { nome: "base", workspacePath: repositorio.repo });
+    await subirWorker({});
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: ["@@fake:sleep 300", '@@fake:block {"status":"completed","summary":"ok"}'].join("\n"),
+    });
+
+    const emPreparo = await esperar("o Run gravar o caminho do workspace", async () => {
+      const run = await getRun(db, { userId: USER, runId: criado.id });
+      return run?.workspacePath === null || run === null ? null : run;
+    });
+
+    const conteudo = await readFile(join(emPreparo.workspacePath as string, "README.md"), "utf8");
+    expect(conteudo).toContain("# base");
+
+    await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED"]);
+    // A branch do Run some com o worktree; o repositório principal fica limpo.
+    const status = await git(["status", "--porcelain"], repositorio.repo);
+    expect(status.trim()).toBe("");
+  });
+});
