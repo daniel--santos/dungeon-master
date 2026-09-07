@@ -222,6 +222,10 @@ export function btn(variant, size, extra = "") {
       "; box-shadow: " +
       SHADOW_XS +
       ";",
+    // A variante sólida do button.tsx no escuro: destructive/60 com texto
+    // branco. É a ação de confirmação do AlertDialog, e só ela.
+    "destructive-solid":
+      "background: " + tint(DESTR, "60%") + "; color: #fff; border: 1px solid transparent;",
   };
   return (
     "display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; border-radius: 8px; font-weight: 500; " +
@@ -444,6 +448,10 @@ export const RUN_STATUS = {
   RUNNING: { label: "Em andamento", color: A_BLUE, dim: false, pulse: true },
   QUEUED: { label: "Na fila", color: A_NEUTRAL, dim: true, pulse: false },
   PREPARING: { label: "Preparando", color: A_NEUTRAL, dim: true, pulse: true },
+  // Único status de Run com nome do tema, decidido pelo usuário: o Selo da
+  // Guilda é a aprovação humana do glossário. Os outros quatro são iguais nos
+  // dois modos.
+  WAITING_APPROVAL: { label: "Aguardando o Selo", color: A_AMBER, dim: false, pulse: true },
   SUCCEEDED: { label: "Vitória", color: A_GREEN, dim: false, pulse: false },
   FAILED: { label: "Derrota", color: DESTR, dim: false, pulse: false },
   CANCELLED: { label: "Retirada", color: A_NEUTRAL, dim: true, pulse: false },

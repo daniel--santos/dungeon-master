@@ -8,6 +8,7 @@ import {
   A_GREEN,
   A_NEUTRAL,
   A_VIOLET,
+  BG,
   BORDER,
   CAMPANHA,
   CARD,
@@ -20,6 +21,7 @@ import {
   MONO,
   RUN_STATUS,
   SERIF,
+  SHADOW_LG,
   breadcrumb,
   btn,
   card,
@@ -765,7 +767,7 @@ export function buildMain() {
       value: "01:13",
       right: "teto 15 min",
       action: cancelar,
-      note: "Um segundo toque confirma. Só vira Retirada depois que a árvore de processos for confirmada encerrada.",
+      note: "Pede confirmação antes de encerrar. Só vira Retirada depois que a árvore de processos for confirmada encerrada.",
     }) +
     "</div>";
 
@@ -776,12 +778,68 @@ export function buildMain() {
     direita +
     "</div>";
 
-  return write(
-    "Main.dc.html",
-    1440,
-    1000,
-    screen("dnd", "Expedições", 1440, 1000, cockpitHeader("RUNNING", actions) + grid + rodapeFiltros(true)),
-  );
+  // O AlertDialog do shadcn, com a anatomia de apps/web/src/components/ui:
+  // sobreposição preta a 50%, painel em bg-background com raio 10px e padding
+  // de 24px, título de 18px, descrição em cinza, e o par Voltar / ação
+  // destrutiva sólida à direita.
+  const confirmacao =
+    '<div style="' +
+    col(
+      "position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 512px; gap: 16px; padding: 24px; border-radius: 10px; border: 1px solid " +
+        BORDER +
+        "; background: " +
+        BG +
+        "; box-shadow: " +
+        SHADOW_LG +
+        ";",
+    ) +
+    '">' +
+    '<div style="' +
+    col("gap: 8px") +
+    '">' +
+    '<h2 style="margin: 0; font-size: 18px; line-height: 26px; font-weight: 600; color: ' +
+    FG +
+    '">Cancelar a Expedição 241?</h2>' +
+    '<p style="margin: 0; font-size: 14px; line-height: 20px; color: ' +
+    MFG +
+    '">A Missão volta para <span style="color: ' +
+    FG +
+    '">Pronta</span> e o worktree é preservado: nada do que o Herói escreveu em ' +
+    mono(".runs/exp-241", FG, "font-size: 12px") +
+    " é descartado.</p>" +
+    '<p style="margin: 0; font-size: 14px; line-height: 20px; color: ' +
+    MFG +
+    '">A Expedição fica registrada como <span style="color: ' +
+    FG +
+    '">Retirada</span> só depois que a árvore de processos for confirmada encerrada. Isso leva alguns segundos.</p>' +
+    "</div>" +
+    '<div style="' +
+    row("justify-content: flex-end; gap: 8px") +
+    '">' +
+    '<button style="' +
+    btn("outline", "default") +
+    '">Voltar</button>' +
+    '<button style="' +
+    btn("destructive-solid", "default") +
+    '">' +
+    icon("circle-stop", 15) +
+    "<span>Cancelar Expedição</span></button></div>" +
+    "</div>";
+
+  const body =
+    '<div style="position: relative; width: 1440px; height: 1000px; overflow: hidden">' +
+    screen(
+      "dnd",
+      "Expedições",
+      1440,
+      1000,
+      cockpitHeader("RUNNING", actions) + grid + rodapeFiltros(true),
+    ) +
+    '<div style="position: absolute; inset: 0; background: rgb(0 0 0 / 0.5)"></div>' +
+    confirmacao +
+    "</div>";
+
+  return write("Main.dc.html", 1440, 1000, body);
 }
 
 /* ====================================================== ARTBOARD 2 — Vitória */
