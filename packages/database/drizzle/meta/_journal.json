@@ -29,6 +29,13 @@
       "when": 1788807331132,
       "tag": "0003_captura_descartada_sem_project",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788817959545,
+      "tag": "0004_execucao_run_evento_e_cadastros",
+      "breakpoints": true
     }
   ]
 }

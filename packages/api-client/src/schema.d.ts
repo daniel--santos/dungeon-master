@@ -639,6 +639,8 @@ export interface paths {
                     priority?: components["schemas"]["TaskPriority"];
                     /** @description Filtra por um estado ou por vários, repetindo o parâmetro. */
                     status?: components["schemas"]["TaskStatus"] | components["schemas"]["TaskStatus"][];
+                    /** @description Esconde um estado ou vários, repetindo o parâmetro. Aplicado depois de `status`. */
+                    excludeStatus?: components["schemas"]["TaskStatus"] | components["schemas"]["TaskStatus"][];
                     /** @description Busca por trecho do título, sem diferenciar maiúsculas. */
                     q?: string;
                     /** @description Campo de ordenação. Padrão: `updatedAt`. `priority` ordena por urgência (URGENT, HIGH, MEDIUM, LOW), não pelo alfabeto. */
@@ -1233,6 +1235,1378 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/harnesses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista os Harnesses
+         * @description Cadastro fechado: as quatro guildas nascem no `db:seed` e a API não cria nem apaga. Um harness novo é um adapter novo, não um registro. A ordem é a do catálogo (Claude Code, Codex, Pi, Antigravity), não a alfabética.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Os Harnesses conhecidos. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HarnessList"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/harnesses/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Liga ou desliga o Harness
+         * @description Único campo editável. `capabilities` e `key` são do adapter: editá-los pela API produziria uma promessa que o código não cumpre.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateHarness"];
+                };
+            };
+            responses: {
+                /** @description O Harness depois da mudança. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Harness"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Harness com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista os Models */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Só os Models deste Harness. */
+                    harnessId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Os Models, agrupados por Harness. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ModelList"];
+                    };
+                };
+                /** @description Filtro inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria um Model
+         * @description A chave é única dentro do Harness. Marcar como padrão desmarca o padrão anterior do mesmo Harness, em vez de recusar.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateModel"];
+                };
+            };
+            responses: {
+                /** @description Model criado. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Model"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description O Harness informado não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Já existe um Model com esta chave no Harness. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/models/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Apaga o Model
+         * @description Recusa enquanto algum Loadout aponta para ele: apagar faria o Loadout passar a usar em silêncio o Model padrão do Harness.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Model apagado. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Não existe Model com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Algum Loadout ainda usa este Model. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Edita o Model */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateModel"];
+                };
+            };
+            responses: {
+                /** @description O Model depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Model"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Model com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A chave já é usada por outro Model do mesmo Harness. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista os Agents */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Os Agents, em ordem alfabética. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AgentList"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria um Agent
+         * @description O nome é único por usuário. As instruções são o texto do papel.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateAgent"];
+                };
+            };
+            responses: {
+                /** @description Agent criado. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Agent"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Já existe um Agent com este nome. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Um Agent */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O Agent. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Agent"];
+                    };
+                };
+                /** @description Não existe Agent com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /**
+         * Apaga o Agent
+         * @description Recusa enquanto algum Loadout o usa. Runs antigos não impedem: o snapshot deles já carrega o Agent inteiro, e é para isso que ele carrega.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Agent apagado. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Não existe Agent com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Algum Loadout ainda usa este Agent. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Edita o Agent */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateAgent"];
+                };
+            };
+            responses: {
+                /** @description O Agent depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Agent"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Agent com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Já existe um Agent com este nome. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/execution-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista os ExecutionProfiles
+         * @description `mode` e `workspaceStrategy` são eixos ortogonais: worktree não é backend de execução. `enforcement` diz quão forte é a barreira, e a interface nunca mostra política pedida como política imposta.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Os perfis, em ordem alfabética. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ExecutionProfileList"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Cria um ExecutionProfile */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateExecutionProfile"];
+                };
+            };
+            responses: {
+                /** @description Perfil criado. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ExecutionProfile"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Já existe um perfil com este nome. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/execution-profiles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Um ExecutionProfile */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O perfil. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ExecutionProfile"];
+                    };
+                };
+                /** @description Não existe ExecutionProfile com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Apaga o ExecutionProfile */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Perfil apagado. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Não existe ExecutionProfile com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Algum Loadout ainda usa este perfil. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Edita o ExecutionProfile */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateExecutionProfile"];
+                };
+            };
+            responses: {
+                /** @description O perfil depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ExecutionProfile"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe ExecutionProfile com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Já existe um perfil com este nome. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/loadouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista os Loadouts */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Os Loadouts, em ordem alfabética. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LoadoutList"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria um Loadout
+         * @description Nasce em `version: 1`. Agent, Harness e ExecutionProfile precisam existir e estar ligados.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateLoadout"];
+                };
+            };
+            responses: {
+                /** @description Loadout criado. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Loadout"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Alguma das referências informadas não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Nome já usado, Harness ou perfil desligado, ou Model de outro Harness. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/loadouts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Um Loadout */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O Loadout. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Loadout"];
+                    };
+                };
+                /** @description Não existe Loadout com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /**
+         * Apaga o Loadout
+         * @description Recusa enquanto algum Run o referencia: `loadoutId` é o fio que liga a execução ao equipamento que hoje existe.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Loadout apagado. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Não existe Loadout com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Algum Run ainda referencia este Loadout. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Edita o Loadout e incrementa a versão
+         * @description Toda edição que muda alguma coisa sobe `version`. Um PATCH que não muda nada não sobe: a versão conta edições, e enviar os mesmos valores não é uma edição. O Run guarda a versão junto do snapshot.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateLoadout"];
+                };
+            };
+            responses: {
+                /** @description O Loadout depois da edição, com a versão nova. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Loadout"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description O Loadout ou alguma das referências não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Nome já usado, Harness ou perfil desligado, ou Model de outro Harness. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enfileira uma execução para a Task
+         * @description Cria o Run em `QUEUED`, com o Loadout e o ExecutionProfile congelados em snapshot, e leva a Task a `QUEUED` na mesma transação. Sem `prompt`, ele é montado a partir do título e da descrição da Task. Exige Task em `READY` ou `FAILED` (retentativa), dependências `COMPLETED` e um Project com `workspacePath`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 da Task. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateRun"];
+                };
+            };
+            responses: {
+                /** @description Run criado e enfileirado. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Run"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A Task, o Loadout ou o ExecutionProfile informados não existem. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A Task não aceita Run agora, o Project não tem workspace, há dependência pendente, ou o Harness/perfil está desligado. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista as execuções
+         * @description Do Run mais recente para o mais antigo. `status` aceita um valor ou vários, repetindo o parâmetro.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                    /** @description Só os Runs desta Task. */
+                    taskId?: string;
+                    /** @description Só os Runs das Tasks deste Project. */
+                    projectId?: string;
+                    /** @description Filtra por um estado ou por vários, repetindo o parâmetro. */
+                    status?: components["schemas"]["RunStatus"] | components["schemas"]["RunStatus"][];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de Runs. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunPage"];
+                    };
+                };
+                /** @description Filtro ou paginação inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Uma execução */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Run. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O Run, com os snapshots do Loadout e do ExecutionProfile. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Run"];
+                    };
+                };
+                /** @description Não existe Run com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pede o cancelamento da execução
+         * @description Pedir não é cancelar: a marca em `cancelRequestedAt` é o que o worker observa para matar a árvore de processos, e quem transiciona para `CANCELLED` é quem confirmou o término. A exceção é o Run que ainda não subiu nada: em `CREATED` e `QUEUED` a transição sai na hora e a Task volta a `READY`. Idempotente.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Run. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O Run com o pedido registrado, ou já cancelado. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Run"];
+                    };
+                };
+                /** @description Não existe Run com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description O Run já terminou e não há o que cancelar. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * O log de eventos da execução
+         * @description Append-only, em ordem crescente de `sequence`, a partir do cursor `after`. É a mesma consulta que o replay do stream usa, então não existe uma segunda definição de 'o que o cliente perdeu'.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Devolve apenas eventos com `sequence` maior que este. Padrão: 0. */
+                    after?: string;
+                    /** @description Quantos eventos trazer. Padrão e teto: 500. Valores acima do teto são reduzidos. */
+                    limit?: string;
+                };
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Run. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página do log. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunEventList"];
+                    };
+                };
+                /** @description Cursor ou limite inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Run com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{id}/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream SSE dos eventos da execução
+         * @description Abre um `text/event-stream` só deste Run. Envia primeiro o replay a partir do cursor e depois os eventos ao vivo. O `id` de cada evento é a `sequence`, que o cliente devolve em `since` (ou no `Last-Event-ID`) para reconectar sem perder nem repetir. O header tem precedência sobre a query: numa reconexão automática o browser repete a URL da primeira tentativa, que já está velha.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Último `sequence` que o cliente já tem. Ausente ou `0` significa 'não tenho nada'. O header `Last-Event-ID` tem precedência sobre este valor. */
+                    since?: string;
+                };
+                header?: {
+                    /** @description Reenviado pelo `EventSource` na reconexão. Tem precedência sobre `since`. */
+                    "last-event-id"?: string;
+                };
+                path: {
+                    /** @description UUIDv7 do Run. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Stream aberto. Cada `data:` é um `RunEvent` serializado. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description Cursor inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Run com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/achievements/catalog": {
         parameters: {
             query?: never;
@@ -1360,56 +2734,16 @@ export interface components {
             /** @description Novo valor da configuração. Validado pelo schema da chave. */
             value?: unknown;
         };
-        /** @description Uma página de Projects, do último editado para o mais antigo. */
+        /** @description Uma página de Projects com a contagem de Tasks, do último editado para o mais antigo. */
         ProjectPage: {
             /** @description Os itens desta página, na ordem da listagem. */
-            items: components["schemas"]["Project"][];
+            items: components["schemas"]["ProjectDetail"][];
             /** @description Página devolvida. */
             page: number;
             /** @description Itens por página efetivamente usados. */
             pageSize: number;
             /** @description Total de itens que casam com o filtro. */
             total: number;
-        };
-        /** @description A unidade persistente de contexto. */
-        Project: {
-            /**
-             * Format: uuid
-             * @description UUIDv7 do Project.
-             */
-            id: string;
-            /** @description Título do Project. */
-            title: string;
-            /** @description Descrição livre. */
-            description: string | null;
-            status: components["schemas"]["ProjectStatus"];
-            /**
-             * Format: date-time
-             * @description Instante do arquivamento, em UTC (ISO 8601). Nulo enquanto ativo.
-             */
-            archivedAt: string | null;
-            /**
-             * Format: date-time
-             * @description Criação, em UTC (ISO 8601).
-             */
-            createdAt: string;
-            /**
-             * Format: date-time
-             * @description Última escrita, em UTC (ISO 8601).
-             */
-            updatedAt: string;
-        };
-        /**
-         * @description Estado de um Project.
-         * @enum {string}
-         */
-        ProjectStatus: "ACTIVE" | "ARCHIVED";
-        /** @description Corpo de `POST /api/v1/projects`. */
-        CreateProject: {
-            /** @description Título do Project. */
-            title: string;
-            /** @description Descrição livre. */
-            description?: string | null;
         };
         /** @description Um Project com a contagem de Tasks por estado. */
         ProjectDetail: {
@@ -1423,6 +2757,9 @@ export interface components {
             /** @description Descrição livre. */
             description: string | null;
             status: components["schemas"]["ProjectStatus"];
+            workspaceKind: components["schemas"]["WorkspaceKind"];
+            /** @description Caminho absoluto do workspace na máquina local. Um Project sem ele não pode ter Run: não há onde o agente trabalhar. */
+            workspacePath: string | null;
             /**
              * Format: date-time
              * @description Instante do arquivamento, em UTC (ISO 8601). Nulo enquanto ativo.
@@ -1451,10 +2788,61 @@ export interface components {
                 CANCELLED: number;
             };
         };
+        /**
+         * @description Estado de um Project.
+         * @enum {string}
+         */
+        ProjectStatus: "ACTIVE" | "ARCHIVED";
+        /**
+         * @description Se o workspace do Project é um repositório git.
+         * @enum {string}
+         */
+        WorkspaceKind: "GIT_REPO" | "FOLDER";
+        /** @description A unidade persistente de contexto. */
+        Project: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do Project.
+             */
+            id: string;
+            /** @description Título do Project. */
+            title: string;
+            /** @description Descrição livre. */
+            description: string | null;
+            status: components["schemas"]["ProjectStatus"];
+            workspaceKind: components["schemas"]["WorkspaceKind"];
+            /** @description Caminho absoluto do workspace na máquina local. Um Project sem ele não pode ter Run: não há onde o agente trabalhar. */
+            workspacePath: string | null;
+            /**
+             * Format: date-time
+             * @description Instante do arquivamento, em UTC (ISO 8601). Nulo enquanto ativo.
+             */
+            archivedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Criação, em UTC (ISO 8601).
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Última escrita, em UTC (ISO 8601).
+             */
+            updatedAt: string;
+        };
+        /** @description Corpo de `POST /api/v1/projects`. */
+        CreateProject: {
+            /** @description Título do Project. */
+            title: string;
+            /** @description Descrição livre. */
+            description?: string | null;
+        };
         /** @description Corpo de `PATCH /api/v1/projects/{id}`. */
         UpdateProject: {
             title?: string;
             description?: string | null;
+            workspaceKind?: components["schemas"]["WorkspaceKind"];
+            /** @description Caminho absoluto de um diretório existente na máquina que roda a API. `null` desliga o workspace, e o Project deixa de aceitar Run novo. */
+            workspacePath?: string | null;
         };
         /** @description Uma página do diário, do registro mais recente para o mais antigo. */
         ActivityPage: {
@@ -1497,7 +2885,7 @@ export interface components {
          * @description O que aconteceu. Mesmo vocabulário dos eventos de dashboard de domínio.
          * @enum {string}
          */
-        ActivityType: "project.created" | "project.updated" | "task.created" | "task.updated" | "task.status_changed" | "task.dependency_created" | "task.dependency_removed";
+        ActivityType: "project.created" | "project.updated" | "task.created" | "task.updated" | "task.status_changed" | "task.dependency_created" | "task.dependency_removed" | "run.created" | "run.status_changed" | "run.cancel_requested";
         /** @description Uma página de Tasks, na ordem pedida por `sort` e `order`. */
         TaskPage: {
             /** @description Os itens desta página, na ordem da listagem. */
@@ -1708,6 +3096,619 @@ export interface components {
              * @enum {string}
              */
             priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+        };
+        /** @description O cadastro fechado de Harnesses. */
+        HarnessList: {
+            /** @description Os Harnesses conhecidos, na ordem do catálogo. */
+            items: components["schemas"]["Harness"][];
+        };
+        /** @description Um runtime de agente conhecido pelo sistema. */
+        Harness: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do Harness.
+             */
+            id: string;
+            key: components["schemas"]["HarnessKey"];
+            /** @description Nome exibido. Único por usuário junto com `key`. */
+            name: string;
+            /** @description Desligado some das listas de escolha, mas não some do histórico. */
+            enabled: boolean;
+            capabilities: components["schemas"]["HarnessCapabilities"];
+            /** @description Versão descoberta pelo preflight. */
+            installedVersion: string | null;
+            /**
+             * Format: date-time
+             * @description Último preflight, em UTC (ISO 8601). Nulo enquanto ninguém checou.
+             */
+            checkedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /**
+         * @description Qual CLI de agente executa o Run.
+         * @enum {string}
+         */
+        HarnessKey: "CLAUDE_CODE" | "CODEX" | "PI" | "ANTIGRAVITY";
+        /** @description O que este harness sabe fazer. Substitui condicionais por harness espalhados. */
+        HarnessCapabilities: {
+            /** @description Emite saída incremental enquanto executa. */
+            streaming: boolean;
+            /** @description Aceita um schema e devolve JSON validado. */
+            structuredOutput: boolean;
+            /** @description Retoma uma sessão anterior a partir de `harnessSessionId`. */
+            resume: boolean;
+            /** @description Mantém um processo vivo por vários turnos. */
+            multiTurnProcess: boolean;
+            /** @description Publica chamadas de ferramenta como eventos. */
+            toolEvents: boolean;
+            /** @description Reporta consumo de tokens. */
+            tokenUsage: boolean;
+            /** @description Aceita escolher o modelo por parâmetro. */
+            modelSelection: boolean;
+            /** @description Aceita escolher um sub-agente por parâmetro. */
+            agentSelection: boolean;
+            /** @description Tem mecanismo próprio de permissão. */
+            nativePermissions: boolean;
+            /** @description Roda no host, sem isolamento. */
+            hostExecution: boolean;
+            /** @description Roda dentro de container. */
+            dockerExecution: boolean;
+        };
+        /** @description Corpo de `PATCH /api/v1/harnesses/{id}`. */
+        UpdateHarness: {
+            /** @description Liga ou desliga o Harness para novas execuções. */
+            enabled: boolean;
+        };
+        /** @description O cadastro de Models. */
+        ModelList: {
+            /** @description Os Models, agrupados por Harness e ordenados por nome. */
+            items: components["schemas"]["Model"][];
+        };
+        /** @description Um modelo aceito por um Harness. */
+        Model: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do Model.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description Harness dono da chave.
+             */
+            harnessId: string;
+            /** @description Identificador que o harness aceita na linha de comando. */
+            key: string;
+            /** @description Nome exibido. */
+            name: string;
+            /** @description Escolhido quando o Loadout não indica um Model. */
+            isDefault: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description Corpo de `POST /api/v1/models`. */
+        CreateModel: {
+            /**
+             * Format: uuid
+             * @description Harness dono da chave.
+             */
+            harnessId: string;
+            /** @description Identificador aceito pelo harness. Único dentro do Harness. */
+            key: string;
+            name: string;
+            /** @description Marcar como padrão desmarca o padrão anterior do mesmo Harness. */
+            isDefault?: boolean;
+        };
+        /** @description Corpo de `PATCH /api/v1/models/{id}`. */
+        UpdateModel: {
+            key?: string;
+            name?: string;
+            isDefault?: boolean;
+        };
+        /** @description O cadastro de Agents. */
+        AgentList: {
+            /** @description Os Agents, em ordem alfabética. */
+            items: components["schemas"]["Agent"][];
+        };
+        /** @description Papel e comportamento, sem ferramenta nem modelo. */
+        Agent: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do Agent.
+             */
+            id: string;
+            /** @description Nome do Agent. Único por usuário. */
+            name: string;
+            role: components["schemas"]["AgentRole"];
+            /** @description O texto do papel, injetado no prompt do Run. */
+            instructions: string;
+            /** @description Nota livre para quem escolhe o Agent. */
+            description: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /**
+         * @description O papel do Agent. Classe, no tema.
+         * @enum {string}
+         */
+        AgentRole: "ARCHITECT" | "ENGINEER" | "REVIEWER" | "EXPLORER";
+        /** @description Corpo de `POST /api/v1/agents`. */
+        CreateAgent: {
+            name: string;
+            role: components["schemas"]["AgentRole"];
+            /** @description O texto do papel. */
+            instructions: string;
+            description?: string | null;
+        };
+        /** @description Corpo de `PATCH /api/v1/agents/{id}`. */
+        UpdateAgent: {
+            name?: string;
+            role?: components["schemas"]["AgentRole"];
+            instructions?: string;
+            description?: string | null;
+        };
+        /** @description O cadastro de ExecutionProfiles. */
+        ExecutionProfileList: {
+            /** @description Os perfis, em ordem alfabética. */
+            items: components["schemas"]["ExecutionProfile"][];
+        };
+        /** @description Onde e sob quais regras um Run roda. */
+        ExecutionProfile: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do ExecutionProfile.
+             */
+            id: string;
+            /** @description Nome do perfil. Único por usuário. */
+            name: string;
+            mode: components["schemas"]["ExecutionMode"];
+            workspaceStrategy: components["schemas"]["WorkspaceStrategy"];
+            enforcement: components["schemas"]["EnforcementLevel"];
+            permissionPolicy: components["schemas"]["PermissionPolicy"];
+            environmentPolicy: components["schemas"]["EnvironmentPolicy"];
+            networkPolicy: components["schemas"]["NetworkPolicy"];
+            /** @description Perfil desligado não pode ser escolhido por um Run novo. O perfil Docker nasce desligado e é ligado na Fase 2C. */
+            enabled: boolean;
+            /** @description Escolhido quando o Run não indica um perfil. */
+            isDefault: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /**
+         * @description `HOST` roda na máquina, sem isolamento. `DOCKER` roda em container.
+         * @enum {string}
+         */
+        ExecutionMode: "HOST" | "DOCKER";
+        /**
+         * @description Isolamento operacional do código: diretório atual, worktree por Run, ou cópia.
+         * @enum {string}
+         */
+        WorkspaceStrategy: "CURRENT" | "GIT_WORKTREE" | "COPY";
+        /**
+         * @description Quão forte é a barreira: pedido sem garantia, permissão nativa da CLI, ou sandbox real.
+         * @enum {string}
+         */
+        EnforcementLevel: "ADVISORY" | "HARNESS_NATIVE" | "SANDBOX_ENFORCED";
+        /** @description O que o agente pode fazer. O quanto disso é imposto depende de `enforcement`. */
+        PermissionPolicy: {
+            /** @description O agente pode escrever no workspace. */
+            workspaceWrite: boolean;
+            commandExecution: components["schemas"]["CommandAccess"];
+            /** @description Comandos liberados quando `commandExecution` é `ALLOWLIST`. */
+            allowedCommands: string[];
+            /** @description Comandos recusados mesmo em `ALL`. */
+            deniedCommands: string[];
+        };
+        /**
+         * @description Quais comandos o agente pode executar.
+         * @enum {string}
+         */
+        CommandAccess: "NONE" | "ALLOWLIST" | "ALL";
+        /** @description Allow-list de variáveis de ambiente. O que não está aqui não chega ao agente. */
+        EnvironmentPolicy: {
+            /** @description Nomes de variáveis do ambiente do worker repassadas ao processo do agente. */
+            allowedVariables: string[];
+            /** @description Repassa `PATH`. Sem ele o harness não encontra as ferramentas dele. */
+            inheritPath: boolean;
+        };
+        /** @description Política de rede. Só é imposta de fato em `SANDBOX_ENFORCED`. */
+        NetworkPolicy: {
+            access: components["schemas"]["NetworkAccess"];
+            /** @description Hosts liberados quando `access` é `ALLOWLIST`. */
+            allowedHosts: string[];
+        };
+        /**
+         * @description Quanto de rede o Run enxerga.
+         * @enum {string}
+         */
+        NetworkAccess: "NONE" | "ALLOWLIST" | "ALL";
+        /** @description Corpo de `POST /api/v1/execution-profiles`. */
+        CreateExecutionProfile: {
+            name: string;
+            mode: components["schemas"]["ExecutionMode"];
+            workspaceStrategy: components["schemas"]["WorkspaceStrategy"];
+            enforcement: components["schemas"]["EnforcementLevel"];
+            /** @description Padrão: escrita no workspace liberada, comandos por allow-list vazia. */
+            permissionPolicy?: {
+                /** @description O agente pode escrever no workspace. */
+                workspaceWrite: boolean;
+                commandExecution: components["schemas"]["CommandAccess"];
+                /** @description Comandos liberados quando `commandExecution` é `ALLOWLIST`. */
+                allowedCommands: string[];
+                /** @description Comandos recusados mesmo em `ALL`. */
+                deniedCommands: string[];
+            };
+            /** @description Padrão: nenhuma variável repassada além de `PATH`. */
+            environmentPolicy?: {
+                /** @description Nomes de variáveis do ambiente do worker repassadas ao processo do agente. */
+                allowedVariables: string[];
+                /** @description Repassa `PATH`. Sem ele o harness não encontra as ferramentas dele. */
+                inheritPath: boolean;
+            };
+            /** @description Padrão: rede liberada. */
+            networkPolicy?: {
+                access: components["schemas"]["NetworkAccess"];
+                /** @description Hosts liberados quando `access` é `ALLOWLIST`. */
+                allowedHosts: string[];
+            };
+            /** @description Padrão: ligado. */
+            enabled?: boolean;
+            isDefault?: boolean;
+        };
+        /** @description Corpo de `PATCH /api/v1/execution-profiles/{id}`. */
+        UpdateExecutionProfile: {
+            name?: string;
+            mode?: components["schemas"]["ExecutionMode"];
+            workspaceStrategy?: components["schemas"]["WorkspaceStrategy"];
+            enforcement?: components["schemas"]["EnforcementLevel"];
+            permissionPolicy?: components["schemas"]["PermissionPolicy"];
+            environmentPolicy?: components["schemas"]["EnvironmentPolicy"];
+            networkPolicy?: components["schemas"]["NetworkPolicy"];
+            enabled?: boolean;
+            isDefault?: boolean;
+        };
+        /** @description O cadastro de Loadouts. */
+        LoadoutList: {
+            /** @description Os Loadouts, em ordem alfabética. */
+            items: components["schemas"]["Loadout"][];
+        };
+        /** @description A configuração completa de uma execução. */
+        Loadout: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do Loadout.
+             */
+            id: string;
+            /** @description Nome do Loadout. Único por usuário. */
+            name: string;
+            /** Format: uuid */
+            agentId: string;
+            /** Format: uuid */
+            harnessId: string;
+            /**
+             * Format: uuid
+             * @description Nulo usa o Model padrão do Harness.
+             */
+            modelId: string | null;
+            /** Format: uuid */
+            executionProfileId: string;
+            /** @description Nomes de skills oferecidas ao agente. */
+            skills: string[];
+            /** @description Nomes de ferramentas liberadas. */
+            tools: string[];
+            mcpServers: components["schemas"]["McpServerRef"][];
+            knowledgePolicy: components["schemas"]["KnowledgePolicy"];
+            contextPolicy: components["schemas"]["ContextPolicy"];
+            /** @description Sobe em toda edição. É o número que o Run guarda junto do snapshot. */
+            version: number;
+            /** @description Sugerido quando a Task não indica um Loadout. */
+            isDefault: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description Um servidor MCP oferecido ao agente. */
+        McpServerRef: {
+            /** @description Nome pelo qual o harness registra o servidor. */
+            name: string;
+            transport: components["schemas"]["McpTransport"];
+            /** @description Comando, para `STDIO`; URL, para `HTTP`. Nunca montado por concatenação. */
+            target: string;
+        };
+        /**
+         * @description Como o servidor MCP é alcançado.
+         * @enum {string}
+         */
+        McpTransport: "STDIO" | "HTTP";
+        /** @description Quanto do Grimório do Project entra no contexto. Efetiva a partir da Fase 6. */
+        KnowledgePolicy: {
+            /** @description Injeta o resumo do Project no contexto. */
+            includeProjectSummary: boolean;
+            /** @description Injeta as decisões registradas do Project. */
+            includeDecisions: boolean;
+            /** @description Teto de itens de conhecimento injetados. `0` desliga. */
+            maxItems: number;
+        };
+        /** @description O que o Context Assembler monta. Efetiva a partir da Fase 7. */
+        ContextPolicy: {
+            /** @description Inclui título e resumo da Task mãe. */
+            includeParentContext: boolean;
+            /** @description Inclui o resultado das dependências. */
+            includeDependencyContext: boolean;
+            /** @description Orçamento de contexto. `0` significa sem teto declarado. */
+            maxTokens: number;
+        };
+        /** @description Corpo de `POST /api/v1/loadouts`. Nasce em `v1`. */
+        CreateLoadout: {
+            name: string;
+            /** Format: uuid */
+            agentId: string;
+            /** Format: uuid */
+            harnessId: string;
+            /**
+             * Format: uuid
+             * @description Nulo usa o Model padrão do Harness.
+             */
+            modelId?: string | null;
+            /** Format: uuid */
+            executionProfileId: string;
+            /** @description Padrão: vazio. */
+            skills?: string[];
+            /** @description Padrão: vazio. */
+            tools?: string[];
+            /** @description Padrão: vazio. */
+            mcpServers?: components["schemas"]["McpServerRef"][];
+            knowledgePolicy?: components["schemas"]["KnowledgePolicy"];
+            contextPolicy?: components["schemas"]["ContextPolicy"];
+            isDefault?: boolean;
+        };
+        /** @description Corpo de `PATCH /api/v1/loadouts/{id}`. Toda edição que muda algo incrementa `version`. */
+        UpdateLoadout: {
+            name?: string;
+            /** Format: uuid */
+            agentId?: string;
+            /** Format: uuid */
+            harnessId?: string;
+            /** Format: uuid */
+            modelId?: string | null;
+            /** Format: uuid */
+            executionProfileId?: string;
+            skills?: string[];
+            tools?: string[];
+            mcpServers?: components["schemas"]["McpServerRef"][];
+            knowledgePolicy?: components["schemas"]["KnowledgePolicy"];
+            contextPolicy?: components["schemas"]["ContextPolicy"];
+            isDefault?: boolean;
+        };
+        /** @description Uma tentativa concreta de realizar uma Task. */
+        Run: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do Run.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description A Task que este Run tenta realizar.
+             */
+            taskId: string;
+            /**
+             * Format: uuid
+             * @description Project da Task no momento da leitura. Vem por junção, não é coluna do Run.
+             */
+            projectId: string | null;
+            status: components["schemas"]["RunStatus"];
+            /**
+             * @description Harness escolhido, copiado do Loadout.
+             * @enum {string}
+             */
+            harnessKey: "CLAUDE_CODE" | "CODEX" | "PI" | "ANTIGRAVITY";
+            /** @description Versão da CLI descoberta no preflight. Nula até o Run preparar. */
+            harnessVersion: string | null;
+            /** @description Id de sessão emitido pelo harness, guardado junto do harness emissor: as semânticas de resume diferem entre Claude Code, Codex, Pi e Antigravity. */
+            harnessSessionId: string | null;
+            /** @description Chave do Model usada, copiada do Loadout. */
+            modelKey: string | null;
+            executionMode: components["schemas"]["ExecutionMode"];
+            /** @description Caminho do checkout usado. É a base da trava por caminho. */
+            workspacePath: string | null;
+            /**
+             * Format: uuid
+             * @description Captura congelada do Workflow. Sempre nulo até a Fase 4.
+             */
+            workflowVersionId: string | null;
+            /** Format: uuid */
+            loadoutId: string;
+            /** @description Versão do Loadout no instante da criação. */
+            loadoutVersion: number;
+            loadoutSnapshot: components["schemas"]["LoadoutSnapshot"];
+            executionProfileSnapshot: components["schemas"]["ExecutionProfileSnapshot"];
+            /** @description O prompt enviado ao harness. */
+            prompt: string;
+            /** @description N-ésimo Run desta Task, começando em 1. */
+            attempt: number;
+            /**
+             * Format: date-time
+             * @description Entrada em `RUNNING`, em UTC (ISO 8601).
+             */
+            startedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Entrada em estado terminal, em UTC.
+             */
+            finishedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Instante do pedido de cancelamento. Marcar aqui não muda o status: quem transiciona é quem confirma o término da árvore de processos.
+             */
+            cancelRequestedAt: string | null;
+            result: components["schemas"]["RunResult"];
+            error: components["schemas"]["RunError"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /**
+         * @description Estado de um Run na máquina de estados.
+         * @enum {string}
+         */
+        RunStatus: "CREATED" | "QUEUED" | "PREPARING" | "RUNNING" | "WAITING_APPROVAL" | "SUCCEEDED" | "FAILED" | "TIMED_OUT" | "CANCELLED";
+        /** @description O Loadout como estava quando o Run foi criado, com Agent e Harness resolvidos. */
+        LoadoutSnapshot: {
+            /** Format: uuid */
+            loadoutId: string;
+            name: string;
+            version: number;
+            agent: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                role: components["schemas"]["AgentRole"];
+                instructions: string;
+            };
+            harness: {
+                /** Format: uuid */
+                id: string;
+                key: components["schemas"]["HarnessKey"];
+                name: string;
+                capabilities: components["schemas"]["HarnessCapabilities"];
+            };
+            /** @description Nulo quando o Harness não tinha Model padrão nem o Loadout indicava um. */
+            model: {
+                /** Format: uuid */
+                id: string;
+                key: string;
+                name: string;
+            } | null;
+            /** Format: uuid */
+            executionProfileId: string;
+            skills: string[];
+            tools: string[];
+            mcpServers: components["schemas"]["McpServerRef"][];
+            knowledgePolicy: components["schemas"]["KnowledgePolicy"];
+            contextPolicy: components["schemas"]["ContextPolicy"];
+            /**
+             * Format: date-time
+             * @description Instante da captura, em UTC (ISO 8601).
+             */
+            capturedAt: string;
+        };
+        /** @description O ExecutionProfile como estava quando o Run foi criado. */
+        ExecutionProfileSnapshot: {
+            /** Format: uuid */
+            executionProfileId: string;
+            name: string;
+            mode: components["schemas"]["ExecutionMode"];
+            workspaceStrategy: components["schemas"]["WorkspaceStrategy"];
+            enforcement: components["schemas"]["EnforcementLevel"];
+            permissionPolicy: components["schemas"]["PermissionPolicy"];
+            environmentPolicy: components["schemas"]["EnvironmentPolicy"];
+            networkPolicy: components["schemas"]["NetworkPolicy"];
+            /**
+             * Format: date-time
+             * @description Instante da captura, em UTC (ISO 8601).
+             */
+            capturedAt: string;
+        };
+        /** @description O resultado estruturado de um Run. */
+        RunResult: ({
+            status: components["schemas"]["RunResultStatus"];
+            /** @description Resumo do que foi feito, escrito pelo agente. */
+            summary?: string;
+            warnings?: string[];
+            /** @description Consumo reportado pelo harness, quando houver. */
+            usage?: {
+                inputTokens?: number;
+                outputTokens?: number;
+                totalTokens?: number;
+            } & {
+                [key: string]: unknown;
+            };
+            /** @description Structured output validado pelo schema do harness. */
+            output?: unknown;
+        } & {
+            [key: string]: unknown;
+        }) | null;
+        /**
+         * @description O veredito do agente sobre a Task. Decide para onde a Task vai.
+         * @enum {string}
+         */
+        RunResultStatus: "completed" | "blocked" | "failed";
+        /** @description Por que um Run terminou em FAILED ou TIMED_OUT. */
+        RunError: ({
+            /** @description Código estável do erro, quando houver um. */
+            code?: string;
+            /** @description Mensagem já sanitizada de credenciais. */
+            message: string;
+            details?: unknown;
+        } & {
+            [key: string]: unknown;
+        }) | null;
+        /** @description Corpo de `POST /api/v1/tasks/{id}/runs`. */
+        CreateRun: {
+            /**
+             * Format: uuid
+             * @description Equipamento do Run. Decide Agent, Harness e Model.
+             */
+            loadoutId: string;
+            /**
+             * Format: uuid
+             * @description Sobrepõe o ExecutionProfile do Loadout, sem alterar o Loadout.
+             */
+            executionProfileId?: string;
+            /** @description Ausente monta o prompt a partir do título e da descrição da Task. */
+            prompt?: string;
+        };
+        /** @description Uma página de Runs, do mais recente para o mais antigo. */
+        RunPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["Run"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Uma página do log de eventos de um Run. */
+        RunEventList: {
+            /** @description Os eventos, em ordem crescente de `sequence`. */
+            items: components["schemas"]["RunEvent"][];
+            /** @description Verdadeiro quando ainda há eventos depois desta página. */
+            hasMore: boolean;
+            /** @description Maior `sequence` desta página, ou o `after` pedido quando ela veio vazia. */
+            lastSequence: number;
+        };
+        /** @description Uma linha do log append-only de um Run. */
+        RunEvent: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da linha.
+             */
+            id: string;
+            /** Format: uuid */
+            runId: string;
+            /** @description Posição dentro do Run, começando em 1. Estritamente crescente e sem lacunas. */
+            sequence: number;
+            /** @description Tipo do evento, no vocabulário do `ExecutionEvent`. */
+            type: string;
+            /**
+             * Format: date-time
+             * @description Quando o fato aconteceu, em UTC (ISO 8601).
+             */
+            timestamp: string;
+            /** @description Dados do evento, já sanitizados de credenciais. */
+            payload?: unknown;
         };
         /** @description O catálogo versionado de Conquistas, já validado. */
         AchievementCatalog: {

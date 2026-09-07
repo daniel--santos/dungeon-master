@@ -1,0 +1,29 @@
+{
+  "name": "@dungeon-master/runs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Domínio de execução: teto de concorrência e ordenação por chave de recurso.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "26.5.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}

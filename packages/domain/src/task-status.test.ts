@@ -26,11 +26,15 @@ const TRANSICOES_VALIDAS: ReadonlyArray<readonly [TaskStatus, TaskStatus]> = [
   ["READY", "COMPLETED"],
   ["READY", "CANCELLED"],
   ["QUEUED", "RUNNING"],
+  // A volta do Run cancelado antes de rodar (Fase 2A).
+  ["QUEUED", "READY"],
   ["QUEUED", "CANCELLED"],
   ["RUNNING", "COMPLETED"],
   ["RUNNING", "FAILED"],
   ["RUNNING", "WAITING"],
   ["RUNNING", "BLOCKED"],
+  // A volta do Run cancelado em execução (Fase 2A).
+  ["RUNNING", "READY"],
   ["RUNNING", "CANCELLED"],
   ["WAITING", "RUNNING"],
   ["BLOCKED", "READY"],

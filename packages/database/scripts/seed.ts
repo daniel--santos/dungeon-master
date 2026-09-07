@@ -4,14 +4,17 @@ import { createDatabase } from "../src/client.js";
 import { seedDemoData } from "../src/demo.js";
 import { resolveDatabaseUrl } from "../src/env.js";
 import { LOCAL_USER_ID, seedLocalUser } from "../src/seed.js";
+import { seedExecutionRegistry } from "../src/seed-execution.js";
 
 /**
- * `pnpm db:seed` garante o usuário local. `pnpm db:seed --demo` acrescenta a
- * massa de demonstração: dois Projects, catorze Tasks e três capturas na Inbox.
+ * `pnpm db:seed` garante o usuário local, os quatro Harnesses e os dois
+ * ExecutionProfiles. `pnpm db:seed --demo` acrescenta a massa de demonstração:
+ * dois Projects, catorze Tasks e três capturas na Inbox.
  *
- * A massa é opcional de propósito. O usuário local é infraestrutura — sem ele
- * nada escreve —, mas dados de exemplo num banco de trabalho de verdade são
- * lixo, e apagá-los à mão é pior do que nunca tê-los criado.
+ * A massa é opcional de propósito. O usuário local e os cadastros fechados são
+ * infraestrutura — sem eles nada escreve e nenhum Loadout pode ser criado —,
+ * mas dados de exemplo num banco de trabalho de verdade são lixo, e apagá-los à
+ * mão é pior do que nunca tê-los criado.
  */
 const demo = process.argv.slice(2).includes("--demo");
 
@@ -25,6 +28,15 @@ try {
   const result = await seedLocalUser(handle.db);
   const verb = result.created ? "criado" : "já existia";
   console.log(`[db:seed] usuário local ${LOCAL_USER_ID} ${verb}`);
+
+  const execucao = await seedExecutionRegistry(handle.db, { userId: LOCAL_USER_ID });
+
+  console.log(
+    `[db:seed] execução: ${String(execucao.harnessesTotal)} Harnesses ` +
+      `(${String(execucao.harnessesCreated)} novos), ` +
+      `${String(execucao.executionProfilesTotal)} ExecutionProfiles ` +
+      `(${String(execucao.executionProfilesCreated)} novos)`,
+  );
 
   if (demo) {
     const massa = await seedDemoData(handle.db, { userId: LOCAL_USER_ID });

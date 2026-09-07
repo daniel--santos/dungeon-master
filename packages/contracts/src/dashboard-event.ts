@@ -27,10 +27,42 @@ import { ACTIVITY_TYPE_VALUES } from "./activity.js";
  * `activity` e um evento deste tipo na mesma transação, e dois vocabulários
  * para o mesmo fato divergiriam na primeira adição.
  */
+/**
+ * Mudanças nos cadastros de execução.
+ *
+ * Ficam fora de `ActivityType` porque `activity` é o diário de um **Project**, e
+ * um Agent ou um Loadout não pertencem a Project nenhum: gravar a criação de um
+ * Loadout no diário obrigaria a escolher um Project arbitrário para pendurar o
+ * fato. Estes eventos existem só para a tela de cadastros se atualizar sozinha.
+ */
+export const REGISTRY_EVENT_TYPE_VALUES = [
+  "harness.updated",
+  "model.created",
+  "model.updated",
+  "model.deleted",
+  "agent.created",
+  "agent.updated",
+  "agent.deleted",
+  "execution_profile.created",
+  "execution_profile.updated",
+  "execution_profile.deleted",
+  "loadout.created",
+  "loadout.updated",
+  "loadout.deleted",
+] as const;
+
+export const RegistryEventTypeSchema = z.enum(REGISTRY_EVENT_TYPE_VALUES).meta({
+  id: "RegistryEventType",
+  description: "Mudanças nos cadastros de execução, que não pertencem a um Project.",
+});
+
+export type RegistryEventType = z.infer<typeof RegistryEventTypeSchema>;
+
 export const DASHBOARD_EVENT_TYPE_VALUES = [
   "system.ping",
   "settings.changed",
   ...ACTIVITY_TYPE_VALUES,
+  ...REGISTRY_EVENT_TYPE_VALUES,
 ] as const;
 
 export const DashboardEventTypeSchema = z

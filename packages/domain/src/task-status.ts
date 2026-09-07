@@ -6,12 +6,21 @@ import type { TaskStatus } from "@dungeon-master/contracts";
  * ```text
  * INBOX   → READY | CANCELLED
  * READY   → QUEUED | COMPLETED | CANCELLED
- * QUEUED  → RUNNING | CANCELLED
- * RUNNING → COMPLETED | FAILED | WAITING | BLOCKED | CANCELLED
+ * QUEUED  → RUNNING | READY | CANCELLED
+ * RUNNING → COMPLETED | FAILED | WAITING | BLOCKED | READY | CANCELLED
  * WAITING → RUNNING
  * BLOCKED → READY
  * FAILED  → QUEUED
  * ```
+ *
+ * `QUEUED → READY` e `RUNNING → READY` são a volta do Run cancelado (Fase 2A).
+ * **Cancelar uma execução não cancela a tarefa**: o Run é uma tentativa, e
+ * desistir de uma tentativa devolve o trabalho ao quadro para ser tentado de
+ * novo. Sem essas duas arestas, cancelar um Run deixaria a Task presa em
+ * `QUEUED` ou `RUNNING` sem nenhum Run vivo por trás — um estado que só um
+ * `UPDATE` manual desfaria. Levar a Task a `CANCELLED` seria pior ainda:
+ * `CANCELLED` é terminal, e o usuário perderia a tarefa por ter interrompido
+ * uma execução.
  *
  * `READY → COMPLETED` é a **conclusão manual**: o usuário marca o trabalho como
  * feito na interface, sem Run. Existe porque a Fase 1 entrega o gerenciador de
@@ -30,8 +39,8 @@ import type { TaskStatus } from "@dungeon-master/contracts";
 export const TASK_TRANSITIONS = {
   INBOX: ["READY", "CANCELLED"],
   READY: ["QUEUED", "COMPLETED", "CANCELLED"],
-  QUEUED: ["RUNNING", "CANCELLED"],
-  RUNNING: ["COMPLETED", "FAILED", "WAITING", "BLOCKED", "CANCELLED"],
+  QUEUED: ["RUNNING", "READY", "CANCELLED"],
+  RUNNING: ["COMPLETED", "FAILED", "WAITING", "BLOCKED", "READY", "CANCELLED"],
   WAITING: ["RUNNING"],
   BLOCKED: ["READY"],
   FAILED: ["QUEUED"],

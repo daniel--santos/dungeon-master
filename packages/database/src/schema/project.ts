@@ -1,4 +1,4 @@
-import { PROJECT_STATUS_VALUES } from "@dungeon-master/contracts";
+import { PROJECT_STATUS_VALUES, WORKSPACE_KIND_VALUES } from "@dungeon-master/contracts";
 import { index, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { users } from "./user.js";
@@ -10,12 +10,20 @@ import { users } from "./user.js";
  * array nos três lugares.
  */
 export const projectStatus = pgEnum("project_status", PROJECT_STATUS_VALUES);
+export const workspaceKind = pgEnum("workspace_kind", WORKSPACE_KIND_VALUES);
 
 /**
  * Project é a unidade persistente de contexto (documento técnico, seção 3).
  *
  * Arquivar não apaga: `status` vira `ARCHIVED` e `archived_at` guarda quando.
  * Um Project arquivado continua legível e não aceita Task nova.
+ *
+ * `workspace_path` é o diretório local em que os agentes deste Project
+ * trabalham, e é anulável porque a Fase 1 entregou o gerenciador de tarefas
+ * antes do runtime: um Project criado para organizar trabalho manual não
+ * precisa de diretório. Um Project **sem** ele não pode ter Run — a regra é do
+ * domínio (`checkRunCreation`), não do banco, porque ela também depende do
+ * estado da Task e das dependências, que nenhum `CHECK` alcança.
  */
 export const projects = pgTable(
   "project",
@@ -27,6 +35,8 @@ export const projects = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     status: projectStatus("status").notNull().default("ACTIVE"),
+    workspaceKind: workspaceKind("workspace_kind").notNull().default("GIT_REPO"),
+    workspacePath: text("workspace_path"),
     archivedAt: timestamp("archived_at", { withTimezone: true, mode: "date" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })

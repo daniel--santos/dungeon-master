@@ -17,7 +17,19 @@ import {
   taskStatusRequiresProject,
   wouldCreateDependencyCycle,
 } from "@dungeon-master/domain";
-import { and, asc, count, desc, eq, ilike, inArray, isNotNull, type SQL, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  notInArray,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 
 import { recordDomainEvent } from "./activity.js";
 import type { Database } from "./client.js";
@@ -109,6 +121,14 @@ export interface TaskFilters {
   kind?: TaskKind | undefined;
   priority?: TaskPriority | undefined;
   status?: readonly TaskStatus[] | undefined;
+  /**
+   * Estados escondidos, aplicados depois de `status`.
+   *
+   * Existe para o caso mais comum da tela de Missões, "tudo menos as capturas":
+   * sem ele, tirar um estado obrigaria a listar os outros oito na URL, e cada
+   * estado novo da máquina sumiria da lista em silêncio.
+   */
+  excludeStatus?: readonly TaskStatus[] | undefined;
   /** Trecho do título, sem diferenciar maiúsculas. */
   q?: string | undefined;
 }
@@ -182,6 +202,9 @@ export async function listTasks(
   if (filters.priority !== undefined) conditions.push(eq(tasks.priority, filters.priority));
   if (filters.status !== undefined && filters.status.length > 0) {
     conditions.push(inArray(tasks.status, [...filters.status]));
+  }
+  if (filters.excludeStatus !== undefined && filters.excludeStatus.length > 0) {
+    conditions.push(notInArray(tasks.status, [...filters.excludeStatus]));
   }
   if (filters.q !== undefined && filters.q !== "") {
     conditions.push(ilike(tasks.title, `%${escapeLikePattern(filters.q)}%`));
@@ -391,6 +414,7 @@ export async function createTask(
       userId: input.userId,
       projectId: task.projectId,
       taskId: task.id,
+      taskTitle: task.title,
       type: "task.created",
       payload: {
         taskId: task.id,
@@ -543,6 +567,7 @@ export async function updateTask(
       userId: input.userId,
       projectId: targetProjectId,
       taskId: input.taskId,
+      taskTitle: values.title ?? current.title,
       type: "task.updated",
       payload: { taskId: input.taskId, projectId: targetProjectId, changed },
     });
@@ -613,6 +638,7 @@ export async function changeTaskStatus(
       userId: input.userId,
       projectId: current.projectId,
       taskId: input.taskId,
+      taskTitle: current.title,
       type: "task.status_changed",
       payload: {
         taskId: input.taskId,
@@ -689,6 +715,7 @@ export async function addTaskDependency(
         userId: input.userId,
         projectId: task.projectId,
         taskId: input.taskId,
+        taskTitle: task.title,
         type: "task.dependency_created",
         payload: {
           taskId: input.taskId,
@@ -737,6 +764,7 @@ export async function removeTaskDependency(
         userId: input.userId,
         projectId: task.projectId,
         taskId: input.taskId,
+        taskTitle: task.title,
         type: "task.dependency_removed",
         payload: {
           taskId: input.taskId,

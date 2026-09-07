@@ -29,9 +29,31 @@ export interface DomainEventInput {
   /** Project a que o fato pertence. Nulo só numa captura de Inbox. */
   projectId: string | null;
   taskId: string | null;
+  /**
+   * Título da Task **no instante do fato**.
+   *
+   * Gravado junto, e não resolvido na leitura, porque o diário conta o que
+   * aconteceu: uma Task renomeada depois não pode reescrever a linha que diz
+   * "Missão criada". Sem ele o diário dizia "Missão criada" sem dizer qual, e
+   * juntar com `task` na leitura mostraria o nome de hoje num fato de ontem —
+   * ou nome nenhum, quando a Task tivesse sido apagada.
+   */
+  taskTitle?: string | null;
   type: ActivityType;
   /** Já traz os ids: o evento de dashboard não tem colunas para eles. */
   payload: JsonValue;
+}
+
+/**
+ * Junta o título ao payload sem que nenhum ponto de chamada precise lembrar.
+ *
+ * Só faz sentido quando o payload é objeto, que é o caso de todos: um payload
+ * escalar não teria onde receber o campo, e sobrescrevê-lo perderia o fato.
+ */
+function withTaskTitle(payload: JsonValue, taskTitle: string | null | undefined): JsonValue {
+  if (taskTitle === undefined || taskTitle === null) return payload;
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return payload;
+  return { ...payload, taskTitle };
 }
 
 /**
@@ -50,6 +72,8 @@ export async function recordDomainEvent(
   db: DatabaseExecutor,
   input: DomainEventInput,
 ): Promise<Activity> {
+  const payload = withTaskTitle(input.payload, input.taskTitle);
+
   const [row] = await db
     .insert(activities)
     .values({
@@ -58,7 +82,7 @@ export async function recordDomainEvent(
       projectId: input.projectId,
       taskId: input.taskId,
       type: input.type,
-      payload: input.payload,
+      payload,
     })
     .returning();
 
@@ -69,7 +93,7 @@ export async function recordDomainEvent(
   await appendDashboardEvent(db, {
     userId: input.userId,
     type: input.type,
-    payload: input.payload,
+    payload,
   });
 
   return toActivity(row);

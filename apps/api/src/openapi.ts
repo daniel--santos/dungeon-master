@@ -30,6 +30,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       { name: "projects", description: "Projects: a unidade persistente de contexto." },
       { name: "tasks", description: "Tasks, subtarefas e dependências." },
       { name: "inbox", description: "Captura de intenção: as Tasks em INBOX." },
+      {
+        name: "execution",
+        description: "Cadastros de execução: Harness, Model, Agent, ExecutionProfile e Loadout.",
+      },
+      { name: "runs", description: "Runs: as tentativas concretas de realizar uma Task." },
       { name: "achievements", description: "O catálogo versionado de Conquistas." },
     ],
   }) as unknown as Record<string, unknown>;

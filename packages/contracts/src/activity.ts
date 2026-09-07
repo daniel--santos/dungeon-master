@@ -22,6 +22,12 @@ export const ACTIVITY_TYPE_VALUES = [
   "task.status_changed",
   "task.dependency_created",
   "task.dependency_removed",
+  // Os fatos de Run entram no diário porque pertencem a um Project e a uma
+  // Task: "esta Missão foi para a fila", "a Expedição terminou". O log
+  // append-only da execução em si é outra coisa, e mora em `run_event`.
+  "run.created",
+  "run.status_changed",
+  "run.cancel_requested",
 ] as const;
 
 export const ActivityTypeSchema = z.enum(ACTIVITY_TYPE_VALUES).meta({

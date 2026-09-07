@@ -14,6 +14,8 @@
 export * from "./dependency-graph.js";
 export * from "./task-rules.js";
 export * from "./task-status.js";
+export * from "./run-status.js";
+export * from "./run-task-coupling.js";
 
 /** Marca de que um valor é imutável do ponto de vista do domínio. */
 export type Readonly_<T> = { readonly [K in keyof T]: T[K] };

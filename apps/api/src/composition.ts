@@ -1,30 +1,59 @@
 import { loadCatalog, loadTemplates } from "@dungeon-master/achievements";
-import type { DashboardEvent } from "@dungeon-master/contracts";
+import { type DashboardEvent, RUN_EVENT_CHANNEL, type RunEvent } from "@dungeon-master/contracts";
 import {
   addTaskDependency,
   appendDashboardEvent,
   captureInboxTask,
   changeTaskStatus,
+  createAgent,
+  createExecutionProfile,
+  createLoadout,
+  createModel,
   createPgNotifier,
   createProject,
+  createRun,
   createTask,
   type Database,
   type DatabaseHandle,
   DASHBOARD_EVENT_CHANNEL,
+  deleteAgent,
+  deleteExecutionProfile,
+  deleteLoadout,
+  deleteModel,
   discardInboxTask,
+  findAgentRow,
+  findExecutionProfileRow,
+  findLoadoutRow,
   findProjectRow,
   getProject,
+  getRun,
   getTaskDetail,
   latestDashboardEventSequence,
+  listAgents,
   listDashboardEventsSince,
+  listExecutionProfiles,
+  listHarnesses,
   listInboxTasks,
+  listLoadouts,
+  listModels,
   listProjectActivity,
   listProjects,
+  listRunEventsSince,
+  listRuns,
   listTasks,
   promoteInboxTask,
   readUserSettings,
   removeTaskDependency,
+  requestRunCancellation,
+  setHarnessEnabled,
   setProjectArchived,
+  toAgent,
+  toExecutionProfile,
+  toLoadout,
+  updateAgent,
+  updateExecutionProfile,
+  updateLoadout,
+  updateModel,
   updateProject,
   updateTask,
   writeUserSetting,
@@ -32,7 +61,13 @@ import {
 import { DashboardEventPoller, PgNotifyListener, SseTransport } from "@dungeon-master/events";
 
 import type { Logger } from "./logger.js";
-import type { DashboardEventsPort, SettingsPort, WorkPort } from "./ports.js";
+import type {
+  DashboardEventsPort,
+  ExecutionPort,
+  RunStreamHandle,
+  SettingsPort,
+  WorkPort,
+} from "./ports.js";
 import type { AchievementCatalog } from "./routes/achievements.js";
 
 /**
@@ -177,6 +212,218 @@ export function loadAchievementCatalog(options: { logger?: Logger } = {}): Achie
   }
 
   return { definitions: [...catalog.valid], templates: [...templates.valid], invalid };
+}
+
+// --------------------------------------------------------------------------
+// Execução
+// --------------------------------------------------------------------------
+
+export interface RunEventsRuntimeOptions {
+  db: Database;
+  pool: DatabaseHandle["pool"];
+  userId: string;
+  logger?: Logger;
+  /** Tique de segurança do poller, para o caso de uma notificação se perder. */
+  fallbackIntervalMs?: number;
+  /** Intervalo do heartbeat do SSE. `0` desliga. */
+  heartbeatIntervalMs?: number;
+}
+
+export interface RunEventsRuntime {
+  /** Abre (ou reaproveita) o stream daquele Run. Quem abre é obrigado a fechar. */
+  openStream(runId: string): RunStreamHandle;
+  /** Liga o `LISTEN` do canal de `run_event`. */
+  start: () => Promise<void>;
+  /** Desliga tudo e fecha os streams abertos. */
+  stop: () => Promise<void>;
+}
+
+interface RunStreamEntry {
+  readonly transport: SseTransport<RunEvent>;
+  readonly poller: DashboardEventPoller<RunEvent>;
+  refs: number;
+}
+
+/**
+ * Os streams de eventos por Run.
+ *
+ * Um transporte e um poller **por Run olhado**, criados sob demanda e
+ * desmontados quando a última aba fecha. O canal de `LISTEN` é um só: a
+ * notificação de `run_event` não diz de qual Run veio — ela não carrega payload
+ * de propósito —, então ela acorda o drain de todos os Runs abertos, e cada
+ * poller descobre pelo próprio cursor se tem algo novo. Com uma ou duas
+ * execuções abertas na tela, que é o caso real, isso custa uma consulta barata
+ * por notificação e evita um canal por Run, que estouraria o limite de
+ * identificadores do PostgreSQL e obrigaria a uma conexão dedicada por Run.
+ *
+ * A contagem de referências é o que impede um Run olhado uma vez de continuar
+ * consultando o banco para sempre.
+ */
+export function createRunEventsRuntime(options: RunEventsRuntimeOptions): RunEventsRuntime {
+  const { db, pool, userId, logger } = options;
+  const streams = new Map<string, RunStreamEntry>();
+
+  const drainAll = async (): Promise<void> => {
+    await Promise.all([...streams.values()].map((entry) => entry.poller.drainNow()));
+  };
+
+  const listener = new PgNotifyListener({
+    notifier: createPgNotifier(pool),
+    drainable: { drainNow: drainAll },
+    channel: RUN_EVENT_CHANNEL,
+    ...(logger === undefined ? {} : { logger }),
+  });
+
+  const openStream = (runId: string): RunStreamHandle => {
+    let entry = streams.get(runId);
+
+    if (entry === undefined) {
+      const transport = new SseTransport<RunEvent>({
+        serialize: (event) => JSON.stringify(event),
+        ...(options.heartbeatIntervalMs === undefined
+          ? {}
+          : { heartbeatIntervalMs: options.heartbeatIntervalMs }),
+        ...(logger === undefined ? {} : { logger }),
+      });
+
+      const poller = new DashboardEventPoller<RunEvent>({
+        source: {
+          listSince: (afterSequence, limit) =>
+            listRunEventsSince(db, { userId, runId, afterSequence, limit }),
+        },
+        transport,
+        // Do zero: quem acabou de abrir o stream pode estar pedindo o log
+        // inteiro, e a assinatura descarta pelo cursor o que ela já tem.
+        startCursor: 0,
+        ...(logger === undefined ? {} : { logger }),
+      });
+
+      transport.start();
+      poller.start(options.fallbackIntervalMs);
+
+      entry = { transport, poller, refs: 0 };
+      streams.set(runId, entry);
+    }
+
+    entry.refs += 1;
+    const atual = entry;
+
+    let fechado = false;
+
+    return {
+      transport: atual.transport,
+      listSince: (afterSequence, limit) =>
+        listRunEventsSince(db, { userId, runId, afterSequence, limit }),
+      close: () => {
+        if (fechado) return;
+        fechado = true;
+        atual.refs -= 1;
+        if (atual.refs > 0) return;
+
+        streams.delete(runId);
+        atual.poller.stop();
+        // Fire-and-forget: fechar o transporte é só limpar temporizadores e
+        // sockets já mortos, e o handler que chamou `close` está terminando.
+        void atual.transport.stop();
+      },
+    };
+  };
+
+  return {
+    openStream,
+    start: async () => {
+      // Não é fatal: sem o `LISTEN` o stream continua funcionando pelo tique de
+      // segurança do poller, com a latência do intervalo em vez de instantânea.
+      await listener.start();
+    },
+    stop: async () => {
+      listener.stop();
+      const abertos = [...streams.values()];
+      streams.clear();
+      for (const entry of abertos) entry.poller.stop();
+      await Promise.all(abertos.map((entry) => entry.transport.stop()));
+    },
+  };
+}
+
+export interface ExecutionPortOptions {
+  db: Database;
+  userId: string;
+  runEvents: RunEventsRuntime;
+}
+
+/**
+ * Liga as rotas de execução ao repositório.
+ *
+ * Como em `createWorkPort`, o `userId` é fechado aqui e nenhum handler escolhe
+ * de quem são os dados.
+ */
+export function createExecutionPort(options: ExecutionPortOptions): ExecutionPort {
+  const { db, userId, runEvents } = options;
+
+  return {
+    harnesses: {
+      list: () => listHarnesses(db, { userId }),
+      setEnabled: (harnessId, enabled) => setHarnessEnabled(db, { userId, harnessId, enabled }),
+    },
+    models: {
+      list: (harnessId) => listModels(db, { userId, harnessId }),
+      create: (input) => createModel(db, { userId, ...input }),
+      update: (modelId, patch) => updateModel(db, { userId, modelId, patch }),
+      remove: (modelId) => deleteModel(db, { userId, modelId }),
+    },
+    agents: {
+      list: () => listAgents(db, { userId }),
+      get: async (agentId) => {
+        const row = await findAgentRow(db, { userId, agentId });
+        return row === null ? null : toAgent(row);
+      },
+      create: (input) => createAgent(db, { userId, ...input }),
+      update: (agentId, patch) => updateAgent(db, { userId, agentId, patch }),
+      remove: (agentId) => deleteAgent(db, { userId, agentId }),
+    },
+    executionProfiles: {
+      list: () => listExecutionProfiles(db, { userId }),
+      get: async (executionProfileId) => {
+        const row = await findExecutionProfileRow(db, { userId, executionProfileId });
+        return row === null ? null : toExecutionProfile(row);
+      },
+      create: (input) => createExecutionProfile(db, { userId, ...input }),
+      update: (executionProfileId, patch) =>
+        updateExecutionProfile(db, { userId, executionProfileId, patch }),
+      remove: (executionProfileId) => deleteExecutionProfile(db, { userId, executionProfileId }),
+    },
+    loadouts: {
+      list: () => listLoadouts(db, { userId }),
+      get: async (loadoutId) => {
+        const row = await findLoadoutRow(db, { userId, loadoutId });
+        return row === null ? null : toLoadout(row);
+      },
+      create: (input) => createLoadout(db, { userId, ...input }),
+      update: (loadoutId, patch) => updateLoadout(db, { userId, loadoutId, patch }),
+      remove: (loadoutId) => deleteLoadout(db, { userId, loadoutId }),
+    },
+    runs: {
+      list: (input) =>
+        listRuns(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          filters: input.filters,
+        }),
+      get: (runId) => getRun(db, { userId, runId }),
+      create: (taskId, input) => createRun(db, { userId, taskId, ...input }),
+      cancel: (runId) => requestRunCancellation(db, { userId, runId }),
+      events: (runId, input) =>
+        listRunEventsSince(db, {
+          userId,
+          runId,
+          afterSequence: input.afterSequence,
+          limit: input.limit,
+        }),
+      openStream: (runId) => runEvents.openStream(runId),
+    },
+  };
 }
 
 export interface WorkPortOptions {

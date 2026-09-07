@@ -19,6 +19,7 @@
     "@dungeon-master/contracts": "workspace:*",
     "@dungeon-master/database": "workspace:*",
     "@dungeon-master/events": "workspace:*",
+    "@dungeon-master/platform": "workspace:*",
     "@hono/node-server": "2.1.1",
     "@hono/swagger-ui": "0.6.1",
     "@hono/zod-openapi": "1.6.3",

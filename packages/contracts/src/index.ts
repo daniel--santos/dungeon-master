@@ -17,3 +17,8 @@ export * from "./problem-details.js";
 export * from "./project.js";
 export * from "./task.js";
 export * from "./user-setting.js";
+export * from "./agent.js";
+export * from "./execution-profile.js";
+export * from "./harness.js";
+export * from "./loadout.js";
+export * from "./run.js";

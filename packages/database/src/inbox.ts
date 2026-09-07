@@ -54,6 +54,7 @@ export async function captureInboxTask(db: Database, input: CaptureInboxInput): 
       userId: input.userId,
       projectId: null,
       taskId: task.id,
+      taskTitle: task.title,
       type: "task.created",
       payload: { taskId: task.id, projectId: null, status: task.status, kind: task.kind },
     });
@@ -149,6 +150,7 @@ export async function promoteInboxTask(
       userId: input.userId,
       projectId: input.projectId,
       taskId: input.taskId,
+      taskTitle: row.title,
       type: "task.updated",
       payload: { taskId: input.taskId, projectId: input.projectId, changed },
     });
@@ -157,6 +159,7 @@ export async function promoteInboxTask(
       userId: input.userId,
       projectId: input.projectId,
       taskId: input.taskId,
+      taskTitle: row.title,
       type: "task.status_changed",
       payload: {
         taskId: input.taskId,
@@ -197,6 +200,7 @@ export async function discardInboxTask(
       userId: input.userId,
       projectId: null,
       taskId: input.taskId,
+      taskTitle: row.title,
       type: "task.status_changed",
       payload: { taskId: input.taskId, projectId: null, from: "INBOX", to: "CANCELLED" },
     });

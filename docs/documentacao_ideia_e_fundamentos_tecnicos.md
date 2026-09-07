@@ -1410,9 +1410,13 @@ stateDiagram-v2
     QUEUED --> CANCELLED
     RUNNING --> CANCELLED
     READY --> COMPLETED: conclusão manual
+    QUEUED --> READY: Run cancelado antes de rodar
+    RUNNING --> READY: Run cancelado em execução
 ```
 
 `READY → COMPLETED` é a **conclusão manual**, feita pelo usuário na interface sem passar por um Run. Existe porque a Fase 1 entrega o gerenciador de tarefas antes do runtime, e continua válida depois: nem todo trabalho precisa de um agente. Toda outra chegada a `COMPLETED` vem de um Run. Regras aplicadas em qualquer chegada a `COMPLETED`: todas as filhas precisam estar `COMPLETED` ou `CANCELLED`. Uma Task só entra em `QUEUED` quando todas as dependências estão `COMPLETED`; uma dependência `CANCELLED` continua bloqueando, e cabe ao usuário remover a aresta (decisão da Fase 1, revisável).
+
+`QUEUED → READY` e `RUNNING → READY` são a volta do Run cancelado (decisão da Fase 2A, 07/09/2026). **Cancelar uma execução não cancela a tarefa**: o Run é uma tentativa, e desistir de uma tentativa devolve o trabalho ao quadro para ser tentado de novo. Sem essas duas arestas, cancelar um Run deixaria a Task presa em `QUEUED` ou `RUNNING` sem nenhum Run vivo por trás, um estado que só um `UPDATE` manual desfaria; levá-la a `CANCELLED` seria pior, porque `CANCELLED` é terminal e o usuário perderia a tarefa por ter interrompido uma execução.
 
 ## Run
 
@@ -1428,9 +1432,34 @@ stateDiagram-v2
     RUNNING --> FAILED
     RUNNING --> TIMED_OUT
     RUNNING --> CANCELLED
+    CREATED --> CANCELLED
+    QUEUED --> CANCELLED
+    PREPARING --> FAILED
+    PREPARING --> CANCELLED
+    WAITING_APPROVAL --> CANCELLED
 ```
 
-Task status e Run status não precisam ter transição 1:1.
+Terminais: `SUCCEEDED`, `FAILED`, `TIMED_OUT`, `CANCELLED`. Diferente de Task, aqui `FAILED` **é** terminal: a nova tentativa é um Run novo, com `attempt` maior, e não o mesmo Run voltando à fila — é isso que mantém o histórico de tentativas legível (seção 5.1).
+
+`PREPARING → FAILED` existe porque a preparação faz trabalho que pode dar errado antes de qualquer processo de agente subir: preflight da CLI, criação do worktree, aquisição da trava de caminho. Uma falha ali não é um Run que rodou mal; é um Run que não chegou a rodar, e precisa de um estado terminal assim mesmo. `PREPARING` não vai direto a `TIMED_OUT`: os dois relógios de timeout começam com o processo do agente, e um travamento na preparação é falha de infraestrutura, que sai como `FAILED` com o motivo.
+
+**Cancelamento.** Um pedido de cancelamento só marca `cancel_requested_at`; quem transiciona para `CANCELLED` é quem matou a árvore de processos e confirmou o término. A exceção é o Run que ainda não subiu nada: em `CREATED` e `QUEUED` não há árvore a confirmar, e a API transiciona na hora.
+
+Task status e Run status não precisam ter transição 1:1. A tradução entre as duas máquinas, aplicada na mesma transação (decisão da Fase 2A):
+
+```text
+Run criado                      → Task QUEUED
+Run PREPARING | RUNNING         → Task RUNNING
+Run SUCCEEDED, result completed → Task COMPLETED
+Run SUCCEEDED, result blocked   → Task BLOCKED
+Run SUCCEEDED, result failed    → Task FAILED
+Run FAILED | TIMED_OUT          → Task FAILED
+Run CANCELLED                   → Task READY
+```
+
+Um Run pode terminar em `SUCCEEDED` — a execução correu — e ainda assim o agente reportar que a Task ficou `blocked` ou `failed`: são duas perguntas diferentes, "o processo terminou bem?" e "o trabalho ficou pronto?". Um `SUCCEEDED` **sem** resultado estruturado leva a Task a `FAILED`, e não a `COMPLETED`: sem prova de que o trabalho ficou pronto, o desfecho seguro é deixá-la retentável.
+
+Criar um Run exige Task em `READY` ou `FAILED` (retentativa), com dependências `COMPLETED` e um Project com `workspace_path`. `WAITING_APPROVAL` não mexe na Task: o gate é do Run, não do trabalho.
 
 ---
 

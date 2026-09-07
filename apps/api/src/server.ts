@@ -8,6 +8,8 @@ import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/dat
 import { createApp } from "./app.js";
 import {
   createEventsRuntime,
+  createExecutionPort,
+  createRunEventsRuntime,
   createSettingsPort,
   createWorkPort,
   loadAchievementCatalog,
@@ -34,6 +36,18 @@ const events = await createEventsRuntime({
   heartbeatIntervalMs: config.sse.heartbeatIntervalMs,
 });
 
+// Os streams por Run. O `LISTEN` de `run_event` é um só, e ele acorda o drain
+// de todos os Runs que alguém estiver olhando; transporte e poller nascem por
+// Run, sob demanda, e morrem quando a última aba fecha.
+const runEvents = createRunEventsRuntime({
+  db: database.db,
+  pool: database.pool,
+  userId: LOCAL_USER_ID,
+  logger,
+  fallbackIntervalMs: config.sse.fallbackIntervalMs,
+  heartbeatIntervalMs: config.sse.heartbeatIntervalMs,
+});
+
 // Uma leitura de disco só, no boot: o catálogo é arquivo versionado, e reler a
 // cada abertura do Hall seria I/O por um dado que não muda em execução.
 const achievements = loadAchievementCatalog({ logger });
@@ -43,12 +57,14 @@ const app = createApp({
   events: events.port,
   settings: createSettingsPort({ db: database.db, userId: LOCAL_USER_ID }),
   work: createWorkPort({ db: database.db, userId: LOCAL_USER_ID }),
+  execution: createExecutionPort({ db: database.db, userId: LOCAL_USER_ID, runEvents }),
   achievements,
   logger,
   pingEnabled: config.nodeEnv !== "production",
 });
 
 await events.start();
+await runEvents.start();
 
 // `createAdaptorServer` tipa o retorno como a união HTTP/HTTPS/HTTP2. Sem
 // `createServer` customizado o adapter usa `node:http`, e só o `http.Server`
@@ -78,6 +94,7 @@ server.listen(config.port, config.host, () => {
       },
       health: `http://${config.host}:${config.port}${API_BASE_PATH}/health`,
       events: `http://${config.host}:${config.port}${API_BASE_PATH}/events/stream`,
+      runs: `http://${config.host}:${config.port}${API_BASE_PATH}/runs`,
       openapi: `http://${config.host}:${config.port}${API_BASE_PATH}/openapi.json`,
       docs: `http://${config.host}:${config.port}${API_BASE_PATH}/docs`,
     },
@@ -96,6 +113,7 @@ async function shutdown(signal: string): Promise<void> {
   // Os streams SSE primeiro: `server.close()` espera as conexões terminarem, e
   // uma conexão SSE não termina sozinha — o processo ficaria pendurado.
   await events.stop();
+  await runEvents.stop();
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await database.close();
 
