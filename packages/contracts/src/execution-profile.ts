@@ -62,6 +62,16 @@ export const PermissionPolicySchema = z
       .array(z.string())
       .describe("Comandos liberados quando `commandExecution` é `ALLOWLIST`."),
     deniedCommands: z.array(z.string()).describe("Comandos recusados mesmo em `ALL`."),
+    allowUnsafeBypass: z
+      .boolean()
+      .optional()
+      .describe(
+        "Autoriza desligar as checagens da CLI (`bypass`) fora de um ambiente com " +
+          "isolamento imposto. Opt-in visível e nunca o padrão: sem ele, " +
+          "`commandExecution: ALL` em `HOST` vira o modo de auto-aprovação nativo do " +
+          "harness, e não bypass. Ligado, o Run registra um `Diagnostic` e uma linha " +
+          "de diário dizendo que rodou sem barreira.",
+      ),
   })
   .meta({
     id: "PermissionPolicy",

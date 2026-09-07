@@ -131,6 +131,7 @@ describe("Run", () => {
       executionMode: "HOST",
       workspacePath: null,
       workflowVersionId: null,
+      resumedFromRunId: null,
       loadoutId: UUID,
       loadoutVersion: 1,
       loadoutSnapshot: snapshotDeLoadout,
