@@ -1,5 +1,5 @@
 import type { DashboardEvent, DashboardEventType, JsonValue } from "@dungeon-master/contracts";
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 
 import type { Database } from "./client.js";
 import { dashboardEvents, type DashboardEventRow } from "./schema/dashboard-event.js";
@@ -94,4 +94,25 @@ export async function listDashboardEventsSince(
     .limit(limit);
 
   return rows.map(toDashboardEvent);
+}
+
+/**
+ * A maior `sequence` já gravada para o usuário, ou `0` se não houver nenhuma.
+ *
+ * O poller começa daqui no boot. Sem isso ele começaria do zero e, no primeiro
+ * cliente que conectasse, reemitiria a tabela inteira — que a assinatura
+ * descartaria pelo cursor, mas depois de já ter atravessado memória e buffer.
+ */
+export async function latestDashboardEventSequence(
+  db: DatabaseExecutor,
+  input: { userId: string },
+): Promise<number> {
+  const [row] = await db
+    .select({ sequence: dashboardEvents.sequence })
+    .from(dashboardEvents)
+    .where(eq(dashboardEvents.userId, input.userId))
+    .orderBy(desc(dashboardEvents.sequence))
+    .limit(1);
+
+  return row?.sequence ?? 0;
 }

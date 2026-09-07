@@ -15,3 +15,4 @@ export * from "./migrate.js";
 export * from "./notify.js";
 export * from "./schema/index.js";
 export * from "./seed.js";
+export * from "./user-setting.js";
