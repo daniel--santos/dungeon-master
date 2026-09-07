@@ -41,6 +41,14 @@
       "description": "Captura de intenção: as Tasks em INBOX."
     },
     {
+      "name": "execution",
+      "description": "Cadastros de execução: Harness, Model, Agent, ExecutionProfile e Loadout."
+    },
+    {
+      "name": "runs",
+      "description": "Runs: as tentativas concretas de realizar uma Task."
+    },
+    {
       "name": "achievements",
       "description": "O catálogo versionado de Conquistas."
     }
@@ -262,7 +270,7 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Project"
+              "$ref": "#/components/schemas/ProjectDetail"
             },
             "description": "Os itens desta página, na ordem da listagem."
           },
@@ -288,90 +296,7 @@
           "pageSize",
           "total"
         ],
-        "description": "Uma página de Projects, do último editado para o mais antigo."
-      },
-      "Project": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "UUIDv7 do Project."
-          },
-          "title": {
-            "type": "string",
-            "description": "Título do Project."
-          },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Descrição livre."
-          },
-          "status": {
-            "$ref": "#/components/schemas/ProjectStatus"
-          },
-          "archivedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "description": "Instante do arquivamento, em UTC (ISO 8601). Nulo enquanto ativo."
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Criação, em UTC (ISO 8601)."
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Última escrita, em UTC (ISO 8601)."
-          }
-        },
-        "required": [
-          "id",
-          "title",
-          "description",
-          "status",
-          "archivedAt",
-          "createdAt",
-          "updatedAt"
-        ],
-        "description": "A unidade persistente de contexto."
-      },
-      "ProjectStatus": {
-        "type": "string",
-        "enum": [
-          "ACTIVE",
-          "ARCHIVED"
-        ],
-        "description": "Estado de um Project."
-      },
-      "CreateProject": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 200,
-            "description": "Título do Project."
-          },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 20000,
-            "description": "Descrição livre."
-          }
-        },
-        "required": [
-          "title"
-        ],
-        "description": "Corpo de `POST /api/v1/projects`."
+        "description": "Uma página de Projects com a contagem de Tasks, do último editado para o mais antigo."
       },
       "ProjectDetail": {
         "type": "object",
@@ -394,6 +319,16 @@
           },
           "status": {
             "$ref": "#/components/schemas/ProjectStatus"
+          },
+          "workspaceKind": {
+            "$ref": "#/components/schemas/WorkspaceKind"
+          },
+          "workspacePath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Caminho absoluto do workspace na máquina local. Um Project sem ele não pode ter Run: não há onde o agente trabalhar."
           },
           "archivedAt": {
             "type": [
@@ -472,12 +407,117 @@
           "title",
           "description",
           "status",
+          "workspaceKind",
+          "workspacePath",
           "archivedAt",
           "createdAt",
           "updatedAt",
           "taskCounts"
         ],
         "description": "Um Project com a contagem de Tasks por estado."
+      },
+      "ProjectStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "ARCHIVED"
+        ],
+        "description": "Estado de um Project."
+      },
+      "WorkspaceKind": {
+        "type": "string",
+        "enum": [
+          "GIT_REPO",
+          "FOLDER"
+        ],
+        "description": "Se o workspace do Project é um repositório git."
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do Project."
+          },
+          "title": {
+            "type": "string",
+            "description": "Título do Project."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Descrição livre."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProjectStatus"
+          },
+          "workspaceKind": {
+            "$ref": "#/components/schemas/WorkspaceKind"
+          },
+          "workspacePath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Caminho absoluto do workspace na máquina local. Um Project sem ele não pode ter Run: não há onde o agente trabalhar."
+          },
+          "archivedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Instante do arquivamento, em UTC (ISO 8601). Nulo enquanto ativo."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Criação, em UTC (ISO 8601)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Última escrita, em UTC (ISO 8601)."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "status",
+          "workspaceKind",
+          "workspacePath",
+          "archivedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "A unidade persistente de contexto."
+      },
+      "CreateProject": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Título do Project."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20000,
+            "description": "Descrição livre."
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "description": "Corpo de `POST /api/v1/projects`."
       },
       "UpdateProject": {
         "type": "object",
@@ -493,6 +533,18 @@
               "null"
             ],
             "maxLength": 20000
+          },
+          "workspaceKind": {
+            "$ref": "#/components/schemas/WorkspaceKind"
+          },
+          "workspacePath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 4000,
+            "description": "Caminho absoluto de um diretório existente na máquina que roda a API. `null` desliga o workspace, e o Project deixa de aceitar Run novo."
           }
         },
         "description": "Corpo de `PATCH /api/v1/projects/{id}`."
@@ -585,7 +637,10 @@
           "task.updated",
           "task.status_changed",
           "task.dependency_created",
-          "task.dependency_removed"
+          "task.dependency_removed",
+          "run.created",
+          "run.status_changed",
+          "run.cancel_requested"
         ],
         "description": "O que aconteceu. Mesmo vocabulário dos eventos de dashboard de domínio."
       },
@@ -1081,6 +1136,1627 @@
           "projectId"
         ],
         "description": "Corpo de `POST /api/v1/inbox/{id}/promote`."
+      },
+      "HarnessList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Harness"
+            },
+            "description": "Os Harnesses conhecidos, na ordem do catálogo."
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "O cadastro fechado de Harnesses."
+      },
+      "Harness": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do Harness."
+          },
+          "key": {
+            "$ref": "#/components/schemas/HarnessKey"
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome exibido. Único por usuário junto com `key`."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Desligado some das listas de escolha, mas não some do histórico."
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/HarnessCapabilities"
+          },
+          "installedVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Versão descoberta pelo preflight."
+          },
+          "checkedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Último preflight, em UTC (ISO 8601). Nulo enquanto ninguém checou."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "enabled",
+          "capabilities",
+          "installedVersion",
+          "checkedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Um runtime de agente conhecido pelo sistema."
+      },
+      "HarnessKey": {
+        "type": "string",
+        "enum": [
+          "CLAUDE_CODE",
+          "CODEX",
+          "PI",
+          "ANTIGRAVITY"
+        ],
+        "description": "Qual CLI de agente executa o Run."
+      },
+      "HarnessCapabilities": {
+        "type": "object",
+        "properties": {
+          "streaming": {
+            "type": "boolean",
+            "description": "Emite saída incremental enquanto executa."
+          },
+          "structuredOutput": {
+            "type": "boolean",
+            "description": "Aceita um schema e devolve JSON validado."
+          },
+          "resume": {
+            "type": "boolean",
+            "description": "Retoma uma sessão anterior a partir de `harnessSessionId`."
+          },
+          "multiTurnProcess": {
+            "type": "boolean",
+            "description": "Mantém um processo vivo por vários turnos."
+          },
+          "toolEvents": {
+            "type": "boolean",
+            "description": "Publica chamadas de ferramenta como eventos."
+          },
+          "tokenUsage": {
+            "type": "boolean",
+            "description": "Reporta consumo de tokens."
+          },
+          "modelSelection": {
+            "type": "boolean",
+            "description": "Aceita escolher o modelo por parâmetro."
+          },
+          "agentSelection": {
+            "type": "boolean",
+            "description": "Aceita escolher um sub-agente por parâmetro."
+          },
+          "nativePermissions": {
+            "type": "boolean",
+            "description": "Tem mecanismo próprio de permissão."
+          },
+          "hostExecution": {
+            "type": "boolean",
+            "description": "Roda no host, sem isolamento."
+          },
+          "dockerExecution": {
+            "type": "boolean",
+            "description": "Roda dentro de container."
+          }
+        },
+        "required": [
+          "streaming",
+          "structuredOutput",
+          "resume",
+          "multiTurnProcess",
+          "toolEvents",
+          "tokenUsage",
+          "modelSelection",
+          "agentSelection",
+          "nativePermissions",
+          "hostExecution",
+          "dockerExecution"
+        ],
+        "description": "O que este harness sabe fazer. Substitui condicionais por harness espalhados."
+      },
+      "UpdateHarness": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Liga ou desliga o Harness para novas execuções."
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "description": "Corpo de `PATCH /api/v1/harnesses/{id}`."
+      },
+      "ModelList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Model"
+            },
+            "description": "Os Models, agrupados por Harness e ordenados por nome."
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "O cadastro de Models."
+      },
+      "Model": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do Model."
+          },
+          "harnessId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Harness dono da chave."
+          },
+          "key": {
+            "type": "string",
+            "description": "Identificador que o harness aceita na linha de comando."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome exibido."
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Escolhido quando o Loadout não indica um Model."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "harnessId",
+          "key",
+          "name",
+          "isDefault",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Um modelo aceito por um Harness."
+      },
+      "CreateModel": {
+        "type": "object",
+        "properties": {
+          "harnessId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Harness dono da chave."
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Identificador aceito pelo harness. Único dentro do Harness."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Marcar como padrão desmarca o padrão anterior do mesmo Harness."
+          }
+        },
+        "required": [
+          "harnessId",
+          "key",
+          "name"
+        ],
+        "description": "Corpo de `POST /api/v1/models`."
+      },
+      "UpdateModel": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/models/{id}`."
+      },
+      "AgentList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Agent"
+            },
+            "description": "Os Agents, em ordem alfabética."
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "O cadastro de Agents."
+      },
+      "Agent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do Agent."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome do Agent. Único por usuário."
+          },
+          "role": {
+            "$ref": "#/components/schemas/AgentRole"
+          },
+          "instructions": {
+            "type": "string",
+            "description": "O texto do papel, injetado no prompt do Run."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nota livre para quem escolhe o Agent."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role",
+          "instructions",
+          "description",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Papel e comportamento, sem ferramenta nem modelo."
+      },
+      "AgentRole": {
+        "type": "string",
+        "enum": [
+          "ARCHITECT",
+          "ENGINEER",
+          "REVIEWER",
+          "EXPLORER"
+        ],
+        "description": "O papel do Agent. Classe, no tema."
+      },
+      "CreateAgent": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "role": {
+            "$ref": "#/components/schemas/AgentRole"
+          },
+          "instructions": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000,
+            "description": "O texto do papel."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "instructions"
+        ],
+        "description": "Corpo de `POST /api/v1/agents`."
+      },
+      "UpdateAgent": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "role": {
+            "$ref": "#/components/schemas/AgentRole"
+          },
+          "instructions": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/agents/{id}`."
+      },
+      "ExecutionProfileList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExecutionProfile"
+            },
+            "description": "Os perfis, em ordem alfabética."
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "O cadastro de ExecutionProfiles."
+      },
+      "ExecutionProfile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do ExecutionProfile."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome do perfil. Único por usuário."
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "workspaceStrategy": {
+            "$ref": "#/components/schemas/WorkspaceStrategy"
+          },
+          "enforcement": {
+            "$ref": "#/components/schemas/EnforcementLevel"
+          },
+          "permissionPolicy": {
+            "$ref": "#/components/schemas/PermissionPolicy"
+          },
+          "environmentPolicy": {
+            "$ref": "#/components/schemas/EnvironmentPolicy"
+          },
+          "networkPolicy": {
+            "$ref": "#/components/schemas/NetworkPolicy"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Perfil desligado não pode ser escolhido por um Run novo. O perfil Docker nasce desligado e é ligado na Fase 2C."
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Escolhido quando o Run não indica um perfil."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mode",
+          "workspaceStrategy",
+          "enforcement",
+          "permissionPolicy",
+          "environmentPolicy",
+          "networkPolicy",
+          "enabled",
+          "isDefault",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Onde e sob quais regras um Run roda."
+      },
+      "ExecutionMode": {
+        "type": "string",
+        "enum": [
+          "HOST",
+          "DOCKER"
+        ],
+        "description": "`HOST` roda na máquina, sem isolamento. `DOCKER` roda em container."
+      },
+      "WorkspaceStrategy": {
+        "type": "string",
+        "enum": [
+          "CURRENT",
+          "GIT_WORKTREE",
+          "COPY"
+        ],
+        "description": "Isolamento operacional do código: diretório atual, worktree por Run, ou cópia."
+      },
+      "EnforcementLevel": {
+        "type": "string",
+        "enum": [
+          "ADVISORY",
+          "HARNESS_NATIVE",
+          "SANDBOX_ENFORCED"
+        ],
+        "description": "Quão forte é a barreira: pedido sem garantia, permissão nativa da CLI, ou sandbox real."
+      },
+      "PermissionPolicy": {
+        "type": "object",
+        "properties": {
+          "workspaceWrite": {
+            "type": "boolean",
+            "description": "O agente pode escrever no workspace."
+          },
+          "commandExecution": {
+            "$ref": "#/components/schemas/CommandAccess"
+          },
+          "allowedCommands": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Comandos liberados quando `commandExecution` é `ALLOWLIST`."
+          },
+          "deniedCommands": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Comandos recusados mesmo em `ALL`."
+          }
+        },
+        "required": [
+          "workspaceWrite",
+          "commandExecution",
+          "allowedCommands",
+          "deniedCommands"
+        ],
+        "description": "O que o agente pode fazer. O quanto disso é imposto depende de `enforcement`."
+      },
+      "CommandAccess": {
+        "type": "string",
+        "enum": [
+          "NONE",
+          "ALLOWLIST",
+          "ALL"
+        ],
+        "description": "Quais comandos o agente pode executar."
+      },
+      "EnvironmentPolicy": {
+        "type": "object",
+        "properties": {
+          "allowedVariables": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Nomes de variáveis do ambiente do worker repassadas ao processo do agente."
+          },
+          "inheritPath": {
+            "type": "boolean",
+            "description": "Repassa `PATH`. Sem ele o harness não encontra as ferramentas dele."
+          }
+        },
+        "required": [
+          "allowedVariables",
+          "inheritPath"
+        ],
+        "description": "Allow-list de variáveis de ambiente. O que não está aqui não chega ao agente."
+      },
+      "NetworkPolicy": {
+        "type": "object",
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/NetworkAccess"
+          },
+          "allowedHosts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Hosts liberados quando `access` é `ALLOWLIST`."
+          }
+        },
+        "required": [
+          "access",
+          "allowedHosts"
+        ],
+        "description": "Política de rede. Só é imposta de fato em `SANDBOX_ENFORCED`."
+      },
+      "NetworkAccess": {
+        "type": "string",
+        "enum": [
+          "NONE",
+          "ALLOWLIST",
+          "ALL"
+        ],
+        "description": "Quanto de rede o Run enxerga."
+      },
+      "CreateExecutionProfile": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "workspaceStrategy": {
+            "$ref": "#/components/schemas/WorkspaceStrategy"
+          },
+          "enforcement": {
+            "$ref": "#/components/schemas/EnforcementLevel"
+          },
+          "permissionPolicy": {
+            "type": "object",
+            "properties": {
+              "workspaceWrite": {
+                "type": "boolean",
+                "description": "O agente pode escrever no workspace."
+              },
+              "commandExecution": {
+                "$ref": "#/components/schemas/CommandAccess"
+              },
+              "allowedCommands": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Comandos liberados quando `commandExecution` é `ALLOWLIST`."
+              },
+              "deniedCommands": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Comandos recusados mesmo em `ALL`."
+              }
+            },
+            "required": [
+              "workspaceWrite",
+              "commandExecution",
+              "allowedCommands",
+              "deniedCommands"
+            ],
+            "description": "Padrão: escrita no workspace liberada, comandos por allow-list vazia."
+          },
+          "environmentPolicy": {
+            "type": "object",
+            "properties": {
+              "allowedVariables": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Nomes de variáveis do ambiente do worker repassadas ao processo do agente."
+              },
+              "inheritPath": {
+                "type": "boolean",
+                "description": "Repassa `PATH`. Sem ele o harness não encontra as ferramentas dele."
+              }
+            },
+            "required": [
+              "allowedVariables",
+              "inheritPath"
+            ],
+            "description": "Padrão: nenhuma variável repassada além de `PATH`."
+          },
+          "networkPolicy": {
+            "type": "object",
+            "properties": {
+              "access": {
+                "$ref": "#/components/schemas/NetworkAccess"
+              },
+              "allowedHosts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Hosts liberados quando `access` é `ALLOWLIST`."
+              }
+            },
+            "required": [
+              "access",
+              "allowedHosts"
+            ],
+            "description": "Padrão: rede liberada."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Padrão: ligado."
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "mode",
+          "workspaceStrategy",
+          "enforcement"
+        ],
+        "description": "Corpo de `POST /api/v1/execution-profiles`."
+      },
+      "UpdateExecutionProfile": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "workspaceStrategy": {
+            "$ref": "#/components/schemas/WorkspaceStrategy"
+          },
+          "enforcement": {
+            "$ref": "#/components/schemas/EnforcementLevel"
+          },
+          "permissionPolicy": {
+            "$ref": "#/components/schemas/PermissionPolicy"
+          },
+          "environmentPolicy": {
+            "$ref": "#/components/schemas/EnvironmentPolicy"
+          },
+          "networkPolicy": {
+            "$ref": "#/components/schemas/NetworkPolicy"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/execution-profiles/{id}`."
+      },
+      "LoadoutList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Loadout"
+            },
+            "description": "Os Loadouts, em ordem alfabética."
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "O cadastro de Loadouts."
+      },
+      "Loadout": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do Loadout."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome do Loadout. Único por usuário."
+          },
+          "agentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "harnessId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "modelId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Nulo usa o Model padrão do Harness."
+          },
+          "executionProfileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Nomes de skills oferecidas ao agente."
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Nomes de ferramentas liberadas."
+          },
+          "mcpServers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpServerRef"
+            }
+          },
+          "knowledgePolicy": {
+            "$ref": "#/components/schemas/KnowledgePolicy"
+          },
+          "contextPolicy": {
+            "$ref": "#/components/schemas/ContextPolicy"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Sobe em toda edição. É o número que o Run guarda junto do snapshot."
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Sugerido quando a Task não indica um Loadout."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "agentId",
+          "harnessId",
+          "modelId",
+          "executionProfileId",
+          "skills",
+          "tools",
+          "mcpServers",
+          "knowledgePolicy",
+          "contextPolicy",
+          "version",
+          "isDefault",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "A configuração completa de uma execução."
+      },
+      "McpServerRef": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Nome pelo qual o harness registra o servidor."
+          },
+          "transport": {
+            "$ref": "#/components/schemas/McpTransport"
+          },
+          "target": {
+            "type": "string",
+            "description": "Comando, para `STDIO`; URL, para `HTTP`. Nunca montado por concatenação."
+          }
+        },
+        "required": [
+          "name",
+          "transport",
+          "target"
+        ],
+        "description": "Um servidor MCP oferecido ao agente."
+      },
+      "McpTransport": {
+        "type": "string",
+        "enum": [
+          "STDIO",
+          "HTTP"
+        ],
+        "description": "Como o servidor MCP é alcançado."
+      },
+      "KnowledgePolicy": {
+        "type": "object",
+        "properties": {
+          "includeProjectSummary": {
+            "type": "boolean",
+            "description": "Injeta o resumo do Project no contexto."
+          },
+          "includeDecisions": {
+            "type": "boolean",
+            "description": "Injeta as decisões registradas do Project."
+          },
+          "maxItems": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Teto de itens de conhecimento injetados. `0` desliga."
+          }
+        },
+        "required": [
+          "includeProjectSummary",
+          "includeDecisions",
+          "maxItems"
+        ],
+        "description": "Quanto do Grimório do Project entra no contexto. Efetiva a partir da Fase 6."
+      },
+      "ContextPolicy": {
+        "type": "object",
+        "properties": {
+          "includeParentContext": {
+            "type": "boolean",
+            "description": "Inclui título e resumo da Task mãe."
+          },
+          "includeDependencyContext": {
+            "type": "boolean",
+            "description": "Inclui o resultado das dependências."
+          },
+          "maxTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Orçamento de contexto. `0` significa sem teto declarado."
+          }
+        },
+        "required": [
+          "includeParentContext",
+          "includeDependencyContext",
+          "maxTokens"
+        ],
+        "description": "O que o Context Assembler monta. Efetiva a partir da Fase 7."
+      },
+      "CreateLoadout": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "agentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "harnessId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "modelId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Nulo usa o Model padrão do Harness."
+          },
+          "executionProfileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Padrão: vazio."
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Padrão: vazio."
+          },
+          "mcpServers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpServerRef"
+            },
+            "description": "Padrão: vazio."
+          },
+          "knowledgePolicy": {
+            "$ref": "#/components/schemas/KnowledgePolicy"
+          },
+          "contextPolicy": {
+            "$ref": "#/components/schemas/ContextPolicy"
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "agentId",
+          "harnessId",
+          "executionProfileId"
+        ],
+        "description": "Corpo de `POST /api/v1/loadouts`. Nasce em `v1`."
+      },
+      "UpdateLoadout": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "agentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "harnessId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "modelId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "executionProfileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mcpServers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpServerRef"
+            }
+          },
+          "knowledgePolicy": {
+            "$ref": "#/components/schemas/KnowledgePolicy"
+          },
+          "contextPolicy": {
+            "$ref": "#/components/schemas/ContextPolicy"
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/loadouts/{id}`. Toda edição que muda algo incrementa `version`."
+      },
+      "Run": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do Run."
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A Task que este Run tenta realizar."
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Project da Task no momento da leitura. Vem por junção, não é coluna do Run."
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "harnessKey": {
+            "type": "string",
+            "enum": [
+              "CLAUDE_CODE",
+              "CODEX",
+              "PI",
+              "ANTIGRAVITY"
+            ],
+            "description": "Harness escolhido, copiado do Loadout."
+          },
+          "harnessVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Versão da CLI descoberta no preflight. Nula até o Run preparar."
+          },
+          "harnessSessionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Id de sessão emitido pelo harness, guardado junto do harness emissor: as semânticas de resume diferem entre Claude Code, Codex, Pi e Antigravity."
+          },
+          "modelKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Chave do Model usada, copiada do Loadout."
+          },
+          "executionMode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "workspacePath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Caminho do checkout usado. É a base da trava por caminho."
+          },
+          "workflowVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Captura congelada do Workflow. Sempre nulo até a Fase 4."
+          },
+          "loadoutId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "loadoutVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Versão do Loadout no instante da criação."
+          },
+          "loadoutSnapshot": {
+            "$ref": "#/components/schemas/LoadoutSnapshot"
+          },
+          "executionProfileSnapshot": {
+            "$ref": "#/components/schemas/ExecutionProfileSnapshot"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "O prompt enviado ao harness."
+          },
+          "attempt": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "N-ésimo Run desta Task, começando em 1."
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Entrada em `RUNNING`, em UTC (ISO 8601)."
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Entrada em estado terminal, em UTC."
+          },
+          "cancelRequestedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Instante do pedido de cancelamento. Marcar aqui não muda o status: quem transiciona é quem confirma o término da árvore de processos."
+          },
+          "result": {
+            "$ref": "#/components/schemas/RunResult"
+          },
+          "error": {
+            "$ref": "#/components/schemas/RunError"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "taskId",
+          "projectId",
+          "status",
+          "harnessKey",
+          "harnessVersion",
+          "harnessSessionId",
+          "modelKey",
+          "executionMode",
+          "workspacePath",
+          "workflowVersionId",
+          "loadoutId",
+          "loadoutVersion",
+          "loadoutSnapshot",
+          "executionProfileSnapshot",
+          "prompt",
+          "attempt",
+          "startedAt",
+          "finishedAt",
+          "cancelRequestedAt",
+          "result",
+          "error",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Uma tentativa concreta de realizar uma Task."
+      },
+      "RunStatus": {
+        "type": "string",
+        "enum": [
+          "CREATED",
+          "QUEUED",
+          "PREPARING",
+          "RUNNING",
+          "WAITING_APPROVAL",
+          "SUCCEEDED",
+          "FAILED",
+          "TIMED_OUT",
+          "CANCELLED"
+        ],
+        "description": "Estado de um Run na máquina de estados."
+      },
+      "LoadoutSnapshot": {
+        "type": "object",
+        "properties": {
+          "loadoutId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "agent": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "$ref": "#/components/schemas/AgentRole"
+              },
+              "instructions": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "role",
+              "instructions"
+            ]
+          },
+          "harness": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "key": {
+                "$ref": "#/components/schemas/HarnessKey"
+              },
+              "name": {
+                "type": "string"
+              },
+              "capabilities": {
+                "$ref": "#/components/schemas/HarnessCapabilities"
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name",
+              "capabilities"
+            ]
+          },
+          "model": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name"
+            ],
+            "description": "Nulo quando o Harness não tinha Model padrão nem o Loadout indicava um."
+          },
+          "executionProfileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mcpServers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpServerRef"
+            }
+          },
+          "knowledgePolicy": {
+            "$ref": "#/components/schemas/KnowledgePolicy"
+          },
+          "contextPolicy": {
+            "$ref": "#/components/schemas/ContextPolicy"
+          },
+          "capturedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante da captura, em UTC (ISO 8601)."
+          }
+        },
+        "required": [
+          "loadoutId",
+          "name",
+          "version",
+          "agent",
+          "harness",
+          "model",
+          "executionProfileId",
+          "skills",
+          "tools",
+          "mcpServers",
+          "knowledgePolicy",
+          "contextPolicy",
+          "capturedAt"
+        ],
+        "description": "O Loadout como estava quando o Run foi criado, com Agent e Harness resolvidos."
+      },
+      "ExecutionProfileSnapshot": {
+        "type": "object",
+        "properties": {
+          "executionProfileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "workspaceStrategy": {
+            "$ref": "#/components/schemas/WorkspaceStrategy"
+          },
+          "enforcement": {
+            "$ref": "#/components/schemas/EnforcementLevel"
+          },
+          "permissionPolicy": {
+            "$ref": "#/components/schemas/PermissionPolicy"
+          },
+          "environmentPolicy": {
+            "$ref": "#/components/schemas/EnvironmentPolicy"
+          },
+          "networkPolicy": {
+            "$ref": "#/components/schemas/NetworkPolicy"
+          },
+          "capturedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante da captura, em UTC (ISO 8601)."
+          }
+        },
+        "required": [
+          "executionProfileId",
+          "name",
+          "mode",
+          "workspaceStrategy",
+          "enforcement",
+          "permissionPolicy",
+          "environmentPolicy",
+          "networkPolicy",
+          "capturedAt"
+        ],
+        "description": "O ExecutionProfile como estava quando o Run foi criado."
+      },
+      "RunResult": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/RunResultStatus"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Resumo do que foi feito, escrito pelo agente."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "inputTokens": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "outputTokens": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalTokens": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": {},
+            "description": "Consumo reportado pelo harness, quando houver."
+          },
+          "output": {
+            "description": "Structured output validado pelo schema do harness."
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": {},
+        "description": "O resultado estruturado de um Run."
+      },
+      "RunResultStatus": {
+        "type": "string",
+        "enum": [
+          "completed",
+          "blocked",
+          "failed"
+        ],
+        "description": "O veredito do agente sobre a Task. Decide para onde a Task vai."
+      },
+      "RunError": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Código estável do erro, quando houver um."
+          },
+          "message": {
+            "type": "string",
+            "description": "Mensagem já sanitizada de credenciais."
+          },
+          "details": {}
+        },
+        "required": [
+          "message"
+        ],
+        "additionalProperties": {},
+        "description": "Por que um Run terminou em FAILED ou TIMED_OUT."
+      },
+      "CreateRun": {
+        "type": "object",
+        "properties": {
+          "loadoutId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Equipamento do Run. Decide Agent, Harness e Model."
+          },
+          "executionProfileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Sobrepõe o ExecutionProfile do Loadout, sem alterar o Loadout."
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000,
+            "description": "Ausente monta o prompt a partir do título e da descrição da Task."
+          }
+        },
+        "required": [
+          "loadoutId"
+        ],
+        "description": "Corpo de `POST /api/v1/tasks/{id}/runs`."
+      },
+      "RunPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Run"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de Runs, do mais recente para o mais antigo."
+      },
+      "RunEventList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunEvent"
+            },
+            "description": "Os eventos, em ordem crescente de `sequence`."
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "Verdadeiro quando ainda há eventos depois desta página."
+          },
+          "lastSequence": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Maior `sequence` desta página, ou o `after` pedido quando ela veio vazia."
+          }
+        },
+        "required": [
+          "items",
+          "hasMore",
+          "lastSequence"
+        ],
+        "description": "Uma página do log de eventos de um Run."
+      },
+      "RunEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da linha."
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Posição dentro do Run, começando em 1. Estritamente crescente e sem lacunas."
+          },
+          "type": {
+            "type": "string",
+            "description": "Tipo do evento, no vocabulário do `ExecutionEvent`."
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Quando o fato aconteceu, em UTC (ISO 8601)."
+          },
+          "payload": {
+            "description": "Dados do evento, já sanitizados de credenciais."
+          }
+        },
+        "required": [
+          "id",
+          "runId",
+          "sequence",
+          "type",
+          "timestamp"
+        ],
+        "description": "Uma linha do log append-only de um Run."
       },
       "AchievementCatalog": {
         "type": "object",
@@ -3351,6 +5027,26 @@
           },
           {
             "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TaskStatus"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskStatus"
+                  }
+                }
+              ],
+              "description": "Esconde um estado ou vários, repetindo o parâmetro. Aplicado depois de `status`."
+            },
+            "required": false,
+            "description": "Esconde um estado ou vários, repetindo o parâmetro. Aplicado depois de `status`.",
+            "name": "excludeStatus",
+            "in": "query"
+          },
+          {
+            "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 200,
@@ -3993,6 +5689,1427 @@
           },
           "409": {
             "description": "A Task não está em `INBOX`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/harnesses": {
+      "get": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Lista os Harnesses",
+        "description": "Cadastro fechado: as quatro guildas nascem no `db:seed` e a API não cria nem apaga. Um harness novo é um adapter novo, não um registro. A ordem é a do catálogo (Claude Code, Codex, Pi, Antigravity), não a alfabética.",
+        "responses": {
+          "200": {
+            "description": "Os Harnesses conhecidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HarnessList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/harnesses/{id}": {
+      "patch": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Liga ou desliga o Harness",
+        "description": "Único campo editável. `capabilities` e `key` são do adapter: editá-los pela API produziria uma promessa que o código não cumpre.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHarness"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O Harness depois da mudança.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Harness"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Harness com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/models": {
+      "get": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Lista os Models",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só os Models deste Harness."
+            },
+            "required": false,
+            "description": "Só os Models deste Harness.",
+            "name": "harnessId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Os Models, agrupados por Harness.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Cria um Model",
+        "description": "A chave é única dentro do Harness. Marcar como padrão desmarca o padrão anterior do mesmo Harness, em vez de recusar.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateModel"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Model criado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Model"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O Harness informado não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe um Model com esta chave no Harness.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/models/{id}": {
+      "patch": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Edita o Model",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateModel"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O Model depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Model"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Model com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A chave já é usada por outro Model do mesmo Harness.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Apaga o Model",
+        "description": "Recusa enquanto algum Loadout aponta para ele: apagar faria o Loadout passar a usar em silêncio o Model padrão do Harness.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Model apagado."
+          },
+          "404": {
+            "description": "Não existe Model com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Algum Loadout ainda usa este Model.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents": {
+      "get": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Lista os Agents",
+        "responses": {
+          "200": {
+            "description": "Os Agents, em ordem alfabética.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Cria um Agent",
+        "description": "O nome é único por usuário. As instruções são o texto do papel.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Agent criado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Agent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe um Agent com este nome.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{id}": {
+      "get": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Um Agent",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O Agent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Agent"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Agent com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Edita o Agent",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAgent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O Agent depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Agent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Agent com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe um Agent com este nome.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Apaga o Agent",
+        "description": "Recusa enquanto algum Loadout o usa. Runs antigos não impedem: o snapshot deles já carrega o Agent inteiro, e é para isso que ele carrega.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Agent apagado."
+          },
+          "404": {
+            "description": "Não existe Agent com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Algum Loadout ainda usa este Agent.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/execution-profiles": {
+      "get": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Lista os ExecutionProfiles",
+        "description": "`mode` e `workspaceStrategy` são eixos ortogonais: worktree não é backend de execução. `enforcement` diz quão forte é a barreira, e a interface nunca mostra política pedida como política imposta.",
+        "responses": {
+          "200": {
+            "description": "Os perfis, em ordem alfabética.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionProfileList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Cria um ExecutionProfile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExecutionProfile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Perfil criado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe um perfil com este nome.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/execution-profiles/{id}": {
+      "get": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Um ExecutionProfile",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O perfil.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionProfile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe ExecutionProfile com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Edita o ExecutionProfile",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateExecutionProfile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O perfil depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe ExecutionProfile com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe um perfil com este nome.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Apaga o ExecutionProfile",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Perfil apagado."
+          },
+          "404": {
+            "description": "Não existe ExecutionProfile com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Algum Loadout ainda usa este perfil.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/loadouts": {
+      "get": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Lista os Loadouts",
+        "responses": {
+          "200": {
+            "description": "Os Loadouts, em ordem alfabética.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadoutList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Cria um Loadout",
+        "description": "Nasce em `version: 1`. Agent, Harness e ExecutionProfile precisam existir e estar ligados.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLoadout"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Loadout criado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Loadout"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Alguma das referências informadas não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Nome já usado, Harness ou perfil desligado, ou Model de outro Harness.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/loadouts/{id}": {
+      "get": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Um Loadout",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O Loadout.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Loadout"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Loadout com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Edita o Loadout e incrementa a versão",
+        "description": "Toda edição que muda alguma coisa sobe `version`. Um PATCH que não muda nada não sobe: a versão conta edições, e enviar os mesmos valores não é uma edição. O Run guarda a versão junto do snapshot.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLoadout"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O Loadout depois da edição, com a versão nova.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Loadout"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O Loadout ou alguma das referências não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Nome já usado, Harness ou perfil desligado, ou Model de outro Harness.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Apaga o Loadout",
+        "description": "Recusa enquanto algum Run o referencia: `loadoutId` é o fio que liga a execução ao equipamento que hoje existe.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Loadout apagado."
+          },
+          "404": {
+            "description": "Não existe Loadout com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Algum Run ainda referencia este Loadout.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/runs": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Enfileira uma execução para a Task",
+        "description": "Cria o Run em `QUEUED`, com o Loadout e o ExecutionProfile congelados em snapshot, e leva a Task a `QUEUED` na mesma transação. Sem `prompt`, ele é montado a partir do título e da descrição da Task. Exige Task em `READY` ou `FAILED` (retentativa), dependências `COMPLETED` e um Project com `workspacePath`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da Task."
+            },
+            "required": true,
+            "description": "UUIDv7 da Task.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRun"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Run criado e enfileirado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Run"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A Task, o Loadout ou o ExecutionProfile informados não existem.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A Task não aceita Run agora, o Project não tem workspace, há dependência pendente, ou o Harness/perfil está desligado.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Lista as execuções",
+        "description": "Do Run mais recente para o mais antigo. `status` aceita um valor ou vários, repetindo o parâmetro.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só os Runs desta Task."
+            },
+            "required": false,
+            "description": "Só os Runs desta Task.",
+            "name": "taskId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só os Runs das Tasks deste Project."
+            },
+            "required": false,
+            "description": "Só os Runs das Tasks deste Project.",
+            "name": "projectId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/RunStatus"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RunStatus"
+                  }
+                }
+              ],
+              "description": "Filtra por um estado ou por vários, repetindo o parâmetro."
+            },
+            "required": false,
+            "description": "Filtra por um estado ou por vários, repetindo o parâmetro.",
+            "name": "status",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de Runs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{id}": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Uma execução",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Run."
+            },
+            "required": true,
+            "description": "UUIDv7 do Run.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O Run, com os snapshots do Loadout e do ExecutionProfile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Run"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Run com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{id}/cancel": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Pede o cancelamento da execução",
+        "description": "Pedir não é cancelar: a marca em `cancelRequestedAt` é o que o worker observa para matar a árvore de processos, e quem transiciona para `CANCELLED` é quem confirmou o término. A exceção é o Run que ainda não subiu nada: em `CREATED` e `QUEUED` a transição sai na hora e a Task volta a `READY`. Idempotente.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Run."
+            },
+            "required": true,
+            "description": "UUIDv7 do Run.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O Run com o pedido registrado, ou já cancelado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Run"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Run com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "O Run já terminou e não há o que cancelar.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{id}/events": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "O log de eventos da execução",
+        "description": "Append-only, em ordem crescente de `sequence`, a partir do cursor `after`. É a mesma consulta que o replay do stream usa, então não existe uma segunda definição de 'o que o cliente perdeu'.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Run."
+            },
+            "required": true,
+            "description": "UUIDv7 do Run.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 19,
+              "pattern": "^\\d+$",
+              "description": "Devolve apenas eventos com `sequence` maior que este. Padrão: 0."
+            },
+            "required": false,
+            "description": "Devolve apenas eventos com `sequence` maior que este. Padrão: 0.",
+            "name": "after",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Quantos eventos trazer. Padrão e teto: 500. Valores acima do teto são reduzidos."
+            },
+            "required": false,
+            "description": "Quantos eventos trazer. Padrão e teto: 500. Valores acima do teto são reduzidos.",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página do log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunEventList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cursor ou limite inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Run com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{id}/events/stream": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Stream SSE dos eventos da execução",
+        "description": "Abre um `text/event-stream` só deste Run. Envia primeiro o replay a partir do cursor e depois os eventos ao vivo. O `id` de cada evento é a `sequence`, que o cliente devolve em `since` (ou no `Last-Event-ID`) para reconectar sem perder nem repetir. O header tem precedência sobre a query: numa reconexão automática o browser repete a URL da primeira tentativa, que já está velha.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Run."
+            },
+            "required": true,
+            "description": "UUIDv7 do Run.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 19,
+              "pattern": "^\\d+$",
+              "description": "Último `sequence` que o cliente já tem. Ausente ou `0` significa 'não tenho nada'. O header `Last-Event-ID` tem precedência sobre este valor."
+            },
+            "required": false,
+            "description": "Último `sequence` que o cliente já tem. Ausente ou `0` significa 'não tenho nada'. O header `Last-Event-ID` tem precedência sobre este valor.",
+            "name": "since",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Reenviado pelo `EventSource` na reconexão. Tem precedência sobre `since`."
+            },
+            "required": false,
+            "description": "Reenviado pelo `EventSource` na reconexão. Tem precedência sobre `since`.",
+            "name": "last-event-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stream aberto. Cada `data:` é um `RunEvent` serializado.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Quadros SSE, um `RunEvent` em JSON por `data:`."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cursor inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Run com este id.",
             "content": {
               "application/problem+json": {
                 "schema": {
