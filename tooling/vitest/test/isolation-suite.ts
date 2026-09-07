@@ -59,7 +59,11 @@ export function provaDeIsolamento(identidade: string, identidadeDoOutroArquivo: 
     expect(git(["config", "--global", "user.email"])).toBe("test@test.com");
   });
 
-  it("escreve em rajada e lê de volta o próprio valor", () => {
+  // Vinte spawns de git seguidos levam ~7 s no runner windows-latest do GitHub
+  // Actions (cada spawn passa pelo Defender), acima dos 5 s padrão do Vitest.
+  // O teste não mede tempo, mede ausência de disputa pelo lock; o teto largo
+  // evita falso negativo sem afrouxar a prova.
+  it("escreve em rajada e lê de volta o próprio valor", { timeout: 60_000 }, () => {
     const caminho = gitconfigDescartavel();
 
     // Vinte escritas seguidas em um arquivo compartilhado por dois workers é o
