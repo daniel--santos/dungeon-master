@@ -1261,7 +1261,25 @@ const CATALOG = [
   ],
 ];
 
-function medallion(iconName, size, dashed) {
+// ---------------------------------------------- carta de Conquista, Heráldica
+// Direção escolhida: a raridade é a moldura da carta. Um só conjunto de
+// helpers serve o Hall e o artboard de referência, para os dois não divergirem.
+
+const tint = (c, pct) => c.replace(")", " / " + pct + ")");
+
+function heraldicFrame(rc, unlocked) {
+  return (
+    "border: 1px solid " +
+    tint(rc, unlocked ? "55%" : "30%") +
+    "; box-shadow: " +
+    (unlocked
+      ? "0 0 0 1px " + tint(rc, "18%") + ", 0 10px 30px -12px " + tint(rc, "40%")
+      : "0 6px 20px -14px " + tint(rc, "45%")) +
+    ";"
+  );
+}
+
+function heraldicMedallion(iconName, rc, size, unlocked) {
   return (
     '<span style="' +
     row(
@@ -1269,13 +1287,14 @@ function medallion(iconName, size, dashed) {
         size +
         "px; height: " +
         size +
-        "px; flex: none; border-radius: 10px; border: 1px " +
-        (dashed ? "dashed" : "solid") +
-        " " +
-        INPUT +
-        "; background: oklch(1 0 0 / 0.03); color: " +
-        MFG +
-        "; opacity: .55;",
+        "px; flex: none; border-radius: 999px; border: 1px solid " +
+        tint(rc, "40%") +
+        "; background: " +
+        tint(rc, "12%") +
+        "; color: " +
+        (unlocked ? rc : MFG) +
+        ";" +
+        (unlocked ? "" : " opacity: .6;"),
     ) +
     '">' +
     icon(iconName, Math.round(size * 0.5)) +
@@ -1283,10 +1302,19 @@ function medallion(iconName, size, dashed) {
   );
 }
 
-function rarityLabel(name) {
+function rarityPill(name) {
+  const rc = RARITY[name];
   return (
-    '<span style="font-size: 10px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: ' +
-    RARITY[name] +
+    '<span style="' +
+    row(
+      "height: 20px; padding: 0 8px; border-radius: 999px; border: 1px solid " +
+        tint(rc, "45%") +
+        "; background: " +
+        tint(rc, "12%") +
+        "; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: " +
+        rc +
+        "; display: inline-flex; width: fit-content;",
+    ) +
     '">' +
     name +
     "</span>"
@@ -1327,22 +1355,29 @@ function achievementCard(a, hidden) {
     '">' +
     (hidden ? "Da sua jornada" : "Do catálogo") +
     "</span>";
+  // Uma carta oculta não vaza a raridade: moldura e medalhão ficam neutros.
+  const rc = hidden ? A_NEUTRAL : RARITY[a[2]];
   return (
     '<article style="' +
-    card(col("gap: 12px; padding: 16px; height: 100%")) +
+    col(
+      "gap: 12px; padding: 16px; height: 100%; border-radius: 14px; background: " +
+        CARD +
+        "; " +
+        heraldicFrame(rc, false),
+    ) +
     '">' +
     '<div style="' +
     row("justify-content: space-between; align-items: flex-start") +
     '">' +
-    medallion(hidden ? "help-circle" : a[0], 36, true) +
-    (hidden ? "" : rarityLabel(a[2])) +
+    heraldicMedallion(hidden ? "help-circle" : a[0], rc, 40, false) +
+    (hidden ? "" : rarityPill(a[2])) +
     "</div>" +
     '<div style="' +
     col("gap: 5px; flex: 1") +
     '">' +
     '<h3 style="margin: 0; font-family: ' +
     SERIF +
-    "; font-size: 16px; line-height: 22px; font-weight: 600; color: " +
+    "; font-size: 16px; line-height: 22px; font-weight: 600; font-variant: small-caps; letter-spacing: 0.03em; color: " +
     (hidden ? MFG : FG) +
     '">' +
     (hidden ? "???" : a[1]) +
@@ -1364,7 +1399,7 @@ function achievementCard(a, hidden) {
 }
 
 function buildHall() {
-  const H = 1050;
+  const H = 1070;
   const tab = (label, on) =>
     '<span style="' +
     row(
@@ -1561,104 +1596,49 @@ function buildConfig() {
 }
 
 /* ========================================================= ARTBOARDS 7 e 8 */
-function sketchCard(a, opts) {
+function sketchCard(a, unlocked) {
   const rc = RARITY[a[2]];
-  const unlocked = opts.unlocked;
-  const heraldic = opts.heraldic;
-
-  const border = heraldic
-    ? "1px solid " + rc.replace(")", unlocked ? " / 55%)" : " / 28%)")
-    : "1px solid " + BORDER;
-  const glow =
-    heraldic && unlocked
-      ? "box-shadow: 0 0 0 1px " +
-        rc.replace(")", " / 18%)") +
-        ", 0 10px 30px -12px " +
-        rc.replace(")", " / 40%)") +
-        ";"
-      : "box-shadow: " + SHADOW_SM + ";";
-
-  const med = heraldic
-    ? '<span style="' +
-      row(
-        "justify-content: center; width: 44px; height: 44px; flex: none; border-radius: 999px; border: 1px solid " +
-          rc.replace(")", " / 40%)") +
-          "; background: " +
-          rc.replace(")", " / 12%)") +
-          "; color: " +
-          (unlocked ? rc : MFG) +
-          "; " +
-          (unlocked ? "" : "opacity: .55;"),
-      ) +
-      '">' +
-      icon(a[0], 22) +
-      "</span>"
-    : medallion(a[0], 40, !unlocked);
-
-  const name =
-    '<h3 style="margin: 0; font-family: ' +
-    SERIF +
-    "; font-size: 17px; line-height: 23px; font-weight: 600; color: " +
-    FG +
-    "; " +
-    (heraldic ? "font-variant: small-caps; letter-spacing: 0.03em;" : "") +
-    '">' +
-    a[1] +
-    "</h3>";
-
-  const rarity = heraldic
-    ? '<span style="' +
-      row(
-        "gap: 6px; height: 20px; padding: 0 8px; border-radius: 999px; border: 1px solid " +
-          rc.replace(")", " / 45%)") +
-          "; background: " +
-          rc.replace(")", " / 12%)") +
-          "; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: " +
-          rc +
-          ";",
-      ) +
-      '">' +
-      a[2] +
-      "</span>"
-    : rarityLabel(a[2]);
-
   const state =
     '<span style="' +
-    row("gap: 5px; font-size: 11px; color: " + MFG) +
+    row('gap: 5px; font-size: 11px; color: ' + MFG) +
     '">' +
-    (unlocked ? icon("check", 11) : icon("lock", 11)) +
-    "<span>" +
-    (unlocked ? "Desbloqueada" : "Bloqueada") +
-    "</span></span>";
+    (unlocked ? icon('check', 11) : icon('lock', 11)) +
+    '<span>' +
+    (unlocked ? 'Desbloqueada' : 'Bloqueada') +
+    '</span></span>';
 
   return (
     '<article style="' +
     col(
-      "gap: 12px; width: 292px; padding: 18px; border-radius: 14px; background: " +
+      'gap: 12px; width: 292px; padding: 18px; border-radius: 14px; background: ' +
         CARD +
-        "; border: " +
-        border +
-        "; " +
-        glow,
+        '; ' +
+        heraldicFrame(rc, unlocked),
     ) +
     '">' +
     '<div style="' +
-    row("justify-content: space-between; align-items: flex-start") +
+    row('justify-content: space-between; align-items: flex-start') +
     '">' +
-    med +
-    rarity +
-    "</div>" +
+    heraldicMedallion(a[0], rc, 40, unlocked) +
+    rarityPill(a[2]) +
+    '</div>' +
     '<div style="' +
-    col("gap: 6px") +
+    col('gap: 6px') +
     '">' +
-    name +
+    '<h3 style="margin: 0; font-family: ' +
+    SERIF +
+    '; font-size: 17px; line-height: 23px; font-weight: 600; font-variant: small-caps; letter-spacing: 0.03em; color: ' +
+    FG +
+    '">' +
+    a[1] +
+    '</h3>' +
     '<p style="margin: 0; font-size: 12px; line-height: 18px; color: ' +
     MFG +
     '">' +
     a[3] +
-    "</p></div>" +
+    '</p></div>' +
     '<div style="' +
-    row("justify-content: space-between; gap: 8px") +
+    row('justify-content: space-between; gap: 8px') +
     '">' +
     state +
     '<span style="font-size: 11px; color: ' +
@@ -1667,51 +1647,50 @@ function sketchCard(a, opts) {
   );
 }
 
-function buildDirection(file, label, heading, note, tradeoff, heraldic) {
+function buildDirection(file, label, heading, notaA, notaB) {
   const epic = CATALOG[5];
   const rare = CATALOG[2];
+  const linha = (titulo, texto) =>
+    '<p style="margin: 0; font-size: 12px; line-height: 18px; color: ' +
+    MFG +
+    '"><span style="color: ' +
+    FG +
+    '">' +
+    titulo +
+    '</span> ' +
+    texto +
+    '</p>';
   const body =
     '<div style="' +
-    col("width: 720px; height: 480px; gap: 20px; padding: 36px 44px; background: " + BG + ";") +
+    col('width: 720px; height: 480px; gap: 20px; padding: 36px 44px; background: ' + BG + ';') +
     '">' +
     '<div style="' +
-    col("gap: 5px") +
+    col('gap: 5px') +
     '">' +
     '<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: ' +
     MFG +
     '">' +
     label +
-    "</span>" +
+    '</span>' +
     '<h2 style="margin: 0; font-family: ' +
     SERIF +
-    "; font-size: 22px; line-height: 28px; font-weight: 600; color: " +
+    '; font-size: 22px; line-height: 28px; font-weight: 600; color: ' +
     FG +
     '">' +
     heading +
-    "</h2></div>" +
+    '</h2></div>' +
     '<div style="' +
-    row("gap: 24px; align-items: stretch") +
+    row('gap: 24px; align-items: stretch') +
     '">' +
-    sketchCard(epic, { unlocked: true, heraldic: heraldic }) +
-    sketchCard(rare, { unlocked: false, heraldic: heraldic }) +
-    "</div>" +
+    sketchCard(epic, true) +
+    sketchCard(rare, false) +
+    '</div>' +
     '<div style="' +
-    col("gap: 4px; margin-top: auto") +
+    col('gap: 4px; margin-top: auto') +
     '">' +
-    '<p style="margin: 0; font-size: 12px; line-height: 18px; color: ' +
-    MFG +
-    '"><span style="color: ' +
-    FG +
-    '">A favor.</span> ' +
-    note +
-    "</p>" +
-    '<p style="margin: 0; font-size: 12px; line-height: 18px; color: ' +
-    MFG +
-    '"><span style="color: ' +
-    FG +
-    '">Custo.</span> ' +
-    tradeoff +
-    "</p></div></div>";
+    linha('Desbloqueada.', notaA) +
+    linha('Bloqueada.', notaB) +
+    '</div></div>';
   return write(file, 720, 480, body);
 }
 
@@ -1725,22 +1704,11 @@ files.push(buildConfig());
 files.push(write("MissoesSemTema.dc.html", 1440, 900, tasksScreen("plain")));
 files.push(
   buildDirection(
-    "DirecaoSobria.dc.html",
-    "Opção A — Sóbria",
-    "Raridade como rótulo",
-    "A carta continua uma carta de control plane: mesma borda, mesma densidade das outras listas. A raridade informa sem competir com o conteúdo, e a serif no nome já carrega o toque.",
-    "Quinze cartas bloqueadas ficam muito parecidas entre si; a raridade só se lê depois que você procura por ela.",
-    false,
-  ),
-);
-files.push(
-  buildDirection(
     "DirecaoHeraldica.dc.html",
-    "Opção B — Heráldica",
+    "Heráldica — direção escolhida",
     "Raridade como moldura",
-    "A raridade se lê à distância e uma Lendária desbloqueada vira um evento visual. O medalhão dá ao ícone o peso de brasão que a metáfora pede.",
-    "Cor e brilho em cada carta puxam mais atenção que o resto do produto, e a grade fica ruidosa com muitas raridades altas lado a lado.",
-    true,
+    "Moldura e medalhão na cor da raridade, brilho externo suave por baixo da carta, nome em serif com versalete e o estado com um sinal de confirmação.",
+    "Mesma moldura a 30% de opacidade e sem brilho forte; ícone em silhueta a 60%. É este o estado das quinze cartas do catálogo em toda a Fase 1.",
   ),
 );
 
