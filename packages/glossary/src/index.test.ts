@@ -25,7 +25,7 @@ describe("chaves", () => {
 
   it("usa apenas o formato canônico em inglês", () => {
     for (const key of GLOSSARY_KEYS) {
-      expect(key).toMatch(/^[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)*$/);
+      expect(key).toMatch(/^[a-z][A-Za-z0-9_]*(\.[a-z][A-Za-z0-9_]*)*$/);
     }
   });
 
@@ -58,6 +58,14 @@ describe("paridade entre os glossários", () => {
     const abas = GLOSSARY_KEYS.filter((key) => key.startsWith("hall.tab."));
     expect(nav).toHaveLength(11);
     expect(abas).toHaveLength(4);
+  });
+
+  it("cobre os três filtros do Hall e os valores que eles oferecem", () => {
+    const filtros = GLOSSARY_KEYS.filter((key) => key.startsWith("hall.filter."));
+    expect(filtros).toHaveLength(3);
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("achievement.origin."))).toHaveLength(3);
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("achievement.rarity."))).toHaveLength(4);
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("achievement.state."))).toHaveLength(4);
   });
 });
 
@@ -104,6 +112,14 @@ describe("tema", () => {
     expect(isThemeId("DND")).toBe(false);
     expect(isThemeId(undefined)).toBe(false);
     expect(isThemeId(null)).toBe(false);
+  });
+
+  it("o rótulo do interruptor é o mesmo nos dois modos", () => {
+    expect(t("dnd", "settings.theme.toggle")).toBe("Tema Dungeon Master");
+    expect(t("plain", "settings.theme.toggle")).toBe(t("dnd", "settings.theme.toggle"));
+    expect(t("plain", "settings.theme.description")).not.toBe(
+      t("dnd", "settings.theme.description"),
+    );
   });
 
   it("infraestrutura não é tematizada", () => {

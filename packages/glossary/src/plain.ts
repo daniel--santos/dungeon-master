@@ -70,6 +70,19 @@ export const plain: Record<GlossaryKey, string> = {
   "agent.role.reviewer": "Revisor",
   "agent.role.explorer": "Explorador",
 
+  // ----------------------------------------------------------- achievement
+  "achievement.origin.catalog": "Catálogo",
+  "achievement.origin.template": "Gerada",
+  "achievement.origin.forged": "Forjada",
+  "achievement.rarity.common": "Comum",
+  "achievement.rarity.rare": "Rara",
+  "achievement.rarity.epic": "Épica",
+  "achievement.rarity.legendary": "Lendária",
+  "achievement.state.locked": "Bloqueada",
+  "achievement.state.hidden": "Oculta",
+  "achievement.state.in_progress": "Em progresso",
+  "achievement.state.unlocked": "Desbloqueada",
+
   // ------------------------------------------------------------------- run
   "run.status.succeeded": "Concluída",
   "run.status.failed": "Falhou",
@@ -113,4 +126,12 @@ export const plain: Record<GlossaryKey, string> = {
   "hall.tab.heroes": "Agentes",
   "hall.tab.bestiary": "Bugs resolvidos",
   "hall.tab.chronicle": "Histórico",
+  "hall.filter.origin": "Origem",
+  "hall.filter.rarity": "Raridade",
+  "hall.filter.state": "Estado",
+
+  // -------------------------------------------------------------- settings
+  "settings.theme.toggle": "Tema Dungeon Master",
+  "settings.theme.description":
+    "Vocabulário de RPG na interface. Ligue para o tema de Dungeon Master.",
 };

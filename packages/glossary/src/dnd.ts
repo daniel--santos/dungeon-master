@@ -69,6 +69,19 @@ export const dnd: Record<GlossaryKey, string> = {
   "agent.role.reviewer": "Revisor",
   "agent.role.explorer": "Explorador",
 
+  // ----------------------------------------------------------- achievement
+  "achievement.origin.catalog": "Do catálogo",
+  "achievement.origin.template": "Da sua jornada",
+  "achievement.origin.forged": "Forjada",
+  "achievement.rarity.common": "Comum",
+  "achievement.rarity.rare": "Rara",
+  "achievement.rarity.epic": "Épica",
+  "achievement.rarity.legendary": "Lendária",
+  "achievement.state.locked": "Bloqueada",
+  "achievement.state.hidden": "Oculta",
+  "achievement.state.in_progress": "Em progresso",
+  "achievement.state.unlocked": "Desbloqueada",
+
   // ------------------------------------------------------------------- run
   "run.status.succeeded": "Vitória",
   "run.status.failed": "Derrota",
@@ -112,4 +125,11 @@ export const dnd: Record<GlossaryKey, string> = {
   "hall.tab.heroes": "Heróis",
   "hall.tab.bestiary": "Bestiário",
   "hall.tab.chronicle": "Crônica",
+  "hall.filter.origin": "Origem",
+  "hall.filter.rarity": "Raridade",
+  "hall.filter.state": "Estado",
+
+  // -------------------------------------------------------------- settings
+  "settings.theme.toggle": "Tema Dungeon Master",
+  "settings.theme.description": "Vocabulário de RPG na interface. Desligue para nomes neutros.",
 };

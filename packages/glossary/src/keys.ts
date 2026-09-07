@@ -72,6 +72,19 @@ export const GLOSSARY_KEYS = [
   "agent.role.reviewer",
   "agent.role.explorer",
 
+  // ----------------------------------------------------------- achievement
+  "achievement.origin.catalog",
+  "achievement.origin.template",
+  "achievement.origin.forged",
+  "achievement.rarity.common",
+  "achievement.rarity.rare",
+  "achievement.rarity.epic",
+  "achievement.rarity.legendary",
+  "achievement.state.locked",
+  "achievement.state.hidden",
+  "achievement.state.in_progress",
+  "achievement.state.unlocked",
+
   // ------------------------------------------------------------------- run
   "run.status.succeeded",
   "run.status.failed",
@@ -115,6 +128,13 @@ export const GLOSSARY_KEYS = [
   "hall.tab.heroes",
   "hall.tab.bestiary",
   "hall.tab.chronicle",
+  "hall.filter.origin",
+  "hall.filter.rarity",
+  "hall.filter.state",
+
+  // -------------------------------------------------------------- settings
+  "settings.theme.toggle",
+  "settings.theme.description",
 ] as const;
 
 /**
