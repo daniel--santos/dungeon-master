@@ -168,6 +168,9 @@ Windows 11 e macOS são de primeira classe; o CI roda nos dois em todo commit.
 - Trate `SIGBREAK` junto com `SIGINT` e `SIGTERM` em qualquer processo de longa duração.
 - No Windows, o código de saída de um kill não é prova de término: confirme por polling.
 - Testes e CI usam `embedded-postgres`, nunca Docker: os runners não têm Docker Linux.
+  O servidor é iniciado e parado por `pg_ctl`, via `@dungeon-master/database/testing`
+  (`startTestPostgres`), porque `postgres.exe` recusa rodar como administrador no Windows
+  e o runner do GitHub é administrador. Não chame `start()`/`stop()` do pacote diretamente.
 
 ## 9. Erros, eventos e logs
 
