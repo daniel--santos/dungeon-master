@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Um push novo cancela a execução anterior do mesmo ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Sem cor nos logs de CI e sem telemetria do Turborepo.
+  TURBO_TELEMETRY_DISABLED: 1
+  DO_NOT_TRACK: 1
+  CI: true
+
+jobs:
+  verify:
+    name: verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    strategy:
+      # Windows e macOS são plataformas de primeira classe (planejamento v0.4,
+      # princípio 12). Uma falhar não esconde o resultado da outra.
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          # `db:check` e `gen:check` comparam contra o HEAD com `git diff`.
+          fetch-depth: 1
+
+      - name: Habilitar corepack
+        shell: bash
+        run: corepack enable
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # A versão vem de `packageManager` no package.json da raiz.
+          run_install: false
+
+      - name: Instalar Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      # Testes usam `embedded-postgres`, não Docker: os runners de Windows e
+      # macOS não oferecem Docker Linux (planejamento v0.4, princípio 3).
+      - name: Testes
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Cliente OpenAPI está atualizado
+        run: pnpm run gen:check
+
+      - name: Migrações batem com o schema
+        run: pnpm run db:check
+
+      - name: Árvore de trabalho limpa
+        shell: bash
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "A verificação deixou arquivos modificados ou não rastreados:"
+            git status --porcelain
+            git diff
+            exit 1
+          fi
