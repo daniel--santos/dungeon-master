@@ -42,6 +42,50 @@ export const taskSearchSchema = z.object({
 
 export type TaskSearch = z.infer<typeof taskSearchSchema>;
 
+const RUN_STATUS_VALUES = [
+  "CREATED",
+  "QUEUED",
+  "PREPARING",
+  "RUNNING",
+  "WAITING_APPROVAL",
+  "SUCCEEDED",
+  "FAILED",
+  "TIMED_OUT",
+  "CANCELLED",
+] as const;
+
+const HARNESS_KEY_VALUES = ["CLAUDE_CODE", "CODEX", "PI", "ANTIGRAVITY"] as const;
+
+/**
+ * O filtro da lista de Expedições.
+ *
+ * `projectId` e `status` viajam para a API; `harnessKey` não, porque
+ * `GET /api/v1/runs` ainda não filtra por harness e a lista o aplica sobre a
+ * página que recebeu. O parâmetro fica na URL de qualquer jeito: o link
+ * continua reproduzindo a mesma tela, e o dia em que a rota aceitar o filtro
+ * só o `toQuery` muda.
+ */
+export const runSearchSchema = z.object({
+  projectId: z.uuid().optional().catch(undefined),
+  taskId: z.uuid().optional().catch(undefined),
+  harnessKey: z.enum(HARNESS_KEY_VALUES).optional().catch(undefined),
+  status: z.array(z.enum(RUN_STATUS_VALUES)).nonempty().optional().catch(undefined),
+  page: z.coerce.number().int().min(1).default(1).catch(1),
+  pageSize: z.coerce.number().int().min(5).max(100).default(25).catch(25),
+});
+
+export type RunSearch = z.infer<typeof runSearchSchema>;
+
+/** Os filtros do Diário de uma Expedição, na URL do cockpit. */
+export const runDetailSearchSchema = z.object({
+  events: z
+    .enum(["all", "tools", "text", "usage", "system", "diagnostic"])
+    .default("all")
+    .catch("all"),
+});
+
+export type RunDetailSearch = z.infer<typeof runDetailSearchSchema>;
+
 export const projectSearchSchema = z.object({
   status: z.enum(["ACTIVE", "ARCHIVED"]).optional().catch(undefined),
 });

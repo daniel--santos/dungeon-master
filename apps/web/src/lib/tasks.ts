@@ -1,6 +1,13 @@
 import type { components } from "@dungeon-master/api-client";
 import type { TaskKind, TaskPriority, TaskStatus } from "@dungeon-master/contracts";
-import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import { api } from "@/lib/api";
 import type { SortOrder, TaskSortField } from "@/lib/domain";
@@ -80,6 +87,39 @@ export function useTask(id: string): UseQueryResult<TaskDetail> {
       });
       if (data === undefined) fail(error, response.status, "Não foi possível ler o registro");
       return data;
+    },
+  });
+}
+
+/**
+ * O detalhe de várias Tasks de uma vez, para a lista de Runs ter o título.
+ *
+ * `GET /runs` devolve `taskId` e não o título: o Run guarda o que executou, não
+ * o texto do quadro. A lista lê o detalhe de cada Task da página, pela mesma
+ * chave de cache do detalhe — abrir a Task depois já encontra a resposta
+ * pronta, e voltar para a lista não recarrega nada.
+ */
+export function useTaskTitles(ids: readonly string[]): ReadonlyMap<string, string> {
+  const unique = useMemo(() => [...new Set(ids)], [ids]);
+
+  return useQueries({
+    queries: unique.map((id) => ({
+      queryKey: taskKeys.detail(id),
+      queryFn: async () => {
+        const { data, error, response } = await api.GET("/api/v1/tasks/{id}", {
+          params: { path: { id } },
+        });
+        if (data === undefined) fail(error, response.status, "Não foi possível ler o registro");
+        return data;
+      },
+      staleTime: 30_000,
+    })),
+    combine: (results) => {
+      const titles = new Map<string, string>();
+      for (const result of results) {
+        if (result.data !== undefined) titles.set(result.data.id, result.data.title);
+      }
+      return titles;
     },
   });
 }
