@@ -1801,7 +1801,7 @@ Condições usam um vocabulário fechado de cinco predicados (contagem com tiers
 
 Task ganha o campo `kind` (`BUG`, `FEATURE`, `RESEARCH`, `CHORE`) desde a Fase 1, porque "bugs são Monstros" precisa de um fato no domínio, não de uma heurística sobre o título.
 
-**Voz.** Os textos temáticos das Conquistas falam na voz do Dungeon Master: humor ácido e deadpan, parabéns que zombam, franqueza sobre a situação do usuário, no espírito das conquistas da série *Dungeon Crawler Carl*, referência declarada do usuário. O texto é sempre original; a série é referência de tom. A carta escolhida é a Heráldica. Guia de voz em `packages/achievements/VOICE.md`.
+**Voz.** Os textos temáticos das Conquistas falam na voz do Dungeon Master: humor ácido e deadpan, parabéns que zombam, franqueza sobre a situação do usuário, no espírito das conquistas da série *Dungeon Crawler Carl*, referência declarada do usuário. O texto é sempre original; a série é referência de tom. Com o enquadramento de espetáculo: o Dungeon Master apresenta uma transmissão com plateia, apostas e replay, e o usuário é a atração, sobre um registro seco e burocrático. A carta escolhida é a Heráldica. Guia de voz em `packages/achievements/VOICE.md`.
 
 Fica de fora, de propósito: ranking entre usuários, recompensas que desbloqueiam funcionalidade, economia de itens e geração de texto por LLM no caminho quente da UI.
 

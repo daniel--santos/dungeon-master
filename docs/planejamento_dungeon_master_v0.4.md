@@ -701,6 +701,7 @@ Tudo escopado por `user_id` desde o início, mesmo single-user.
 
 - **Carta Heráldica**: raridade como borda e brilho sutil da carta, ícone em medalhão, nome em serif com versalete. Escolhida pelo usuário no canvas de design da Fase 1 (`docs/design/fase1/`), sobre a alternativa Sóbria.
 - **Voz do Dungeon Master**: os textos `theme` (nome, descrição, `flavor`) têm humor ácido, sarcástico e deadpan, no espírito das conquistas da série *Dungeon Crawler Carl*, que é a referência do usuário para a ideia. **Texto sempre original**: a série é referência de tom, nunca de conteúdo. O guia de voz vive em `packages/achievements/VOICE.md` e será a base do prompt das Conquistas forjadas (Fase 6). A versão `plain` continua sóbria e literal.
+- **Espetáculo e plateia** (decisão de 07/09/2026, após dois passes de calibração): o Dungeon Master não é só o burocrata que anota, é o apresentador de uma transmissão. Existe arquibancada, aposta, câmera, replay, vaia e aplauso; o usuário é a atração. O registro seco e glib continua por baixo. Vocabulário próprio da Guilda; sem patrocinador com nome, sem moeda, e a proibição de citar a série continua absoluta.
 
 ### Experiência e nível
 
