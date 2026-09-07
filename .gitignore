@@ -34,3 +34,7 @@ desktop.ini
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# Canvas de design montado (2+ MB, regenerado a partir dos .dc.html)
+docs/design/**/*.html
+!docs/design/**/*.dc.html

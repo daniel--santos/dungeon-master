@@ -1,0 +1,27 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Fase 1" },
+    { "id": "page-2", "name": "Direções" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "page": "page-1", "x": 0, "y": 0, "w": 1440, "h": 900 },
+    { "file": "Missoes.dc.html", "page": "page-1", "x": 1560, "y": 0, "w": 1440, "h": 900 },
+    { "file": "Missao.dc.html", "page": "page-1", "x": 3120, "y": 0, "w": 1440, "h": 1030 },
+    { "file": "Hall.dc.html", "page": "page-1", "x": 0, "y": 1230, "w": 1440, "h": 1050 },
+    { "file": "Configuracoes.dc.html", "page": "page-1", "x": 1560, "y": 1230, "w": 1440, "h": 900 },
+    { "file": "MissoesSemTema.dc.html", "page": "page-1", "x": 3120, "y": 1230, "w": 1440, "h": 900 },
+    { "file": "DirecaoSobria.dc.html", "page": "page-2", "x": 0, "y": 0, "w": 720, "h": 480 },
+    { "file": "DirecaoHeraldica.dc.html", "page": "page-2", "x": 840, "y": 0, "w": 720, "h": 480 }
+  ],
+  "annotations": [
+    {
+      "id": "escolha-direcao",
+      "page": "page-2",
+      "x": 0,
+      "y": -210,
+      "w": 700,
+      "text": "Escolha uma antes de implementar o Hall.\n\nA Opção A (Sóbria) é a assumida em todos os artboards da página 1: raridade como rótulo de texto fino, sem borda colorida.\n\nA Opção B (Heráldica) muda só a carta de Conquista — mesma grade, mesmos dados, mesmas rotas, mesmo glossário. Trocar de A para B não mexe em nenhuma outra tela."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}
