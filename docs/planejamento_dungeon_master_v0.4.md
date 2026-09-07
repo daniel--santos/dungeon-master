@@ -612,6 +612,14 @@ Execution Environment
 
 ---
 
+## Decisões de UX da Fase 2 (07/09/2026, sobre o canvas de design)
+
+Canvas: https://claude.ai/code/artifact/b39beab6-6089-4ca2-8027-0d2c60b1f3c8 (fontes em `docs/design/fase2/`).
+
+- **Status de Run no glossário**: chaves novas, iguais nos dois temas, `run.status.queued` "Na fila", `run.status.preparing` "Preparando", `run.status.running` "Em andamento"; e `run.status.waitingApproval` "Aguardando o Selo" no tema, "Aguardando aprovação" sem tema.
+- **Cancelar uma Expedição abre um diálogo de confirmação** (AlertDialog), e a Expedição só vira Retirada depois de `ProcessTreeTerminated`. Decisão do usuário sobre a proposta de confirmar no segundo toque.
+- **"Retomar a Expedição"** aparece só quando a Guilda declara `resume` nas capabilities e um `harnessSessionId` foi capturado.
+
 ## 2D — Observabilidade mínima de Run
 
 ```text
