@@ -50,12 +50,11 @@ Cada arquivo importado recebe uma entrada nesta seção, no formato abaixo.
 - Changes: <resumo das adaptações>
 ```
 
-Cada seção abaixo agrupa as entradas de um mesmo assunto. Os demais itens de Fase 0 do
-manifesto (terminação de árvore de processos e validação de caminho do Archon,
-isolamento de gitconfig do Sandcastle, regra de lint do frontend) entram em seções
-próprias junto com `packages/platform`.
+Os demais itens de Fase 0 do manifesto (terminação de árvore de processos e validação
+de caminho do Archon, isolamento de gitconfig do Sandcastle, regra de lint do frontend)
+entram em seções próprias junto com `packages/platform`.
 
-## Archon — SSE e eventos
+### Archon — SSE e eventos
 
 Manifesto: planejamento v0.4, seção 13.2, linhas de `transport.ts`,
 `dashboard-event-poller.ts` e do trecho de NOTIFY de `postgres.ts`.
@@ -67,7 +66,7 @@ transport e o poller para `apps/api/src/sse/`; eles foram para `packages/events`
 não dependem de Hono nem de `pg` — a API entrega o writer e a fonte de eventos por
 injeção, e o pacote roda inteiro em teste sem infraestrutura.
 
-### `packages/events/src/sse-transport.ts`
+#### `packages/events/src/sse-transport.ts`
 
 - Origem: Archon — `packages/server/src/adapters/web/transport.ts@0773b97`
 - Copyright: (c) 2026 Cole Medin. Licensed under the MIT License.
@@ -82,7 +81,7 @@ injeção, e o pacote roda inteiro em teste sem infraestrutura.
   `EVENT_BUFFER_TTL_MS >= RECONNECT_GRACE_MS` foi mantido, ainda lança no carregamento
   do módulo e agora também vale para os valores passados ao construtor.
 
-### `packages/events/src/dashboard-event-poller.ts`
+#### `packages/events/src/dashboard-event-poller.ts`
 
 - Origem: Archon — `packages/server/src/adapters/web/dashboard-event-poller.ts@0773b97`
 - Copyright: (c) 2026 Cole Medin. Licensed under the MIT License.
@@ -96,7 +95,7 @@ injeção, e o pacote roda inteiro em teste sem infraestrutura.
   coalescência de drains, a paginação até esvaziar e a escalada de log depois de cinco
   falhas seguidas são do original.
 
-### `packages/events/src/pg-notify-listener.ts`
+#### `packages/events/src/pg-notify-listener.ts`
 
 - Origem: Archon — `packages/server/src/adapters/web/pg-notify-listener.ts@0773b97`
 - Copyright: (c) 2026 Cole Medin. Licensed under the MIT License.
@@ -108,7 +107,7 @@ injeção, e o pacote roda inteiro em teste sem infraestrutura.
   contrato opcional. A reconexão com backoff exponencial, o teto de 30 s e o cuidado com
   `stop()` durante um `listen()` em voo são do original.
 
-### `packages/database/src/notify.ts` e o trigger da migração `0001`
+#### `packages/database/src/notify.ts` e o trigger da migração `0001`
 
 - Origem: Archon — `packages/core/src/db/adapters/postgres.ts@0773b97` (`listen()` e o
   SQL de `WORKFLOW_EVENT_NOTIFY_SQL`)
