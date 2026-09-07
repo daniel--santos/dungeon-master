@@ -26,12 +26,13 @@ export const taskPriority = pgEnum("task_priority", TASK_PRIORITY_VALUES);
 /**
  * Task é a única entidade de trabalho, e a Inbox são as Tasks em `INBOX`.
  *
- * `project_id` é anulável só por causa da Inbox: uma captura rápida precisa
- * custar um campo de texto, e escolher o Project é justamente o que "promover"
- * faz. O `CHECK` abaixo é o que impede essa brecha de virar uma Task órfã em
- * qualquer outro estado — é a mesma regra que
- * `taskStatusRequiresProject` aplica no domínio, escrita onde ninguém consegue
- * contornar.
+ * `project_id` é anulável por causa da Inbox: uma captura rápida precisa custar
+ * um campo de texto, e escolher o Project é justamente o que "promover" faz.
+ * `CANCELLED` entra no `CHECK` pelo mesmo motivo pelo outro lado — descartar
+ * uma captura não pode obrigar o usuário a escolher onde guardar aquilo que ele
+ * decidiu não fazer. Em todo estado de trabalho vivo o Project é obrigatório, e
+ * o `CHECK` é a mesma regra de `taskStatusRequiresProject`, escrita onde
+ * ninguém consegue contornar.
  */
 export const tasks = pgTable(
   "task",
@@ -65,7 +66,10 @@ export const tasks = pgTable(
     // Os nomes das colunas são escritos à mão, e não interpolados a partir do
     // objeto da tabela: a interpolação qualifica o identificador (`"task"."x"`)
     // e o PostgreSQL não aceita referência qualificada dentro de um CHECK.
-    check("task_inbox_project_ck", sql`"status" = 'INBOX' or "project_id" is not null`),
+    check(
+      "task_inbox_project_ck",
+      sql`"project_id" is not null or "status" in ('INBOX', 'CANCELLED')`,
+    ),
   ],
 );
 

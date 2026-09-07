@@ -6,6 +6,7 @@ import {
   allowedTaskTransitions,
   canTransitionTask,
   isTerminalTaskStatus,
+  PROJECTLESS_TASK_STATUSES,
   TASK_TRANSITIONS,
   taskStatusRequiresProject,
   TERMINAL_TASK_STATUSES,
@@ -103,10 +104,15 @@ describe("estados terminais", () => {
 });
 
 describe("taskStatusRequiresProject", () => {
-  it("só INBOX vive sem Project", () => {
+  it("só a captura e o descarte vivem sem Project", () => {
     for (const status of TASK_STATUS_VALUES) {
-      expect(taskStatusRequiresProject(status)).toBe(status !== "INBOX");
+      const semProject = status === "INBOX" || status === "CANCELLED";
+      expect(taskStatusRequiresProject(status), status).toBe(!semProject);
     }
+  });
+
+  it("os estados sem Project são exatamente os declarados", () => {
+    expect([...PROJECTLESS_TASK_STATUSES]).toEqual(["INBOX", "CANCELLED"]);
   });
 });
 

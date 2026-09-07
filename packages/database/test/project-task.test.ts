@@ -55,13 +55,31 @@ describe("CHECK task_inbox_project_ck", () => {
     ).resolves.toBeDefined();
   });
 
-  it("recusa project_id nulo em qualquer outro status", async () => {
-    for (const status of ["READY", "QUEUED", "RUNNING", "COMPLETED", "CANCELLED"]) {
+  it("aceita project_id nulo em CANCELLED: é a captura descartada", async () => {
+    await expect(
+      handle.pool.query(
+        "insert into task (id, user_id, project_id, title, status) values ($1, $2, null, $3, 'CANCELLED')",
+        [newId(), LOCAL_USER_ID, "descartada"],
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it("recusa project_id nulo em todo estado de trabalho vivo", async () => {
+    for (const status of [
+      "READY",
+      "QUEUED",
+      "RUNNING",
+      "WAITING",
+      "BLOCKED",
+      "COMPLETED",
+      "FAILED",
+    ]) {
       await expect(
         handle.pool.query(
           `insert into task (id, user_id, project_id, title, status) values ($1, $2, null, $3, '${status}')`,
           [newId(), LOCAL_USER_ID, "sem projeto"],
         ),
+        status,
       ).rejects.toThrow(/task_inbox_project_ck/);
     }
   });

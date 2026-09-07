@@ -1,0 +1,2 @@
+ALTER TABLE "task" DROP CONSTRAINT "task_inbox_project_ck";--> statement-breakpoint
+ALTER TABLE "task" ADD CONSTRAINT "task_inbox_project_ck" CHECK ("project_id" is not null or "status" in ('INBOX', 'CANCELLED'));

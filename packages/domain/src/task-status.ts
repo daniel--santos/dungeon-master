@@ -66,13 +66,28 @@ export function canTransitionTask(from: TaskStatus, to: TaskStatus): boolean {
 }
 
 /**
+ * Estados em que uma Task pode não ter Project.
+ *
+ * `INBOX` é a captura que ainda não foi triada. `CANCELLED` está aqui porque
+ * descartar uma captura é levá-la a `CANCELLED` sem nunca lhe dar um Project:
+ * exigir um Project no descarte obrigaria o usuário a escolher onde guardar
+ * justamente aquilo que ele decidiu não fazer.
+ *
+ * Todo outro estado é trabalho vivo, e trabalho vivo pertence a um Project.
+ */
+export const PROJECTLESS_TASK_STATUSES = [
+  "INBOX",
+  "CANCELLED",
+] as const satisfies readonly TaskStatus[];
+
+/**
  * Verdadeiro quando o estado exige um Project.
  *
  * É a metade em código da restrição que o banco aplica com
- * `CHECK (status = 'INBOX' OR project_id IS NOT NULL)`: uma captura de Inbox é
- * a única Task que existe sem Project, e sair de `INBOX` é justamente o momento
- * de escolher um.
+ * `CHECK (project_id IS NOT NULL OR status IN ('INBOX','CANCELLED'))`. Sair de
+ * `INBOX` para qualquer estado de trabalho é justamente o momento de escolher
+ * um Project — o que a rota de promoção faz.
  */
 export function taskStatusRequiresProject(status: TaskStatus): boolean {
-  return status !== "INBOX";
+  return !(PROJECTLESS_TASK_STATUSES as readonly TaskStatus[]).includes(status);
 }
