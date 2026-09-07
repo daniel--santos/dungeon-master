@@ -82,7 +82,12 @@ describe("decisões de UX da Fase 2", () => {
   });
 
   it("só o Selo é tematizado entre os estados não terminais", () => {
-    for (const key of ["run.status.created", "run.status.queued", "run.status.preparing", "run.status.running"] as const) {
+    for (const key of [
+      "run.status.created",
+      "run.status.queued",
+      "run.status.preparing",
+      "run.status.running",
+    ] as const) {
       expect(t("dnd", key), key).toBe(t("plain", key));
     }
     expect(t("dnd", "run.status.waitingApproval")).toBe("Aguardando o Selo");
