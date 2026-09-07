@@ -45,3 +45,34 @@ export function useSettings() {
 
   return { query, mutation };
 }
+
+export interface HostAcknowledgement {
+  /** `true` depois que o usuário aceitou executar sem isolamento. */
+  readonly acknowledged: boolean;
+  readonly isLoading: boolean;
+  readonly isSaving: boolean;
+  /** Grava o aceite, ou o revoga. */
+  readonly set: (value: boolean) => void;
+}
+
+/**
+ * O aceite explícito do modo `HOST`, lembrado entre Expedições.
+ *
+ * A Fase 2B exige aceite explícito antes de executar sem isolamento. Perguntar
+ * a cada partida treinaria o usuário a marcar a caixa sem ler, então o aceite
+ * fica em `user_setting` e Settings oferece revogá-lo. Lembrar o aceite não
+ * apaga o aviso: o badge de ambiente e o texto canônico continuam em toda tela
+ * que fala de execução.
+ */
+export function useHostAcknowledgement(): HostAcknowledgement {
+  const { query, mutation } = useSettings();
+
+  return {
+    acknowledged: query.data?.["execution.hostAcknowledged"] ?? false,
+    isLoading: query.isPending,
+    isSaving: mutation.isPending,
+    set: (value: boolean) => {
+      mutation.mutate({ key: "execution.hostAcknowledged", value });
+    },
+  };
+}
