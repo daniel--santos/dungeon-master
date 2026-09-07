@@ -8,7 +8,12 @@
  * aqui; o tema mora em `@dungeon-master/glossary` e só alcança labels da UI.
  */
 
+export * from "./activity.js";
 export * from "./dashboard-event.js";
 export * from "./health.js";
+export * from "./inbox.js";
+export * from "./pagination.js";
 export * from "./problem-details.js";
+export * from "./project.js";
+export * from "./task.js";
 export * from "./user-setting.js";

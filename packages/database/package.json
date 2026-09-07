@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@dungeon-master/contracts": "workspace:*",
+    "@dungeon-master/domain": "workspace:*",
     "dotenv": "17.4.2",
     "drizzle-orm": "0.45.2",
     "pg": "8.23.0",

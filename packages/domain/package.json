@@ -21,6 +21,9 @@
     "lint": "eslint .",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@dungeon-master/contracts": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "6.0.3",
     "vitest": "5.0.0"

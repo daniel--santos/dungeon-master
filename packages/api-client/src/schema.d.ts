@@ -257,6 +257,978 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista os Projects
+         * @description Do último editado para o mais antigo. `total` é a contagem sem paginação, para a tela desenhar o paginador sem uma segunda requisição.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                    /** @description Só os Projects neste estado. */
+                    status?: "ACTIVE" | "ARCHIVED";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de Projects. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProjectPage"];
+                    };
+                };
+                /** @description Filtro ou paginação inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria um Project
+         * @description Nasce `ACTIVE`. Grava `project.created` no diário e no stream, na mesma transação.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateProject"];
+                };
+            };
+            responses: {
+                /** @description Project criado. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Project"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Um Project, com a contagem de Tasks por estado */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Project. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O Project e suas contagens. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProjectDetail"];
+                    };
+                };
+                /** @description Não existe Project com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edita título e descrição
+         * @description `status` não passa por aqui: arquivar e desarquivar têm rotas próprias, que também escrevem `archived_at`. Um PATCH que não muda nada não vira linha no diário.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Project. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateProject"];
+                };
+            };
+            responses: {
+                /** @description O Project depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProjectDetail"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Project com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Arquiva o Project
+         * @description Idempotente: arquivar o que já está arquivado devolve o Project e não grava um segundo fato. Um Project arquivado não aceita Task nova.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Project. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O Project arquivado. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProjectDetail"];
+                    };
+                };
+                /** @description Não existe Project com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Desarquiva o Project
+         * @description Idempotente, e limpa `archived_at`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Project. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O Project ativo de novo. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProjectDetail"];
+                    };
+                };
+                /** @description Não existe Project com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * O diário do Project
+         * @description Append-only, do registro mais recente para o mais antigo. Cada criação, edição e transição de status gravou uma linha aqui na mesma transação da mudança.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                };
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Project. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página do diário. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ActivityPage"];
+                    };
+                };
+                /** @description Paginação inválida. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Project com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista as Tasks
+         * @description Da última editada para a mais antiga. `status` aceita um valor ou vários, repetindo o parâmetro. `q` busca por trecho do título, sem diferenciar maiúsculas, e os curingas do SQL são escapados.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                    /** @description Só as Tasks deste Project. */
+                    projectId?: string;
+                    /** @description Só as subtarefas desta Task mãe. */
+                    parentTaskId?: string;
+                    /** @description Natureza do trabalho de uma Task. */
+                    kind?: components["schemas"]["TaskKind"];
+                    /** @description Prioridade de uma Task. */
+                    priority?: components["schemas"]["TaskPriority"];
+                    /** @description Filtra por um estado ou por vários, repetindo o parâmetro. */
+                    status?: components["schemas"]["TaskStatus"] | components["schemas"]["TaskStatus"][];
+                    /** @description Busca por trecho do título, sem diferenciar maiúsculas. */
+                    q?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de Tasks. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskPage"];
+                    };
+                };
+                /** @description Filtro ou paginação inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria uma Task
+         * @description Nasce em `READY`, com Project obrigatório. `INBOX` é alcançado só pela captura da Inbox. Um Project arquivado recusa a criação com `409`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateTask"];
+                };
+            };
+            responses: {
+                /** @description Task criada. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Task"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description O Project ou a Task mãe informados não existem. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Project arquivado, ou Task mãe em outro Project ou na Inbox. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Uma Task, com filhas, dependências e dependentes */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 da Task. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A Task e suas ligações. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskDetail"];
+                    };
+                };
+                /** @description Não existe Task com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edita os campos editáveis
+         * @description `status` nunca passa por aqui: a transição tem rota própria, que valida a máquina de estados e as regras de filhas e dependências. Trocar o Project só vale para uma Task sem mãe e sem filhas.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 da Task. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateTask"];
+                };
+            };
+            responses: {
+                /** @description A Task depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskDetail"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A Task, o Project ou a Task mãe informados não existem. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A edição quebraria uma regra: hierarquia, Project arquivado ou ciclo. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a Task na máquina de estados
+         * @description Valida a aresta e as regras que dependem de outras Tasks: concluir exige toda subtarefa `COMPLETED` ou `CANCELLED`, e enfileirar exige toda dependência `COMPLETED`. Recusa vira `409` com o motivo em `detail`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 da Task. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChangeTaskStatus"];
+                };
+            };
+            responses: {
+                /** @description A Task no estado novo. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskDetail"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Task com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A transição não é permitida a partir do estado atual. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/dependencies/{dependsOnId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Declara que esta Task espera outra
+         * @description Idempotente: repetir devolve o mesmo estado e não grava um segundo fato. Auto-dependência e ciclo, direto ou indireto, viram `409` com o caminho do impasse em `detail`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 da Task que espera. */
+                    id: string;
+                    /** @description UUIDv7 da Task esperada. */
+                    dependsOnId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A Task com a dependência incluída. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskDetail"];
+                    };
+                };
+                /** @description Alguma das duas Tasks não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Auto-dependência, ciclo, ou Task na Inbox. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * Remove a dependência
+         * @description Idempotente: remover o que não existe devolve o estado atual sem gravar fato nenhum. `404` só quando alguma das duas Tasks não existe.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 da Task que espera. */
+                    id: string;
+                    /** @description UUIDv7 da Task esperada. */
+                    dependsOnId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A Task sem a dependência. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskDetail"];
+                    };
+                };
+                /** @description Alguma das duas Tasks não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista a Inbox
+         * @description As Tasks em `INBOX`, da captura mais recente para a mais antiga.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página da Inbox. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InboxPage"];
+                    };
+                };
+                /** @description Paginação inválida. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Captura uma intenção
+         * @description Cria uma Task em `INBOX`, sem Project, com o texto como título. É a única forma de existir uma Task sem Project: o `CHECK` da tabela recusa `project_id` nulo em qualquer outro estado.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CaptureInbox"];
+                };
+            };
+            responses: {
+                /** @description A captura, como Task em `INBOX`. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Task"];
+                    };
+                };
+                /** @description Texto vazio ou longo demais. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inbox/{id}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Promove a captura a trabalho
+         * @description Atribui o Project e leva para `READY`, opcionalmente ajustando título, tipo e prioridade. `projectId` é obrigatório porque `READY` sem Project é um estado que o banco recusa.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 da Task capturada. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PromoteInbox"];
+                };
+            };
+            responses: {
+                /** @description A Task promovida, em `READY`. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Task"];
+                    };
+                };
+                /** @description Corpo inválido: sem `projectId`, por exemplo. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A Task ou o Project informados não existem. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A Task não está em `INBOX`, ou o Project está arquivado. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inbox/{id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Descarta a captura
+         * @description Leva para `CANCELLED` sem apagar a linha: o que foi capturado continua auditável, e uma captura descartada não vira um buraco no histórico.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 da Task capturada. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A Task descartada, em `CANCELLED`. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Task"];
+                    };
+                };
+                /** @description Não existe Task com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A Task não está em `INBOX`. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -344,6 +1316,355 @@ export interface components {
         UpdateUserSetting: {
             /** @description Novo valor da configuração. Validado pelo schema da chave. */
             value?: unknown;
+        };
+        /** @description Uma página de Projects, do último editado para o mais antigo. */
+        ProjectPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["Project"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description A unidade persistente de contexto. */
+        Project: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do Project.
+             */
+            id: string;
+            /** @description Título do Project. */
+            title: string;
+            /** @description Descrição livre. */
+            description: string | null;
+            status: components["schemas"]["ProjectStatus"];
+            /**
+             * Format: date-time
+             * @description Instante do arquivamento, em UTC (ISO 8601). Nulo enquanto ativo.
+             */
+            archivedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Criação, em UTC (ISO 8601).
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Última escrita, em UTC (ISO 8601).
+             */
+            updatedAt: string;
+        };
+        /**
+         * @description Estado de um Project.
+         * @enum {string}
+         */
+        ProjectStatus: "ACTIVE" | "ARCHIVED";
+        /** @description Corpo de `POST /api/v1/projects`. */
+        CreateProject: {
+            /** @description Título do Project. */
+            title: string;
+            /** @description Descrição livre. */
+            description?: string | null;
+        };
+        /** @description Um Project com a contagem de Tasks por estado. */
+        ProjectDetail: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do Project.
+             */
+            id: string;
+            /** @description Título do Project. */
+            title: string;
+            /** @description Descrição livre. */
+            description: string | null;
+            status: components["schemas"]["ProjectStatus"];
+            /**
+             * Format: date-time
+             * @description Instante do arquivamento, em UTC (ISO 8601). Nulo enquanto ativo.
+             */
+            archivedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Criação, em UTC (ISO 8601).
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Última escrita, em UTC (ISO 8601).
+             */
+            updatedAt: string;
+            /** @description Tasks do Project agrupadas por estado. */
+            taskCounts: {
+                INBOX: number;
+                READY: number;
+                QUEUED: number;
+                RUNNING: number;
+                WAITING: number;
+                BLOCKED: number;
+                COMPLETED: number;
+                FAILED: number;
+                CANCELLED: number;
+            };
+        };
+        /** @description Corpo de `PATCH /api/v1/projects/{id}`. */
+        UpdateProject: {
+            title?: string;
+            description?: string | null;
+        };
+        /** @description Uma página do diário, do registro mais recente para o mais antigo. */
+        ActivityPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["Activity"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Um registro do diário append-only de um Project. */
+        Activity: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da linha.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description Project a que o registro pertence.
+             */
+            projectId: string | null;
+            /**
+             * Format: uuid
+             * @description Task envolvida, quando houver.
+             */
+            taskId: string | null;
+            type: components["schemas"]["ActivityType"];
+            /** @description Dados do registro, em JSON. A forma depende do `type`. */
+            payload?: unknown;
+            /**
+             * Format: date-time
+             * @description Instante da gravação, em UTC (ISO 8601).
+             */
+            createdAt: string;
+        };
+        /**
+         * @description O que aconteceu. Mesmo vocabulário dos eventos de dashboard de domínio.
+         * @enum {string}
+         */
+        ActivityType: "project.created" | "project.updated" | "task.created" | "task.updated" | "task.status_changed" | "task.dependency_created" | "task.dependency_removed";
+        /** @description Uma página de Tasks, da última editada para a mais antiga. */
+        TaskPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["Task"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Uma unidade de trabalho. */
+        Task: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da Task.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description Project dono da Task. Nulo apenas enquanto o status é `INBOX`.
+             */
+            projectId: string | null;
+            /**
+             * Format: uuid
+             * @description Task mãe, quando esta é uma subtarefa.
+             */
+            parentTaskId: string | null;
+            /** @description Título da Task. */
+            title: string;
+            /** @description Descrição livre. */
+            description: string | null;
+            kind: components["schemas"]["TaskKind"];
+            status: components["schemas"]["TaskStatus"];
+            priority: components["schemas"]["TaskPriority"];
+            /**
+             * Format: date-time
+             * @description Instante em que entrou em `COMPLETED`, em UTC (ISO 8601).
+             */
+            completedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Criação, em UTC (ISO 8601).
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Última escrita, em UTC (ISO 8601).
+             */
+            updatedAt: string;
+        };
+        /**
+         * @description Natureza do trabalho de uma Task.
+         * @enum {string}
+         */
+        TaskKind: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+        /**
+         * @description Estado de uma Task na máquina de estados.
+         * @enum {string}
+         */
+        TaskStatus: "INBOX" | "READY" | "QUEUED" | "RUNNING" | "WAITING" | "BLOCKED" | "COMPLETED" | "FAILED" | "CANCELLED";
+        /**
+         * @description Prioridade de uma Task.
+         * @enum {string}
+         */
+        TaskPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+        /** @description Corpo de `POST /api/v1/tasks`. Nasce em `READY`. */
+        CreateTask: {
+            /**
+             * Format: uuid
+             * @description Project dono da Task. Obrigatório: só a captura pela Inbox cria Task sem Project.
+             */
+            projectId: string;
+            /**
+             * Format: uuid
+             * @description Task mãe. Precisa pertencer ao mesmo Project e não estar em `INBOX`.
+             */
+            parentTaskId?: string | null;
+            /** @description Título da Task. */
+            title: string;
+            /** @description Descrição livre. */
+            description?: string | null;
+            /**
+             * @description Padrão: `FEATURE`.
+             * @enum {string}
+             */
+            kind?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+            /**
+             * @description Padrão: `MEDIUM`.
+             * @enum {string}
+             */
+            priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+        };
+        /** @description Uma Task com filhas, dependências e dependentes. */
+        TaskDetail: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da Task.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description Project dono da Task. Nulo apenas enquanto o status é `INBOX`.
+             */
+            projectId: string | null;
+            /**
+             * Format: uuid
+             * @description Task mãe, quando esta é uma subtarefa.
+             */
+            parentTaskId: string | null;
+            /** @description Título da Task. */
+            title: string;
+            /** @description Descrição livre. */
+            description: string | null;
+            kind: components["schemas"]["TaskKind"];
+            status: components["schemas"]["TaskStatus"];
+            priority: components["schemas"]["TaskPriority"];
+            /**
+             * Format: date-time
+             * @description Instante em que entrou em `COMPLETED`, em UTC (ISO 8601).
+             */
+            completedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Criação, em UTC (ISO 8601).
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Última escrita, em UTC (ISO 8601).
+             */
+            updatedAt: string;
+            /** @description Subtarefas, da mais antiga para a mais nova. */
+            children: components["schemas"]["TaskSummary"][];
+            /** @description Tasks que precisam terminar antes desta poder ser enfileirada. */
+            dependencies: components["schemas"]["TaskSummary"][];
+            /** @description Tasks que esperam por esta. */
+            dependents: components["schemas"]["TaskSummary"][];
+        };
+        /** @description Forma reduzida de uma Task, para listas de ligação. */
+        TaskSummary: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string | null;
+            title: string;
+            kind: components["schemas"]["TaskKind"];
+            status: components["schemas"]["TaskStatus"];
+            priority: components["schemas"]["TaskPriority"];
+        };
+        /** @description Corpo de `PATCH /api/v1/tasks/{id}`. Status não entra. */
+        UpdateTask: {
+            /**
+             * Format: uuid
+             * @description Move a Task para outro Project, que precisa estar ativo.
+             */
+            projectId?: string;
+            /**
+             * Format: uuid
+             * @description Troca ou remove a Task mãe. `null` desliga a subtarefa da mãe.
+             */
+            parentTaskId?: string | null;
+            title?: string;
+            description?: string | null;
+            kind?: components["schemas"]["TaskKind"];
+            priority?: components["schemas"]["TaskPriority"];
+        };
+        /** @description Corpo de `POST /api/v1/tasks/{id}/status`. */
+        ChangeTaskStatus: {
+            /**
+             * @description Estado desejado. Precisa ser alcançável a partir do atual.
+             * @enum {string}
+             */
+            to: "INBOX" | "READY" | "QUEUED" | "RUNNING" | "WAITING" | "BLOCKED" | "COMPLETED" | "FAILED" | "CANCELLED";
+        };
+        /** @description Corpo de `POST /api/v1/inbox`. */
+        CaptureInbox: {
+            /** @description O texto da captura. Vira o título da Task em `INBOX`. */
+            text: string;
+        };
+        /** @description Uma página da Inbox: Tasks em `INBOX`, da mais recente para a mais antiga. */
+        InboxPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["Task"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Corpo de `POST /api/v1/inbox/{id}/promote`. */
+        PromoteInbox: {
+            /**
+             * Format: uuid
+             * @description Project que passa a ser dono da Task.
+             */
+            projectId: string;
+            /** @description Substitui o texto capturado. Ausente mantém o título atual. */
+            title?: string;
+            /**
+             * @description Ausente mantém o `kind` atual.
+             * @enum {string}
+             */
+            kind?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+            /**
+             * @description Ausente mantém a prioridade atual.
+             * @enum {string}
+             */
+            priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
         };
     };
     responses: never;

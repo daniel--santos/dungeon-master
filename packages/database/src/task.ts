@@ -1,0 +1,703 @@
+import type {
+  Task,
+  TaskDetail,
+  TaskKind,
+  TaskPriority,
+  TaskStatus,
+  TaskSummary,
+} from "@dungeon-master/contracts";
+import {
+  checkTaskTransition,
+  type TaskDependencyEdge,
+  type TaskTransitionRejection,
+  taskStatusRequiresProject,
+  wouldCreateDependencyCycle,
+} from "@dungeon-master/domain";
+import { and, asc, count, desc, eq, ilike, inArray, isNotNull, sql } from "drizzle-orm";
+
+import { recordDomainEvent } from "./activity.js";
+import type { Database } from "./client.js";
+import type { DatabaseExecutor } from "./dashboard-event.js";
+import { newId } from "./ids.js";
+import {
+  escapeLikePattern,
+  failed,
+  ok,
+  type PageInput,
+  type PageResult,
+  type Result,
+} from "./result.js";
+import { findProjectRow } from "./project.js";
+import { taskDependencies, tasks, type TaskRow } from "./schema/task.js";
+
+export function toTask(row: TaskRow): Task {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    parentTaskId: row.parentTaskId,
+    title: row.title,
+    description: row.description,
+    kind: row.kind,
+    status: row.status,
+    priority: row.priority,
+    completedAt: row.completedAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+const summaryColumns = {
+  id: tasks.id,
+  projectId: tasks.projectId,
+  title: tasks.title,
+  kind: tasks.kind,
+  status: tasks.status,
+  priority: tasks.priority,
+} as const;
+
+// --------------------------------------------------------------------------
+// Falhas de regra
+// --------------------------------------------------------------------------
+
+/**
+ * Por que uma escrita de Task foi recusada.
+ *
+ * Todas viram `409` na API, menos as de "não encontrado", que existem porque o
+ * id recusado veio no corpo e não no caminho: um `projectId` inexistente em
+ * `POST /tasks` não é o mesmo 404 de uma rota que não casa.
+ */
+export type TaskWriteFailure =
+  | { readonly code: "PROJECT_NOT_FOUND"; readonly projectId: string }
+  | { readonly code: "PROJECT_ARCHIVED"; readonly projectId: string }
+  | { readonly code: "PARENT_NOT_FOUND"; readonly parentTaskId: string }
+  | { readonly code: "PARENT_IN_OTHER_PROJECT"; readonly parentTaskId: string }
+  | { readonly code: "PARENT_IN_INBOX"; readonly parentTaskId: string }
+  | { readonly code: "PARENT_CYCLE"; readonly path: readonly string[] }
+  | { readonly code: "TASK_IN_INBOX" }
+  | { readonly code: "TASK_HAS_SUBTREE" }
+  | { readonly code: "PROJECT_REQUIRED"; readonly to: TaskStatus }
+  | { readonly code: "TRANSITION_REJECTED"; readonly rejection: TaskTransitionRejection };
+
+export type DependencyWriteFailure =
+  | { readonly code: "SELF_DEPENDENCY" }
+  | { readonly code: "TASK_IN_INBOX" }
+  | { readonly code: "DEPENDENCY_CYCLE"; readonly path: readonly string[] };
+
+// --------------------------------------------------------------------------
+// Leitura
+// --------------------------------------------------------------------------
+
+export async function findTaskRow(
+  db: DatabaseExecutor,
+  input: { userId: string; taskId: string },
+): Promise<TaskRow | null> {
+  const [row] = await db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.id, input.taskId), eq(tasks.userId, input.userId)));
+
+  return row ?? null;
+}
+
+export interface TaskFilters {
+  projectId?: string | undefined;
+  parentTaskId?: string | undefined;
+  kind?: TaskKind | undefined;
+  priority?: TaskPriority | undefined;
+  status?: readonly TaskStatus[] | undefined;
+  /** Trecho do título, sem diferenciar maiúsculas. */
+  q?: string | undefined;
+}
+
+export interface ListTasksInput extends PageInput {
+  userId: string;
+  filters?: TaskFilters;
+}
+
+/**
+ * A listagem com filtros, ordenada da última editada para a mais antiga.
+ *
+ * O desempate é por `id` descendente: sem ele, duas Tasks com o mesmo
+ * `updated_at` poderiam trocar de lugar entre uma página e a seguinte, e um
+ * item apareceria duas vezes ou nenhuma.
+ */
+export async function listTasks(
+  db: DatabaseExecutor,
+  input: ListTasksInput,
+): Promise<PageResult<Task>> {
+  const filters = input.filters ?? {};
+  const conditions = [eq(tasks.userId, input.userId)];
+
+  if (filters.projectId !== undefined) conditions.push(eq(tasks.projectId, filters.projectId));
+  if (filters.parentTaskId !== undefined) {
+    conditions.push(eq(tasks.parentTaskId, filters.parentTaskId));
+  }
+  if (filters.kind !== undefined) conditions.push(eq(tasks.kind, filters.kind));
+  if (filters.priority !== undefined) conditions.push(eq(tasks.priority, filters.priority));
+  if (filters.status !== undefined && filters.status.length > 0) {
+    conditions.push(inArray(tasks.status, [...filters.status]));
+  }
+  if (filters.q !== undefined && filters.q !== "") {
+    conditions.push(ilike(tasks.title, `%${escapeLikePattern(filters.q)}%`));
+  }
+
+  const where = and(...conditions);
+
+  const rows = await db
+    .select()
+    .from(tasks)
+    .where(where)
+    .orderBy(desc(tasks.updatedAt), desc(tasks.id))
+    .limit(input.pageSize)
+    .offset((input.page - 1) * input.pageSize);
+
+  const [counted] = await db.select({ total: count() }).from(tasks).where(where);
+
+  return { items: rows.map(toTask), total: counted?.total ?? 0 };
+}
+
+async function loadChildren(
+  db: DatabaseExecutor,
+  input: { userId: string; taskId: string },
+): Promise<TaskSummary[]> {
+  return await db
+    .select(summaryColumns)
+    .from(tasks)
+    .where(and(eq(tasks.userId, input.userId), eq(tasks.parentTaskId, input.taskId)))
+    .orderBy(asc(tasks.createdAt), asc(tasks.id));
+}
+
+/** As Tasks das quais esta depende. */
+async function loadDependencies(
+  db: DatabaseExecutor,
+  input: { userId: string; taskId: string },
+): Promise<TaskSummary[]> {
+  return await db
+    .select(summaryColumns)
+    .from(taskDependencies)
+    .innerJoin(tasks, eq(tasks.id, taskDependencies.dependsOnTaskId))
+    .where(
+      and(eq(taskDependencies.userId, input.userId), eq(taskDependencies.taskId, input.taskId)),
+    )
+    .orderBy(asc(tasks.createdAt), asc(tasks.id));
+}
+
+/** As Tasks que esperam por esta. */
+async function loadDependents(
+  db: DatabaseExecutor,
+  input: { userId: string; taskId: string },
+): Promise<TaskSummary[]> {
+  return await db
+    .select(summaryColumns)
+    .from(taskDependencies)
+    .innerJoin(tasks, eq(tasks.id, taskDependencies.taskId))
+    .where(
+      and(
+        eq(taskDependencies.userId, input.userId),
+        eq(taskDependencies.dependsOnTaskId, input.taskId),
+      ),
+    )
+    .orderBy(asc(tasks.createdAt), asc(tasks.id));
+}
+
+export async function getTaskDetail(
+  db: DatabaseExecutor,
+  input: { userId: string; taskId: string },
+): Promise<TaskDetail | null> {
+  const row = await findTaskRow(db, input);
+  if (row === null) return null;
+
+  // Em série, e não em `Promise.all`: dentro de uma transação as três consultas
+  // compartilham a mesma conexão, e o `pg` avisa (e vai passar a recusar) duas
+  // consultas simultâneas no mesmo cliente.
+  const children = await loadChildren(db, input);
+  const dependencies = await loadDependencies(db, input);
+  const dependents = await loadDependents(db, input);
+
+  return { ...toTask(row), children, dependencies, dependents };
+}
+
+// --------------------------------------------------------------------------
+// Grafos: dependências e hierarquia
+// --------------------------------------------------------------------------
+
+/**
+ * Todas as arestas de dependência do usuário.
+ *
+ * O grafo inteiro cabe na memória com folga num sistema pessoal, e carregá-lo
+ * de uma vez deixa a checagem de ciclo ser a função pura já testada em
+ * `@dungeon-master/domain`, em vez de uma consulta recursiva escrita de novo em
+ * SQL e nunca exercitada.
+ */
+async function loadDependencyEdges(
+  db: DatabaseExecutor,
+  userId: string,
+): Promise<TaskDependencyEdge[]> {
+  return await db
+    .select({ taskId: taskDependencies.taskId, dependsOnTaskId: taskDependencies.dependsOnTaskId })
+    .from(taskDependencies)
+    .where(eq(taskDependencies.userId, userId));
+}
+
+/**
+ * As arestas "esta Task é filha daquela", no mesmo formato do grafo de
+ * dependências, para reaproveitar a mesma detecção de ciclo. Uma hierarquia com
+ * ciclo é tão inalcançável quanto um impasse de dependências.
+ */
+async function loadParentEdges(
+  db: DatabaseExecutor,
+  userId: string,
+): Promise<TaskDependencyEdge[]> {
+  const rows = await db
+    .select({ id: tasks.id, parentTaskId: tasks.parentTaskId })
+    .from(tasks)
+    .where(and(eq(tasks.userId, userId), isNotNull(tasks.parentTaskId)));
+
+  return rows.flatMap((row) =>
+    row.parentTaskId === null ? [] : [{ taskId: row.id, dependsOnTaskId: row.parentTaskId }],
+  );
+}
+
+/**
+ * Serializa as escritas que dependem de ler o grafo antes de mudá-lo.
+ *
+ * Sem a trava, duas requisições simultâneas leem o mesmo grafo sem ciclo, cada
+ * uma insere a sua aresta e o ciclo aparece com as duas transações commitadas —
+ * a checagem de cada uma respondia sobre um grafo que já não existia. A trava é
+ * por usuário e é liberada no fim da transação.
+ */
+async function lockTaskGraph(db: DatabaseExecutor, userId: string): Promise<void> {
+  await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${userId}, 0))`);
+}
+
+// --------------------------------------------------------------------------
+// Escrita
+// --------------------------------------------------------------------------
+
+export interface CreateTaskInput {
+  userId: string;
+  projectId: string;
+  parentTaskId?: string | null;
+  title: string;
+  description?: string | null;
+  kind?: TaskKind;
+  priority?: TaskPriority;
+}
+
+/**
+ * Cria uma Task já em `READY`.
+ *
+ * `INBOX` é alcançado só pela captura da Inbox: uma Task criada com Project
+ * escolhido já passou pelo trabalho que promover faria.
+ */
+export async function createTask(
+  db: Database,
+  input: CreateTaskInput,
+): Promise<Result<Task, TaskWriteFailure>> {
+  return await db.transaction(async (tx) => {
+    const project = await findProjectRow(tx, { userId: input.userId, projectId: input.projectId });
+    if (project === null) {
+      return failed<TaskWriteFailure>({ code: "PROJECT_NOT_FOUND", projectId: input.projectId });
+    }
+    if (project.status === "ARCHIVED") {
+      return failed<TaskWriteFailure>({ code: "PROJECT_ARCHIVED", projectId: input.projectId });
+    }
+
+    const parentTaskId = input.parentTaskId ?? null;
+
+    if (parentTaskId !== null) {
+      const parent = await findTaskRow(tx, { userId: input.userId, taskId: parentTaskId });
+      if (parent === null) {
+        return failed<TaskWriteFailure>({ code: "PARENT_NOT_FOUND", parentTaskId });
+      }
+      if (parent.status === "INBOX") {
+        return failed<TaskWriteFailure>({ code: "PARENT_IN_INBOX", parentTaskId });
+      }
+      if (parent.projectId !== input.projectId) {
+        return failed<TaskWriteFailure>({ code: "PARENT_IN_OTHER_PROJECT", parentTaskId });
+      }
+    }
+
+    const [row] = await tx
+      .insert(tasks)
+      .values({
+        id: newId(),
+        userId: input.userId,
+        projectId: input.projectId,
+        parentTaskId,
+        title: input.title,
+        description: input.description ?? null,
+        kind: input.kind ?? "FEATURE",
+        priority: input.priority ?? "MEDIUM",
+        status: "READY",
+      })
+      .returning();
+
+    if (row === undefined) {
+      throw new Error("A inserção em task não devolveu linha.");
+    }
+
+    const task = toTask(row);
+
+    await recordDomainEvent(tx, {
+      userId: input.userId,
+      projectId: task.projectId,
+      taskId: task.id,
+      type: "task.created",
+      payload: {
+        taskId: task.id,
+        projectId: task.projectId,
+        parentTaskId: task.parentTaskId,
+        status: task.status,
+        kind: task.kind,
+      },
+    });
+
+    return ok(task);
+  });
+}
+
+export interface UpdateTaskPatch {
+  projectId?: string;
+  parentTaskId?: string | null;
+  title?: string;
+  description?: string | null;
+  kind?: TaskKind;
+  priority?: TaskPriority;
+}
+
+export interface UpdateTaskInput {
+  userId: string;
+  taskId: string;
+  patch: UpdateTaskPatch;
+}
+
+/**
+ * Edita os campos editáveis. `status` não passa por aqui.
+ *
+ * Trocar o Project só é permitido numa Task sem mãe e sem filhas: mover uma
+ * árvore inteira é trabalho da Fase 5, e mover só um nó deixaria mãe e filha em
+ * Projects diferentes, o que nenhuma outra regra conseguiria consertar depois.
+ */
+export async function updateTask(
+  db: Database,
+  input: UpdateTaskInput,
+): Promise<Result<TaskDetail, TaskWriteFailure> | null> {
+  return await db.transaction(async (tx) => {
+    await lockTaskGraph(tx, input.userId);
+
+    const current = await findTaskRow(tx, input);
+    if (current === null) return null;
+
+    const { patch } = input;
+    const mexeNaEstrutura = patch.projectId !== undefined || patch.parentTaskId !== undefined;
+
+    // Uma Task de Inbox não tem mãe, filhas nem dependências: dar Project a ela
+    // é promover, e promover tem rota própria, que também muda o status.
+    if (current.status === "INBOX" && mexeNaEstrutura) {
+      return failed<TaskWriteFailure>({ code: "TASK_IN_INBOX" });
+    }
+
+    const targetProjectId = patch.projectId ?? current.projectId;
+
+    if (patch.projectId !== undefined && patch.projectId !== current.projectId) {
+      const project = await findProjectRow(tx, {
+        userId: input.userId,
+        projectId: patch.projectId,
+      });
+      if (project === null) {
+        return failed<TaskWriteFailure>({ code: "PROJECT_NOT_FOUND", projectId: patch.projectId });
+      }
+      if (project.status === "ARCHIVED") {
+        return failed<TaskWriteFailure>({ code: "PROJECT_ARCHIVED", projectId: patch.projectId });
+      }
+
+      const children = await loadChildren(tx, input);
+      if (current.parentTaskId !== null || children.length > 0) {
+        return failed<TaskWriteFailure>({ code: "TASK_HAS_SUBTREE" });
+      }
+    }
+
+    if (patch.parentTaskId !== undefined && patch.parentTaskId !== null) {
+      const parentTaskId = patch.parentTaskId;
+
+      if (parentTaskId === input.taskId) {
+        return failed<TaskWriteFailure>({
+          code: "PARENT_CYCLE",
+          path: [input.taskId, input.taskId],
+        });
+      }
+
+      const parent = await findTaskRow(tx, { userId: input.userId, taskId: parentTaskId });
+      if (parent === null) {
+        return failed<TaskWriteFailure>({ code: "PARENT_NOT_FOUND", parentTaskId });
+      }
+      if (parent.status === "INBOX") {
+        return failed<TaskWriteFailure>({ code: "PARENT_IN_INBOX", parentTaskId });
+      }
+      if (parent.projectId !== targetProjectId) {
+        return failed<TaskWriteFailure>({ code: "PARENT_IN_OTHER_PROJECT", parentTaskId });
+      }
+
+      // A aresta atual sai antes da checagem: trocar de mãe não pode ser
+      // recusado por causa do ciclo que a mãe antiga formaria.
+      const edges = (await loadParentEdges(tx, input.userId)).filter(
+        (edge) => edge.taskId !== input.taskId,
+      );
+      const cycle = wouldCreateDependencyCycle(edges, {
+        taskId: input.taskId,
+        dependsOnTaskId: parentTaskId,
+      });
+      if (cycle !== null) {
+        return failed<TaskWriteFailure>({ code: "PARENT_CYCLE", path: cycle });
+      }
+    }
+
+    const changed: string[] = [];
+    const values: UpdateTaskPatch = {};
+
+    if (patch.projectId !== undefined && patch.projectId !== current.projectId) {
+      values.projectId = patch.projectId;
+      changed.push("projectId");
+    }
+    if (patch.parentTaskId !== undefined && patch.parentTaskId !== current.parentTaskId) {
+      values.parentTaskId = patch.parentTaskId;
+      changed.push("parentTaskId");
+    }
+    if (patch.title !== undefined && patch.title !== current.title) {
+      values.title = patch.title;
+      changed.push("title");
+    }
+    if (patch.description !== undefined && patch.description !== current.description) {
+      values.description = patch.description;
+      changed.push("description");
+    }
+    if (patch.kind !== undefined && patch.kind !== current.kind) {
+      values.kind = patch.kind;
+      changed.push("kind");
+    }
+    if (patch.priority !== undefined && patch.priority !== current.priority) {
+      values.priority = patch.priority;
+      changed.push("priority");
+    }
+
+    if (changed.length === 0) {
+      const detail = await getTaskDetail(tx, input);
+      return detail === null ? null : ok(detail);
+    }
+
+    await tx
+      .update(tasks)
+      .set(values)
+      .where(and(eq(tasks.id, input.taskId), eq(tasks.userId, input.userId)));
+
+    await recordDomainEvent(tx, {
+      userId: input.userId,
+      projectId: targetProjectId,
+      taskId: input.taskId,
+      type: "task.updated",
+      payload: { taskId: input.taskId, projectId: targetProjectId, changed },
+    });
+
+    const detail = await getTaskDetail(tx, input);
+    return detail === null ? null : ok(detail);
+  });
+}
+
+export interface ChangeTaskStatusInput {
+  userId: string;
+  taskId: string;
+  to: TaskStatus;
+}
+
+/**
+ * A única porta para mudar o estado de uma Task.
+ *
+ * Filhas e dependências são lidas **dentro** da transação que aplica a
+ * mudança: lidas fora, a checagem responderia sobre um estado que outra
+ * requisição já mudou.
+ */
+export async function changeTaskStatus(
+  db: Database,
+  input: ChangeTaskStatusInput,
+): Promise<Result<TaskDetail, TaskWriteFailure> | null> {
+  return await db.transaction(async (tx) => {
+    await lockTaskGraph(tx, input.userId);
+
+    const current = await findTaskRow(tx, input);
+    if (current === null) return null;
+
+    const children = await loadChildren(tx, input);
+    const dependencies = await loadDependencies(tx, input);
+
+    const check = checkTaskTransition({
+      from: current.status,
+      to: input.to,
+      children,
+      dependencies,
+    });
+
+    if (!check.ok) {
+      return failed<TaskWriteFailure>({
+        code: "TRANSITION_REJECTED",
+        rejection: check.rejection,
+      });
+    }
+
+    // A metade da restrição do banco que dá para explicar: sair de `INBOX` sem
+    // Project violaria o `CHECK`, e um erro de constraint não diz ao usuário
+    // que o que faltou foi escolher um Project.
+    if (taskStatusRequiresProject(input.to) && current.projectId === null) {
+      return failed<TaskWriteFailure>({ code: "PROJECT_REQUIRED", to: input.to });
+    }
+
+    await tx
+      .update(tasks)
+      .set({
+        status: input.to,
+        // `completed_at` é escrito uma vez só: `COMPLETED` é terminal, então
+        // nada depois disso pode reabrir a Task e sujar o instante.
+        ...(input.to === "COMPLETED" ? { completedAt: new Date() } : {}),
+      })
+      .where(and(eq(tasks.id, input.taskId), eq(tasks.userId, input.userId)));
+
+    await recordDomainEvent(tx, {
+      userId: input.userId,
+      projectId: current.projectId,
+      taskId: input.taskId,
+      type: "task.status_changed",
+      payload: {
+        taskId: input.taskId,
+        projectId: current.projectId,
+        from: current.status,
+        to: input.to,
+      },
+    });
+
+    const detail = await getTaskDetail(tx, input);
+    return detail === null ? null : ok(detail);
+  });
+}
+
+export interface TaskDependencyInput {
+  userId: string;
+  taskId: string;
+  dependsOnTaskId: string;
+}
+
+/**
+ * Cria a aresta "esta Task espera aquela".
+ *
+ * Idempotente, como todo `PUT`: repetir devolve o mesmo estado e não grava um
+ * segundo fato. Devolve `null` quando qualquer das duas Tasks não existe.
+ */
+export async function addTaskDependency(
+  db: Database,
+  input: TaskDependencyInput,
+): Promise<Result<TaskDetail, DependencyWriteFailure> | null> {
+  return await db.transaction(async (tx) => {
+    await lockTaskGraph(tx, input.userId);
+
+    const task = await findTaskRow(tx, input);
+    if (task === null) return null;
+
+    if (input.taskId === input.dependsOnTaskId) {
+      return failed<DependencyWriteFailure>({ code: "SELF_DEPENDENCY" });
+    }
+
+    const dependency = await findTaskRow(tx, {
+      userId: input.userId,
+      taskId: input.dependsOnTaskId,
+    });
+    if (dependency === null) return null;
+
+    if (task.status === "INBOX" || dependency.status === "INBOX") {
+      return failed<DependencyWriteFailure>({ code: "TASK_IN_INBOX" });
+    }
+
+    const edges = await loadDependencyEdges(tx, input.userId);
+    const cycle = wouldCreateDependencyCycle(edges, {
+      taskId: input.taskId,
+      dependsOnTaskId: input.dependsOnTaskId,
+    });
+    if (cycle !== null) {
+      return failed<DependencyWriteFailure>({ code: "DEPENDENCY_CYCLE", path: cycle });
+    }
+
+    const inserted = await tx
+      .insert(taskDependencies)
+      .values({
+        userId: input.userId,
+        taskId: input.taskId,
+        dependsOnTaskId: input.dependsOnTaskId,
+      })
+      .onConflictDoNothing({
+        target: [taskDependencies.taskId, taskDependencies.dependsOnTaskId],
+      })
+      .returning({ taskId: taskDependencies.taskId });
+
+    if (inserted.length > 0) {
+      await recordDomainEvent(tx, {
+        userId: input.userId,
+        projectId: task.projectId,
+        taskId: input.taskId,
+        type: "task.dependency_created",
+        payload: {
+          taskId: input.taskId,
+          dependsOnTaskId: input.dependsOnTaskId,
+          projectId: task.projectId,
+        },
+      });
+    }
+
+    const detail = await getTaskDetail(tx, input);
+    return detail === null ? null : ok(detail);
+  });
+}
+
+/**
+ * Remove a aresta. Idempotente: remover o que não existe devolve o estado atual
+ * sem gravar fato nenhum. `null` só quando alguma das Tasks não existe.
+ */
+export async function removeTaskDependency(
+  db: Database,
+  input: TaskDependencyInput,
+): Promise<TaskDetail | null> {
+  return await db.transaction(async (tx) => {
+    const task = await findTaskRow(tx, input);
+    if (task === null) return null;
+
+    const dependency = await findTaskRow(tx, {
+      userId: input.userId,
+      taskId: input.dependsOnTaskId,
+    });
+    if (dependency === null) return null;
+
+    const removed = await tx
+      .delete(taskDependencies)
+      .where(
+        and(
+          eq(taskDependencies.userId, input.userId),
+          eq(taskDependencies.taskId, input.taskId),
+          eq(taskDependencies.dependsOnTaskId, input.dependsOnTaskId),
+        ),
+      )
+      .returning({ taskId: taskDependencies.taskId });
+
+    if (removed.length > 0) {
+      await recordDomainEvent(tx, {
+        userId: input.userId,
+        projectId: task.projectId,
+        taskId: input.taskId,
+        type: "task.dependency_removed",
+        payload: {
+          taskId: input.taskId,
+          dependsOnTaskId: input.dependsOnTaskId,
+          projectId: task.projectId,
+        },
+      });
+    }
+
+    return await getTaskDetail(tx, input);
+  });
+}

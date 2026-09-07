@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { ACTIVITY_TYPE_VALUES } from "./activity.js";
+
 /**
  * Evento de dashboard: a unidade que a API empurra por SSE para a web.
  *
@@ -19,9 +21,20 @@ import { z } from "zod";
  * O enum é fechado no **lado de quem escreve**: `appendDashboardEvent` só
  * aceita um destes. Reservados para as fases seguintes, sem entrar ainda:
  * `achievement.unlocked` e `hero_stats.updated` (planejamento v0.4, Fase 2.5).
+ *
+ * Os tipos de domínio são exatamente os de `ActivityType`, reaproveitados em
+ * vez de reescritos: cada mudança de Project ou de Task grava uma linha de
+ * `activity` e um evento deste tipo na mesma transação, e dois vocabulários
+ * para o mesmo fato divergiriam na primeira adição.
  */
+export const DASHBOARD_EVENT_TYPE_VALUES = [
+  "system.ping",
+  "settings.changed",
+  ...ACTIVITY_TYPE_VALUES,
+] as const;
+
 export const DashboardEventTypeSchema = z
-  .enum(["system.ping", "settings.changed"])
+  .enum(DASHBOARD_EVENT_TYPE_VALUES)
   .meta({ id: "DashboardEventType", description: "Tipos de evento de dashboard emitidos hoje." });
 
 export type DashboardEventType = z.infer<typeof DashboardEventTypeSchema>;

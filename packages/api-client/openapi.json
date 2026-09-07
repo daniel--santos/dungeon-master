@@ -27,6 +27,18 @@
     {
       "name": "settings",
       "description": "Configurações do usuário local."
+    },
+    {
+      "name": "projects",
+      "description": "Projects: a unidade persistente de contexto."
+    },
+    {
+      "name": "tasks",
+      "description": "Tasks, subtarefas e dependências."
+    },
+    {
+      "name": "inbox",
+      "description": "Captura de intenção: as Tasks em INBOX."
     }
   ],
   "components": {
@@ -239,6 +251,832 @@
           }
         },
         "description": "Novo valor de uma configuração."
+      },
+      "ProjectPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de Projects, do último editado para o mais antigo."
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do Project."
+          },
+          "title": {
+            "type": "string",
+            "description": "Título do Project."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Descrição livre."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProjectStatus"
+          },
+          "archivedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Instante do arquivamento, em UTC (ISO 8601). Nulo enquanto ativo."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Criação, em UTC (ISO 8601)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Última escrita, em UTC (ISO 8601)."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "status",
+          "archivedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "A unidade persistente de contexto."
+      },
+      "ProjectStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "ARCHIVED"
+        ],
+        "description": "Estado de um Project."
+      },
+      "CreateProject": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Título do Project."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20000,
+            "description": "Descrição livre."
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "description": "Corpo de `POST /api/v1/projects`."
+      },
+      "ProjectDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do Project."
+          },
+          "title": {
+            "type": "string",
+            "description": "Título do Project."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Descrição livre."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProjectStatus"
+          },
+          "archivedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Instante do arquivamento, em UTC (ISO 8601). Nulo enquanto ativo."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Criação, em UTC (ISO 8601)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Última escrita, em UTC (ISO 8601)."
+          },
+          "taskCounts": {
+            "type": "object",
+            "properties": {
+              "INBOX": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "READY": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "QUEUED": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "RUNNING": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "WAITING": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "BLOCKED": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "COMPLETED": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "FAILED": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "CANCELLED": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "INBOX",
+              "READY",
+              "QUEUED",
+              "RUNNING",
+              "WAITING",
+              "BLOCKED",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED"
+            ],
+            "description": "Tasks do Project agrupadas por estado."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "status",
+          "archivedAt",
+          "createdAt",
+          "updatedAt",
+          "taskCounts"
+        ],
+        "description": "Um Project com a contagem de Tasks por estado."
+      },
+      "UpdateProject": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20000
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/projects/{id}`."
+      },
+      "ActivityPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Activity"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página do diário, do registro mais recente para o mais antigo."
+      },
+      "Activity": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da linha."
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Project a que o registro pertence."
+          },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Task envolvida, quando houver."
+          },
+          "type": {
+            "$ref": "#/components/schemas/ActivityType"
+          },
+          "payload": {
+            "description": "Dados do registro, em JSON. A forma depende do `type`."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante da gravação, em UTC (ISO 8601)."
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "taskId",
+          "type",
+          "createdAt"
+        ],
+        "description": "Um registro do diário append-only de um Project."
+      },
+      "ActivityType": {
+        "type": "string",
+        "enum": [
+          "project.created",
+          "project.updated",
+          "task.created",
+          "task.updated",
+          "task.status_changed",
+          "task.dependency_created",
+          "task.dependency_removed"
+        ],
+        "description": "O que aconteceu. Mesmo vocabulário dos eventos de dashboard de domínio."
+      },
+      "TaskPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de Tasks, da última editada para a mais antiga."
+      },
+      "Task": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da Task."
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Project dono da Task. Nulo apenas enquanto o status é `INBOX`."
+          },
+          "parentTaskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Task mãe, quando esta é uma subtarefa."
+          },
+          "title": {
+            "type": "string",
+            "description": "Título da Task."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Descrição livre."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TaskKind"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TaskStatus"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TaskPriority"
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Instante em que entrou em `COMPLETED`, em UTC (ISO 8601)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Criação, em UTC (ISO 8601)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Última escrita, em UTC (ISO 8601)."
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "parentTaskId",
+          "title",
+          "description",
+          "kind",
+          "status",
+          "priority",
+          "completedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Uma unidade de trabalho."
+      },
+      "TaskKind": {
+        "type": "string",
+        "enum": [
+          "BUG",
+          "FEATURE",
+          "RESEARCH",
+          "CHORE"
+        ],
+        "description": "Natureza do trabalho de uma Task."
+      },
+      "TaskStatus": {
+        "type": "string",
+        "enum": [
+          "INBOX",
+          "READY",
+          "QUEUED",
+          "RUNNING",
+          "WAITING",
+          "BLOCKED",
+          "COMPLETED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "description": "Estado de uma Task na máquina de estados."
+      },
+      "TaskPriority": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "URGENT"
+        ],
+        "description": "Prioridade de uma Task."
+      },
+      "CreateTask": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Project dono da Task. Obrigatório: só a captura pela Inbox cria Task sem Project."
+          },
+          "parentTaskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Task mãe. Precisa pertencer ao mesmo Project e não estar em `INBOX`."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Título da Task."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20000,
+            "description": "Descrição livre."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "BUG",
+              "FEATURE",
+              "RESEARCH",
+              "CHORE"
+            ],
+            "description": "Padrão: `FEATURE`."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ],
+            "description": "Padrão: `MEDIUM`."
+          }
+        },
+        "required": [
+          "projectId",
+          "title"
+        ],
+        "description": "Corpo de `POST /api/v1/tasks`. Nasce em `READY`."
+      },
+      "TaskDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da Task."
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Project dono da Task. Nulo apenas enquanto o status é `INBOX`."
+          },
+          "parentTaskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Task mãe, quando esta é uma subtarefa."
+          },
+          "title": {
+            "type": "string",
+            "description": "Título da Task."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Descrição livre."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TaskKind"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TaskStatus"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TaskPriority"
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Instante em que entrou em `COMPLETED`, em UTC (ISO 8601)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Criação, em UTC (ISO 8601)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Última escrita, em UTC (ISO 8601)."
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskSummary"
+            },
+            "description": "Subtarefas, da mais antiga para a mais nova."
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskSummary"
+            },
+            "description": "Tasks que precisam terminar antes desta poder ser enfileirada."
+          },
+          "dependents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskSummary"
+            },
+            "description": "Tasks que esperam por esta."
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "parentTaskId",
+          "title",
+          "description",
+          "kind",
+          "status",
+          "priority",
+          "completedAt",
+          "createdAt",
+          "updatedAt",
+          "children",
+          "dependencies",
+          "dependents"
+        ],
+        "description": "Uma Task com filhas, dependências e dependentes."
+      },
+      "TaskSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TaskKind"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TaskStatus"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TaskPriority"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "title",
+          "kind",
+          "status",
+          "priority"
+        ],
+        "description": "Forma reduzida de uma Task, para listas de ligação."
+      },
+      "UpdateTask": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Move a Task para outro Project, que precisa estar ativo."
+          },
+          "parentTaskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Troca ou remove a Task mãe. `null` desliga a subtarefa da mãe."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20000
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TaskKind"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TaskPriority"
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/tasks/{id}`. Status não entra."
+      },
+      "ChangeTaskStatus": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "enum": [
+              "INBOX",
+              "READY",
+              "QUEUED",
+              "RUNNING",
+              "WAITING",
+              "BLOCKED",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED"
+            ],
+            "description": "Estado desejado. Precisa ser alcançável a partir do atual."
+          }
+        },
+        "required": [
+          "to"
+        ],
+        "description": "Corpo de `POST /api/v1/tasks/{id}/status`."
+      },
+      "CaptureInbox": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "O texto da captura. Vira o título da Task em `INBOX`."
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "description": "Corpo de `POST /api/v1/inbox`."
+      },
+      "InboxPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página da Inbox: Tasks em `INBOX`, da mais recente para a mais antiga."
+      },
+      "PromoteInbox": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Project que passa a ser dono da Task."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Substitui o texto capturado. Ausente mantém o título atual."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "BUG",
+              "FEATURE",
+              "RESEARCH",
+              "CHORE"
+            ],
+            "description": "Ausente mantém o `kind` atual."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ],
+            "description": "Ausente mantém a prioridade atual."
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "description": "Corpo de `POST /api/v1/inbox/{id}/promote`."
       }
     },
     "parameters": {}
@@ -438,6 +1276,1098 @@
           },
           "404": {
             "description": "A chave não existe no contrato de configurações.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Lista os Projects",
+        "description": "Do último editado para o mais antigo. `total` é a contagem sem paginação, para a tela desenhar o paginador sem uma segunda requisição.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "ARCHIVED"
+              ],
+              "description": "Só os Projects neste estado."
+            },
+            "required": false,
+            "description": "Só os Projects neste estado.",
+            "name": "status",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de Projects.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Cria um Project",
+        "description": "Nasce `ACTIVE`. Grava `project.created` no diário e no stream, na mesma transação.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProject"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Project criado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Um Project, com a contagem de Tasks por estado",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Project."
+            },
+            "required": true,
+            "description": "UUIDv7 do Project.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O Project e suas contagens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Project com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Edita título e descrição",
+        "description": "`status` não passa por aqui: arquivar e desarquivar têm rotas próprias, que também escrevem `archived_at`. Um PATCH que não muda nada não vira linha no diário.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Project."
+            },
+            "required": true,
+            "description": "UUIDv7 do Project.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProject"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O Project depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Project com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/archive": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Arquiva o Project",
+        "description": "Idempotente: arquivar o que já está arquivado devolve o Project e não grava um segundo fato. Um Project arquivado não aceita Task nova.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Project."
+            },
+            "required": true,
+            "description": "UUIDv7 do Project.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O Project arquivado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Project com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/unarchive": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Desarquiva o Project",
+        "description": "Idempotente, e limpa `archived_at`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Project."
+            },
+            "required": true,
+            "description": "UUIDv7 do Project.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O Project ativo de novo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Project com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/activity": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "O diário do Project",
+        "description": "Append-only, do registro mais recente para o mais antigo. Cada criação, edição e transição de status gravou uma linha aqui na mesma transação da mudança.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Project."
+            },
+            "required": true,
+            "description": "UUIDv7 do Project.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página do diário.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paginação inválida.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Project com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Lista as Tasks",
+        "description": "Da última editada para a mais antiga. `status` aceita um valor ou vários, repetindo o parâmetro. `q` busca por trecho do título, sem diferenciar maiúsculas, e os curingas do SQL são escapados.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só as Tasks deste Project."
+            },
+            "required": false,
+            "description": "Só as Tasks deste Project.",
+            "name": "projectId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só as subtarefas desta Task mãe."
+            },
+            "required": false,
+            "description": "Só as subtarefas desta Task mãe.",
+            "name": "parentTaskId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/TaskKind"
+            },
+            "required": false,
+            "description": "Natureza do trabalho de uma Task.",
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/TaskPriority"
+            },
+            "required": false,
+            "description": "Prioridade de uma Task.",
+            "name": "priority",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TaskStatus"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskStatus"
+                  }
+                }
+              ],
+              "description": "Filtra por um estado ou por vários, repetindo o parâmetro."
+            },
+            "required": false,
+            "description": "Filtra por um estado ou por vários, repetindo o parâmetro.",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Busca por trecho do título, sem diferenciar maiúsculas."
+            },
+            "required": false,
+            "description": "Busca por trecho do título, sem diferenciar maiúsculas.",
+            "name": "q",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de Tasks.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Cria uma Task",
+        "description": "Nasce em `READY`, com Project obrigatório. `INBOX` é alcançado só pela captura da Inbox. Um Project arquivado recusa a criação com `409`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTask"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Task criada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O Project ou a Task mãe informados não existem.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Project arquivado, ou Task mãe em outro Project ou na Inbox.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Uma Task, com filhas, dependências e dependentes",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da Task."
+            },
+            "required": true,
+            "description": "UUIDv7 da Task.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A Task e suas ligações.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Task com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Edita os campos editáveis",
+        "description": "`status` nunca passa por aqui: a transição tem rota própria, que valida a máquina de estados e as regras de filhas e dependências. Trocar o Project só vale para uma Task sem mãe e sem filhas.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da Task."
+            },
+            "required": true,
+            "description": "UUIDv7 da Task.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTask"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A Task depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A Task, o Project ou a Task mãe informados não existem.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A edição quebraria uma regra: hierarquia, Project arquivado ou ciclo.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/status": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Move a Task na máquina de estados",
+        "description": "Valida a aresta e as regras que dependem de outras Tasks: concluir exige toda subtarefa `COMPLETED` ou `CANCELLED`, e enfileirar exige toda dependência `COMPLETED`. Recusa vira `409` com o motivo em `detail`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da Task."
+            },
+            "required": true,
+            "description": "UUIDv7 da Task.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeTaskStatus"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A Task no estado novo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Task com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A transição não é permitida a partir do estado atual.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/dependencies/{dependsOnId}": {
+      "put": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Declara que esta Task espera outra",
+        "description": "Idempotente: repetir devolve o mesmo estado e não grava um segundo fato. Auto-dependência e ciclo, direto ou indireto, viram `409` com o caminho do impasse em `detail`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da Task que espera."
+            },
+            "required": true,
+            "description": "UUIDv7 da Task que espera.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da Task esperada."
+            },
+            "required": true,
+            "description": "UUIDv7 da Task esperada.",
+            "name": "dependsOnId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A Task com a dependência incluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Alguma das duas Tasks não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Auto-dependência, ciclo, ou Task na Inbox.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Remove a dependência",
+        "description": "Idempotente: remover o que não existe devolve o estado atual sem gravar fato nenhum. `404` só quando alguma das duas Tasks não existe.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da Task que espera."
+            },
+            "required": true,
+            "description": "UUIDv7 da Task que espera.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da Task esperada."
+            },
+            "required": true,
+            "description": "UUIDv7 da Task esperada.",
+            "name": "dependsOnId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A Task sem a dependência.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Alguma das duas Tasks não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inbox": {
+      "post": {
+        "tags": [
+          "inbox"
+        ],
+        "summary": "Captura uma intenção",
+        "description": "Cria uma Task em `INBOX`, sem Project, com o texto como título. É a única forma de existir uma Task sem Project: o `CHECK` da tabela recusa `project_id` nulo em qualquer outro estado.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptureInbox"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "A captura, como Task em `INBOX`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Texto vazio ou longo demais.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "inbox"
+        ],
+        "summary": "Lista a Inbox",
+        "description": "As Tasks em `INBOX`, da captura mais recente para a mais antiga.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página da Inbox.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paginação inválida.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inbox/{id}/promote": {
+      "post": {
+        "tags": [
+          "inbox"
+        ],
+        "summary": "Promove a captura a trabalho",
+        "description": "Atribui o Project e leva para `READY`, opcionalmente ajustando título, tipo e prioridade. `projectId` é obrigatório porque `READY` sem Project é um estado que o banco recusa.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da Task capturada."
+            },
+            "required": true,
+            "description": "UUIDv7 da Task capturada.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteInbox"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A Task promovida, em `READY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido: sem `projectId`, por exemplo.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A Task ou o Project informados não existem.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A Task não está em `INBOX`, ou o Project está arquivado.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inbox/{id}/discard": {
+      "post": {
+        "tags": [
+          "inbox"
+        ],
+        "summary": "Descarta a captura",
+        "description": "Leva para `CANCELLED` sem apagar a linha: o que foi capturado continua auditável, e uma captura descartada não vira um buraco no histórico.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da Task capturada."
+            },
+            "required": true,
+            "description": "UUIDv7 da Task capturada.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A Task descartada, em `CANCELLED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Task com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A Task não está em `INBOX`.",
             "content": {
               "application/problem+json": {
                 "schema": {

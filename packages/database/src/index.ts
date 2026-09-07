@@ -6,13 +6,18 @@
  * falha no CI se o schema e as migrações divergirem.
  */
 
+export * from "./activity.js";
 export * from "./client.js";
 export * from "./dashboard-event.js";
 export * from "./env.js";
 export * from "./health.js";
 export * from "./ids.js";
+export * from "./inbox.js";
 export * from "./migrate.js";
 export * from "./notify.js";
+export * from "./project.js";
+export * from "./result.js";
 export * from "./schema/index.js";
 export * from "./seed.js";
+export * from "./task.js";
 export * from "./user-setting.js";

@@ -6,7 +6,7 @@ import { createAdaptorServer } from "@hono/node-server";
 import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/database";
 
 import { createApp } from "./app.js";
-import { createEventsRuntime, createSettingsPort } from "./composition.js";
+import { createEventsRuntime, createSettingsPort, createWorkPort } from "./composition.js";
 import { API_BASE_PATH, loadConfig } from "./config.js";
 import { createLogger } from "./logger.js";
 
@@ -33,6 +33,7 @@ const app = createApp({
   probeDatabase: () => pingDatabase(database.db),
   events: events.port,
   settings: createSettingsPort({ db: database.db, userId: LOCAL_USER_ID }),
+  work: createWorkPort({ db: database.db, userId: LOCAL_USER_ID }),
   logger,
   pingEnabled: config.nodeEnv !== "production",
 });
