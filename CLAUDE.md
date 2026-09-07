@@ -121,6 +121,15 @@ packages/contracts (Zod) → apps/api (zod-openapi) → openapi.json
                                                   → packages/api-client → apps/web
 ```
 
+**Exceção à regra "schema em contracts": pacotes puros com schemas próprios registram
+os seus.** `packages/achievements` e `packages/glossary` são dados validados por schemas
+que moram dentro deles, e esses schemas são a fonte única daquele domínio. Quando a API
+expõe esse dado, ela **importa e registra** o schema do pacote com `.meta({ id })` — veja
+`apps/api/src/routes/achievements.ts` — em vez de redeclarar a mesma forma em
+`packages/contracts`. Duas declarações da mesma forma criam duas verdades, e a que o
+carregador usa venceria em silêncio. O envelope da resposta, que é assunto de API e não
+do pacote, continua sendo declarado junto da rota.
+
 ## 6. Verificação antes de entregar
 
 Rode e deixe verde, nesta ordem:

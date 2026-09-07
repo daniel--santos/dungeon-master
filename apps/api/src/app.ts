@@ -11,11 +11,13 @@ import { streamSSE } from "hono/streaming";
 import { requestId } from "hono/request-id";
 
 import { API_BASE_PATH, API_VERSION } from "./config.js";
+import { registerAchievementRoutes } from "./handlers/achievements.js";
 import { registerInboxRoutes } from "./handlers/inbox.js";
 import { registerProjectRoutes } from "./handlers/projects.js";
 import { registerTaskRoutes } from "./handlers/tasks.js";
 import type { Logger } from "./logger.js";
 import type { DashboardEventsPort, DatabaseProbe, SettingsPort, WorkPort } from "./ports.js";
+import type { AchievementCatalog } from "./routes/achievements.js";
 import {
   buildProblem,
   HttpProblem,
@@ -42,6 +44,14 @@ export interface CreateAppOptions {
   settings: SettingsPort;
   /** Project, Task e Inbox: as rotas de trabalho da Fase 1. */
   work: WorkPort;
+  /**
+   * O catálogo de Conquistas já validado.
+   *
+   * Entra pronto, e não como uma função que lê o disco, porque catálogo é
+   * dado: o arquivo é versionado, muda com um deploy e não com uma
+   * requisição. Carregá-lo uma vez no boot também mantém `pnpm gen` sem I/O.
+   */
+  achievements: AchievementCatalog;
   logger?: Logger;
   /** Instante do boot, usado para calcular `uptimeSeconds`. */
   startedAt?: number;
@@ -244,6 +254,10 @@ export function createApp(options: CreateAppOptions) {
   registerTaskRoutes(app, options.work.tasks);
   registerInboxRoutes(app, options.work.inbox);
 
+  // ------------------------------------------------------------- Conquistas
+
+  registerAchievementRoutes(app, options.achievements);
+
   app.doc31(`${API_BASE_PATH}/openapi.json`, {
     openapi: "3.1.0",
     info: {
@@ -262,6 +276,7 @@ export function createApp(options: CreateAppOptions) {
       { name: "projects", description: "Projects: a unidade persistente de contexto." },
       { name: "tasks", description: "Tasks, subtarefas e dependências." },
       { name: "inbox", description: "Captura de intenção: as Tasks em INBOX." },
+      { name: "achievements", description: "O catálogo versionado de Conquistas." },
     ],
   });
 

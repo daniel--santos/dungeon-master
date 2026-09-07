@@ -49,6 +49,7 @@ beforeAll(async () => {
     events: runtime.port,
     settings: createSettingsPort({ db: handle.db, userId: LOCAL_USER_ID }),
     work: createWorkPort({ db: handle.db, userId: LOCAL_USER_ID }),
+    achievements: { definitions: [], templates: [], invalid: [] },
     pingEnabled: true,
   });
 
@@ -395,6 +396,7 @@ describe(`POST ${API_BASE_PATH}/events/ping`, () => {
       events: runtime.port,
       settings: createSettingsPort({ db: handle.db, userId: LOCAL_USER_ID }),
       work: createWorkPort({ db: handle.db, userId: LOCAL_USER_ID }),
+      achievements: { definitions: [], templates: [], invalid: [] },
       pingEnabled: false,
     });
 

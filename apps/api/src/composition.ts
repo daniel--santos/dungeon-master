@@ -1,3 +1,4 @@
+import { loadCatalog, loadTemplates } from "@dungeon-master/achievements";
 import type { DashboardEvent } from "@dungeon-master/contracts";
 import {
   addTaskDependency,
@@ -32,6 +33,7 @@ import { DashboardEventPoller, PgNotifyListener, SseTransport } from "@dungeon-m
 
 import type { Logger } from "./logger.js";
 import type { DashboardEventsPort, SettingsPort, WorkPort } from "./ports.js";
+import type { AchievementCatalog } from "./routes/achievements.js";
 
 /**
  * Monta as dependências concretas de `createApp` a partir de uma conexão.
@@ -141,6 +143,40 @@ export function createSettingsPort(options: SettingsPortOptions): SettingsPort {
     read: () => readUserSettings(db, { userId }),
     write: (key, value) => writeUserSetting(db, { userId, key, value }),
   };
+}
+
+/**
+ * Lê e valida o catálogo de Conquistas, uma vez, no boot.
+ *
+ * O carregador é fail-closed e nunca lança: uma definição torta fica de fora e
+ * aparece em `invalid`, com a chave e o erro. Conquistas são cosméticas
+ * (planejamento v0.4, Fase 2.5), então uma entrada errada no arquivo não pode
+ * derrubar a API — mas também não pode passar em silêncio, e é por isso que o
+ * que foi recusado sai no log de boot e na resposta da rota.
+ */
+export function loadAchievementCatalog(options: { logger?: Logger } = {}): AchievementCatalog {
+  const catalog = loadCatalog();
+  const templates = loadTemplates();
+
+  const invalid = [
+    ...catalog.invalid.map((entry) => ({ ...entry, source: "catalog" as const })),
+    ...templates.invalid.map((entry) => ({ ...entry, source: "templates" as const })),
+  ].map((entry) => ({ ...entry, issues: [...entry.issues] }));
+
+  if (invalid.length > 0) {
+    options.logger?.warn(
+      {
+        invalid: invalid.map((entry) => ({
+          source: entry.source,
+          key: entry.key,
+          error: entry.error,
+        })),
+      },
+      "catálogo de Conquistas com entradas recusadas",
+    );
+  }
+
+  return { definitions: [...catalog.valid], templates: [...templates.valid], invalid };
 }
 
 export interface WorkPortOptions {

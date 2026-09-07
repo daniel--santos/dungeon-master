@@ -15,6 +15,7 @@
     "gen": "tsx scripts/gen-openapi.ts"
   },
   "dependencies": {
+    "@dungeon-master/achievements": "workspace:*",
     "@dungeon-master/contracts": "workspace:*",
     "@dungeon-master/database": "workspace:*",
     "@dungeon-master/events": "workspace:*",
