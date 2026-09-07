@@ -19,6 +19,14 @@
     {
       "name": "system",
       "description": "Saúde, versão e documentação."
+    },
+    {
+      "name": "events",
+      "description": "Stream SSE de eventos de dashboard."
+    },
+    {
+      "name": "settings",
+      "description": "Configurações do usuário local."
     }
   ],
   "components": {
@@ -162,6 +170,75 @@
           "message",
           "code"
         ]
+      },
+      "PingEventResponse": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/DashboardEvent"
+          }
+        },
+        "required": [
+          "event"
+        ],
+        "description": "O evento `system.ping` recém-gravado."
+      },
+      "DashboardEvent": {
+        "type": "object",
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Cursor do evento. Estritamente crescente; é o `id` do evento SSE."
+          },
+          "type": {
+            "type": "string",
+            "description": "Tipo do evento. Os emitidos hoje estão em `DashboardEventType`."
+          },
+          "payload": {
+            "description": "Dados do evento, em JSON. A forma depende do `type`."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante da gravação, em UTC (ISO 8601)."
+          }
+        },
+        "required": [
+          "sequence",
+          "type",
+          "createdAt"
+        ],
+        "description": "Um evento entregue pelo stream SSE."
+      },
+      "UserSettings": {
+        "type": "object",
+        "properties": {
+          "ui.theme": {
+            "$ref": "#/components/schemas/UiTheme"
+          }
+        },
+        "required": [
+          "ui.theme"
+        ],
+        "description": "Configurações do usuário com os padrões já aplicados."
+      },
+      "UiTheme": {
+        "type": "string",
+        "enum": [
+          "dnd",
+          "plain"
+        ],
+        "description": "Glossário ativo da interface."
+      },
+      "UpdateUserSetting": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "description": "Novo valor da configuração. Validado pelo schema da chave."
+          }
+        },
+        "description": "Novo valor de uma configuração."
       }
     },
     "parameters": {}
@@ -187,6 +264,180 @@
           },
           "500": {
             "description": "Falha inesperada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/stream": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "Stream SSE de eventos de dashboard",
+        "description": "Abre um `text/event-stream`. Envia primeiro o replay a partir do cursor e depois os eventos ao vivo. O `id` de cada evento é o `sequence`, que o cliente devolve em `since` (ou no `Last-Event-ID`) para reconectar sem perder nem repetir. Um comentário de heartbeat sai a cada 15 s.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 19,
+              "pattern": "^\\d+$",
+              "description": "Último `sequence` que o cliente já tem. Ausente ou `0` significa 'não tenho nada'. O header `Last-Event-ID` tem precedência sobre este valor."
+            },
+            "required": false,
+            "description": "Último `sequence` que o cliente já tem. Ausente ou `0` significa 'não tenho nada'. O header `Last-Event-ID` tem precedência sobre este valor.",
+            "name": "since",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Reenviado pelo `EventSource` na reconexão. Tem precedência sobre `since`."
+            },
+            "required": false,
+            "description": "Reenviado pelo `EventSource` na reconexão. Tem precedência sobre `since`.",
+            "name": "last-event-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stream aberto. Cada `data:` é um `DashboardEvent` serializado.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Quadros SSE, um `DashboardEvent` em JSON por `data:`."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cursor inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/ping": {
+      "post": {
+        "tags": [
+          "events"
+        ],
+        "summary": "Grava um evento `system.ping`",
+        "description": "Existe para verificar o caminho completo à mão: INSERT, NOTIFY sem payload, drain por cursor e SSE. Responde 404 quando `NODE_ENV` é `production`; a rota fica na spec de qualquer forma, para que o cliente gerado não dependa do ambiente em que a spec foi gerada.",
+        "responses": {
+          "201": {
+            "description": "Evento gravado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PingEventResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Endpoint desligado em produção.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Configurações do usuário",
+        "description": "Devolve todas as chaves conhecidas, com os padrões aplicados sobre o que estiver gravado em `user_setting`. Nenhuma chave falta na resposta.",
+        "responses": {
+          "200": {
+            "description": "Configurações atuais.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSettings"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/{key}": {
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Grava uma configuração",
+        "description": "Valida o valor pelo schema da chave, faz upsert e grava um evento `settings.changed` na mesma transação. Devolve o objeto completo já atualizado, para a tela não precisar de uma segunda ida ao servidor.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9._-]*$",
+              "description": "Chave da configuração, como gravada em `user_setting`."
+            },
+            "required": true,
+            "description": "Chave da configuração, como gravada em `user_setting`.",
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserSetting"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Configurações depois da escrita.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "O valor não passou no schema da chave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A chave não existe no contrato de configurações.",
             "content": {
               "application/problem+json": {
                 "schema": {

@@ -52,6 +52,211 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream SSE de eventos de dashboard
+         * @description Abre um `text/event-stream`. Envia primeiro o replay a partir do cursor e depois os eventos ao vivo. O `id` de cada evento é o `sequence`, que o cliente devolve em `since` (ou no `Last-Event-ID`) para reconectar sem perder nem repetir. Um comentário de heartbeat sai a cada 15 s.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Último `sequence` que o cliente já tem. Ausente ou `0` significa 'não tenho nada'. O header `Last-Event-ID` tem precedência sobre este valor. */
+                    since?: string;
+                };
+                header?: {
+                    /** @description Reenviado pelo `EventSource` na reconexão. Tem precedência sobre `since`. */
+                    "last-event-id"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Stream aberto. Cada `data:` é um `DashboardEvent` serializado. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description Cursor inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/ping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grava um evento `system.ping`
+         * @description Existe para verificar o caminho completo à mão: INSERT, NOTIFY sem payload, drain por cursor e SSE. Responde 404 quando `NODE_ENV` é `production`; a rota fica na spec de qualquer forma, para que o cliente gerado não dependa do ambiente em que a spec foi gerada.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Evento gravado. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PingEventResponse"];
+                    };
+                };
+                /** @description Endpoint desligado em produção. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Configurações do usuário
+         * @description Devolve todas as chaves conhecidas, com os padrões aplicados sobre o que estiver gravado em `user_setting`. Nenhuma chave falta na resposta.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Configurações atuais. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserSettings"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Grava uma configuração
+         * @description Valida o valor pelo schema da chave, faz upsert e grava um evento `settings.changed` na mesma transação. Devolve o objeto completo já atualizado, para a tela não precisar de uma segunda ida ao servidor.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Chave da configuração, como gravada em `user_setting`. */
+                    key: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateUserSetting"];
+                };
+            };
+            responses: {
+                /** @description Configurações depois da escrita. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserSettings"];
+                    };
+                };
+                /** @description O valor não passou no schema da chave. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A chave não existe no contrato de configurações. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -107,6 +312,38 @@ export interface components {
             message: string;
             /** @description Código do problema, vindo do schema Zod. */
             code: string;
+        };
+        /** @description O evento `system.ping` recém-gravado. */
+        PingEventResponse: {
+            event: components["schemas"]["DashboardEvent"];
+        };
+        /** @description Um evento entregue pelo stream SSE. */
+        DashboardEvent: {
+            /** @description Cursor do evento. Estritamente crescente; é o `id` do evento SSE. */
+            sequence: number;
+            /** @description Tipo do evento. Os emitidos hoje estão em `DashboardEventType`. */
+            type: string;
+            /** @description Dados do evento, em JSON. A forma depende do `type`. */
+            payload?: unknown;
+            /**
+             * Format: date-time
+             * @description Instante da gravação, em UTC (ISO 8601).
+             */
+            createdAt: string;
+        };
+        /** @description Configurações do usuário com os padrões já aplicados. */
+        UserSettings: {
+            "ui.theme": components["schemas"]["UiTheme"];
+        };
+        /**
+         * @description Glossário ativo da interface.
+         * @enum {string}
+         */
+        UiTheme: "dnd" | "plain";
+        /** @description Novo valor de uma configuração. */
+        UpdateUserSetting: {
+            /** @description Novo valor da configuração. Validado pelo schema da chave. */
+            value?: unknown;
         };
     };
     responses: never;

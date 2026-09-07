@@ -41,6 +41,9 @@ importers:
       '@dungeon-master/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@dungeon-master/events':
+        specifier: workspace:*
+        version: link:../../packages/events
       '@hono/node-server':
         specifier: 2.1.1
         version: 2.1.1(hono@4.13.7)
@@ -69,6 +72,9 @@ importers:
       '@types/node':
         specifier: 26.5.0
         version: 26.5.0
+      embedded-postgres:
+        specifier: 17.10.0-beta.17
+        version: 17.10.0-beta.17
       tsx:
         specifier: 4.23.13
         version: 4.23.13
@@ -263,6 +269,9 @@ importers:
 
   packages/events:
     devDependencies:
+      '@types/node':
+        specifier: 26.5.0
+        version: 26.5.0
       typescript:
         specifier: 6.0.3
         version: 6.0.3
