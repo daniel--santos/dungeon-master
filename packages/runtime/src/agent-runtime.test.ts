@@ -29,7 +29,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await rm(workdir, { recursive: true, force: true });
+  // No Windows o handle de um processo recém-morto ainda segura o `cwd` por
+  // alguns instantes e o `rmdir` volta `EBUSY`; limpeza é best-effort.
+  await rm(workdir, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 }).catch(
+    () => undefined,
+  );
 });
 
 function runtimeFor(adapter: HarnessAdapter) {

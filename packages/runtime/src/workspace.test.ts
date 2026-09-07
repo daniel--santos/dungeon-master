@@ -37,7 +37,11 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await rm(sandbox, { recursive: true, force: true });
+  // `git` deixa handles abertos por um instante no Windows; limpeza é
+  // best-effort e nunca reprova um teste que já passou.
+  await rm(sandbox, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 }).catch(
+    () => undefined,
+  );
 });
 
 describe("createWorkspaceManager", () => {

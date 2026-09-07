@@ -158,7 +158,14 @@ export function harnessContractSuite(options: HarnessContractSuiteOptions): void
     }, caseTimeout);
 
     afterAll(async () => {
-      if (workdir !== undefined) await rm(workdir, { recursive: true, force: true });
+      // Um diretório temporário que sobrou não é falha de contrato. No Windows
+      // o handle de um processo recém-morto ainda segura o `cwd` por alguns
+      // instantes, e o `rmdir` volta `EBUSY`; as retentativas do `fs.rm` cobrem
+      // a janela, e o `catch` cobre o resto.
+      if (workdir === undefined) return;
+      await rm(workdir, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 }).catch(
+        () => undefined,
+      );
     });
 
     // --------------------------------------------------------- corrida única
