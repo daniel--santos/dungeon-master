@@ -420,6 +420,7 @@ CANCELLED
 - **`activity`** é append-only por Project e Task; seus tipos são o mesmo vocabulário dos eventos de dashboard de domínio (`project.*`, `task.*`). Arquivar é `project.updated` com `from`/`to`.
 - **Trocar o Project de uma Task** só é permitido sem mãe e sem filhas; mover subárvore é Fase 5.
 - **Labels de status e prioridade de Task** aprovados como chaves do glossário, iguais nos dois temas: Capturada, Pronta, Na fila, Em execução, Aguardando, Bloqueada, Concluída, Falhou, Cancelada; Baixa, Média, Alta, Urgente.
+- **`QUEUED → READY` e `RUNNING → READY` (acrescentadas na Fase 2A, 07/09/2026)**: são a volta do Run cancelado. **Cancelar uma execução não cancela a tarefa** — o Run é uma tentativa, e desistir de uma tentativa devolve o trabalho ao quadro. Sem elas, cancelar um Run deixaria a Task presa em `QUEUED` ou `RUNNING` sem Run vivo por trás; levá-la a `CANCELLED`, que é terminal, faria o usuário perder a tarefa por ter interrompido uma execução. A máquina completa está na seção 36 do documento técnico.
 - **Pendências**: a `activity` de criação de uma captura nasce sem Project e não aparece no diário do Project após a promoção; `GET /tasks` só ordena por `updatedAt desc`; texto de captura limitado a 200 caracteres.
 
 ### Fechamento da Fase 1 (07/09/2026)
@@ -434,12 +435,12 @@ Decisões da rodada das telas, aceitas:
 - As capturas em `INBOX` aparecem na lista de Missões com o estado "Capturada"; o filtro de status as tira.
 - O detalhe de Missão oferece Concluir, Reabrir e Cancelar só quando a aresta existe na máquina de estados; `409` vira toast com o `detail` do problem details.
 
-Pendências, todas na API, para a próxima rodada de backend:
+Pendências, todas na API, **resolvidas na Fase 2A (07/09/2026)**:
 
-- `GET /projects` sem `taskCounts`; a lista faz uma leitura por linha.
-- `GET /tasks` sem filtro de exclusão de estado (para tirar capturas sem oito parâmetros na URL).
-- O payload de `activity` não traz o título da Task; o diário diz "Missão criada" sem dizer qual.
-- Agentes e Equipamentos seguem como placeholders até a Fase 2A.
+- [x] `GET /projects` sem `taskCounts`; a lista fazia uma leitura por linha. Agora vem por uma agregação única sobre os ids da página.
+- [x] `GET /tasks` sem filtro de exclusão de estado. Agora aceita `excludeStatus[]`, aplicado depois de `status`.
+- [x] O payload de `activity` não trazia o título da Task. Agora traz `taskTitle`, **gravado no instante do fato**: resolver na leitura mostraria o nome de hoje num fato de ontem, ou nome nenhum quando a Task tivesse sido apagada.
+- [x] Agentes e Equipamentos deixaram de ser placeholders: as entidades, as rotas e o cliente gerado existem desde a Fase 2A. As telas continuam pendentes.
 
 ### Critério de conclusão
 
@@ -464,22 +465,28 @@ Transformar tarefas em execuções reais de agentes, com duas opções de ambien
 
 ### Entidades
 
-- [ ] `Run`, com `harness_session_id`, `execution_mode`, `workspace_path`, `workflow_version_id`, `cancel_requested_at`
-- [ ] `RunEvent`, com `sequence` único por Run
-- [ ] `ExecutionProfile`
-- [ ] `Agent`
-- [ ] `Harness`, com `HarnessCapabilities`
-- [ ] `Model`
-- [ ] `Loadout`
+- [x] `Run`, com `harness_session_id`, `execution_mode`, `workspace_path`, `workflow_version_id`, `cancel_requested_at`
+- [x] `RunEvent`, com `sequence` único por Run
+- [x] `ExecutionProfile`
+- [x] `Agent`
+- [x] `Harness`, com `HarnessCapabilities`
+- [x] `Model`
+- [x] `Loadout`
+- [x] `workspace_lock`, e `workspace_kind`/`workspace_path` no Project
 
 ### Máquina de estados de Run
 
 ```text
-CREATED → QUEUED → PREPARING → RUNNING → SUCCEEDED | FAILED | TIMED_OUT | CANCELLED
-                                 RUNNING ⇄ WAITING_APPROVAL
+CREATED          → QUEUED | CANCELLED
+QUEUED           → PREPARING | CANCELLED
+PREPARING        → RUNNING | FAILED | CANCELLED
+RUNNING          → SUCCEEDED | FAILED | TIMED_OUT | CANCELLED | WAITING_APPROVAL
+WAITING_APPROVAL → RUNNING | CANCELLED
 ```
 
-Transição para estado terminal só ocorre após confirmação de que a árvore de processos terminou.
+Terminais: `SUCCEEDED`, `FAILED`, `TIMED_OUT`, `CANCELLED`. Transição para estado terminal só ocorre após confirmação de que a árvore de processos terminou.
+
+Um pedido de cancelamento só marca `cancel_requested_at`; quem transiciona é o worker (ou a API, quando o Run ainda está `CREATED`/`QUEUED`, imediatamente, porque não há árvore a confirmar). O acoplamento com a máquina de Task está na seção 36 do documento técnico, e a aresta nova `RUNNING → READY` de Task é a volta do trabalho ao quadro.
 
 ### Contrato de runtime
 
@@ -516,11 +523,41 @@ export interface HarnessAdapter {
 ### Contratos de escrita de evento
 
 ```ts
-appendEvent(runId, event)          // NUNCA lança; observabilidade pura
-persistEvent(runId, event)         // propaga falha; usar quando a execução não pode seguir sem a linha
-writeTerminalStatus(runId, status) // falha vira TerminalStatusWriteError: nenhum resultado comum pode
+appendRunEvent(runId, event)       // NUNCA lança; observabilidade pura
+persistRunEvent(runId, event)      // propaga falha; usar quando a execução não pode seguir sem a linha
+writeRunTerminalStatus(runId, ...) // falha vira TerminalStatusWriteError: nenhum resultado comum pode
                                    // ser reportado pelo mesmo canal
 ```
+
+**Onde cada peça mora (decisão da Fase 2A).** O que é lógica pura fica em `packages/events` e é testado sem infraestrutura: o sanitizador de credenciais e o `TerminalStatusWriteError`. As três funções acima moram em `packages/database`, porque as três escrevem **em transação** — o status terminal grava o Run, a transição da Task, a `activity`, o `dashboard_event` e a liberação da trava de workspace de uma vez — e uma transação não atravessa a fronteira de um pacote que não conhece `pg`.
+
+**A `sequence` é atribuída pelo banco, por Run**, com `SELECT COALESCE(MAX(sequence),0)+1` sob `FOR UPDATE` na linha do Run. Não é uma sequência do PostgreSQL por Run: sequências não voltam atrás em `ROLLBACK`, e o buraco que sobrasse faria a marca d'água do poller (Fase 2B) esperar para sempre por um evento que nunca existiu.
+
+**A fila é a tabela `run`**: `status = 'QUEUED'` é o que `claimNextQueuedRun` reclama com `SELECT ... FOR UPDATE SKIP LOCKED`. Uma tabela de fila separada precisaria de uma segunda verdade sobre o mesmo fato.
+
+### Entrega do modelo de execução (07/09/2026)
+
+Contratos, domínio, banco e API entregues numa rodada; o runtime de agente
+(`packages/runtime`, `packages/runtime-sandcastle`) e o worker vêm em rodadas
+próprias e consomem o que está aqui.
+
+Decisões tomadas nesta rodada, todas comentadas no código:
+
+- **A fila é a tabela `run`.** `claimNextQueuedRun` reclama com `FOR UPDATE SKIP LOCKED` e leva o Run a `PREPARING` e a Task a `RUNNING` na mesma transação.
+- **`sequence` de `run_event` por `MAX+1` com a linha do Run travada**, e não por sequência do PostgreSQL, para o log não ter lacunas (justificativa nos contratos de escrita, acima).
+- **Trava de workspace com desempate determinístico**: trava livre é de quem pediu; trava do próprio Run é idempotente; trava de Run terminal é obsoleta e recuperada; entre dois Runs que **ainda não começaram**, vence o de `id` menor (UUIDv7, logo o criado primeiro), qualquer que tenha sido a ordem de chegada; um Run que já começou nunca perde a trava. O contrato com o worker é confirmar a posse com `getActiveRunByPath` imediatamente antes de subir o processo.
+- **Harness é cadastro fechado**, semeado pelo `db:seed`: um harness novo é um adapter novo, não um `INSERT`. Antigravity nasce desligado (Fase 3), e "Masmorra selada" nasce desligado (Fase 2C).
+- **`version` do Loadout sobe só quando a edição muda alguma coisa**; enviar os mesmos valores não é uma edição.
+- **Um `SUCCEEDED` sem resultado estruturado leva a Task a `FAILED`**, não a `COMPLETED`: sem prova de que o trabalho ficou pronto, o desfecho seguro é deixá-la retentável.
+- **Stream SSE por Run** com canal de NOTIFY próprio (`dm_run_event`), sem payload. Transporte e poller nascem por Run olhado e morrem com a última aba, por contagem de referências; o `LISTEN` é um só, porque a notificação não diz de qual Run veio.
+
+Fica pendente para as rodadas seguintes da Fase 2:
+
+- Nenhuma tela: Agentes, Equipamentos e o Run Cockpit continuam placeholders na web.
+- `packages/runs` nasceu só com a trava de capacidade; o resto do domínio de execução chega com o worker.
+- A marca d'água do poller (cursor que só avança até a primeira lacuna) segue registrada na 2B e ainda não foi implementada.
+- `harness.installed_version` e `checked_at` têm escrita (`recordHarnessPreflight`) e ninguém que os preencha até o preflight da 2B.
+- `workflow_version_id` do Run é sempre nulo até a Fase 4.
 
 ---
 
@@ -535,16 +572,16 @@ writeTerminalStatus(runId, status) // falha vira TerminalStatusWriteError: nenhu
 - [ ] Preflight de CLIs instaladas e descoberta de versão, por SO
 - [ ] Verificação de autenticação quando possível
 - [ ] Working directory explícito
-- [ ] **Git worktree por Run como default**, com trava por (repositório, caminho) no PostgreSQL antes de subir qualquer processo
-- [ ] Teto de capacidade de runs concorrentes, com a trava por chave do Archon (seção 13.2)
+- [ ] **Git worktree por Run como default**, com trava por (repositório, caminho) no PostgreSQL antes de subir qualquer processo — a tabela `workspace_lock` e `acquireWorkspaceLock`/`releaseWorkspaceLock`/`getActiveRunByPath` entregues na 2A; falta criar o worktree
+- [x] Teto de capacidade de runs concorrentes, com a trava por chave do Archon (seção 13.2) — `packages/runs/src/capacity-lock.ts`
 - [ ] **Cancelamento por kill de árvore de processos** (`packages/platform`), com confirmação de término por polling, adaptado da terminação de processo do Archon (seção 13.2)
 - [ ] **Timeout de ociosidade e de conclusão**, ambos nossos, com distinção entre timeout real e abort
 - [ ] Tradução da política de ambiente do Loadout para o allow-list do Sandcastle (`.sandcastle/.env`) ou montagem própria do ambiente
 - [ ] Captura de stdout, stderr e eventos estruturados
 - [ ] Captura de `harnessSessionId` e `usage`
 - [ ] **Structured output via Sandcastle Output**, com o schema `TaskExecutionResult` já definido em `packages/contracts`
-- [ ] Persistência de eventos com os dois contratos de escrita
-- [ ] Sanitização de credenciais em todo payload de evento, com o sanitizador do Archon (seção 13.2)
+- [x] Persistência de eventos com os dois contratos de escrita — `appendRunEvent` e `persistRunEvent`
+- [x] Sanitização de credenciais em todo payload de evento, com o sanitizador do Archon (seção 13.2) — aplicada em `insertRunEvent`
 - [ ] Streaming SSE para a interface via NOTIFY + drain (base entregue na Fase 0: `packages/events`, `dashboard_event`, `GET /api/v1/events/stream`)
 - [ ] Marca d'água no poller de eventos: o cursor só avança até a primeira lacuna de `sequence`, para que transações concorrentes que commitem fora de ordem não sejam puladas (risco registrado ao fechar a Fase 0)
 - [ ] Tela de execução ao vivo (Run Cockpit, "Cristal de Visão" no tema)
