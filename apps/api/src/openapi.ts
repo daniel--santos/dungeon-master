@@ -27,6 +27,9 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       { name: "system", description: "Saúde, versão e documentação." },
       { name: "events", description: "Stream SSE de eventos de dashboard." },
       { name: "settings", description: "Configurações do usuário local." },
+      { name: "projects", description: "Projects: a unidade persistente de contexto." },
+      { name: "tasks", description: "Tasks, subtarefas e dependências." },
+      { name: "inbox", description: "Captura de intenção: as Tasks em INBOX." },
     ],
   }) as unknown as Record<string, unknown>;
 }

@@ -13,7 +13,12 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
 import { type App, createApp } from "../src/app.js";
-import { createEventsRuntime, type EventsRuntime, createSettingsPort } from "../src/composition.js";
+import {
+  createEventsRuntime,
+  type EventsRuntime,
+  createSettingsPort,
+  createWorkPort,
+} from "../src/composition.js";
 import { API_BASE_PATH } from "../src/config.js";
 import { PROBLEM_CONTENT_TYPE } from "../src/problem.js";
 
@@ -43,6 +48,7 @@ beforeAll(async () => {
     probeDatabase: async () => ({ ok: true, latencyMs: 0, error: null }),
     events: runtime.port,
     settings: createSettingsPort({ db: handle.db, userId: LOCAL_USER_ID }),
+    work: createWorkPort({ db: handle.db, userId: LOCAL_USER_ID }),
     pingEnabled: true,
   });
 
@@ -388,6 +394,7 @@ describe(`POST ${API_BASE_PATH}/events/ping`, () => {
       probeDatabase: async () => ({ ok: true, latencyMs: 0, error: null }),
       events: runtime.port,
       settings: createSettingsPort({ db: handle.db, userId: LOCAL_USER_ID }),
+      work: createWorkPort({ db: handle.db, userId: LOCAL_USER_ID }),
       pingEnabled: false,
     });
 

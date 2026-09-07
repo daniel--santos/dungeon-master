@@ -1,19 +1,37 @@
 import type { DashboardEvent } from "@dungeon-master/contracts";
 import {
+  addTaskDependency,
   appendDashboardEvent,
+  captureInboxTask,
+  changeTaskStatus,
   createPgNotifier,
+  createProject,
+  createTask,
   type Database,
   type DatabaseHandle,
   DASHBOARD_EVENT_CHANNEL,
+  discardInboxTask,
+  findProjectRow,
+  getProject,
+  getTaskDetail,
   latestDashboardEventSequence,
   listDashboardEventsSince,
+  listInboxTasks,
+  listProjectActivity,
+  listProjects,
+  listTasks,
+  promoteInboxTask,
   readUserSettings,
+  removeTaskDependency,
+  setProjectArchived,
+  updateProject,
+  updateTask,
   writeUserSetting,
 } from "@dungeon-master/database";
 import { DashboardEventPoller, PgNotifyListener, SseTransport } from "@dungeon-master/events";
 
 import type { Logger } from "./logger.js";
-import type { DashboardEventsPort, SettingsPort } from "./ports.js";
+import type { DashboardEventsPort, SettingsPort, WorkPort } from "./ports.js";
 
 /**
  * Monta as dependências concretas de `createApp` a partir de uma conexão.
@@ -122,5 +140,69 @@ export function createSettingsPort(options: SettingsPortOptions): SettingsPort {
   return {
     read: () => readUserSettings(db, { userId }),
     write: (key, value) => writeUserSetting(db, { userId, key, value }),
+  };
+}
+
+export interface WorkPortOptions {
+  db: Database;
+  userId: string;
+}
+
+/**
+ * Liga as rotas de Project, Task e Inbox ao repositório.
+ *
+ * O `userId` é fechado aqui, uma vez: nenhum handler recebe ou escolhe de quem
+ * são os dados, então não existe rota que possa esquecer o escopo. Enquanto o
+ * sistema é single-user isso é redundante; no dia em que deixar de ser, o lugar
+ * a mudar é este e só este.
+ */
+export function createWorkPort(options: WorkPortOptions): WorkPort {
+  const { db, userId } = options;
+
+  return {
+    projects: {
+      list: (input) =>
+        listProjects(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          status: input.status,
+        }),
+      create: (input) => createProject(db, { userId, ...input }),
+      get: (projectId) => getProject(db, { userId, projectId }),
+      update: (projectId, patch) => updateProject(db, { userId, projectId, patch }),
+      setArchived: (projectId, archived) => setProjectArchived(db, { userId, projectId, archived }),
+      activity: async (projectId, page) => {
+        // A existência é checada antes de listar: sem isso, o diário de um
+        // Project inexistente seria uma página vazia em vez de 404.
+        const project = await findProjectRow(db, { userId, projectId });
+        if (project === null) return null;
+
+        return await listProjectActivity(db, { userId, projectId, ...page });
+      },
+    },
+    tasks: {
+      list: (input) =>
+        listTasks(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          filters: input.filters,
+        }),
+      create: (input) => createTask(db, { userId, ...input }),
+      get: (taskId) => getTaskDetail(db, { userId, taskId }),
+      update: (taskId, patch) => updateTask(db, { userId, taskId, patch }),
+      changeStatus: (taskId, to) => changeTaskStatus(db, { userId, taskId, to }),
+      addDependency: (taskId, dependsOnTaskId) =>
+        addTaskDependency(db, { userId, taskId, dependsOnTaskId }),
+      removeDependency: (taskId, dependsOnTaskId) =>
+        removeTaskDependency(db, { userId, taskId, dependsOnTaskId }),
+    },
+    inbox: {
+      capture: (text) => captureInboxTask(db, { userId, text }),
+      list: (page) => listInboxTasks(db, { userId, ...page }),
+      promote: (taskId, input) => promoteInboxTask(db, { userId, taskId, ...input }),
+      discard: (taskId) => discardInboxTask(db, { userId, taskId }),
+    },
   };
 }

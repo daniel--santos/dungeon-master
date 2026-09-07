@@ -14,6 +14,13 @@ export const ProblemType = {
   validation: `${PROBLEM_TYPE_BASE_URI}/validation-error`,
   notFound: `${PROBLEM_TYPE_BASE_URI}/not-found`,
   internal: `${PROBLEM_TYPE_BASE_URI}/internal-error`,
+  /**
+   * A requisição está bem formada, mas contraria uma regra de domínio: uma
+   * transição que a máquina de estados não tem, um ciclo de dependências, um
+   * Project arquivado. É `409`, e não `400`: nada no corpo precisa ser
+   * corrigido — o estado do sistema é que não comporta a operação agora.
+   */
+  conflict: `${PROBLEM_TYPE_BASE_URI}/domain-conflict`,
 } as const;
 
 /**

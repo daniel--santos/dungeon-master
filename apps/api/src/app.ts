@@ -11,8 +11,11 @@ import { streamSSE } from "hono/streaming";
 import { requestId } from "hono/request-id";
 
 import { API_BASE_PATH, API_VERSION } from "./config.js";
+import { registerInboxRoutes } from "./handlers/inbox.js";
+import { registerProjectRoutes } from "./handlers/projects.js";
+import { registerTaskRoutes } from "./handlers/tasks.js";
 import type { Logger } from "./logger.js";
-import type { DashboardEventsPort, DatabaseProbe, SettingsPort } from "./ports.js";
+import type { DashboardEventsPort, DatabaseProbe, SettingsPort, WorkPort } from "./ports.js";
 import {
   buildProblem,
   HttpProblem,
@@ -37,6 +40,8 @@ export interface CreateAppOptions {
   events: DashboardEventsPort;
   /** Leitura e escrita das configurações do usuário local. */
   settings: SettingsPort;
+  /** Project, Task e Inbox: as rotas de trabalho da Fase 1. */
+  work: WorkPort;
   logger?: Logger;
   /** Instante do boot, usado para calcular `uptimeSeconds`. */
   startedAt?: number;
@@ -233,6 +238,12 @@ export function createApp(options: CreateAppOptions) {
     return c.json(await settings.write(key, parsed.data), 200);
   });
 
+  // ------------------------------------------------- Project, Task e Inbox
+
+  registerProjectRoutes(app, options.work.projects);
+  registerTaskRoutes(app, options.work.tasks);
+  registerInboxRoutes(app, options.work.inbox);
+
   app.doc31(`${API_BASE_PATH}/openapi.json`, {
     openapi: "3.1.0",
     info: {
@@ -248,6 +259,9 @@ export function createApp(options: CreateAppOptions) {
       { name: "system", description: "Saúde, versão e documentação." },
       { name: "events", description: "Stream SSE de eventos de dashboard." },
       { name: "settings", description: "Configurações do usuário local." },
+      { name: "projects", description: "Projects: a unidade persistente de contexto." },
+      { name: "tasks", description: "Tasks, subtarefas e dependências." },
+      { name: "inbox", description: "Captura de intenção: as Tasks em INBOX." },
     ],
   });
 
