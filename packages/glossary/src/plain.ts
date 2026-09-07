@@ -1,0 +1,116 @@
+import type { GlossaryKey } from "./keys.js";
+
+/**
+ * Glossário `plain` — o tema Dungeon Master desligado (planejamento v0.4, seção 14).
+ *
+ * Mesmo conjunto de chaves de `dnd`, sem vocabulário narrativo. Rotas, URLs,
+ * ícones, layout e dados são idênticos nos dois modos: o interruptor troca só
+ * texto. Infraestrutura (Worker, Queue, API, Runtime) não é tematizada e por
+ * isso repete o texto do outro glossário.
+ */
+export const plain: Record<GlossaryKey, string> = {
+  // ---------------------------------------------------------------- system
+  "system.name": "Dungeon Master",
+
+  // ---------------------------------------------------------------- entity
+  "entity.user": "Você",
+  "entity.project": "Projeto",
+  "entity.project.plural": "Projetos",
+  "entity.task": "Tarefa",
+  "entity.task.plural": "Tarefas",
+  "entity.task.kind.bug": "Bug",
+  "entity.task.kind.bug.plural": "Bugs",
+  "entity.task.kind.feature": "Funcionalidade",
+  "entity.task.kind.feature.plural": "Funcionalidades",
+  "entity.task.kind.research": "Pesquisa",
+  "entity.task.kind.research.plural": "Pesquisas",
+  "entity.task.kind.chore": "Manutenção",
+  "entity.task.kind.chore.plural": "Manutenções",
+  "entity.subtask": "Subtarefa",
+  "entity.subtask.plural": "Subtarefas",
+  "entity.taskGraph": "Grafo de tarefas",
+  "entity.inbox": "Caixa de entrada",
+  "entity.run": "Execução",
+  "entity.run.plural": "Execuções",
+  "entity.agent": "Agente",
+  "entity.agent.plural": "Agentes",
+  "entity.agentRole": "Papel",
+  "entity.agentRole.plural": "Papéis",
+  "entity.harness": "Harness",
+  "entity.harness.plural": "Harnesses",
+  "entity.model": "Modelo",
+  "entity.model.plural": "Modelos",
+  "entity.loadout": "Loadout",
+  "entity.loadout.plural": "Loadouts",
+  "entity.skill": "Skill",
+  "entity.skill.plural": "Skills",
+  "entity.tool": "Ferramenta",
+  "entity.tool.plural": "Ferramentas",
+  "entity.mcpServer": "Servidor MCP",
+  "entity.mcpServer.plural": "Servidores MCP",
+  "entity.knowledge": "Conhecimento do projeto",
+  "entity.knowledgeItem": "Item de conhecimento",
+  "entity.knowledgeItem.plural": "Itens de conhecimento",
+  "entity.decision": "Decisão",
+  "entity.decision.plural": "Decisões",
+  "entity.workflow": "Workflow",
+  "entity.workflow.plural": "Workflows",
+  "entity.workflowStep": "Etapa do workflow",
+  "entity.workflowStep.plural": "Etapas do workflow",
+  "entity.approvalGate": "Aprovação",
+  "entity.approvalGate.plural": "Aprovações",
+  "entity.artifact": "Artefato",
+  "entity.artifact.plural": "Artefatos",
+  "entity.achievement": "Conquista",
+  "entity.achievement.plural": "Conquistas",
+
+  // ------------------------------------------------------------ agent.role
+  "agent.role.architect": "Arquiteto",
+  "agent.role.engineer": "Engenheiro",
+  "agent.role.reviewer": "Revisor",
+  "agent.role.explorer": "Explorador",
+
+  // ------------------------------------------------------------------- run
+  "run.status.succeeded": "Concluída",
+  "run.status.failed": "Falhou",
+  "run.status.cancelled": "Cancelada",
+  "run.status.timedOut": "Tempo esgotado",
+  "run.cockpit": "Painel da execução",
+  "run.timeline": "Linha do tempo",
+
+  // ------------------------------------------------------------------- env
+  "env.host": "Host",
+  "env.host.warning": "sem isolamento",
+  "env.host.canonical": "HOST · UNISOLATED",
+  "env.docker": "Docker",
+  "env.docker.canonical": "DOCKER · ISOLATED",
+
+  // ------------------------------------------------------------------ hero
+  "hero.xp": "Pontos",
+  "hero.level": "Nível",
+
+  // ----------------------------------------------------------------- infra
+  "infra.worker": "Worker",
+  "infra.queue": "Queue",
+  "infra.api": "API",
+  "infra.runtime": "Runtime",
+
+  // ------------------------------------------------------------------- nav
+  "nav.dashboard": "Painel",
+  "nav.inbox": "Caixa de entrada",
+  "nav.projects": "Projetos",
+  "nav.tasks": "Tarefas",
+  "nav.runs": "Execuções",
+  "nav.knowledge": "Conhecimento",
+  "nav.agents": "Agentes",
+  "nav.loadouts": "Loadouts",
+  "nav.workflows": "Workflows",
+  "nav.hall": "Conquistas",
+  "nav.settings": "Configurações",
+
+  // ------------------------------------------------------------------ hall
+  "hall.tab.achievements": "Conquistas",
+  "hall.tab.heroes": "Agentes",
+  "hall.tab.bestiary": "Bugs resolvidos",
+  "hall.tab.chronicle": "Histórico",
+};
