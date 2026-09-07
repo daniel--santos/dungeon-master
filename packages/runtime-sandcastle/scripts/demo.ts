@@ -30,7 +30,7 @@ import {
   createWorkspaceResolver,
   type ExecutionRequest,
 } from "@dungeon-master/runtime";
-import { claudeCode } from "@dungeon-master/runtime-sandcastle";
+import { claudeCode } from "../src/index.js";
 import { z } from "zod";
 
 const OutputSchema = z.object({
