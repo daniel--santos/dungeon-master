@@ -5,10 +5,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Primeira Expedição", "plain": "Primeira execução" },
     "description": {
-      "theme": "Voltar vitorioso da primeira Expedição.",
+      "theme": "Vencer a primeira Expedição. A barra estava no chão e ainda assim isso conta como feito.",
       "plain": "Concluir a primeira execução com sucesso."
     },
-    "flavor": "Toda lenda começa com alguém que cruzou o portão sem saber o que havia do outro lado.",
+    "flavor": "Parabéns. Uma Expedição, uma vitória, uma amostra de tamanho um. Em qualquer outro lugar isso não provaria nada, mas a Crônica já registrou o seu nome, e a Crônica não apaga.",
     "icon": "flag",
     "rarity": "COMMON",
     "hidden": false,
@@ -20,10 +20,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Caçador de Monstros", "plain": "Caçador de bugs" },
     "description": {
-      "theme": "Derrotar Monstros e devolver a paz à Campanha.",
-      "plain": "Concluir tarefas do tipo bug."
+      "theme": "Derrotar 10, 50 e 200 Monstros. Eles continuam aparecendo, e alguém precisa mesmo contar.",
+      "plain": "Concluir 10, 50 e 200 tarefas do tipo bug."
     },
-    "flavor": "Contam-se as cicatrizes, não os monstros. Mas alguém insistiu em contar os dois.",
+    "flavor": "Os Monstros voltam a surgir no mesmo território, com os mesmos hábitos, atraídos pelo mesmo cheiro. Ninguém aqui vai dizer em voz alta quem os plantou. O Bestiário se limita a contar.",
     "icon": "swords",
     "rarity": "COMMON",
     "hidden": false,
@@ -42,10 +42,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Sem Baixas", "plain": "Sequência impecável" },
     "description": {
-      "theme": "Encadear dez Expedições vitoriosas, sem uma única derrota.",
+      "theme": "Encadear dez Expedições vitoriosas seguidas. Uma única derrota no meio zera a contagem.",
       "plain": "Encadear dez execuções bem-sucedidas seguidas."
     },
-    "flavor": "Dez portões, dez retornos. O décimo primeiro é sempre o que preocupa.",
+    "flavor": "Dez vitórias seguidas, e agora o problema é seu: cada Expedição nova virou uma chance de estragar um número redondo. O Dungeon Master vai continuar contando, com interesse.",
     "icon": "shield-check",
     "rarity": "RARE",
     "hidden": false,
@@ -57,10 +57,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Retirada Tática", "plain": "Primeiro cancelamento" },
     "description": {
-      "theme": "Interromper uma Expedição antes que ela cobrasse caro.",
+      "theme": "Cancelar uma Expedição em andamento pela primeira vez, antes que o estrago ficasse maior.",
       "plain": "Cancelar uma execução em andamento pela primeira vez."
     },
-    "flavor": "Saber a hora de voltar é metade do ofício. A outra metade é admitir isso em voz alta.",
+    "flavor": "Chamamos de tática porque a alternativa era admitir que você percebeu tarde demais. O Herói foi retirado do campo sem fazer perguntas. Ele nunca faz.",
     "icon": "flag-off",
     "rarity": "COMMON",
     "hidden": false,
@@ -72,10 +72,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Masmorra Selada", "plain": "Primeira execução isolada" },
     "description": {
-      "theme": "Vencer uma Expedição inteira dentro de uma Masmorra selada.",
+      "theme": "Vencer a primeira Expedição inteira dentro de uma Masmorra selada, sem nada vazando para fora.",
       "plain": "Concluir com sucesso a primeira execução em Docker."
     },
-    "flavor": "Paredes de pedra, uma porta só, e nada que escape para o mundo lá fora.",
+    "flavor": "Paredes, uma porta e nenhuma passagem para o mundo lá fora. Você não selou a Masmorra por elegância: selou porque, no fundo, não confia no que mandou entrar. É uma desconfiança saudável.",
     "icon": "container",
     "rarity": "RARE",
     "hidden": false,
@@ -94,7 +94,7 @@
       "theme": "Vencer ao menos uma Expedição com cada uma das quatro Guildas.",
       "plain": "Concluir uma execução bem-sucedida com cada um dos quatro harnesses."
     },
-    "flavor": "Cada Guilda jura ser a melhor. O Mestre da Guilda apenas anota os resultados.",
+    "flavor": "Quatro Guildas, quatro juramentos de superioridade, quatro vitórias. Nenhuma delas era a melhor, e agora você tem prova disso em quatro formatos diferentes. Escolha uma assim mesmo.",
     "icon": "users",
     "rarity": "EPIC",
     "hidden": false,
@@ -111,10 +111,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Segundo Fôlego", "plain": "Retomada bem-sucedida" },
     "description": {
-      "theme": "Retomar uma Expedição interrompida e terminá-la em vitória.",
+      "theme": "Retomar uma Expedição interrompida e terminá-la em vitória, pela primeira vez.",
       "plain": "Concluir com sucesso uma execução retomada de outra."
     },
-    "flavor": "O caminho já era conhecido. Faltava apenas quem quisesse voltar a ele.",
+    "flavor": "A primeira tentativa não terminou, e você se recusou a tratar isso como resposta final. Mesmo caminho, mesmo Herói, desfecho diferente. Teimosia bem apontada também é método.",
     "icon": "rotate-ccw",
     "rarity": "RARE",
     "hidden": false,
@@ -130,10 +130,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Selo da Guilda", "plain": "Primeira aprovação" },
     "description": {
-      "theme": "Estampar o primeiro Selo da Guilda sobre o trabalho de um Herói.",
-      "plain": "Aprovar uma execução pela primeira vez."
+      "theme": "Conceder o primeiro Selo da Guilda ao trabalho de um Herói.",
+      "plain": "Conceder a primeira aprovação."
     },
-    "flavor": "Cera quente, um carimbo e a responsabilidade de ter dito sim.",
+    "flavor": "Cera quente, um carimbo, e a responsabilidade mudando silenciosamente de mãos. O Herói executou, você aprovou. A Crônica guarda os dois nomes, mas só um deles perde o sono.",
     "icon": "stamp",
     "rarity": "COMMON",
     "hidden": false,
@@ -145,10 +145,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Veto", "plain": "Primeira rejeição" },
     "description": {
-      "theme": "Negar o Selo da Guilda quando o trabalho não estava pronto.",
-      "plain": "Rejeitar uma execução pela primeira vez."
+      "theme": "Negar o Selo da Guilda pela primeira vez, a um trabalho que não convenceu.",
+      "plain": "Recusar uma aprovação pela primeira vez."
     },
-    "flavor": "Dizer não custa uma tarde. Dizer sim cedo demais costuma custar a semana.",
+    "flavor": "Você olhou o trabalho, respirou fundo e disse não. O Herói não protestou, porque Heróis não protestam. Guarde essa coragem: ela custa uma tarde agora e poupa uma semana depois.",
     "icon": "thumbs-down",
     "rarity": "COMMON",
     "hidden": false,
@@ -160,10 +160,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Escriba do Grimório", "plain": "Escriba do conhecimento" },
     "description": {
-      "theme": "Promover Páginas do Grimório a partir do que as Expedições aprenderam.",
-      "plain": "Promover itens de conhecimento do projeto."
+      "theme": "Promover 10, 100 e 500 Páginas do Grimório com o que as Expedições aprenderam.",
+      "plain": "Promover 10, 100 e 500 itens de conhecimento do projeto."
     },
-    "flavor": "O que não é escrito precisa ser descoberto de novo, e ninguém tem tempo para isso.",
+    "flavor": "Cada Página é uma coisa que você não vai precisar redescobrir às duas da manhã. O Grimório engorda, a sua memória encolhe, e o acordo entre os dois segue firmemente a seu favor.",
     "icon": "book-open",
     "rarity": "RARE",
     "hidden": false,
@@ -181,10 +181,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Ritualista", "plain": "Primeira execução por workflow" },
     "description": {
-      "theme": "Conduzir uma Expedição vitoriosa seguindo um Ritual do começo ao fim.",
+      "theme": "Vencer a primeira Expedição guiada por um Ritual, do primeiro passo ao último.",
       "plain": "Concluir com sucesso a primeira execução guiada por um workflow."
     },
-    "flavor": "Os passos são sempre os mesmos. É justamente por isso que funcionam.",
+    "flavor": "Você parou de improvisar e seguiu os passos na ordem em que foram escritos. Funcionou de primeira, o que é levemente ofensivo com todas as vezes em que você improvisou.",
     "icon": "wand-sparkles",
     "rarity": "RARE",
     "hidden": false,
@@ -200,10 +200,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Cartógrafo", "plain": "Primeira dependência" },
     "description": {
-      "theme": "Desenhar a primeira ligação no Mapa da masmorra.",
+      "theme": "Criar a primeira dependência entre Missões e traçar a primeira ligação no Mapa da masmorra.",
       "plain": "Criar a primeira dependência entre tarefas."
     },
-    "flavor": "Nenhuma masmorra é grande demais depois que alguém desenha o mapa.",
+    "flavor": "A dependência já existia. Sempre existiu. A diferença é que agora ela está desenhada, em vez de guardada na sua cabeça, onde vinha sendo esquecida com admirável regularidade.",
     "icon": "map",
     "rarity": "COMMON",
     "hidden": false,
@@ -215,10 +215,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Marcha Longa", "plain": "Execução mais longa" },
     "description": {
-      "theme": "Sustentar a Expedição vitoriosa mais longa da Campanha, acima de uma hora.",
+      "theme": "Registrar a Expedição vitoriosa mais longa da Campanha, acima de uma hora de duração.",
       "plain": "Registrar a execução bem-sucedida mais longa, acima de sessenta minutos."
     },
-    "flavor": "Não foi a mais brilhante. Foi a que ninguém abandonou no meio do caminho.",
+    "flavor": "Mais de uma hora de Expedição, e ela voltou inteira. Ninguém aqui vai fingir que longa é sinônimo de boa, mas há mérito em não ter apertado o cancelar no minuto quarenta.",
     "icon": "hourglass",
     "rarity": "EPIC",
     "hidden": false,
@@ -236,10 +236,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Vigília Noturna", "plain": "Execução de madrugada" },
     "description": {
-      "theme": "Vencer uma Expedição entre a meia-noite e o amanhecer.",
+      "theme": "Vencer uma Expedição entre a meia-noite e as cinco da manhã, no seu horário local.",
       "plain": "Concluir com sucesso uma execução entre zero e cinco horas."
     },
-    "flavor": "A masmorra não dorme, e naquela noite o Mestre da Guilda também não.",
+    "flavor": "A Masmorra não dorme, e nisso vocês dois finalmente se entenderam. Ficam registrados a vitória, o horário e uma preocupação discreta com o Mestre da Guilda, que esta carta não tem espaço para desenvolver.",
     "icon": "moon",
     "rarity": "COMMON",
     "hidden": false,
@@ -255,10 +255,10 @@
     "scope": "GLOBAL",
     "name": { "theme": "Fundador de Campanhas", "plain": "Cinco projetos" },
     "description": {
-      "theme": "Abrir cinco Campanhas e dar a cada uma o seu próprio Grimório.",
+      "theme": "Fundar cinco Campanhas e dar a cada uma o seu próprio Grimório.",
       "plain": "Criar cinco projetos."
     },
-    "flavor": "Cinco mapas na parede, cinco histórias em aberto e uma agenda em pedaços.",
+    "flavor": "Cinco Campanhas fundadas. O Dungeon Master resistiu à tentação de comparar esse número com o de Campanhas concluídas, e espera que o esforço seja devidamente notado.",
     "icon": "folder-plus",
     "rarity": "COMMON",
     "hidden": false,
