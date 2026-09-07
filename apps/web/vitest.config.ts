@@ -29,5 +29,9 @@ export default defineConfig({
     include: ["src/**/*.test.{ts,tsx}"],
     globals: false,
     restoreMocks: true,
+    setupFiles: ["src/test-setup.ts"],
+    // Ver src/test-setup.ts: runners do CI são lentos para jsdom + Radix.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
   },
 });
