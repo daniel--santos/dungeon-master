@@ -36,6 +36,13 @@
       "when": 1788817959545,
       "tag": "0004_execucao_run_evento_e_cadastros",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788821468886,
+      "tag": "0005_reconciliacao_e_retomada_de_run",
+      "breakpoints": true
     }
   ]
 }

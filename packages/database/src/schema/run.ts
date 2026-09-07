@@ -7,6 +7,7 @@ import {
 } from "@dungeon-master/contracts";
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   check,
   index,
   integer,
@@ -64,6 +65,29 @@ export const runs = pgTable(
     // Sem referência à tabela de workflow, que só existe na Fase 4. Uma coluna
     // anulável agora evita uma migração de tabela grande depois.
     workflowVersionId: uuid("workflow_version_id"),
+    /**
+     * Identidade do processo de Worker que reclamou este Run.
+     *
+     * Existe para a reconciliação de partida distinguir "meu" de "órfão": um
+     * Worker que sobe encontra Runs em `PREPARING`/`RUNNING` e precisa saber se
+     * eles são de uma execução viva ou o rastro de um processo que morreu. Um
+     * `worker_id` novo por processo torna a resposta trivial — o que não é meu
+     * não tem dono, porque só existe um Worker por vez.
+     *
+     * Fica fora do contrato `Run` de propósito: é estado de infraestrutura, e
+     * nada na interface muda por causa dele.
+     */
+    claimedBy: text("claimed_by"),
+    /**
+     * Run de onde a sessão do harness foi retomada.
+     *
+     * `on delete set null`: apagar a tentativa antiga não pode apagar a nova, e
+     * perder o vínculo é melhor que perder o Run. A sessão em si continua no
+     * `harness_session_id` do Run de origem — é dele que o Worker lê o id.
+     */
+    resumedFromRunId: uuid("resumed_from_run_id").references((): AnyPgColumn => runs.id, {
+      onDelete: "set null",
+    }),
     loadoutId: uuid("loadout_id")
       .notNull()
       .references(() => loadouts.id, { onDelete: "restrict" }),
