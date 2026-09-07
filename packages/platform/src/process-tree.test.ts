@@ -174,7 +174,13 @@ describe("terminateProcessTree", () => {
 // verdade é o do console, e é o que `tooling/windows/send-ctrl-break.ps1` faz.
 // Este teste existe para que o shutdown gracioso do Windows continue provado por
 // execução, e não por leitura de documentação.
-describe.runIf(process.platform === "win32")("CTRL_BREAK no Windows", () => {
+//
+// Só roda fora do CI: a fixture abre um console novo para o alvo, e o runner
+// `windows-latest` do GitHub Actions não tem sessão de desktop para isso. Lá a
+// chamada falhava depois de 90 s sem provar nada. Localmente continua obrigatório.
+const CTRL_BREAK_PROVAVEL = process.platform === "win32" && process.env["CI"] === undefined;
+
+describe.runIf(CTRL_BREAK_PROVAVEL)("CTRL_BREAK no Windows", () => {
   it("entrega SIGBREAK ao alvo, que trata e sai com código 0", async () => {
     const workDir = mkdtempSync(join(tmpdir(), "dm-ctrl-break-"));
     try {
