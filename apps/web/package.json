@@ -19,6 +19,7 @@
     "@dungeon-master/glossary": "workspace:*",
     "@tanstack/react-query": "5.102.8",
     "@tanstack/react-router": "1.170.33",
+    "@tanstack/react-table": "9.2.4",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cmdk": "1.1.1",
@@ -26,7 +27,9 @@
     "radix-ui": "1.6.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "sonner": "2.0.8",
     "tailwind-merge": "3.6.0",
+    "zod": "4.5.4",
     "zustand": "5.0.15"
   },
   "devDependencies": {
