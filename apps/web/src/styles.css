@@ -23,6 +23,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  /* Fonte display do tema, usada só nos títulos de página quando o tema está
+     ligado. A pilha de fallback cobre a ausência da web font. */
+  --font-display:
+    "Source Serif 4", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

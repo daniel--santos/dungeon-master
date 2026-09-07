@@ -2,7 +2,11 @@ import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 import { useEffect } from "react";
 
+import { CommandPalette, useCommandPalette } from "@/components/app-shell/command-palette";
+import { Header } from "@/components/app-shell/header";
+import { Sidebar } from "@/components/app-shell/sidebar";
 import { useEventsStore } from "@/lib/events";
+import { useThemeSetting } from "@/lib/glossary";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -14,6 +18,11 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function RootLayout() {
   const connect = useEventsStore((state) => state.connect);
+  const palette = useCommandPalette();
+
+  // Hidrata o glossário com `ui.theme` e mantém a store em dia quando a
+  // configuração muda, aqui ou em outra aba.
+  useThemeSetting();
 
   // Uma conexão SSE por aba, aberta no layout raiz e viva enquanto a aba
   // estiver. `connect` é idempotente, o que importa porque o StrictMode monta o
@@ -23,16 +32,21 @@ function RootLayout() {
   }, [connect]);
 
   return (
-    <div className="bg-background text-foreground min-h-screen">
-      <header className="border-border border-b">
-        <div className="mx-auto flex max-w-3xl items-baseline gap-3 px-6 py-5">
-          <span className="text-lg font-semibold tracking-tight">Dungeon Master</span>
-          <span className="text-muted-foreground text-sm">Control Plane</span>
-        </div>
-      </header>
-      <main className="mx-auto max-w-3xl px-6 py-10">
-        <Outlet />
-      </main>
+    <div className="bg-background text-foreground flex min-h-screen items-stretch">
+      <Sidebar />
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Header
+          onOpenPalette={() => {
+            palette.setOpen(true);
+          }}
+        />
+        <main className="flex min-h-0 flex-1 flex-col gap-6 px-8 py-7">
+          <Outlet />
+        </main>
+      </div>
+
+      <CommandPalette open={palette.open} onOpenChange={palette.setOpen} />
     </div>
   );
 }

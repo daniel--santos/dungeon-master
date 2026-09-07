@@ -10,33 +10,167 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AgentsRouteImport } from './routes/agents'
+import { Route as HallRouteImport } from './routes/hall'
+import { Route as InboxRouteImport } from './routes/inbox'
+import { Route as KnowledgeRouteImport } from './routes/knowledge'
+import { Route as LoadoutsRouteImport } from './routes/loadouts'
+import { Route as ProjectsRouteImport } from './routes/projects'
+import { Route as RunsRouteImport } from './routes/runs'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as TasksRouteImport } from './routes/tasks'
+import { Route as WorkflowsRouteImport } from './routes/workflows'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AgentsRoute = AgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HallRoute = HallRouteImport.update({
+  id: '/hall',
+  path: '/hall',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InboxRoute = InboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KnowledgeRoute = KnowledgeRouteImport.update({
+  id: '/knowledge',
+  path: '/knowledge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoadoutsRoute = LoadoutsRouteImport.update({
+  id: '/loadouts',
+  path: '/loadouts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectsRoute = ProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RunsRoute = RunsRouteImport.update({
+  id: '/runs',
+  path: '/runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksRoute = TasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkflowsRoute = WorkflowsRouteImport.update({
+  id: '/workflows',
+  path: '/workflows',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/agents': typeof AgentsRoute
+  '/hall': typeof HallRoute
+  '/inbox': typeof InboxRoute
+  '/knowledge': typeof KnowledgeRoute
+  '/loadouts': typeof LoadoutsRoute
+  '/projects': typeof ProjectsRoute
+  '/runs': typeof RunsRoute
+  '/settings': typeof SettingsRoute
+  '/tasks': typeof TasksRoute
+  '/workflows': typeof WorkflowsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/agents': typeof AgentsRoute
+  '/hall': typeof HallRoute
+  '/inbox': typeof InboxRoute
+  '/knowledge': typeof KnowledgeRoute
+  '/loadouts': typeof LoadoutsRoute
+  '/projects': typeof ProjectsRoute
+  '/runs': typeof RunsRoute
+  '/settings': typeof SettingsRoute
+  '/tasks': typeof TasksRoute
+  '/workflows': typeof WorkflowsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/agents': typeof AgentsRoute
+  '/hall': typeof HallRoute
+  '/inbox': typeof InboxRoute
+  '/knowledge': typeof KnowledgeRoute
+  '/loadouts': typeof LoadoutsRoute
+  '/projects': typeof ProjectsRoute
+  '/runs': typeof RunsRoute
+  '/settings': typeof SettingsRoute
+  '/tasks': typeof TasksRoute
+  '/workflows': typeof WorkflowsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/agents'
+    | '/hall'
+    | '/inbox'
+    | '/knowledge'
+    | '/loadouts'
+    | '/projects'
+    | '/runs'
+    | '/settings'
+    | '/tasks'
+    | '/workflows'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/agents'
+    | '/hall'
+    | '/inbox'
+    | '/knowledge'
+    | '/loadouts'
+    | '/projects'
+    | '/runs'
+    | '/settings'
+    | '/tasks'
+    | '/workflows'
+  id:
+    | '__root__'
+    | '/'
+    | '/agents'
+    | '/hall'
+    | '/inbox'
+    | '/knowledge'
+    | '/loadouts'
+    | '/projects'
+    | '/runs'
+    | '/settings'
+    | '/tasks'
+    | '/workflows'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AgentsRoute: typeof AgentsRoute
+  HallRoute: typeof HallRoute
+  InboxRoute: typeof InboxRoute
+  KnowledgeRoute: typeof KnowledgeRoute
+  LoadoutsRoute: typeof LoadoutsRoute
+  ProjectsRoute: typeof ProjectsRoute
+  RunsRoute: typeof RunsRoute
+  SettingsRoute: typeof SettingsRoute
+  TasksRoute: typeof TasksRoute
+  WorkflowsRoute: typeof WorkflowsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +182,91 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/agents': {
+      id: '/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hall': {
+      id: '/hall'
+      path: '/hall'
+      fullPath: '/hall'
+      preLoaderRoute: typeof HallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inbox': {
+      id: '/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof InboxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/knowledge': {
+      id: '/knowledge'
+      path: '/knowledge'
+      fullPath: '/knowledge'
+      preLoaderRoute: typeof KnowledgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/loadouts': {
+      id: '/loadouts'
+      path: '/loadouts'
+      fullPath: '/loadouts'
+      preLoaderRoute: typeof LoadoutsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projects': {
+      id: '/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof ProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/runs': {
+      id: '/runs'
+      path: '/runs'
+      fullPath: '/runs'
+      preLoaderRoute: typeof RunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks': {
+      id: '/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof TasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workflows': {
+      id: '/workflows'
+      path: '/workflows'
+      fullPath: '/workflows'
+      preLoaderRoute: typeof WorkflowsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AgentsRoute: AgentsRoute,
+  HallRoute: HallRoute,
+  InboxRoute: InboxRoute,
+  KnowledgeRoute: KnowledgeRoute,
+  LoadoutsRoute: LoadoutsRoute,
+  ProjectsRoute: ProjectsRoute,
+  RunsRoute: RunsRoute,
+  SettingsRoute: SettingsRoute,
+  TasksRoute: TasksRoute,
+  WorkflowsRoute: WorkflowsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
