@@ -54,6 +54,7 @@ beforeAll(async () => {
     // alguma delas for exercitada por engano.
     execution: createSpecPorts().execution,
     achievements: { definitions: [], templates: [], invalid: [] },
+    hall: createSpecPorts().hall,
     pingEnabled: true,
   });
 
@@ -406,6 +407,7 @@ describe(`POST ${API_BASE_PATH}/events/ping`, () => {
       work: createWorkPort({ db: handle.db, userId: LOCAL_USER_ID }),
       execution: createSpecPorts().execution,
       achievements: { definitions: [], templates: [], invalid: [] },
+      hall: createSpecPorts().hall,
       pingEnabled: false,
     });
 
