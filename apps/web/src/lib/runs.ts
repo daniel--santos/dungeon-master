@@ -1,6 +1,6 @@
 import type { components } from "@dungeon-master/api-client";
 import { API_BASE_PATH } from "@dungeon-master/api-client";
-import type { RunStatus } from "@dungeon-master/contracts";
+import type { HarnessKey, RunStatus } from "@dungeon-master/contracts";
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
@@ -15,6 +15,7 @@ type CreateRun = components["schemas"]["CreateRun"];
 export interface RunListParams {
   readonly taskId?: string;
   readonly projectId?: string;
+  readonly harnessKey?: HarnessKey;
   readonly status?: readonly RunStatus[];
   readonly page?: number;
   readonly pageSize?: number;
@@ -34,6 +35,7 @@ function toQuery(params: RunListParams) {
     ...(rest.pageSize === undefined ? {} : { pageSize: String(rest.pageSize) }),
     ...(rest.taskId === undefined ? {} : { taskId: rest.taskId }),
     ...(rest.projectId === undefined ? {} : { projectId: rest.projectId }),
+    ...(rest.harnessKey === undefined ? {} : { harnessKey: rest.harnessKey }),
     ...(status === undefined || status.length === 0 ? {} : { status: [...status] }),
   };
 }
@@ -156,6 +158,43 @@ export function runEventsPath(runId: string, after: number, limit: number): stri
  */
 export function isCancelPending(run: Run): boolean {
   return run.cancelRequestedAt !== null && isLiveRunStatus(run.status);
+}
+
+/** Os estados terminais de onde faz sentido retomar. Um Run vitorioso não retoma. */
+const RESUMABLE_STATUSES = new Set<RunStatus>(["FAILED", "TIMED_OUT", "CANCELLED"]);
+
+/**
+ * Dá para retomar a sessão do harness deste Run?
+ *
+ * As três condições são as mesmas que a API confere antes de aceitar
+ * `resumeFromRunId`, e por isso a tela não oferece o que ela recusaria: o Run
+ * terminou sem vitória, a sessão foi capturada, e o Harness declara `resume`.
+ * As capabilities vêm do snapshot do Loadout, como em toda leitura do cockpit —
+ * é o que valia quando esta execução aconteceu.
+ */
+export function canResumeRun(run: Run): boolean {
+  return (
+    RESUMABLE_STATUSES.has(run.status) &&
+    run.harnessSessionId !== null &&
+    run.loadoutSnapshot.harness.capabilities.resume
+  );
+}
+
+/**
+ * O prompt de continuação que o diálogo de retomada abre preenchido.
+ *
+ * Texto neutro de propósito: ele vai para o harness, e não para a tela. O
+ * diagnóstico da tentativa anterior entra junto porque a sessão retomada não
+ * garante que o agente lembre por que parou — o resume devolve o histórico da
+ * CLI, não a conclusão de quem leu o erro.
+ */
+export function resumePrompt(run: Run): string {
+  const diagnosis =
+    run.error?.message ??
+    run.result?.summary ??
+    "a tentativa anterior foi encerrada antes de concluir o trabalho.";
+
+  return `Continue de onde parou. Diagnóstico anterior: ${diagnosis}`;
 }
 
 /** Duração de um Run, em milissegundos, ou `null` quando ele nem começou. */

@@ -2320,7 +2320,7 @@ export interface paths {
         };
         /**
          * Lista as execuções
-         * @description Do Run mais recente para o mais antigo. `status` aceita um valor ou vários, repetindo o parâmetro.
+         * @description Do Run mais recente para o mais antigo. `status` aceita um valor ou vários, repetindo o parâmetro; `harnessKey` filtra por Harness e entra no `total`, como os demais. Cada item traz `taskTitle` pela mesma junção que já resolve `projectId`, para a tabela não fazer uma leitura por linha.
          */
         get: {
             parameters: {
@@ -2333,6 +2333,8 @@ export interface paths {
                     taskId?: string;
                     /** @description Só os Runs das Tasks deste Project. */
                     projectId?: string;
+                    /** @description Só os Runs executados por este Harness. */
+                    harnessKey?: "CLAUDE_CODE" | "CODEX" | "PI" | "ANTIGRAVITY";
                     /** @description Filtra por um estado ou por vários, repetindo o parâmetro. */
                     status?: components["schemas"]["RunStatus"] | components["schemas"]["RunStatus"][];
                 };
@@ -3691,13 +3693,89 @@ export interface components {
         /** @description Uma página de Runs, do mais recente para o mais antigo. */
         RunPage: {
             /** @description Os itens desta página, na ordem da listagem. */
-            items: components["schemas"]["Run"][];
+            items: components["schemas"]["RunListItem"][];
             /** @description Página devolvida. */
             page: number;
             /** @description Itens por página efetivamente usados. */
             pageSize: number;
             /** @description Total de itens que casam com o filtro. */
             total: number;
+        };
+        /** @description Um Run na listagem, com o título da Task. */
+        RunListItem: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do Run.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description A Task que este Run tenta realizar.
+             */
+            taskId: string;
+            /**
+             * Format: uuid
+             * @description Project da Task no momento da leitura. Vem por junção, não é coluna do Run.
+             */
+            projectId: string | null;
+            status: components["schemas"]["RunStatus"];
+            /**
+             * @description Harness escolhido, copiado do Loadout.
+             * @enum {string}
+             */
+            harnessKey: "CLAUDE_CODE" | "CODEX" | "PI" | "ANTIGRAVITY";
+            /** @description Versão da CLI descoberta no preflight. Nula até o Run preparar. */
+            harnessVersion: string | null;
+            /** @description Id de sessão emitido pelo harness, guardado junto do harness emissor: as semânticas de resume diferem entre Claude Code, Codex, Pi e Antigravity. */
+            harnessSessionId: string | null;
+            /** @description Chave do Model usada, copiada do Loadout. */
+            modelKey: string | null;
+            executionMode: components["schemas"]["ExecutionMode"];
+            /** @description Caminho do checkout usado. É a base da trava por caminho. */
+            workspacePath: string | null;
+            /**
+             * Format: uuid
+             * @description Captura congelada do Workflow. Sempre nulo até a Fase 4.
+             */
+            workflowVersionId: string | null;
+            /**
+             * Format: uuid
+             * @description Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero.
+             */
+            resumedFromRunId: string | null;
+            /** Format: uuid */
+            loadoutId: string;
+            /** @description Versão do Loadout no instante da criação. */
+            loadoutVersion: number;
+            loadoutSnapshot: components["schemas"]["LoadoutSnapshot"];
+            executionProfileSnapshot: components["schemas"]["ExecutionProfileSnapshot"];
+            /** @description O prompt enviado ao harness. */
+            prompt: string;
+            /** @description N-ésimo Run desta Task, começando em 1. */
+            attempt: number;
+            /**
+             * Format: date-time
+             * @description Entrada em `RUNNING`, em UTC (ISO 8601).
+             */
+            startedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Entrada em estado terminal, em UTC.
+             */
+            finishedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Instante do pedido de cancelamento. Marcar aqui não muda o status: quem transiciona é quem confirma o término da árvore de processos.
+             */
+            cancelRequestedAt: string | null;
+            result: components["schemas"]["RunResult"];
+            error: components["schemas"]["RunError"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description Título da Task no momento da leitura. Vem por junção. */
+            taskTitle: string;
         };
         /** @description Uma página do log de eventos de um Run. */
         RunEventList: {

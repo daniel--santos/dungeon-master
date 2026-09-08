@@ -762,12 +762,15 @@ export function resolvePermission(
     });
   }
 
-  if (mode === "CONFIGURED" && policy?.harnessMode === undefined) {
+  // `CONFIGURED` sem `harnessMode` **e** sem `grant` não configura nada: não há
+  // modo nativo a pedir nem concessão a traduzir, e o que sobraria seria o
+  // padrão da CLI com outro nome. Com um dos dois, o adapter tem o que montar.
+  if (mode === "CONFIGURED" && policy?.harnessMode === undefined && policy?.grant === undefined) {
     mode = "DEFAULT";
     notes.push({
       level: "WARN",
       message:
-        "A política pediu CONFIGURED sem `harnessMode`; sem o nome do modo nativo, vale o padrão da CLI.",
+        "A política pediu CONFIGURED sem `harnessMode` e sem concessão; sem nenhum dos dois, vale o padrão da CLI.",
     });
   }
 
@@ -783,6 +786,7 @@ export function resolvePermission(
       ...(mode === "CONFIGURED" && policy?.harnessMode !== undefined
         ? { harnessMode: policy.harnessMode }
         : {}),
+      ...(mode === "CONFIGURED" && policy?.grant !== undefined ? { grant: policy.grant } : {}),
       enforcement,
     },
     notes,

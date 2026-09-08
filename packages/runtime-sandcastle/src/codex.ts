@@ -94,11 +94,21 @@ export function codex(options: CodexOptions = {}) {
 
       if (request.permission.mode === "BYPASS") {
         args.push("--dangerously-bypass-approvals-and-sandbox");
-      } else if (
-        request.permission.mode === "CONFIGURED" &&
-        request.permission.harnessMode !== undefined
-      ) {
-        args.push("-s", request.permission.harnessMode);
+      } else if (request.permission.mode === "CONFIGURED") {
+        // O Codex não tem allow-list por comando: ele tem **sandbox**, que é uma
+        // barreira melhor. `workspace-write` deixa o agente escrever no
+        // diretório de trabalho e rodar comandos ali dentro, e recusa o resto —
+        // inclusive rede. Traduzir a concessão para o modo de sandbox é mais
+        // honesto que fingir uma lista de comandos que a CLI não aplicaria.
+        const sandbox =
+          request.permission.harnessMode ??
+          (request.permission.grant?.workspaceWrite === true ? "workspace-write" : "read-only");
+        args.push("-s", sandbox);
+
+        // Em `exec` não há ninguém para aprovar nada. Dizer isso à CLI é o que
+        // impede um pedido de escalonamento de ficar esperando resposta que não
+        // vem; o comando é recusado e o agente segue ou falha, mas não pendura.
+        args.push("-c", 'approval_policy="never"');
       }
 
       if (options.extraArgs !== undefined) args.push(...options.extraArgs);

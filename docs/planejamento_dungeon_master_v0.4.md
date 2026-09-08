@@ -625,18 +625,30 @@ Decisões desta rodada, todas comentadas no código:
   enfileiram.
 - **O laço nunca reclama mais do que pode rodar.** Reclamar leva o Run a
   `PREPARING` e a Task a `RUNNING`, e não existe volta para `QUEUED`.
-- **`commandExecution: ALL` em `HOST` vira o modo de auto-aprovação nativo do
-  harness, nunca `bypass`.** `bypass` só sai com `SANDBOX_ENFORCED` ou com
-  `permissionPolicy.allowUnsafeBypass = true`, e nesse caso o Run emite um
-  `Diagnostic` e grava `run.permission_bypassed` no diário do Project. A
-  consequência aceita: em `acceptEdits` o Claude Code continua pedindo aprovação
-  para comandos de shell, e o agente reporta `blocked` honestamente em vez de
-  fingir que fez.
+- **Três degraus de permissão, não dois.** O modo de auto-aprovação de edições
+  não deixa o agente commitar, e `bypass` entrega a máquina. O degrau do meio é
+  a **concessão**: o Worker diz o que pode ser feito — escrever no workspace,
+  executar estes prefixos de comando — e cada adapter traduz para o argv dele
+  (`--allowedTools` no Claude Code, `--sandbox` no Codex, `--tools` no Pi).
+  `bypass` continua só com `SANDBOX_ENFORCED` ou `allowUnsafeBypass = true`, com
+  `Diagnostic` e `run.permission_bypassed` no diário.
 - **Um `RunCompleted` sem `output` estruturado é sintetizado**, com um
   `Diagnostic` dizendo que foi sintetizado. A regra do domínio "`SUCCEEDED` sem
   resultado → Task `FAILED`" continua valendo, mas passa a ser rede de segurança:
   um agente que fez o trabalho e esqueceu o bloco não deveria custar a Task. O
   `outputSchema` só é pedido a quem declara `structuredOutput`.
+- **Uma negação de permissão isolada não reprova o Run; negação com trabalho
+  inacabado, sim.** Medido contra a CLI 2.1.263 no Windows: o agente tenta a
+  ferramenta `PowerShell`, é negado, refaz com `Bash` e termina. Reprovar aquele
+  Run descartaria trabalho concluído. Já uma negação que deixou a tarefa pela
+  metade vira `FAILED` com `PERMISSION_DENIED` e a lista do que foi negado, em
+  vez de um `SUCCEEDED` cuja Task ficou `BLOCKED` sem dizer por quê. Como
+  `--permission-prompts none` está sempre no argv fora do bypass, uma negação é
+  imediata e nunca vira espera.
+- **Espólios saem do diff do worktree**, e não só do stream: apenas o Codex
+  anuncia `Artifact` sozinho, e sem essa passagem a mesma tarefa deixaria rastro
+  diferente conforme a Guilda escolhida. Os eventos saem antes do terminal, com
+  o tipo da mudança e o tamanho, deduplicados contra o que o harness já anunciou.
 - **Worktree preservado em falha, timeout, cancelamento e sujeira**, com um
   `Diagnostic` de recuperação trazendo os comandos copiáveis; removido só num
   sucesso limpo, depois de os commits terem sido coletados para `result.commits`.
@@ -653,8 +665,12 @@ Fica pendente para as rodadas seguintes:
 
 - Run Cockpit e o aceite explícito de execução host continuam sendo tela, e a web
   ainda não os tem; o indicador `UNISOLATED` também.
-- Commits só são coletados na estratégia `GIT_WORKTREE`: em `CURRENT` faltaria
-  guardar o `HEAD` de antes do Run.
+- Commits e espólios só são coletados na estratégia `GIT_WORKTREE`: em `CURRENT`
+  faltaria guardar o `HEAD` de antes do Run.
+- Um comando composto (`git add X; if ($?) { git commit … }`) não casa com
+  prefixo nenhum na allow-list do Claude Code, porque a CLI não valida
+  estaticamente as partes de uma cadeia. Ele é negado mesmo com `git` liberado,
+  e o agente reescreve em comandos simples — custa um turno.
 - `COPY` como estratégia de workspace continua recusada com mensagem.
 
 ---

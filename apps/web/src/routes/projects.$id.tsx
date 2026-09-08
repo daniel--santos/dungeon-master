@@ -8,6 +8,7 @@ import { Panel, PanelHeader } from "@/components/panel";
 import { ActivityLog } from "@/components/projects/activity-log";
 import { ProjectDialog } from "@/components/projects/project-dialog";
 import { TaskCounts, totalTasks } from "@/components/projects/task-counts";
+import { WorkspaceBadge } from "@/components/projects/workspace-badge";
 import { CreateTaskDialog } from "@/components/task/create-task-dialog";
 import { TaskTable } from "@/components/task/task-table";
 import { Button } from "@/components/ui/button";
@@ -106,6 +107,7 @@ function ProjectDetailPage() {
                   when: formatDate(detail.createdAt),
                 })}
             </p>
+            <WorkspaceBadge className="mt-1 self-start" project={detail} />
           </div>
 
           <div className="flex flex-none items-center gap-2">

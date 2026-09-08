@@ -84,6 +84,7 @@ export function registerRunRoutes(
     const filters: RunFilters = {
       taskId: query.taskId,
       projectId: query.projectId,
+      harnessKey: query.harnessKey,
       status: normalizarStatus(query.status),
     };
 
