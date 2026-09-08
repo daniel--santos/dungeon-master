@@ -156,6 +156,94 @@ describe("contagem por filtro", () => {
       event(6, "RunCompleted", { summary: "fim", durationMs: 1 }),
     ]);
 
-    expect(counts).toEqual({ all: 6, tools: 2, text: 1, usage: 1, system: 1, diagnostic: 1 });
+    expect(counts).toEqual({
+      all: 6,
+      tools: 2,
+      text: 1,
+      workflow: 0,
+      usage: 1,
+      system: 1,
+      diagnostic: 1,
+    });
+  });
+});
+
+describe("eventos do motor de Workflow", () => {
+  it("StepStarted diz o step, o tipo e a tentativa", () => {
+    const rows = buildTimeline(
+      [
+        event(1, "StepStarted", {
+          runStepId: "x",
+          stepKey: "analyze",
+          stepType: "agent",
+          attempt: 1,
+          timestamp: "2026-09-07T14:02:11.000Z",
+        }),
+      ],
+      { labels },
+    );
+
+    expect(rows[0]?.title).toContain("analyze");
+    expect(rows[0]?.title).toContain(getGlossary("dnd")["entity.workflowStep"]);
+    expect(rows[0]?.detail).toContain(getGlossary("dnd")["workflowStep.type.agent"]);
+    expect(rows[0]?.detail).toContain("tentativa 1");
+    expect(rows[0]?.group).toBe("workflow");
+  });
+
+  it("StepFinished traz o estado pelo glossário, o resumo e a duração", () => {
+    const rows = buildTimeline(
+      [
+        event(1, "StepFinished", {
+          runStepId: "x",
+          stepKey: "plan",
+          status: "SUCCEEDED",
+          attempt: 2,
+          summary: "Plano em cinco passos.",
+          durationMs: 4_200,
+        }),
+      ],
+      { labels },
+    );
+
+    expect(rows[0]?.title).toBe(`${getGlossary("dnd")["runStep.status.succeeded"]} · plan`);
+    expect(rows[0]?.detail).toBe("Plano em cinco passos. · 4 s");
+  });
+
+  it("StepSkipped explica o predicado que falhou", () => {
+    const rows = buildTimeline(
+      [
+        event(1, "StepSkipped", {
+          runStepId: "x",
+          stepKey: "execute",
+          reason: {
+            code: "PREDICATE_FALSE",
+            predicate: { kind: "stepSucceeded", step: "approve-plan" },
+            detail: "approve-plan terminou em FAILED",
+          },
+        }),
+      ],
+      { labels },
+    );
+
+    expect(rows[0]?.title).toBe(`${getGlossary("dnd")["runStep.status.skipped"]} · execute`);
+    expect(rows[0]?.detail).toBe(
+      `${getGlossary("dnd")["runStep.skip.predicateFalse"]}: approve-plan terminou em FAILED`,
+    );
+  });
+
+  it("ApprovalGranted e ApprovalRejected mostram a decisão e a nota", () => {
+    const rows = buildTimeline(
+      [
+        event(1, "ApprovalGranted", { gateKey: "plan", note: "Pode seguir." }),
+        event(2, "ApprovalRejected", { gateKey: "plan", note: null }),
+      ],
+      { labels },
+    );
+
+    expect(rows[0]?.title).toBe(`${getGlossary("dnd")["approval.status.granted"]} · plan`);
+    expect(rows[0]?.detail).toBe("Pode seguir.");
+    expect(rows[1]?.title).toBe(`${getGlossary("dnd")["approval.status.rejected"]} · plan`);
+    expect(rows[1]?.detail).toBeNull();
+    expect(countByFilter(rows.map((row, i) => event(i + 1, row.type, {}))).workflow).toBe(2);
   });
 });

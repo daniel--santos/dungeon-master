@@ -1,4 +1,5 @@
 import type { ProblemDetails } from "@dungeon-master/api-client";
+import type { ValidationIssue } from "@dungeon-master/contracts";
 
 /**
  * A mensagem que a tela mostra quando a API recusa alguma coisa.
@@ -35,4 +36,23 @@ export class ApiError extends Error {
 /** Lança um `ApiError` com o `detail` do problem details. */
 export function fail(problem: unknown, status: number, fallback: string): never {
   throw new ApiError(problemMessage(problem, status, fallback), status);
+}
+
+/**
+ * Os `errors[]` de um problem details de validação, quando existirem.
+ *
+ * Um `422` de definição de Workflow aponta o step e o campo em cada issue;
+ * sem esta leitura o editor só teria o `detail` genérico para mostrar.
+ */
+export function problemIssues(problem: unknown): readonly ValidationIssue[] {
+  if (typeof problem !== "object" || problem === null) return [];
+  const errors = (problem as Partial<ProblemDetails>).errors;
+  if (!Array.isArray(errors)) return [];
+  return errors.filter(
+    (issue): issue is ValidationIssue =>
+      typeof issue === "object" &&
+      issue !== null &&
+      typeof (issue as ValidationIssue).path === "string" &&
+      typeof (issue as ValidationIssue).message === "string",
+  );
 }

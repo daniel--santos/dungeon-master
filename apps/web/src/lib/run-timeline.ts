@@ -3,6 +3,15 @@ import type { FormatParams, GlossaryKey } from "@dungeon-master/glossary";
 import type { EventFilterId } from "@/lib/execution-domain";
 import { eventPresentation } from "@/lib/execution-domain";
 import type { RunEvent } from "@/lib/run-events";
+import {
+  APPROVAL_GATE_STATUS,
+  isRunStepStatus,
+  isStepSkipReasonCode,
+  isWorkflowStepType,
+  RUN_STEP_STATUS,
+  STEP_SKIP_REASON,
+  WORKFLOW_STEP_TYPE,
+} from "@/lib/workflow-domain";
 
 /**
  * O log cru vira as linhas do Diário.
@@ -221,6 +230,84 @@ function describe(event: RunEvent, labels: TimelineLabels): Described {
         code: false,
       };
 
+    // ------------------------------------------------- eventos do motor
+    // `WorkflowEvent` é uma união separada no contrato, e o mapa de ícones em
+    // `execution-domain.ts` é exaustivo sobre ela; aqui cada caso lê o
+    // payload com a mesma defesa dos outros, porque o log tolera tipo velho.
+    case "StepStarted": {
+      const stepType = fields(payload)["stepType"];
+      const attempt = count(payload, "attempt");
+      return {
+        title: format("{step} · {key}", {
+          step: t("entity.workflowStep"),
+          key: text(payload, "stepKey") ?? "?",
+        }),
+        detail: [
+          isWorkflowStepType(stepType) ? t(WORKFLOW_STEP_TYPE[stepType].label) : null,
+          attempt === null ? null : format("tentativa {n}", { n: attempt }),
+        ]
+          .filter((part) => part !== null)
+          .join(" · "),
+        code: false,
+      };
+    }
+
+    case "StepFinished": {
+      const status = fields(payload)["status"];
+      const duration = count(payload, "durationMs");
+      const summary = text(payload, "summary");
+      return {
+        title: format("{status} · {key}", {
+          status: isRunStepStatus(status) ? t(RUN_STEP_STATUS[status].label) : String(status),
+          key: text(payload, "stepKey") ?? "?",
+        }),
+        detail:
+          [
+            summary === null ? null : oneLine(summary),
+            duration === null ? null : `${NUMBER.format(Math.round(duration / 1000))} s`,
+          ]
+            .filter((part) => part !== null)
+            .join(" · ") || null,
+        code: false,
+      };
+    }
+
+    case "StepSkipped": {
+      const reason = fields(fields(payload)["reason"]);
+      const code = reason["code"];
+      const why = isStepSkipReasonCode(code) ? t(STEP_SKIP_REASON[code]) : null;
+      const detail =
+        code === "PREDICATE_FALSE"
+          ? text(reason, "detail")
+          : code === "DEPENDENCY_NOT_SUCCEEDED"
+            ? [text(reason, "dependency"), text(reason, "status")]
+                .filter((part) => part !== null)
+                .join(" · ")
+            : null;
+      return {
+        title: format("{status} · {key}", {
+          status: t("runStep.status.skipped"),
+          key: text(payload, "stepKey") ?? "?",
+        }),
+        detail: [why, detail === "" ? null : detail].filter((part) => part !== null).join(": "),
+        code: false,
+      };
+    }
+
+    case "ApprovalGranted":
+    case "ApprovalRejected": {
+      const status = event.type === "ApprovalGranted" ? "GRANTED" : "REJECTED";
+      const note = text(payload, "note");
+      return {
+        title: format("{status} · {key}", {
+          status: t(APPROVAL_GATE_STATUS[status].label),
+          key: text(payload, "gateKey") ?? "?",
+        }),
+        detail: note === null ? null : oneLine(note),
+        code: false,
+      };
+    }
+
     // Um tipo que esta versão da web não conhece aparece pelo nome, e não some.
     default:
       return { title: event.type, detail: null, code: false };
@@ -249,6 +336,7 @@ export function countByFilter(events: readonly RunEvent[]): Record<EventFilterId
     all: events.length,
     tools: 0,
     text: 0,
+    workflow: 0,
     usage: 0,
     system: 0,
     diagnostic: 0,

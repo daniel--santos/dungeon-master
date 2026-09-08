@@ -77,7 +77,7 @@ export type RunSearch = z.infer<typeof runSearchSchema>;
 /** Os filtros do Diário de uma Expedição, na URL do cockpit. */
 export const runDetailSearchSchema = z.object({
   events: z
-    .enum(["all", "tools", "text", "usage", "system", "diagnostic"])
+    .enum(["all", "tools", "text", "workflow", "usage", "system", "diagnostic"])
     .default("all")
     .catch("all"),
 });
