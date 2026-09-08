@@ -795,3 +795,294 @@ export async function seedKnowledge(input: SeedKnowledgeInput): Promise<SeedKnow
     await client.end();
   }
 }
+
+export interface SeedRunContextInput {
+  /** Um Run criado pela API. Em `QUEUED`, a fixture o termina em `SUCCEEDED`. */
+  readonly runId: string;
+  /** O `SUMMARY` da Campanha, que entra na seção do resumo. */
+  readonly summaryId: string;
+  /** A Página que entra cortada na seção de Páginas. */
+  readonly pageId: string;
+  /** A Página que fica de fora por orçamento. */
+  readonly excludedId: string;
+  readonly titles: {
+    readonly summary: string;
+    readonly page: string;
+    readonly excluded: string;
+  };
+  /** O Run cuja sessão este retomou e de quem copiou o contexto. */
+  readonly inheritedFromRunId?: string;
+  /** Grava também uma consulta ao Grimório no Diário: `ToolCall` e `ToolResult`. */
+  readonly withToolCalls?: boolean;
+}
+
+export interface SeedRunContextResult {
+  readonly contextId: string;
+  readonly taskId: string;
+  readonly projectId: string;
+  readonly text: string;
+}
+
+/**
+ * Deixa um Run com o contexto montado, por SQL no banco do e2e (Fase 7C).
+ *
+ * Quem faz isso em produção é o Worker, ao reclamar o Run e gravar o que o
+ * montador de `packages/context` decidiu, e a configuração do Playwright não
+ * sobe Worker de propósito. A fixture escreve o que `saveRunContext`
+ * escreveria, na mesma transação: uma linha `ASSEMBLED` com três seções (o
+ * resumo, uma Página cortada pelo teto da seção, a própria Missão na
+ * linhagem), uma Página excluída pelo corte do total, o orçamento e o uso, a
+ * política com a origem no Loadout do Run, e o texto exato do bloco. Um Run
+ * ainda em `QUEUED` termina em `SUCCEEDED` com a Task em `COMPLETED`, como
+ * `seedRunOutcome` faz; um Run já terminado só ganha o contexto.
+ *
+ * Com `withToolCalls`, o Diário ganha uma chamada ao servidor MCP do
+ * Grimório e a resposta dela, com o nome `mcp__knowledge__…` que a CLI
+ * emite: é o que o cockpit destaca e conta.
+ */
+export async function seedRunContext(input: SeedRunContextInput): Promise<SeedRunContextResult> {
+  const databaseUrl = process.env["DATABASE_URL"];
+  if (databaseUrl === undefined) {
+    throw new Error("DATABASE_URL não está no ambiente: rode pelo run-e2e.mjs.");
+  }
+
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+
+    const run = await client.query<{
+      user_id: string;
+      task_id: string;
+      project_id: string;
+      status: string;
+      loadout_id: string;
+      loadout_version: number;
+      task_title: string;
+    }>(
+      `SELECT r.user_id, r.task_id, t.project_id, r.status, r.loadout_id, r.loadout_version,
+              t.title AS task_title
+         FROM run r JOIN task t ON t.id = r.task_id
+        WHERE r.id = $1
+        FOR UPDATE OF r`,
+      [input.runId],
+    );
+    const owner = run.rows[0];
+    if (owner === undefined) throw new Error(`O Run ${input.runId} não existe.`);
+
+    if (owner.status === "QUEUED") {
+      const result = {
+        status: "completed",
+        summary: "Fixture do e2e: o trabalho terminou com as provisões no prompt.",
+        artifacts: [],
+        discoveredTasks: [],
+        knowledgeCandidates: [],
+        warnings: [],
+      };
+      await client.query(
+        `UPDATE run
+           SET status = 'SUCCEEDED', started_at = coalesce(started_at, now() - interval '3 minutes'),
+               finished_at = now() - interval '1 minute', updated_at = now(), result = $2::jsonb
+         WHERE id = $1`,
+        [input.runId, JSON.stringify(result)],
+      );
+      await client.query(
+        `UPDATE task SET status = 'COMPLETED', completed_at = now(), updated_at = now() WHERE id = $1`,
+        [owner.task_id],
+      );
+    }
+
+    const summaryItem = {
+      id: input.summaryId,
+      kind: "KNOWLEDGE_ITEM",
+      title: input.titles.summary,
+      reason: "PROJECT_SUMMARY",
+      score: null,
+      tokens: 240,
+      truncated: false,
+    };
+    const pageItem = {
+      id: input.pageId,
+      kind: "KNOWLEDGE_ITEM",
+      title: input.titles.page,
+      reason: "FTS_MATCH",
+      score: 0.4256,
+      tokens: 1500,
+      truncated: true,
+    };
+    const taskItem = {
+      id: owner.task_id,
+      kind: "TASK",
+      title: owner.task_title,
+      reason: "PARENT_TASK",
+      score: null,
+      tokens: 90,
+      truncated: false,
+    };
+    const excludedItem = {
+      id: input.excludedId,
+      kind: "KNOWLEDGE_ITEM",
+      title: input.titles.excluded,
+      reason: "FTS_MATCH",
+      score: 0.12,
+      tokens: 800,
+      truncated: false,
+    };
+
+    const sections = [
+      {
+        kind: "SUMMARY",
+        title: "Resumo do Project",
+        items: [summaryItem],
+        tokens: 240,
+        budgetTokens: 2000,
+        truncated: false,
+      },
+      {
+        kind: "KNOWLEDGE",
+        title: "Páginas relevantes",
+        items: [pageItem],
+        tokens: 1500,
+        budgetTokens: 1700,
+        truncated: true,
+      },
+      {
+        kind: "LINEAGE",
+        title: "Task mãe e dependências",
+        items: [taskItem],
+        tokens: 90,
+        budgetTokens: 700,
+        truncated: false,
+      },
+    ];
+    const excluded = [{ section: "KNOWLEDGE", item: excludedItem, reason: "TOTAL_BUDGET" }];
+    const budget = {
+      totalTokens: 6000,
+      frameTokens: 130,
+      summaryMinTokens: 300,
+      sections: {
+        SUMMARY: 2000,
+        DECISIONS: 880,
+        KNOWLEDGE: 1700,
+        LINEAGE: 700,
+        ARTIFACTS: 300,
+        SKILLS: 170,
+      },
+    };
+    const usage = { estimatedTokens: 1960, itemCount: 3, excludedCount: 1 };
+    const policy = {
+      enabled: true,
+      budgetTokens: 6000,
+      maxKnowledgeItems: 8,
+      maxDecisions: 5,
+      maxArtifacts: 10,
+      includeProjectSummary: true,
+      includeDecisions: true,
+      includeParentContext: true,
+      includeDependencyContext: true,
+      source: {
+        loadout: {
+          id: owner.loadout_id,
+          version: owner.loadout_version,
+          knowledgePolicy: { includeProjectSummary: true, includeDecisions: true, maxItems: 10 },
+          contextPolicy: {
+            includeParentContext: true,
+            includeDependencyContext: true,
+            maxTokens: 0,
+          },
+        },
+        settings: {
+          enabled: true,
+          budgetTokens: 6000,
+          maxKnowledgeItems: 8,
+          maxDecisions: 5,
+          maxArtifacts: 10,
+        },
+      },
+    };
+
+    const text = [
+      "<context>",
+      "<summary>",
+      `<project-summary id="${input.summaryId}">${input.titles.summary}</project-summary>`,
+      "</summary>",
+      "<knowledge>",
+      `<knowledge-item id="${input.pageId}" type="PROCEDURE">${input.titles.page} […]</knowledge-item>`,
+      "</knowledge>",
+      "<related-tasks>",
+      `<task id="${owner.task_id}" relation="parent">${owner.task_title}</task>`,
+      "</related-tasks>",
+      "</context>",
+    ].join("\n");
+
+    const contextId = randomUUID();
+    await client.query(
+      `INSERT INTO run_context
+         (id, user_id, run_id, task_id, project_id, status, text, query, sections, excluded,
+          budget, usage, policy, inherited_from_run_id, error, assembled_at)
+       VALUES ($1, $2, $3, $4, $5, 'ASSEMBLED', $6, $7, $8::jsonb, $9::jsonb, $10::jsonb,
+               $11::jsonb, $12::jsonb, $13, NULL, now() - interval '2 minutes')`,
+      [
+        contextId,
+        owner.user_id,
+        input.runId,
+        owner.task_id,
+        owner.project_id,
+        text,
+        "sala & norte",
+        JSON.stringify(sections),
+        JSON.stringify(excluded),
+        JSON.stringify(budget),
+        JSON.stringify(usage),
+        JSON.stringify(policy),
+        input.inheritedFromRunId ?? null,
+      ],
+    );
+
+    if (input.withToolCalls === true) {
+      const at = new Date().toISOString();
+      const events = [
+        {
+          type: "ToolCall",
+          timestamp: at,
+          harness: "CLAUDE_CODE",
+          toolCallId: "call-grimorio-1",
+          name: "mcp__knowledge__search_knowledge",
+          arguments: '{"query":"portão"}',
+        },
+        {
+          type: "ToolResult",
+          timestamp: at,
+          harness: "CLAUDE_CODE",
+          toolCallId: "call-grimorio-1",
+          ok: true,
+          output: `1 página: ${input.titles.page}`,
+        },
+        {
+          type: "ToolCall",
+          timestamp: at,
+          harness: "CLAUDE_CODE",
+          toolCallId: "call-bash-1",
+          name: "Bash",
+          arguments: "pnpm test",
+        },
+      ];
+      for (const payload of events) {
+        await client.query(
+          `INSERT INTO run_event (id, user_id, run_id, sequence, type, timestamp, payload)
+           SELECT $1, $2, $3, coalesce(max(sequence), 0) + 1, $4, now(), $5::jsonb
+             FROM run_event WHERE run_id = $3`,
+          [randomUUID(), owner.user_id, input.runId, payload.type, JSON.stringify(payload)],
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+    return { contextId, taskId: owner.task_id, projectId: owner.project_id, text };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    await client.end();
+  }
+}
