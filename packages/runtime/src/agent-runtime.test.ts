@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -9,8 +9,10 @@ import { z } from "zod";
 
 import { collectExecutionResult, createAgentRuntime, resolvePermission } from "./agent-runtime.js";
 import { capabilities } from "./capabilities.js";
+import { buildGitEnv } from "./env.js";
 import type { ExecutionRequest } from "./execution-request.js";
 import type { HarnessAdapter } from "./harness.js";
+import { collectProcess } from "./process.js";
 import { createHarnessRegistry } from "./registry.js";
 import { fakeHarness } from "./testing/fake-harness.js";
 import type { ExecutionProfileSnapshot } from "./types.js";
@@ -478,5 +480,111 @@ describe("collectExecutionResult", () => {
 
     expect(result.status).toBe("FAILED");
     expect(result.error?.message).toContain("9");
+  });
+});
+
+/**
+ * O `git` do agente e a identidade que ele precisa achar.
+ *
+ * O runtime entrega ao agente um worktree e uma allow-list que inclui
+ * `git commit`. Um `git commit` sem `user.email` não commita — ele falha com
+ * "Author identity unknown" — e o Run termina bem-sucedido sem commit nenhum.
+ * A identidade mora no gitconfig global, e o ambiente do agente é montado por
+ * allow-list, então ela só chega se alguém a tiver posto na lista.
+ *
+ * Os dois casos abaixo diferem só no conteúdo do gitconfig apontado por
+ * `GIT_CONFIG_GLOBAL`, com `HOME` e `USERPROFILE` presos a uma pasta vazia nos
+ * dois. É o que torna o teste independente da máquina: sem prender o `HOME`, o
+ * Git for Windows acha o `.gitconfig` do perfil do usuário mesmo sem variável
+ * nenhuma no ambiente, e foi exatamente por isso que a falha só apareceu no
+ * runner, onde esse arquivo não existe.
+ */
+describe("a identidade do git dentro do agente", () => {
+  let repo: string;
+  let vazio: string;
+  let configComIdentidade: string;
+  let configSemIdentidade: string;
+
+  /** Um repositório com um commit inicial, e uma pasta que serve de `HOME` sem nada dentro. */
+  beforeAll(async () => {
+    const base = await mkdtemp(join(tmpdir(), "dm-git-ident-"));
+    repo = join(base, "repositorio");
+    vazio = join(base, "home-vazio");
+    await mkdir(repo, { recursive: true });
+    await mkdir(vazio, { recursive: true });
+
+    const comIdentidade = join(base, "com-identidade.gitconfig");
+    await writeFile(comIdentidade, "[user]\n\temail = teste@dungeon.master\n\tname = Teste\n");
+    await writeFile(join(base, "sem-identidade.gitconfig"), "[core]\n\tquotepath = false\n");
+    configComIdentidade = comIdentidade;
+    configSemIdentidade = join(base, "sem-identidade.gitconfig");
+
+    const env = { ...process.env, GIT_CONFIG_GLOBAL: comIdentidade };
+    const git = async (...args: string[]): Promise<void> => {
+      const r = await collectProcess("git", args, { cwd: repo, env: buildGitEnv(env) });
+      if (r.code !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+    };
+    await git("init", "-q", "-b", "main", ".");
+    await writeFile(join(repo, "README.md"), "# base\n");
+    await git("add", ".");
+    await git("commit", "-q", "-m", "base");
+  });
+
+  /** Roda o agente falso com um `GIT_CONFIG_GLOBAL` escolhido e devolve o que ele emitiu. */
+  async function commitarCom(gitconfig: string, runId: string): Promise<ExecutionEvent[]> {
+    const runtime = createAgentRuntime({
+      registry: createHarnessRegistry([fakeHarness()]),
+      workspace: createWorkspaceResolver({ manager: createWorkspaceManager() }),
+      envSource: {
+        ...process.env,
+        HOME: vazio,
+        USERPROFILE: vazio,
+        GIT_CONFIG_GLOBAL: gitconfig,
+      },
+    });
+
+    const events: ExecutionEvent[] = [];
+    for await (const event of runtime.execute({
+      ...request(runId),
+      workspace: { repoPath: repo },
+      prompt: [
+        `@@fake:write ${runId}.md conteudo`,
+        "@@fake:git add -A",
+        `@@fake:git commit -m ${runId}`,
+        "@@fake:result pronto",
+      ].join("\n"),
+    })) {
+      events.push(event);
+    }
+    return events;
+  }
+
+  it("com identidade no gitconfig global, o commit do agente passa", async () => {
+    const events = await commitarCom(configComIdentidade, "com-identidade");
+
+    expect(events.at(-1)?.type).toBe("RunCompleted");
+
+    const manager = createWorkspaceManager();
+    const commits = await manager.collectCommits(repo, "HEAD~1");
+    expect(commits.map((c) => c.subject)).toContain("com-identidade");
+  });
+
+  it("sem identidade, o agente falha o commit e diz que falhou", async () => {
+    const events = await commitarCom(configSemIdentidade, "sem-identidade");
+
+    // O Run termina: um comando que falha dentro do agente não derruba o
+    // processo. O que não pode acontecer é o silêncio — antes, o agente falso
+    // engolia o erro com `stdio: "ignore"` e o Run saía bem-sucedido sem
+    // commit e sem uma linha dizendo por quê.
+    expect(events.at(-1)?.type).toBe("RunCompleted");
+
+    const relatos = events
+      .filter((e) => e.type === "ToolResult")
+      .map((e) => JSON.stringify(e))
+      .join("\n");
+    expect(relatos.toLowerCase()).toContain("git commit");
+    // A mensagem do git muda de versão para versão; o que não muda é ele
+    // reclamar de identidade.
+    expect(relatos.toLowerCase()).toMatch(/identity|user\.email|empty ident/u);
   });
 });
