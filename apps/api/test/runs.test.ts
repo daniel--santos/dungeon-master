@@ -281,11 +281,57 @@ describe(`GET ${API_BASE_PATH}/runs`, () => {
     expect(vazio.total).toBe(0);
   });
 
+  it("filtra por Harness no banco, e o total acompanha", async () => {
+    const a = await criarTask({ title: "Run A" });
+    const b = await criarTask({ title: "Run B" });
+    await criarRun(a.id);
+    await criarRun(b.id);
+
+    const doHarness = RunPageSchema.parse(
+      await (
+        await pedir({ app, method: "GET", path: `${API_BASE_PATH}/runs?harnessKey=CLAUDE_CODE` })
+      ).json(),
+    );
+    expect(doHarness.total).toBe(2);
+    expect(doHarness.items).toHaveLength(2);
+
+    // O filtro é do banco, e não da página: um Harness sem Run não devolve
+    // linha nenhuma e o total do rodapé vai a zero junto.
+    const deOutro = RunPageSchema.parse(
+      await (
+        await pedir({ app, method: "GET", path: `${API_BASE_PATH}/runs?harnessKey=CODEX` })
+      ).json(),
+    );
+    expect(deOutro.total).toBe(0);
+    expect(deOutro.items).toEqual([]);
+  });
+
+  it("traz o título da Task em cada item, pela junção", async () => {
+    const task = await criarTask({ title: "Encerrar a árvore de processos" });
+    await criarRun(task.id);
+
+    const pagina = RunPageSchema.parse(
+      await (
+        await pedir({ app, method: "GET", path: `${API_BASE_PATH}/runs?taskId=${task.id}` })
+      ).json(),
+    );
+    expect(pagina.items.map((run) => run.taskTitle)).toEqual(["Encerrar a árvore de processos"]);
+  });
+
   it("400 com um estado que não existe", async () => {
     const response = await pedir({
       app,
       method: "GET",
       path: `${API_BASE_PATH}/runs?status=EXPLODIU`,
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it("400 com um Harness que não existe", async () => {
+    const response = await pedir({
+      app,
+      method: "GET",
+      path: `${API_BASE_PATH}/runs?harnessKey=FORJA`,
     });
     expect(response.status).toBe(400);
   });

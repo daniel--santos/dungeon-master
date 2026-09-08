@@ -2692,7 +2692,7 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Run"
+              "$ref": "#/components/schemas/RunListItem"
             },
             "description": "Os itens desta página, na ordem da listagem."
           },
@@ -2719,6 +2719,184 @@
           "total"
         ],
         "description": "Uma página de Runs, do mais recente para o mais antigo."
+      },
+      "RunListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do Run."
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A Task que este Run tenta realizar."
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Project da Task no momento da leitura. Vem por junção, não é coluna do Run."
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "harnessKey": {
+            "type": "string",
+            "enum": [
+              "CLAUDE_CODE",
+              "CODEX",
+              "PI",
+              "ANTIGRAVITY"
+            ],
+            "description": "Harness escolhido, copiado do Loadout."
+          },
+          "harnessVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Versão da CLI descoberta no preflight. Nula até o Run preparar."
+          },
+          "harnessSessionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Id de sessão emitido pelo harness, guardado junto do harness emissor: as semânticas de resume diferem entre Claude Code, Codex, Pi e Antigravity."
+          },
+          "modelKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Chave do Model usada, copiada do Loadout."
+          },
+          "executionMode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "workspacePath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Caminho do checkout usado. É a base da trava por caminho."
+          },
+          "workflowVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Captura congelada do Workflow. Sempre nulo até a Fase 4."
+          },
+          "resumedFromRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero."
+          },
+          "loadoutId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "loadoutVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Versão do Loadout no instante da criação."
+          },
+          "loadoutSnapshot": {
+            "$ref": "#/components/schemas/LoadoutSnapshot"
+          },
+          "executionProfileSnapshot": {
+            "$ref": "#/components/schemas/ExecutionProfileSnapshot"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "O prompt enviado ao harness."
+          },
+          "attempt": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "N-ésimo Run desta Task, começando em 1."
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Entrada em `RUNNING`, em UTC (ISO 8601)."
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Entrada em estado terminal, em UTC."
+          },
+          "cancelRequestedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Instante do pedido de cancelamento. Marcar aqui não muda o status: quem transiciona é quem confirma o término da árvore de processos."
+          },
+          "result": {
+            "$ref": "#/components/schemas/RunResult"
+          },
+          "error": {
+            "$ref": "#/components/schemas/RunError"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "taskTitle": {
+            "type": "string",
+            "description": "Título da Task no momento da leitura. Vem por junção."
+          }
+        },
+        "required": [
+          "id",
+          "taskId",
+          "projectId",
+          "status",
+          "harnessKey",
+          "harnessVersion",
+          "harnessSessionId",
+          "modelKey",
+          "executionMode",
+          "workspacePath",
+          "workflowVersionId",
+          "resumedFromRunId",
+          "loadoutId",
+          "loadoutVersion",
+          "loadoutSnapshot",
+          "executionProfileSnapshot",
+          "prompt",
+          "attempt",
+          "startedAt",
+          "finishedAt",
+          "cancelRequestedAt",
+          "result",
+          "error",
+          "createdAt",
+          "updatedAt",
+          "taskTitle"
+        ],
+        "description": "Um Run na listagem, com o título da Task."
       },
       "RunEventList": {
         "type": "object",
@@ -6807,7 +6985,7 @@
           "runs"
         ],
         "summary": "Lista as execuções",
-        "description": "Do Run mais recente para o mais antigo. `status` aceita um valor ou vários, repetindo o parâmetro.",
+        "description": "Do Run mais recente para o mais antigo. `status` aceita um valor ou vários, repetindo o parâmetro; `harnessKey` filtra por Harness e entra no `total`, como os demais. Cada item traz `taskTitle` pela mesma junção que já resolve `projectId`, para a tabela não fazer uma leitura por linha.",
         "parameters": [
           {
             "schema": {
@@ -6851,6 +7029,22 @@
             "required": false,
             "description": "Só os Runs das Tasks deste Project.",
             "name": "projectId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CLAUDE_CODE",
+                "CODEX",
+                "PI",
+                "ANTIGRAVITY"
+              ],
+              "description": "Só os Runs executados por este Harness."
+            },
+            "required": false,
+            "description": "Só os Runs executados por este Harness.",
+            "name": "harnessKey",
             "in": "query"
           },
           {
