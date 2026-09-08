@@ -93,7 +93,8 @@ export const tasksUpdateRoute = createRoute({
   description:
     "`status` nunca passa por aqui: a transição tem rota própria, que valida a " +
     "máquina de estados e as regras de filhas e dependências. Trocar o Project " +
-    "só vale para uma Task sem mãe e sem filhas.",
+    "só vale para uma Task sem mãe e sem filhas. `workflowId` liga ou desliga o " +
+    "Workflow dos próximos Runs; os já criados mantêm a versão que congelaram.",
   request: {
     params: TaskIdParamSchema,
     body: { required: true, content: { "application/json": { schema: UpdateTaskSchema } } },

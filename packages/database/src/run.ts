@@ -16,7 +16,7 @@ import {
   type RunCreationRejection,
   type RunTransitionRejection,
   type TaskTransitionRejection,
-  taskStatusForRun,
+  taskStatusForRunTransition,
 } from "@dungeon-master/domain";
 import {
   type EventsLogger,
@@ -36,8 +36,10 @@ import { buildLoadoutSnapshot, findLoadoutRow } from "./loadout.js";
 import { failed, ok, type PageInput, type PageResult, type Result } from "./result.js";
 import { projects } from "./schema/project.js";
 import { type RunRow, runs } from "./schema/run.js";
+import { runSteps } from "./schema/run-step.js";
 import { taskDependencies, tasks } from "./schema/task.js";
 import { insertRunEvent, type RunEventInput } from "./run-event.js";
+import { captureWorkflowVersion } from "./workflow.js";
 import { releaseWorkspaceLock } from "./workspace-lock.js";
 
 /**
@@ -96,7 +98,12 @@ export type RunWriteFailure =
   | { readonly code: "LOADOUT_REQUIRED" }
   | { readonly code: "RESUME_SOURCE_NOT_FOUND"; readonly runId: string }
   | { readonly code: "RESUME_SOURCE_WITHOUT_SESSION"; readonly runId: string }
-  | { readonly code: "RESUME_UNSUPPORTED"; readonly harnessKey: string };
+  | { readonly code: "RESUME_UNSUPPORTED"; readonly harnessKey: string }
+  | {
+      /** A Task aponta para um Workflow que não existe mais para este usuário. */
+      readonly code: "WORKFLOW_NOT_FOUND";
+      readonly workflowId: string;
+    };
 
 // --------------------------------------------------------------------------
 // Leitura
@@ -192,7 +199,7 @@ export async function listRuns(
 // Transição, com a Task junto
 // --------------------------------------------------------------------------
 
-interface ApplyRunStatusInput {
+export interface ApplyRunStatusInput {
   userId: string;
   run: RunRow;
   to: RunStatus;
@@ -222,8 +229,13 @@ interface ApplyRunStatusInput {
  * depois de o Run já ter sido atualizado sairia da transação sem exceção, e o
  * COMMIT gravaria metade da mudança: Run terminado com a Task ainda em
  * `RUNNING`. Aqui, quando a função devolve `failed`, nada foi escrito.
+ *
+ * Exportada para os repositórios que movem o Run dentro da própria transação
+ * — o gate de aprovação, que o leva a `WAITING_APPROVAL` e o devolve a
+ * `QUEUED` —, e não para a API: as portas públicas continuam sendo
+ * `transitionRun` e `writeRunTerminalStatus`.
  */
-async function applyRunStatus(
+export async function applyRunStatus(
   db: DatabaseExecutor,
   input: ApplyRunStatusInput,
 ): Promise<Result<RunRow, RunWriteFailure>> {
@@ -247,7 +259,11 @@ async function applyRunStatus(
   // O veredito que decide o destino da Task é o que **vai** ficar gravado: o do
   // patch, quando ele traz um, e o que já estava quando não traz.
   const resultado = patch.result === undefined ? run.result : patch.result;
-  const alvo = taskStatusForRun(to, resultado?.status ?? null);
+  const alvo = taskStatusForRunTransition({
+    from: run.status,
+    to,
+    resultStatus: resultado?.status ?? null,
+  });
   const moveTask = alvo !== null && alvo !== task.status;
 
   if (moveTask) {
@@ -517,6 +533,17 @@ export async function createRun(
       capturedAt,
     });
 
+    // A captura congelada (planejamento v0.4, Fase 4): a definição vigente do
+    // Workflow da Task vira uma versão imutável **nesta transação**, e é ela
+    // que o Run referencia. Editar o Workflow depois não alcança este Run.
+    const captured =
+      task.workflowId === null
+        ? null
+        : await captureWorkflowVersion(tx, { userId: input.userId, workflowId: task.workflowId });
+    if (task.workflowId !== null && captured === null) {
+      return failed<RunWriteFailure>({ code: "WORKFLOW_NOT_FOUND", workflowId: task.workflowId });
+    }
+
     const [ultimo] = await tx
       .select({ maior: sql<number>`coalesce(max(${runs.attempt}), 0)` })
       .from(runs)
@@ -539,12 +566,32 @@ export async function createRun(
         loadoutSnapshot,
         executionProfileSnapshot: toExecutionProfileSnapshot(profile, capturedAt),
         ...(origem === null ? {} : { resumedFromRunId: origem.id }),
+        ...(captured === null ? {} : { workflowVersionId: captured.version.id }),
         prompt: input.prompt ?? defaultRunPrompt(task),
         attempt,
       })
       .returning();
 
     if (criado === undefined) throw new Error("A inserção em run não devolveu linha.");
+
+    // Os RunSteps nascem em `PENDING` junto do Run: um Run com versão e sem
+    // steps seria um Run que o motor não sabe por onde começar.
+    if (captured !== null && captured.steps.length > 0) {
+      await tx.insert(runSteps).values(
+        captured.steps.map((step) => ({
+          id: newId(),
+          userId: input.userId,
+          runId: criado.id,
+          workflowStepId: step.id,
+          key: step.key,
+          name: step.name,
+          type: step.type,
+          position: step.position,
+          status: "PENDING" as const,
+          attempt: 0,
+        })),
+      );
+    }
 
     await recordDomainEvent(tx, {
       userId: input.userId,
@@ -562,6 +609,13 @@ export async function createRun(
         executionMode: profile.mode,
         attempt,
         ...(origem === null ? {} : { resumedFromRunId: origem.id }),
+        ...(captured === null
+          ? {}
+          : {
+              workflowVersionId: captured.version.id,
+              workflowVersion: captured.version.version,
+              stepCount: captured.steps.length,
+            }),
       },
     });
 
@@ -755,7 +809,7 @@ export async function transitionRun(
 }
 
 /** Trava a linha do Run para o resto da transação. */
-async function lockRunRow(
+export async function lockRunRow(
   db: DatabaseExecutor,
   input: { userId: string; runId: string },
 ): Promise<RunRow | null> {

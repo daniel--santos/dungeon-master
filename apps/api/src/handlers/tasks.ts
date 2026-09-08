@@ -72,6 +72,7 @@ export function registerTaskRoutes(app: OpenAPIHono, tasks: TasksPort): void {
     const created = await tasks.create({
       projectId: input.projectId,
       parentTaskId: input.parentTaskId ?? null,
+      workflowId: input.workflowId ?? null,
       title: input.title,
       description: input.description ?? null,
       ...(input.kind === undefined ? {} : { kind: input.kind }),
@@ -101,6 +102,7 @@ export function registerTaskRoutes(app: OpenAPIHono, tasks: TasksPort): void {
     const patch: UpdateTaskRequest = {};
     if (body.projectId !== undefined) patch.projectId = body.projectId;
     if (Object.hasOwn(body, "parentTaskId")) patch.parentTaskId = body.parentTaskId ?? null;
+    if (Object.hasOwn(body, "workflowId")) patch.workflowId = body.workflowId ?? null;
     if (body.title !== undefined) patch.title = body.title;
     if (Object.hasOwn(body, "description")) patch.description = body.description ?? null;
     if (body.kind !== undefined) patch.kind = body.kind;

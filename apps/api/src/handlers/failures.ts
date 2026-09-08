@@ -1,9 +1,12 @@
 import type {
+  ApprovalGateWriteFailure,
   DependencyWriteFailure,
   InboxFailure,
   RegistryWriteFailure,
+  RunStepWriteFailure,
   RunWriteFailure,
   TaskWriteFailure,
+  WorkflowWriteFailure,
 } from "@dungeon-master/database";
 
 import { HttpProblem, ProblemType } from "../problem.js";
@@ -117,6 +120,8 @@ export function taskFailureProblem(failure: TaskWriteFailure): HttpProblem {
           `Sair de INBOX para ${failure.to} exige um Project. ` +
           "Use POST /api/v1/inbox/{id}/promote, que escolhe o Project e faz a transição.",
       });
+    case "WORKFLOW_NOT_FOUND":
+      return workflowNotFoundProblem(failure.workflowId);
     case "TRANSITION_REJECTED":
       return new HttpProblem({
         status: 409,
@@ -125,6 +130,15 @@ export function taskFailureProblem(failure: TaskWriteFailure): HttpProblem {
         detail: descreverRecusaDeTransicao(failure.rejection),
       });
   }
+}
+
+function workflowNotFoundProblem(workflowId: string): HttpProblem {
+  return new HttpProblem({
+    status: 404,
+    type: ProblemType.notFound,
+    title: "Workflow não encontrado",
+    detail: `Não existe Workflow com o id ${workflowId}.`,
+  });
 }
 
 export function dependencyFailureProblem(failure: DependencyWriteFailure): HttpProblem {
@@ -386,6 +400,106 @@ export function runFailureProblem(failure: RunWriteFailure): HttpProblem {
         title: "Harness não retoma sessão",
         detail: `O Harness ${failure.harnessKey} não declara a capability \`resume\`.`,
       });
+    case "WORKFLOW_NOT_FOUND":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Workflow da Task não existe",
+        detail:
+          `A Task aponta para o Workflow ${failure.workflowId}, que não existe mais. ` +
+          "Troque ou remova o Workflow em PATCH /api/v1/tasks/{id} antes de executar.",
+      });
+  }
+}
+
+/** Traduz as recusas de escrita de Workflow. */
+export function workflowFailureProblem(failure: WorkflowWriteFailure): HttpProblem {
+  switch (failure.code) {
+    case "NAME_TAKEN":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Nome já usado",
+        detail: `Já existe um Workflow com o nome ${JSON.stringify(failure.name)}. Escolha outro.`,
+      });
+    case "IN_USE_BY_RUN":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Workflow em uso",
+        detail:
+          "Estes Runs referenciam uma versão do Workflow e o histórico deles ficaria sem a " +
+          `definição que explica os steps: ${listar(failure.runIds)}.`,
+      });
+  }
+}
+
+function descreverRecusaDeRunStep(failure: RunStepWriteFailure): string {
+  switch (failure.code) {
+    case "RUN_STEP_TRANSITION_REJECTED": {
+      const destinos =
+        failure.rejection.allowed.length === 0
+          ? "nenhum: é um estado terminal"
+          : listar(failure.rejection.allowed);
+      return (
+        `O RunStep está em ${failure.rejection.from} e não pode ir para ${failure.rejection.to}. ` +
+        `A partir de ${failure.rejection.from} os estados possíveis são: ${destinos}.`
+      );
+    }
+    case "RUN_STEP_STATUS_CHANGED":
+      return (
+        `O RunStep "${failure.current.key}" já não está em ${failure.expected}: ` +
+        `está em ${failure.current.status}.`
+      );
+  }
+}
+
+/**
+ * Traduz as recusas do gate de aprovação.
+ *
+ * `GATE_ALREADY_RESOLVED` é o CAS perdido (documento técnico, seção 26): o
+ * `409` leva o estado atual do gate em `gate`, um membro de extensão do
+ * problem details, para a interface mostrar o que já foi decidido em vez de
+ * tentar de novo.
+ */
+export function approvalGateFailureProblem(failure: ApprovalGateWriteFailure): HttpProblem {
+  switch (failure.code) {
+    case "GATE_ALREADY_RESOLVED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Gate já decidido",
+        detail:
+          `O gate "${failure.gate.gateKey}" já está em ${failure.gate.status}` +
+          (failure.gate.resolvedAt === null ? "." : `, decidido em ${failure.gate.resolvedAt}.`) +
+          " Outra decisão chegou antes; nada foi sobrescrito.",
+        extensions: { gate: failure.gate },
+      });
+    case "RUN_NOT_WAITING_APPROVAL":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Run não está esperando aprovação",
+        detail:
+          `O Run ${failure.runId} está em ${failure.status}, e só um Run em WAITING_APPROVAL ` +
+          "aceita a decisão de um gate.",
+      });
+    case "RUN_STEP_NOT_FOUND":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Step do gate não encontrado",
+        detail: `O Run ${failure.runId} não tem um RunStep com a chave "${failure.stepKey}".`,
+      });
+    case "RUN_STEP_WRITE_REJECTED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "RunStep recusou a decisão",
+        detail: descreverRecusaDeRunStep(failure.failure),
+      });
+    case "RUN_WRITE_REJECTED":
+      return runFailureProblem(failure.failure);
   }
 }
 

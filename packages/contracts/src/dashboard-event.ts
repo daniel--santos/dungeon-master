@@ -48,6 +48,10 @@ export const REGISTRY_EVENT_TYPE_VALUES = [
   "loadout.created",
   "loadout.updated",
   "loadout.deleted",
+  // Workflow é cadastro pelo mesmo critério: não pertence a Project nenhum.
+  "workflow.created",
+  "workflow.updated",
+  "workflow.deleted",
 ] as const;
 
 export const RegistryEventTypeSchema = z.enum(REGISTRY_EVENT_TYPE_VALUES).meta({
@@ -77,12 +81,31 @@ export const AchievementEventTypeSchema = z.enum(ACHIEVEMENT_EVENT_TYPE_VALUES).
 
 export type AchievementEventType = z.infer<typeof AchievementEventTypeSchema>;
 
+/**
+ * O que o gate de aprovação emite (planejamento v0.4, Fase 4).
+ *
+ * Ficam fora de `ActivityType` porque o diário do Project já recebe o
+ * `run.status_changed` que acompanha o gate; estes dois existem para a tela
+ * de aprovações pendentes reagir sem repetir o fato no diário. Saem na
+ * **mesma transação** do gate, então a tela nunca vê um pedido que o banco
+ * não tem nem uma decisão que o CAS recusou.
+ */
+export const APPROVAL_EVENT_TYPE_VALUES = ["approval.requested", "approval.resolved"] as const;
+
+export const ApprovalEventTypeSchema = z.enum(APPROVAL_EVENT_TYPE_VALUES).meta({
+  id: "ApprovalEventType",
+  description: "Eventos do gate de aprovação: pedido aberto e decisão gravada.",
+});
+
+export type ApprovalEventType = z.infer<typeof ApprovalEventTypeSchema>;
+
 export const DASHBOARD_EVENT_TYPE_VALUES = [
   "system.ping",
   "settings.changed",
   ...ACTIVITY_TYPE_VALUES,
   ...REGISTRY_EVENT_TYPE_VALUES,
   ...ACHIEVEMENT_EVENT_TYPE_VALUES,
+  ...APPROVAL_EVENT_TYPE_VALUES,
 ] as const;
 
 export const DashboardEventTypeSchema = z

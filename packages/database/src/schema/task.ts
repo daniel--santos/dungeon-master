@@ -18,6 +18,7 @@ import {
 
 import { projects } from "./project.js";
 import { users } from "./user.js";
+import { workflows } from "./workflow.js";
 
 export const taskStatus = pgEnum("task_status", TASK_STATUS_VALUES);
 export const taskKind = pgEnum("task_kind", TASK_KIND_VALUES);
@@ -47,6 +48,14 @@ export const tasks = pgTable(
     parentTaskId: uuid("parent_task_id").references((): AnyPgColumn => tasks.id, {
       onDelete: "set null",
     }),
+    /**
+     * O Workflow que os Runs desta Task seguem. Nulo é o Run simples.
+     *
+     * `set null`: apagar um Workflow sem Runs devolve a Task ao Run simples em
+     * vez de impedir a remoção. O Run em si nunca aponta para cá — ele aponta
+     * para a versão congelada, e é ela que tem `restrict`.
+     */
+    workflowId: uuid("workflow_id").references(() => workflows.id, { onDelete: "set null" }),
     title: text("title").notNull(),
     description: text("description"),
     kind: taskKind("kind").notNull().default("FEATURE"),

@@ -1,6 +1,9 @@
 import type {
   Activity,
   Agent,
+  ApprovalDecision,
+  ApprovalGate,
+  ApprovalGateListItem,
   DashboardEvent,
   DashboardEventType,
   ExecutionProfile,
@@ -14,6 +17,7 @@ import type {
   Run,
   RunEvent,
   RunListItem,
+  RunStep,
   SortOrder,
   Task,
   TaskDetail,
@@ -24,12 +28,18 @@ import type {
   HeroStatsResponse,
   UserSettings,
   UserSettingsKey,
+  Workflow,
+  WorkflowDefinition,
+  WorkflowVersion,
+  WorkflowVersionDetail,
   WorkspaceKind,
 } from "@dungeon-master/contracts";
 import type {
   AchievementListFilters,
   AchievementListResult,
   AchievementUnlockView,
+  ApprovalGateFilters,
+  ApprovalGateWriteFailure,
   CreateAgentInput,
   CreateExecutionProfileInput,
   CreateLoadoutInput,
@@ -45,6 +55,7 @@ import type {
   UpdateAgentPatch,
   UpdateExecutionProfilePatch,
   UpdateLoadoutPatch,
+  WorkflowWriteFailure,
 } from "@dungeon-master/database";
 import { SseTransport } from "@dungeon-master/events";
 
@@ -133,6 +144,7 @@ export interface UpdateProjectRequest {
 export interface CreateTaskRequest {
   projectId: string;
   parentTaskId?: string | null;
+  workflowId?: string | null;
   title: string;
   description?: string | null;
   kind?: TaskKind;
@@ -142,6 +154,7 @@ export interface CreateTaskRequest {
 export interface UpdateTaskRequest {
   projectId?: string;
   parentTaskId?: string | null;
+  workflowId?: string | null;
   title?: string;
   description?: string | null;
   kind?: TaskKind;
@@ -278,9 +291,43 @@ export interface RunsPort {
   cancel(runId: string): Promise<Result<Run, RunWriteFailure> | null>;
   events(runId: string, input: { afterSequence: number; limit: number }): Promise<RunEvent[]>;
   openStream(runId: string): RunStreamHandle;
+  /** Os RunSteps, na ordem topológica. Vazio num Run sem Workflow. */
+  steps(runId: string): Promise<RunStep[]>;
+  /** Os ApprovalGates do Run, do mais antigo ao mais novo. */
+  gates(runId: string): Promise<ApprovalGate[]>;
 }
 
-/** As portas de execução juntas, para `createApp` receber uma em vez de seis. */
+/**
+ * Workflow e as versões congeladas dele (planejamento v0.4, Fase 4).
+ *
+ * `versions` devolve `null` quando o Workflow não existe: a lista de versões
+ * de um Workflow inexistente é 404, não uma página vazia.
+ */
+export interface WorkflowsPort {
+  list(page: PageRequest): Promise<PageResult<Workflow>>;
+  create(definition: WorkflowDefinition): Promise<Result<Workflow, WorkflowWriteFailure>>;
+  get(workflowId: string): Promise<Workflow | null>;
+  update(
+    workflowId: string,
+    definition: WorkflowDefinition,
+  ): Promise<Result<Workflow, WorkflowWriteFailure> | null>;
+  remove(workflowId: string): Promise<Result<null, WorkflowWriteFailure> | null>;
+  versions(workflowId: string, page: PageRequest): Promise<PageResult<WorkflowVersion> | null>;
+  version(workflowVersionId: string): Promise<WorkflowVersionDetail | null>;
+}
+
+/** A caixa de entrada de aprovações e a decisão por CAS. */
+export interface ApprovalGatesPort {
+  list(
+    input: PageRequest & { filters: ApprovalGateFilters },
+  ): Promise<PageResult<ApprovalGateListItem>>;
+  resolve(
+    gateId: string,
+    input: { decision: ApprovalDecision; note?: string },
+  ): Promise<Result<ApprovalGate, ApprovalGateWriteFailure> | null>;
+}
+
+/** As portas de execução juntas, para `createApp` receber uma em vez de oito. */
 export interface ExecutionPort {
   readonly harnesses: HarnessesPort;
   readonly models: ModelsPort;
@@ -288,6 +335,8 @@ export interface ExecutionPort {
   readonly executionProfiles: ExecutionProfilesPort;
   readonly loadouts: LoadoutsPort;
   readonly runs: RunsPort;
+  readonly workflows: WorkflowsPort;
+  readonly approvalGates: ApprovalGatesPort;
 }
 
 /**
@@ -417,6 +466,21 @@ export function createSpecPorts(): {
         cancel: inerte("o cancelamento de Run"),
         events: inerte("o log de eventos de Run"),
         openStream: () => recusar("o stream de eventos de Run"),
+        steps: inerte("os steps de Run"),
+        gates: inerte("os gates de Run"),
+      },
+      workflows: {
+        list: inerte("a listagem de Workflows"),
+        create: inerte("a criação de Workflow"),
+        get: inerte("a leitura de Workflow"),
+        update: inerte("a edição de Workflow"),
+        remove: inerte("a remoção de Workflow"),
+        versions: inerte("as versões de Workflow"),
+        version: inerte("a leitura de WorkflowVersion"),
+      },
+      approvalGates: {
+        list: inerte("a listagem de ApprovalGates"),
+        resolve: inerte("a resolução de ApprovalGate"),
       },
     },
     // Vazio, e não o catálogo de verdade: o `pnpm gen` instancia a app só pela

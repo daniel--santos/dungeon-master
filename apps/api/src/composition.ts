@@ -17,6 +17,7 @@ import {
   createProject,
   createRun,
   createTask,
+  createWorkflow,
   type Database,
   type DatabaseHandle,
   DASHBOARD_EVENT_CHANNEL,
@@ -24,16 +25,21 @@ import {
   deleteExecutionProfile,
   deleteLoadout,
   deleteModel,
+  deleteWorkflow,
   discardInboxTask,
   findAgentRow,
   findExecutionProfileRow,
   findLoadoutRow,
   findProjectRow,
+  findWorkflowRow,
   getProject,
   getRun,
   getTaskDetail,
+  getWorkflow,
+  getWorkflowVersionDetail,
   latestDashboardEventSequence,
   listAgents,
+  listApprovalGates,
   listDashboardEventsSince,
   listExecutionProfiles,
   listHarnesses,
@@ -42,13 +48,18 @@ import {
   listModels,
   listProjectActivity,
   listProjects,
+  listRunApprovalGates,
   listRunEventsSince,
   listRuns,
+  listRunSteps,
   listTasks,
+  listWorkflows,
+  listWorkflowVersions,
   promoteInboxTask,
   readUserSettings,
   removeTaskDependency,
   requestRunCancellation,
+  resolveApprovalGate,
   setHarnessEnabled,
   setProjectArchived,
   toAgent,
@@ -60,6 +71,7 @@ import {
   updateModel,
   updateProject,
   updateTask,
+  updateWorkflow,
   writeUserSetting,
 } from "@dungeon-master/database";
 import { DashboardEventPoller, PgNotifyListener, SseTransport } from "@dungeon-master/events";
@@ -453,6 +465,33 @@ export function createExecutionPort(options: ExecutionPortOptions): ExecutionPor
           limit: input.limit,
         }),
       openStream: (runId) => runEvents.openStream(runId),
+      steps: (runId) => listRunSteps(db, { userId, runId }),
+      gates: (runId) => listRunApprovalGates(db, { userId, runId }),
+    },
+    workflows: {
+      list: (page) => listWorkflows(db, { userId, ...page }),
+      create: (definition) => createWorkflow(db, { userId, definition }),
+      get: (workflowId) => getWorkflow(db, { userId, workflowId }),
+      update: (workflowId, definition) => updateWorkflow(db, { userId, workflowId, definition }),
+      remove: (workflowId) => deleteWorkflow(db, { userId, workflowId }),
+      versions: async (workflowId, page) => {
+        // A existência é checada antes de listar: as versões de um Workflow
+        // inexistente são 404, não uma página vazia.
+        const workflow = await findWorkflowRow(db, { userId, workflowId });
+        if (workflow === null) return null;
+        return await listWorkflowVersions(db, { userId, workflowId, ...page });
+      },
+      version: (workflowVersionId) => getWorkflowVersionDetail(db, { userId, workflowVersionId }),
+    },
+    approvalGates: {
+      list: (input) =>
+        listApprovalGates(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          filters: input.filters,
+        }),
+      resolve: (gateId, input) => resolveApprovalGate(db, { userId, gateId, ...input }),
     },
   };
 }

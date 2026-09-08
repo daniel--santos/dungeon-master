@@ -5,4 +5,6 @@ export * from "./project.js";
 export * from "./task.js";
 export * from "./user.js";
 export * from "./execution.js";
+export * from "./workflow.js";
 export * from "./run.js";
+export * from "./run-step.js";

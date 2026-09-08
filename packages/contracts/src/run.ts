@@ -129,7 +129,10 @@ export const RunSchema = z
     workflowVersionId: z
       .uuid()
       .nullable()
-      .describe("Captura congelada do Workflow. Sempre nulo até a Fase 4."),
+      .describe(
+        "Captura congelada do Workflow da Task no instante da criação. Nulo no Run simples, " +
+          "de um agente só. Os steps ficam em `GET /runs/{id}/steps`.",
+      ),
     resumedFromRunId: z
       .uuid()
       .nullable()
@@ -251,8 +254,9 @@ export type RunPage = z.infer<typeof RunPageSchema>;
  *
  * `type` é `string` e `payload` é `unknown` de propósito: quem lê o stream
  * precisa tolerar um tipo de evento que ainda não conhece, do mesmo jeito que
- * no `DashboardEvent`. O vocabulário canônico de eventos de execução é o
- * `ExecutionEvent` do runtime, e é ele quem fecha o conjunto na escrita.
+ * no `DashboardEvent`. O vocabulário canônico é `RunEventPayload`: os eventos
+ * de execução do harness (`ExecutionEvent`) e os do motor de Workflow
+ * (`WorkflowEvent`), e são eles que fecham o conjunto na escrita.
  */
 export const RunEventSchema = z
   .object({
@@ -263,7 +267,9 @@ export const RunEventSchema = z
       .int()
       .positive()
       .describe("Posição dentro do Run, começando em 1. Estritamente crescente e sem lacunas."),
-    type: z.string().describe("Tipo do evento, no vocabulário do `ExecutionEvent`."),
+    type: z
+      .string()
+      .describe("Tipo do evento, no vocabulário de `ExecutionEvent` ou de `WorkflowEvent`."),
     timestamp: z.iso.datetime().describe("Quando o fato aconteceu, em UTC (ISO 8601)."),
     payload: z.unknown().describe("Dados do evento, já sanitizados de credenciais."),
   })

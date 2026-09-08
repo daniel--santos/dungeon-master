@@ -45,12 +45,14 @@ import {
 } from "./result.js";
 import { findProjectRow } from "./project.js";
 import { taskDependencies, tasks, type TaskRow } from "./schema/task.js";
+import { findWorkflowRow } from "./workflow.js";
 
 export function toTask(row: TaskRow): Task {
   return {
     id: row.id,
     projectId: row.projectId,
     parentTaskId: row.parentTaskId,
+    workflowId: row.workflowId,
     title: row.title,
     description: row.description,
     kind: row.kind,
@@ -92,6 +94,7 @@ export type TaskWriteFailure =
   | { readonly code: "TASK_IN_INBOX" }
   | { readonly code: "TASK_HAS_SUBTREE" }
   | { readonly code: "PROJECT_REQUIRED"; readonly to: TaskStatus }
+  | { readonly code: "WORKFLOW_NOT_FOUND"; readonly workflowId: string }
   | { readonly code: "TRANSITION_REJECTED"; readonly rejection: TaskTransitionRejection };
 
 export type DependencyWriteFailure =
@@ -349,6 +352,8 @@ export interface CreateTaskInput {
   userId: string;
   projectId: string;
   parentTaskId?: string | null;
+  /** Workflow que os Runs desta Task seguem. Precisa existir para o usuário. */
+  workflowId?: string | null;
   title: string;
   description?: string | null;
   kind?: TaskKind;
@@ -389,6 +394,14 @@ export async function createTask(
       }
     }
 
+    const workflowId = input.workflowId ?? null;
+    if (workflowId !== null) {
+      const workflow = await findWorkflowRow(tx, { userId: input.userId, workflowId });
+      if (workflow === null) {
+        return failed<TaskWriteFailure>({ code: "WORKFLOW_NOT_FOUND", workflowId });
+      }
+    }
+
     const [row] = await tx
       .insert(tasks)
       .values({
@@ -396,6 +409,7 @@ export async function createTask(
         userId: input.userId,
         projectId: input.projectId,
         parentTaskId,
+        workflowId,
         title: input.title,
         description: input.description ?? null,
         kind: input.kind ?? "FEATURE",
@@ -420,6 +434,7 @@ export async function createTask(
         taskId: task.id,
         projectId: task.projectId,
         parentTaskId: task.parentTaskId,
+        workflowId: task.workflowId,
         status: task.status,
         kind: task.kind,
       },
@@ -432,6 +447,8 @@ export async function createTask(
 export interface UpdateTaskPatch {
   projectId?: string;
   parentTaskId?: string | null;
+  /** `null` volta ao Run simples. Não afeta Runs já criados: cada um congelou a sua versão. */
+  workflowId?: string | null;
   title?: string;
   description?: string | null;
   kind?: TaskKind;
@@ -525,9 +542,30 @@ export async function updateTask(
       }
     }
 
+    if (
+      patch.workflowId !== undefined &&
+      patch.workflowId !== null &&
+      patch.workflowId !== current.workflowId
+    ) {
+      const workflow = await findWorkflowRow(tx, {
+        userId: input.userId,
+        workflowId: patch.workflowId,
+      });
+      if (workflow === null) {
+        return failed<TaskWriteFailure>({
+          code: "WORKFLOW_NOT_FOUND",
+          workflowId: patch.workflowId,
+        });
+      }
+    }
+
     const changed: string[] = [];
     const values: UpdateTaskPatch = {};
 
+    if (patch.workflowId !== undefined && patch.workflowId !== current.workflowId) {
+      values.workflowId = patch.workflowId;
+      changed.push("workflowId");
+    }
     if (patch.projectId !== undefined && patch.projectId !== current.projectId) {
       values.projectId = patch.projectId;
       changed.push("projectId");
