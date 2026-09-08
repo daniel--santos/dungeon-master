@@ -5212,7 +5212,7 @@ export interface components {
             /** @description Total de itens que casam com o filtro. */
             total: number;
         };
-        /** @description Um gate na listagem, com a Task junto. */
+        /** @description Um gate na listagem, com a Task e o Workflow junto. */
         ApprovalGateListItem: {
             /**
              * Format: uuid
@@ -5250,6 +5250,20 @@ export interface components {
             taskId: string;
             /** @description Título da Task no momento da leitura. Vem por junção. */
             taskTitle: string;
+            /**
+             * Format: uuid
+             * @description Workflow do Run. Vem por junção.
+             */
+            workflowId: string | null;
+            /**
+             * Format: uuid
+             * @description A versão congelada que o Run executa. Vem por junção.
+             */
+            workflowVersionId: string | null;
+            /** @description Nome atual do Workflow, como o título da Task: acompanha uma renomeação. */
+            workflowName: string | null;
+            /** @description Número da versão congelada. */
+            workflowVersion: number | null;
         };
         /** @description Corpo de `POST /api/v1/approval-gates/{id}/resolve`. */
         ResolveApprovalGate: {

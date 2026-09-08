@@ -493,7 +493,15 @@ describe(`${API_BASE_PATH}/approval-gates`, () => {
     expect(pendentes.status).toBe(200);
     const pagina = ApprovalGatePageSchema.parse(await pendentes.json());
     expect(pagina.total).toBe(1);
-    expect(pagina.items[0]).toMatchObject({ id: gateId, taskId: task.id, taskTitle: "Guiada" });
+    expect(pagina.items[0]).toMatchObject({
+      id: gateId,
+      taskId: task.id,
+      taskTitle: "Guiada",
+      workflowId: id,
+      workflowName: GUIDED_EXPEDITION_WORKFLOW.name,
+      workflowVersion: 1,
+    });
+    expect(pagina.items[0]?.workflowVersionId).toMatch(/^[0-9a-f-]{36}$/);
 
     const doRun = await pedir({ app, method: "GET", path: `${API_BASE_PATH}/runs/${runId}/gates` });
     expect(ApprovalGateListSchema.parse(await doRun.json()).items.map((g) => g.status)).toEqual([

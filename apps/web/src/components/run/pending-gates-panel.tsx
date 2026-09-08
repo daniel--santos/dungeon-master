@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, ShieldHalf } from "lucide-react";
 
@@ -8,8 +7,6 @@ import type { ApprovalGateListItemRecord } from "@/lib/api-types";
 import { usePendingGates } from "@/lib/approvals";
 import { relativeTime } from "@/lib/datetime";
 import { useGlossary } from "@/lib/glossary";
-import { fetchRun, runKeys } from "@/lib/runs";
-import { useWorkflowVersion } from "@/lib/workflows";
 
 const AMBER = "oklch(0.72 0.13 75)";
 
@@ -93,7 +90,7 @@ function PendingGateRow({ gate }: { gate: ApprovalGateListItemRecord }) {
           </Link>
           <span aria-hidden>·</span>
           <span className="flex-none">{t("entity.workflow")}:</span>
-          <WorkflowName runId={gate.runId} />
+          <WorkflowName gate={gate} />
           <span aria-hidden>·</span>
           <span>{format("pedido {when}", { when: relativeTime(gate.requestedAt) })}</span>
         </span>
@@ -110,27 +107,23 @@ function PendingGateRow({ gate }: { gate: ApprovalGateListItemRecord }) {
 }
 
 /**
- * O nome do Ritual de um gate.
+ * O nome do Ritual de um gate, como a listagem já o traz.
  *
- * A listagem de gates traz a Task por junção, mas não o Workflow; o caminho
- * é Run → versão congelada → nome. São poucas linhas pendentes de cada vez,
- * e o Run vem do mesmo cache que o cockpit usa — sem o intervalo de releitura
- * do cockpit, que aqui seria trabalho por nada.
+ * `GET /approval-gates` resolve o Workflow por junção, junto da Task; a linha
+ * não faz leitura nenhuma por conta própria. Os quatro campos são anuláveis
+ * juntos, então basta olhar um.
  */
-function WorkflowName({ runId }: { runId: string }) {
-  const run = useQuery({ queryKey: runKeys.detail(runId), queryFn: () => fetchRun(runId) });
-  const version = useWorkflowVersion(run.data?.workflowVersionId ?? null);
+function WorkflowName({ gate }: { gate: ApprovalGateListItemRecord }) {
+  if (gate.workflowId === null || gate.workflowName === null) return <span>—</span>;
 
-  if (version.data !== undefined) {
-    return (
-      <Link
-        className="hover:text-foreground truncate underline-offset-2 hover:underline"
-        params={{ id: version.data.workflowId }}
-        to="/workflows/$id"
-      >
-        {`${version.data.definition.name} · v${String(version.data.version)}`}
-      </Link>
-    );
-  }
-  return <span>{run.isError || version.isError ? "—" : "…"}</span>;
+  return (
+    <Link
+      className="hover:text-foreground truncate underline-offset-2 hover:underline"
+      data-pending-gate-workflow={gate.workflowId}
+      params={{ id: gate.workflowId }}
+      to="/workflows/$id"
+    >
+      {`${gate.workflowName} · v${String(gate.workflowVersion ?? 1)}`}
+    </Link>
+  );
 }

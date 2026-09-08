@@ -4566,6 +4566,37 @@
           "taskTitle": {
             "type": "string",
             "description": "Título da Task no momento da leitura. Vem por junção."
+          },
+          "workflowId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Workflow do Run. Vem por junção."
+          },
+          "workflowVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "A versão congelada que o Run executa. Vem por junção."
+          },
+          "workflowName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nome atual do Workflow, como o título da Task: acompanha uma renomeação."
+          },
+          "workflowVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "description": "Número da versão congelada."
           }
         },
         "required": [
@@ -4580,9 +4611,13 @@
           "resolvedAt",
           "note",
           "taskId",
-          "taskTitle"
+          "taskTitle",
+          "workflowId",
+          "workflowVersionId",
+          "workflowName",
+          "workflowVersion"
         ],
-        "description": "Um gate na listagem, com a Task junto."
+        "description": "Um gate na listagem, com a Task e o Workflow junto."
       },
       "ResolveApprovalGate": {
         "type": "object",

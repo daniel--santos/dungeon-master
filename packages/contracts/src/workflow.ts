@@ -893,10 +893,32 @@ export const ApprovalGateSchema = z
 
 export type ApprovalGate = z.infer<typeof ApprovalGateSchema>;
 
+/**
+ * Um gate na listagem, com a Task e o Workflow por junção.
+ *
+ * O Workflow vem pelo caminho Run → versão congelada → Workflow, resolvido na
+ * leitura: a caixa de entrada mostra "qual Ritual pediu" em toda linha, e sem
+ * ele a interface fazia duas leituras por gate para descobrir. Os quatro
+ * campos são anuláveis juntos, para o caso de um Run sem Workflow — que hoje
+ * não abre gate, mas o contrato não depende disso.
+ */
 export const ApprovalGateListItemSchema = ApprovalGateSchema.extend({
   taskId: z.uuid().describe("Task do Run. Vem por junção."),
   taskTitle: z.string().describe("Título da Task no momento da leitura. Vem por junção."),
-}).meta({ id: "ApprovalGateListItem", description: "Um gate na listagem, com a Task junto." });
+  workflowId: z.uuid().nullable().describe("Workflow do Run. Vem por junção."),
+  workflowVersionId: z
+    .uuid()
+    .nullable()
+    .describe("A versão congelada que o Run executa. Vem por junção."),
+  workflowName: z
+    .string()
+    .nullable()
+    .describe("Nome atual do Workflow, como o título da Task: acompanha uma renomeação."),
+  workflowVersion: z.number().int().positive().nullable().describe("Número da versão congelada."),
+}).meta({
+  id: "ApprovalGateListItem",
+  description: "Um gate na listagem, com a Task e o Workflow junto.",
+});
 
 export type ApprovalGateListItem = z.infer<typeof ApprovalGateListItemSchema>;
 
