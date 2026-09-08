@@ -2320,7 +2320,7 @@ export interface paths {
         };
         /**
          * Lista as execuções
-         * @description Do Run mais recente para o mais antigo. `status` aceita um valor ou vários, repetindo o parâmetro.
+         * @description Do Run mais recente para o mais antigo. `status` aceita um valor ou vários, repetindo o parâmetro; `harnessKey` filtra por Harness e entra no `total`, como os demais. Cada item traz `taskTitle` pela mesma junção que já resolve `projectId`, para a tabela não fazer uma leitura por linha.
          */
         get: {
             parameters: {
@@ -2333,6 +2333,8 @@ export interface paths {
                     taskId?: string;
                     /** @description Só os Runs das Tasks deste Project. */
                     projectId?: string;
+                    /** @description Só os Runs executados por este Harness. */
+                    harnessKey?: "CLAUDE_CODE" | "CODEX" | "PI" | "ANTIGRAVITY";
                     /** @description Filtra por um estado ou por vários, repetindo o parâmetro. */
                     status?: components["schemas"]["RunStatus"] | components["schemas"]["RunStatus"][];
                 };
@@ -2636,6 +2638,204 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["AchievementCatalog"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/achievements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * As Conquistas do usuário, com progresso
+         * @description A projeção que o Worker mantém: catálogo carregado, templates já instanciados, progresso, tier e estado calculado. `state` é derivado em toda leitura e nunca é coluna. `counts` ignora os filtros de propósito: é o 'desbloqueadas de N' que fica ao lado deles.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Só as Conquistas desta origem. */
+                    origin?: "CATALOG" | "TEMPLATE" | "FORGED";
+                    /** @description Raridade do tier corrente. */
+                    rarity?: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
+                    /** @description Só as neste estado. */
+                    state?: "LOCKED" | "HIDDEN" | "IN_PROGRESS" | "UNLOCKED";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description As Conquistas e a contagem por estado. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AchievementListResponse"];
+                    };
+                };
+                /** @description Filtro inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/achievements/unlocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A crônica de desbloqueios
+         * @description Do mais recente para o mais antigo. O desempate é por id descendente, que em UUIDv7 é a ordem de inserção: sem ele, dois desbloqueios do mesmo instante — o que acontece quando um fato cruza dois limiares — poderiam trocar de lugar entre páginas.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página da crônica. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AchievementUnlockPage"];
+                    };
+                };
+                /** @description Paginação inválida. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/achievements/unlocks/{id}/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Marca um desbloqueio como visto
+         * @description Idempotente: marcar de novo devolve o mesmo `seenAt` em vez de reescrevê-lo. É o que apaga o destaque de novo no Hall depois do toast.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do desbloqueio. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O desbloqueio, já marcado. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AchievementUnlock"];
+                    };
+                };
+                /** @description Não existe desbloqueio com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/heroes/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * As estatísticas de Herói e de Equipamento
+         * @description Projeção, como tudo na Fase 2.5, e cosmética: nenhuma funcionalidade depende de nível. Os nomes vêm por junção na leitura, então acompanham uma renomeação; ficam nulos quando a entidade foi apagada.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Os acumulados por Agent e por Loadout. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HeroStatsResponse"];
                     };
                 };
             };
@@ -3691,13 +3891,89 @@ export interface components {
         /** @description Uma página de Runs, do mais recente para o mais antigo. */
         RunPage: {
             /** @description Os itens desta página, na ordem da listagem. */
-            items: components["schemas"]["Run"][];
+            items: components["schemas"]["RunListItem"][];
             /** @description Página devolvida. */
             page: number;
             /** @description Itens por página efetivamente usados. */
             pageSize: number;
             /** @description Total de itens que casam com o filtro. */
             total: number;
+        };
+        /** @description Um Run na listagem, com o título da Task. */
+        RunListItem: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do Run.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description A Task que este Run tenta realizar.
+             */
+            taskId: string;
+            /**
+             * Format: uuid
+             * @description Project da Task no momento da leitura. Vem por junção, não é coluna do Run.
+             */
+            projectId: string | null;
+            status: components["schemas"]["RunStatus"];
+            /**
+             * @description Harness escolhido, copiado do Loadout.
+             * @enum {string}
+             */
+            harnessKey: "CLAUDE_CODE" | "CODEX" | "PI" | "ANTIGRAVITY";
+            /** @description Versão da CLI descoberta no preflight. Nula até o Run preparar. */
+            harnessVersion: string | null;
+            /** @description Id de sessão emitido pelo harness, guardado junto do harness emissor: as semânticas de resume diferem entre Claude Code, Codex, Pi e Antigravity. */
+            harnessSessionId: string | null;
+            /** @description Chave do Model usada, copiada do Loadout. */
+            modelKey: string | null;
+            executionMode: components["schemas"]["ExecutionMode"];
+            /** @description Caminho do checkout usado. É a base da trava por caminho. */
+            workspacePath: string | null;
+            /**
+             * Format: uuid
+             * @description Captura congelada do Workflow. Sempre nulo até a Fase 4.
+             */
+            workflowVersionId: string | null;
+            /**
+             * Format: uuid
+             * @description Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero.
+             */
+            resumedFromRunId: string | null;
+            /** Format: uuid */
+            loadoutId: string;
+            /** @description Versão do Loadout no instante da criação. */
+            loadoutVersion: number;
+            loadoutSnapshot: components["schemas"]["LoadoutSnapshot"];
+            executionProfileSnapshot: components["schemas"]["ExecutionProfileSnapshot"];
+            /** @description O prompt enviado ao harness. */
+            prompt: string;
+            /** @description N-ésimo Run desta Task, começando em 1. */
+            attempt: number;
+            /**
+             * Format: date-time
+             * @description Entrada em `RUNNING`, em UTC (ISO 8601).
+             */
+            startedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Entrada em estado terminal, em UTC.
+             */
+            finishedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Instante do pedido de cancelamento. Marcar aqui não muda o status: quem transiciona é quem confirma o término da árvore de processos.
+             */
+            cancelRequestedAt: string | null;
+            result: components["schemas"]["RunResult"];
+            error: components["schemas"]["RunError"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description Título da Task no momento da leitura. Vem por junção. */
+            taskTitle: string;
         };
         /** @description Uma página do log de eventos de um Run. */
         RunEventList: {
@@ -4112,6 +4388,187 @@ export interface components {
             path: string;
             /** @description A mensagem do schema. */
             message: string;
+        };
+        /** @description As Conquistas do usuário e a contagem por estado, sempre sobre o total. */
+        AchievementListResponse: {
+            /** @description As Conquistas que casam com o filtro. */
+            items: components["schemas"]["AchievementListItem"][];
+            counts: components["schemas"]["AchievementCounts"];
+        };
+        /** @description Uma Conquista do usuário, com progresso e estado calculado. */
+        AchievementListItem: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da definição gravada.
+             */
+            id: string;
+            /**
+             * @description Quem definiu: catálogo, template ou forjada.
+             * @enum {string}
+             */
+            origin: "CATALOG" | "TEMPLATE" | "FORGED";
+            /** @description A chave do catálogo ou do template. Nula numa forjada. */
+            key: string | null;
+            /**
+             * @description A que a Conquista está presa.
+             * @enum {string}
+             */
+            scopeType: "GLOBAL" | "PROJECT" | "HARNESS" | "AGENT" | "TASK";
+            /** @description Id do Project/Agent/Task, ou a chave do Harness. */
+            scopeId: string | null;
+            /** @description Nome atual da entidade do escopo, resolvido na leitura. */
+            scopeLabel: string | null;
+            /** @description Já formatado: o placeholder de um template é trocado pelo nome atual da entidade, para a Conquista acompanhar uma renomeação. */
+            name: {
+                /** @description A versão temática, com a voz do Dungeon Master. */
+                theme: string;
+                /** @description A versão sóbria, para o tema desligado. */
+                plain: string;
+            };
+            description: {
+                /** @description A versão temática, com a voz do Dungeon Master. */
+                theme: string;
+                /** @description A versão sóbria, para o tema desligado. */
+                plain: string;
+            };
+            /** @description Só existe no tema; com ele desligado, fica oculto. */
+            flavor: string | null;
+            /** @description Nome do ícone do lucide, em kebab-case. */
+            icon: string;
+            /**
+             * @description Raridade do tier corrente, que pode subir com ele.
+             * @enum {string}
+             */
+            rarity: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
+            /** @description Nasce oculta? Vira visível no primeiro progresso. */
+            hidden: boolean;
+            state: components["schemas"]["AchievementState"];
+            tier: components["schemas"]["AchievementTier"];
+            progress: components["schemas"]["AchievementProgress"];
+            /**
+             * Format: date-time
+             * @description Instante do último desbloqueio, em UTC.
+             */
+            unlockedAt: string | null;
+        };
+        /**
+         * @description Estado calculado de uma Conquista: bloqueada, oculta (sem progresso), em progresso ou desbloqueada. Derivado, nunca gravado.
+         * @enum {string}
+         */
+        AchievementState: "LOCKED" | "HIDDEN" | "IN_PROGRESS" | "UNLOCKED";
+        /** @description O tier corrente de uma Conquista. */
+        AchievementTier: {
+            /** @description Maior tier já desbloqueado. `0` quando nenhum foi. */
+            current: number;
+            /** @description Quantos tiers a condição tem. `1` é o comum. */
+            total: number;
+            /** @description Rótulo do tier corrente (`I`, `II`, `III`). Nulo quando a Conquista tem um tier só, e também quando `current` é `0`: o numeral aparece junto com o desbloqueio, não antes dele. */
+            label: string | null;
+        };
+        /** @description Progresso de uma Conquista, para a barra. */
+        AchievementProgress: {
+            /** @description Quanto já foi feito. */
+            current: number;
+            /** @description O limiar do próximo tier. */
+            target: number;
+            /** @description `current/target`, limitado a 100. */
+            percent: number;
+        };
+        /** @description Contagem por estado, sempre sobre o conjunto inteiro, ignorando os filtros. */
+        AchievementCounts: {
+            /** @description Todas as Conquistas do usuário. */
+            total: number;
+            unlocked: number;
+            inProgress: number;
+            locked: number;
+            hidden: number;
+        };
+        /** @description Uma página da crônica, do desbloqueio mais recente para o mais antigo. */
+        AchievementUnlockPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["AchievementUnlock"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Um desbloqueio, com a Conquista resolvida. */
+        AchievementUnlock: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do desbloqueio.
+             */
+            id: string;
+            /** Format: uuid */
+            definitionId: string;
+            key: string | null;
+            /** @enum {string} */
+            origin: "CATALOG" | "TEMPLATE" | "FORGED";
+            name: {
+                /** @description A versão temática, com a voz do Dungeon Master. */
+                theme: string;
+                /** @description A versão sóbria, para o tema desligado. */
+                plain: string;
+            };
+            icon: string;
+            /** @enum {string} */
+            rarity: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
+            /** @description Qual limiar foi cruzado. `1` no caso comum. */
+            tier: number;
+            tierLabel: string | null;
+            /**
+             * Format: uuid
+             * @description Run que causou o desbloqueio, quando houve um.
+             */
+            runId: string | null;
+            /** Format: uuid */
+            taskId: string | null;
+            /**
+             * Format: date-time
+             * @description Instante do **fato** que desbloqueou, não o da gravação. É por isso que uma reconstrução produz a mesma crônica, com as mesmas datas.
+             */
+            unlockedAt: string;
+            /**
+             * Format: date-time
+             * @description Nulo até o usuário ver o toast ou a crônica.
+             */
+            seenAt: string | null;
+        };
+        /** @description As estatísticas de Herói e de Equipamento, ambas projeção. */
+        HeroStatsResponse: {
+            /** @description Por Agent, do mais experiente para o menos. */
+            agents: components["schemas"]["HeroStats"][];
+            /** @description Por Loadout, na mesma ordem. */
+            loadouts: components["schemas"]["HeroStats"][];
+        };
+        /** @description O acumulado de um Agent ou de um Loadout. */
+        HeroStats: {
+            /**
+             * Format: uuid
+             * @description Id do Agent ou do Loadout.
+             */
+            scopeId: string;
+            /** @description Nome atual. Nulo quando a entidade foi apagada. */
+            name: string | null;
+            /** @description Experiência acumulada. */
+            xp: number;
+            /** @description Nível derivado da experiência por fórmula fixa. */
+            level: number;
+            /** @description Quanto falta para o próximo nível. */
+            xpToNextLevel: number;
+            /** @description Runs terminados: vitórias, derrotas e cancelamentos. */
+            expeditions: number;
+            victories: number;
+            /** @description Runs em FAILED ou TIMED_OUT. */
+            defeats: number;
+            /** @description Runs vitoriosos que concluíram uma Task `BUG`. */
+            monstersSlain: number;
+            /** @description Tokens somados dos eventos `Usage`. */
+            tokens: number;
+            /** @description Harness mais usado. Empate desfeito pela ordem alfabética. */
+            topHarness: string | null;
         };
     };
     responses: never;

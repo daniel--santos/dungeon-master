@@ -811,7 +811,7 @@ describe("sementes de execução", () => {
 });
 
 /**
- * A migração de dados `0006`, rodada contra linhas que este teste cria.
+ * A migração de dados `0007`, rodada contra linhas que este teste cria.
  *
  * A semente só insere perfil que não existe: quem instalou antes da lista de
  * subcomandos continuaria com `git` inteiro, e portanto com `git push` e
@@ -871,7 +871,7 @@ describe("migração da allow-list padrão antiga", () => {
     const jaMigrado = await criarPerfil("migração já feita", LISTA_NOVA);
 
     const sql = await readFile(
-      new URL("../drizzle/0006_allow_list_padrao_do_campo_aberto.sql", import.meta.url),
+      new URL("../drizzle/0007_allow_list_padrao_do_campo_aberto.sql", import.meta.url),
       "utf8",
     );
     await handle.pool.query(sql);
@@ -888,7 +888,7 @@ describe("migração da allow-list padrão antiga", () => {
   it("não mexe no resto da política", async () => {
     const id = await criarPerfil("migração resto intacto", LISTA_ANTIGA);
     const sql = await readFile(
-      new URL("../drizzle/0006_allow_list_padrao_do_campo_aberto.sql", import.meta.url),
+      new URL("../drizzle/0007_allow_list_padrao_do_campo_aberto.sql", import.meta.url),
       "utf8",
     );
     await handle.pool.query(sql);

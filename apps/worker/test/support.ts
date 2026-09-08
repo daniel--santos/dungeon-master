@@ -286,6 +286,13 @@ export async function limpar(handle: DatabaseHandle): Promise<void> {
   // `run` referencia a si mesma por `resumed_from_run_id`, com `on delete set
   // null`, então um `delete` único basta.
   for (const tabela of [
+    // As tabelas da projeção vêm primeiro: `achievement_unlock` referencia
+    // `run` e `task`, e o `on delete set null` só cobre a coluna, não a linha.
+    "achievement_unlock",
+    "achievement_progress",
+    "achievement_cursor",
+    "achievement_definition",
+    "hero_stats",
     "workspace_lock",
     "run_event",
     "run",

@@ -19,6 +19,7 @@ import {
 } from "@dungeon-master/runtime";
 import type { Pool } from "pg";
 
+import type { AchievementProjector } from "./achievements.js";
 import { executeRun } from "./execute-run.js";
 import { startIdleLoop, type IdleLoop } from "./idle-loop.js";
 import type { Logger } from "./logger.js";
@@ -71,6 +72,13 @@ export interface CreateWorkerOptions {
    * notificação é latência, não correção.
    */
   readonly pool?: Pool;
+  /**
+   * O projetor de Conquistas. Sem ele o Worker roda igual, sem projetar.
+   *
+   * Entra por injeção, e não montado aqui, porque ele lê o catálogo do disco:
+   * um teste de fila não deveria tocar arquivo, e a Fase 2.5 é cosmética.
+   */
+  readonly achievements?: AchievementProjector;
   /** Injetáveis para teste; o padrão monta os de produção. */
   readonly runtime?: AgentRuntime;
   readonly workspace?: WorkspaceManager;
@@ -136,6 +144,23 @@ export function createWorker(options: CreateWorkerOptions): Worker {
   let queueListener: PgNotifyListener | undefined;
   let cancelListener: PgNotifyListener | undefined;
 
+  /**
+   * Dispara o projetor de Conquistas sem deixar nada escapar.
+   *
+   * O projetor já tem contrato de nunca lançar, mas quem chama não pode
+   * depender disso: este disparo sai de dentro do tique e do `finally` que
+   * solta um Run, e ali uma exceção viraria uma rejeição sem dono — que foi
+   * exatamente o que aconteceu quando um projetor quebrado entrou em teste.
+   * Uma Conquista é cosmética; a fila não é.
+   */
+  const projetar = (): void => {
+    try {
+      options.achievements?.trigger();
+    } catch (error) {
+      logger?.error({ err: error }, "projetor de Conquistas falhou ao ser disparado; o laço segue");
+    }
+  };
+
   const cancelar = (runId: string, reason: string): void => {
     if (cancelados.has(runId)) return;
     cancelados.add(runId);
@@ -182,6 +207,9 @@ export function createWorker(options: CreateWorkerOptions): Worker {
       emVoo.delete(claimed.run.id);
       cancelados.delete(claimed.run.id);
       cancelReasons.delete(claimed.run.id);
+      // O desfecho acabou de ser gravado: projetar agora é o que faz o toast
+      // chegar junto do fim da Expedição, e não no tique seguinte.
+      projetar();
     }
   };
 
@@ -218,6 +246,13 @@ export function createWorker(options: CreateWorkerOptions): Worker {
     }
 
     await checarCancelamentos();
+
+    // Uma linha por tique: o projetor tem contrato de nunca lançar e volta na
+    // hora, então nada aqui espera por ele. É a rede para todo fato que não
+    // nasce de um Run terminando neste processo — um Project criado pela API,
+    // um Run cancelado ainda na fila — e para o atraso de segurança do cursor,
+    // que segura por um segundo o que acabou de ser commitado.
+    projetar();
   };
 
   return {
@@ -294,6 +329,13 @@ export function createWorker(options: CreateWorkerOptions): Worker {
       queueListener?.stop();
       cancelListener?.stop();
       await loop?.stop();
+      // O passe em andamento termina antes de o pool fechar; se ele não
+      // terminar, o cursor não avança e o passe seguinte refaz o mesmo lote.
+      try {
+        await options.achievements?.drain();
+      } catch (error) {
+        logger?.error({ err: error }, "projetor de Conquistas falhou no desligamento");
+      }
 
       // Cancelar antes de esperar: o `drain` só termina quando os Runs em voo
       // acabarem, e um agente de quarenta minutos não acaba sozinho porque o

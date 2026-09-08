@@ -1,9 +1,671 @@
 {
-  "id": "8f2c1a64-5b90-4d17-9c3e-2a6f4d81b0e5",
+  "id": "4f560580-0631-46db-939f-08c08d9c98ca",
   "prevId": "4d3540eb-fc4b-49d5-b1aa-5f6857b68854",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.achievement_cursor": {
+      "name": "achievement_cursor",
+      "schema": "",
+      "columns": {
+        "source": {
+          "name": "source",
+          "type": "achievement_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_at": {
+          "name": "position_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "position_id": {
+          "name": "position_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "achievement_cursor_user_id_user_id_fk": {
+          "name": "achievement_cursor_user_id_user_id_fk",
+          "tableFrom": "achievement_cursor",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "achievement_cursor_pk": {
+          "name": "achievement_cursor_pk",
+          "columns": [
+            "source",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.achievement_definition": {
+      "name": "achievement_definition",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "origin": {
+          "name": "origin",
+          "type": "achievement_origin",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "natural_key": {
+          "name": "natural_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "catalog_key": {
+          "name": "catalog_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "template_key": {
+          "name": "template_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "catalog_version": {
+          "name": "catalog_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope_type": {
+          "name": "scope_type",
+          "type": "achievement_scope",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope_id": {
+          "name": "scope_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name_theme": {
+          "name": "name_theme",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_plain": {
+          "name": "name_plain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description_theme": {
+          "name": "description_theme",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description_plain": {
+          "name": "description_plain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "flavor": {
+          "name": "flavor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rarity": {
+          "name": "rarity",
+          "type": "achievement_rarity",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tiers": {
+          "name": "tiers",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tier_rarities": {
+          "name": "tier_rarities",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hidden": {
+          "name": "hidden",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "condition": {
+          "name": "condition",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provenance": {
+          "name": "provenance",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "achievement_definition_user_origin_idx": {
+          "name": "achievement_definition_user_origin_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "origin",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "achievement_definition_user_id_user_id_fk": {
+          "name": "achievement_definition_user_id_user_id_fk",
+          "tableFrom": "achievement_definition",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "achievement_definition_natural_key_uq": {
+          "name": "achievement_definition_natural_key_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id",
+            "natural_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.achievement_progress": {
+      "name": "achievement_progress",
+      "schema": "",
+      "columns": {
+        "definition_id": {
+          "name": "definition_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "counter": {
+          "name": "counter",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "best_value": {
+          "name": "best_value",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_streak": {
+          "name": "current_streak",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "best_streak": {
+          "name": "best_streak",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "state": {
+          "name": "state",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "achievement_progress_definition_id_achievement_definition_id_fk": {
+          "name": "achievement_progress_definition_id_achievement_definition_id_fk",
+          "tableFrom": "achievement_progress",
+          "tableTo": "achievement_definition",
+          "columnsFrom": [
+            "definition_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "achievement_progress_user_id_user_id_fk": {
+          "name": "achievement_progress_user_id_user_id_fk",
+          "tableFrom": "achievement_progress",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "achievement_progress_pk": {
+          "name": "achievement_progress_pk",
+          "columns": [
+            "definition_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.achievement_unlock": {
+      "name": "achievement_unlock",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "definition_id": {
+          "name": "definition_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tier": {
+          "name": "tier",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "task_id": {
+          "name": "task_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unlocked_at": {
+          "name": "unlocked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "seen_at": {
+          "name": "seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "achievement_unlock_user_unlocked_idx": {
+          "name": "achievement_unlock_user_unlocked_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "unlocked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "achievement_unlock_definition_id_achievement_definition_id_fk": {
+          "name": "achievement_unlock_definition_id_achievement_definition_id_fk",
+          "tableFrom": "achievement_unlock",
+          "tableTo": "achievement_definition",
+          "columnsFrom": [
+            "definition_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "achievement_unlock_user_id_user_id_fk": {
+          "name": "achievement_unlock_user_id_user_id_fk",
+          "tableFrom": "achievement_unlock",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "achievement_unlock_run_id_run_id_fk": {
+          "name": "achievement_unlock_run_id_run_id_fk",
+          "tableFrom": "achievement_unlock",
+          "tableTo": "run",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "achievement_unlock_task_id_task_id_fk": {
+          "name": "achievement_unlock_task_id_task_id_fk",
+          "tableFrom": "achievement_unlock",
+          "tableTo": "task",
+          "columnsFrom": [
+            "task_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "achievement_unlock_tier_uq": {
+          "name": "achievement_unlock_tier_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "definition_id",
+            "user_id",
+            "tier"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.hero_stats": {
+      "name": "hero_stats",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "hero_scope",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope_id": {
+          "name": "scope_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "xp": {
+          "name": "xp",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "level": {
+          "name": "level",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "expeditions": {
+          "name": "expeditions",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "victories": {
+          "name": "victories",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "defeats": {
+          "name": "defeats",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "monsters_slain": {
+          "name": "monsters_slain",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "docker_victories": {
+          "name": "docker_victories",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "tokens": {
+          "name": "tokens",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "harness_counts": {
+          "name": "harness_counts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "top_harness": {
+          "name": "top_harness",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "hero_stats_user_id_user_id_fk": {
+          "name": "hero_stats_user_id_user_id_fk",
+          "tableFrom": "hero_stats",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "hero_stats_scope_uq": {
+          "name": "hero_stats_scope_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id",
+            "scope",
+            "scope_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.activity": {
       "name": "activity",
       "schema": "",
@@ -1891,6 +2553,53 @@
     }
   },
   "enums": {
+    "public.achievement_origin": {
+      "name": "achievement_origin",
+      "schema": "public",
+      "values": [
+        "CATALOG",
+        "TEMPLATE",
+        "FORGED"
+      ]
+    },
+    "public.achievement_rarity": {
+      "name": "achievement_rarity",
+      "schema": "public",
+      "values": [
+        "COMMON",
+        "RARE",
+        "EPIC",
+        "LEGENDARY"
+      ]
+    },
+    "public.achievement_scope": {
+      "name": "achievement_scope",
+      "schema": "public",
+      "values": [
+        "GLOBAL",
+        "PROJECT",
+        "HARNESS",
+        "AGENT",
+        "TASK"
+      ]
+    },
+    "public.achievement_source": {
+      "name": "achievement_source",
+      "schema": "public",
+      "values": [
+        "activity",
+        "run_event",
+        "dashboard_event"
+      ]
+    },
+    "public.hero_scope": {
+      "name": "hero_scope",
+      "schema": "public",
+      "values": [
+        "AGENT",
+        "LOADOUT"
+      ]
+    },
     "public.project_status": {
       "name": "project_status",
       "schema": "public",

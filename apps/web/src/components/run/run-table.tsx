@@ -12,15 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { RunRecord } from "@/lib/api-types";
+import type { RunListItemRecord } from "@/lib/api-types";
 import { relativeTime } from "@/lib/datetime";
 import { useGlossary } from "@/lib/glossary";
 import { formatDuration, runDurationMs } from "@/lib/runs";
-import { useTaskTitles } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
 
 export interface RunTableProps {
-  readonly runs: readonly RunRecord[];
+  readonly runs: readonly RunListItemRecord[];
   readonly total: number;
   readonly page: number;
   readonly pageSize: number;
@@ -43,6 +42,10 @@ export interface RunTableProps {
  * A ordem é do servidor, do mais recente para o mais antigo, e não há
  * ordenação por coluna: `GET /api/v1/runs` não a oferece, e ordenar só a página
  * daria uma ordem que muda quando se vira a folha.
+ *
+ * O título da Task vem no próprio item, pela junção da listagem: buscá-lo por
+ * linha custava uma requisição por Expedição visível, e a primeira pintura da
+ * tabela mostrava reticências onde deveria estar o título.
  */
 export function RunTable({
   runs,
@@ -56,7 +59,6 @@ export function RunTable({
   empty,
 }: RunTableProps) {
   const { t, format } = useGlossary();
-  const titles = useTaskTitles(runs.map((run) => run.taskId));
 
   const lastPage = Math.max(1, Math.ceil(total / pageSize));
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -94,7 +96,7 @@ export function RunTable({
                       params={{ id: run.id }}
                       to="/runs/$id"
                     >
-                      {titles.get(run.taskId) ?? "…"}
+                      {run.taskTitle}
                     </Link>
                   </TableCell>
                 )}

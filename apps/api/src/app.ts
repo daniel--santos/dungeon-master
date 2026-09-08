@@ -26,6 +26,7 @@ import { registerRunRoutes } from "./handlers/runs.js";
 import { registerTaskRoutes } from "./handlers/tasks.js";
 import type { Logger } from "./logger.js";
 import type {
+  AchievementsPort,
   DashboardEventsPort,
   DatabaseProbe,
   ExecutionPort,
@@ -71,6 +72,13 @@ export interface CreateAppOptions {
    * requisição. Carregá-lo uma vez no boot também mantém `pnpm gen` sem I/O.
    */
   achievements: AchievementCatalog;
+  /**
+   * O Hall com estado: progresso, crônica e estatísticas de Herói.
+   *
+   * Separado do catálogo porque são coisas diferentes: o catálogo é o arquivo
+   * versionado, sem usuário; isto é a projeção que o Worker mantém no banco.
+   */
+  hall: AchievementsPort;
   logger?: Logger;
   /** Instante do boot, usado para calcular `uptimeSeconds`. */
   startedAt?: number;
@@ -284,7 +292,7 @@ export function createApp(options: CreateAppOptions) {
 
   // ------------------------------------------------------------- Conquistas
 
-  registerAchievementRoutes(app, options.achievements);
+  registerAchievementRoutes(app, options.achievements, options.hall);
 
   app.doc31(`${API_BASE_PATH}/openapi.json`, {
     openapi: "3.1.0",
@@ -309,7 +317,11 @@ export function createApp(options: CreateAppOptions) {
         description: "Cadastros de execução: Harness, Model, Agent, ExecutionProfile e Loadout.",
       },
       { name: "runs", description: "Runs: as tentativas concretas de realizar uma Task." },
-      { name: "achievements", description: "O catálogo versionado de Conquistas." },
+      {
+        name: "achievements",
+        description: "O catálogo versionado de Conquistas e a projeção de progresso.",
+      },
+      { name: "heroes", description: "Estatísticas de Herói e de Equipamento. Projeção." },
     ],
   });
 

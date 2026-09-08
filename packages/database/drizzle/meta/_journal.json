@@ -47,8 +47,15 @@
     {
       "idx": 6,
       "version": "7",
+      "when": 1788826289286,
+      "tag": "0006_conquistas_projecao_e_stats",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
       "when": 1788832000000,
-      "tag": "0006_allow_list_padrao_do_campo_aberto",
+      "tag": "0007_allow_list_padrao_do_campo_aberto",
       "breakpoints": true
     }
   ]
