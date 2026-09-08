@@ -72,7 +72,7 @@ export const CONTAINER_WORKSPACE_DIR = "/home/agent/workspace";
 export const CONTAINER_PARENT_GIT_DIR = "/.dungeon-master-parent-git";
 
 /** Imagem de referência construída por `docker/agent.Dockerfile`. */
-export const DEFAULT_AGENT_IMAGE = "dungeon-master-agent:0.1.0";
+export const DEFAULT_AGENT_IMAGE = "dungeon-master-agent:0.2.0";
 
 /**
  * Chaves que **nunca** atravessam para o container.

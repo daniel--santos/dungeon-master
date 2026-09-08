@@ -20,12 +20,17 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Precisa bater com `DEFAULT_AGENT_IMAGE` de `packages/runtime/src/docker.ts`. */
-const DEFAULT_IMAGE = "dungeon-master-agent:0.1.0";
+const DEFAULT_IMAGE = "dungeon-master-agent:0.2.0";
 
 const raiz = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dockerfile = join(raiz, "docker", "agent.Dockerfile");
 
-const argv = process.argv.slice(2);
+// O `--` de `pnpm docker:build -- --no-cache` chega aqui como argumento de
+// verdade, e o cliente Docker o trata como fim das opções — o que fazia o
+// caminho do contexto ser lido como operando de mais e o build morrer com
+// "`docker buildx build` requires 1 argument". Ele é descartado aqui porque a
+// forma com `--` é a que o `docker/README.md` documenta.
+const argv = process.argv.slice(2).filter((arg) => arg !== "--");
 const imageIndex = argv.indexOf("--image");
 const image = imageIndex === -1 ? DEFAULT_IMAGE : (argv[imageIndex + 1] ?? DEFAULT_IMAGE);
 const extras = argv.filter((arg, i) => i !== imageIndex && i !== imageIndex + 1);
