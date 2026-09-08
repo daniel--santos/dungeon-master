@@ -19,6 +19,7 @@
  *   e a capability continua `false`.
  */
 
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -80,14 +81,30 @@ const PI_CONTAINER_ENV_KEYS = [
  */
 export function claudeCredentialMounts(
   env: Readonly<Record<string, string>>,
-  options: { readonly home?: string } = {},
+  options: {
+    readonly home?: string;
+    /** Injetável para teste; o padrão é `existsSync`. */
+    readonly exists?: (path: string) => boolean;
+  } = {},
 ): readonly DockerMount[] {
   if ((env["CLAUDE_CODE_OAUTH_TOKEN"] ?? "").length > 0) return [];
   if ((env["ANTHROPIC_API_KEY"] ?? "").length > 0) return [];
+
   const home = options.home ?? homedir();
+  const hostPath = join(home, ".claude", ".credentials.json");
+
+  // A existência é conferida antes de virar mount, e não é preciosismo: um
+  // `-v` cujo caminho de origem não existe faz o Docker **criar um diretório**
+  // ali. O efeito seria transformar `~/.claude/.credentials.json` do usuário num
+  // diretório vazio, e o próximo `claude` no host deixaria de achar o login.
+  // Sem o arquivo, a lista vazia é a resposta certa: a CLI reclama de "não
+  // autenticado" lá dentro, que é o diagnóstico verdadeiro.
+  const existe = options.exists ?? existsSync;
+  if (!existe(hostPath)) return [];
+
   return [
     {
-      hostPath: join(home, ".claude", ".credentials.json"),
+      hostPath,
       containerPath: `${CONTAINER_HOME}/.claude/.credentials.json`,
       readOnly: true,
     },
