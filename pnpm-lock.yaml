@@ -193,6 +193,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@dungeon-master/achievements':
+        specifier: workspace:*
+        version: link:../../packages/achievements
       '@dungeon-master/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

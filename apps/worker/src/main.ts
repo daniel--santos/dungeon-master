@@ -3,6 +3,7 @@ import "dotenv/config";
 import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/database";
 import { hostAdapters } from "@dungeon-master/runtime-sandcastle";
 
+import { createAchievementProjector } from "./achievements.js";
 import { loadConfig } from "./config.js";
 import { createLogger } from "./logger.js";
 import { createWorker } from "./worker.js";
@@ -42,12 +43,32 @@ if (!boot.ok) {
 
 logger.info({ latencyMs: boot.latencyMs }, "PostgreSQL respondeu ao SELECT 1");
 
+const achievements = createAchievementProjector({
+  db: database.db,
+  userId: LOCAL_USER_ID,
+  logger,
+});
+
+// O primeiro passe sincroniza o catálogo e instancia os templates das entidades
+// que já existem, mesmo sem nenhum fato novo para processar. Os passes do laço
+// adiam isso para o primeiro lote com fatos, para um Worker parado não
+// reescrever as definições a cada tique.
+const projecao = await achievements.run("always");
+
+logger.info(
+  { processed: projecao.processed, unlocked: projecao.unlocked, error: projecao.error },
+  projecao.ok
+    ? "catálogo de Conquistas sincronizado e projeção em dia"
+    : "projetor de Conquistas falhou no boot; o Worker sobe assim mesmo",
+);
+
 const worker = createWorker({
   db: database.db,
   pool: database.pool,
   userId: LOCAL_USER_ID,
   config,
   adapters: hostAdapters(),
+  achievements,
   logger,
 });
 
