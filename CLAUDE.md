@@ -67,6 +67,9 @@ Aplicadas pelo ESLint em `eslint.config.mjs`. Quebrar qualquer uma falha em `pnp
   builtins do Node. O domínio computa; a infraestrutura entra por injeção de contrato.
 - **`packages/runtime`** (quando existir) não importa `packages/database`; recebe o store
   por contrato.
+- **`packages/workflow`** segue a mesma linha do runtime: não importa `packages/database`
+  nem `packages/events`; persistência, runtime de agente, executor de processo e relógio
+  entram pelas portas de `ports.ts`, e o Worker faz a fiação com os repositórios reais.
 - **`packages/glossary` e `packages/achievements`** são puros: só `zod` e `node:*`.
 - **`packages/platform`** importa somente builtins do Node e módulos do próprio pacote.
 - **`packages/events`** não depende de Hono nem de `pg`: writer, fonte e notificador entram

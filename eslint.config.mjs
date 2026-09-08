@@ -39,6 +39,9 @@ const PLATFORM_BOUNDARY_MESSAGE =
 const RUNTIME_BOUNDARY_MESSAGE =
   "Fronteira: os pacotes de runtime não importam banco, ORM, HTTP nem logger; o store entra por injeção de contrato.";
 
+const WORKFLOW_BOUNDARY_MESSAGE =
+  "Fronteira: packages/workflow não importa banco, ORM, HTTP, logger nem o writer de eventos; persistência, runtime de agente, executor de processo e relógio entram por contrato (ports.ts).";
+
 export default tseslint.config(
   {
     ignores: [
@@ -249,6 +252,36 @@ export default tseslint.config(
             {
               group: ["**/packages/database/**", "**/apps/**"],
               message: RUNTIME_BOUNDARY_MESSAGE,
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // -------------------------------------------------------- packages/workflow
+  //
+  // O motor de Workflow decide o que acontece com cada step; quem grava linha,
+  // sobe processo e chama harness é quem implementa as portas de `ports.ts` —
+  // o Worker, com os repositórios reais, ou a memória dos testes. É a mesma
+  // fronteira do runtime, com a mesma lista: sem ela, o primeiro "só ler o
+  // RunStep aqui" amarraria o motor ao Drizzle e a suíte da "Expedição guiada"
+  // passaria a precisar de banco para rodar.
+  {
+    files: ["packages/workflow/src/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex:
+                "^(@dungeon-master/(database|api-client|events)|drizzle-orm|drizzle-kit|pg|postgres|embedded-postgres|hono|@hono/.*|pino)($|/)",
+              message: WORKFLOW_BOUNDARY_MESSAGE,
+            },
+            {
+              group: ["**/packages/database/**", "**/apps/**"],
+              message: WORKFLOW_BOUNDARY_MESSAGE,
             },
           ],
         },
