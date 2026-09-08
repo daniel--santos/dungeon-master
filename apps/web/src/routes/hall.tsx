@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/empty-state";
 import { AchievementCard } from "@/components/hall/achievement-card";
 import { BestiaryTab } from "@/components/hall/bestiary-tab";
 import { ChronicleTab } from "@/components/hall/chronicle-tab";
+import { ForgeSection } from "@/components/hall/forge-section";
 import { HeroesTab } from "@/components/hall/heroes-tab";
 import { PageHeader } from "@/components/page-header";
 import { Panel } from "@/components/panel";
@@ -135,6 +136,9 @@ function HallPage() {
         </TabsList>
 
         <TabsContent className="flex flex-col gap-4" value="achievements">
+          {/* Fase 6B: as forjadas em revisão, antes da grade. Some quando a forja está vazia. */}
+          <ForgeSection />
+
           <div className="flex flex-wrap items-center gap-2">
             <Filter
               label={t("hall.filter.origin")}
