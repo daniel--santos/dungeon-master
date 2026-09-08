@@ -159,7 +159,7 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[680px]">
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-[680px]">
         <DialogHeader>
           <DialogTitle>{format("Nova {run}", { run: t("entity.run") })}</DialogTitle>
           <DialogDescription>
