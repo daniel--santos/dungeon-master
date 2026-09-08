@@ -116,6 +116,8 @@ export async function criarEquipamento(
  */
 export async function limparExecucao(handle: DatabaseHandle): Promise<void> {
   for (const tabela of [
+    "approval_gate",
+    "run_step",
     "workspace_lock",
     "run_event",
     "run",
@@ -125,6 +127,9 @@ export async function limparExecucao(handle: DatabaseHandle): Promise<void> {
     "activity",
     "task_dependency",
     "task",
+    "workflow_step",
+    "workflow_version",
+    "workflow",
     "project",
     "dashboard_event",
   ]) {

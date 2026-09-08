@@ -5,10 +5,11 @@ import { seedDemoData } from "../src/demo.js";
 import { resolveDatabaseUrl } from "../src/env.js";
 import { LOCAL_USER_ID, seedLocalUser } from "../src/seed.js";
 import { seedExecutionRegistry } from "../src/seed-execution.js";
+import { seedWorkflows } from "../src/seed-workflow.js";
 
 /**
- * `pnpm db:seed` garante o usuário local, os quatro Harnesses e os dois
- * ExecutionProfiles. `pnpm db:seed --demo` acrescenta a massa de demonstração:
+ * `pnpm db:seed` garante o usuário local, os quatro Harnesses, os dois
+ * ExecutionProfiles e o Workflow de partida. `pnpm db:seed --demo` acrescenta a massa de demonstração:
  * dois Projects, catorze Tasks e três capturas na Inbox.
  *
  * A massa é opcional de propósito. O usuário local e os cadastros fechados são
@@ -36,6 +37,13 @@ try {
       `(${String(execucao.harnessesCreated)} novos), ` +
       `${String(execucao.executionProfilesTotal)} ExecutionProfiles ` +
       `(${String(execucao.executionProfilesCreated)} novos)`,
+  );
+
+  const rituais = await seedWorkflows(handle.db, { userId: LOCAL_USER_ID });
+
+  console.log(
+    `[db:seed] workflows: ${String(rituais.workflowsTotal)} Workflows ` +
+      `(${String(rituais.workflowsCreated)} novos)`,
   );
 
   if (demo) {
