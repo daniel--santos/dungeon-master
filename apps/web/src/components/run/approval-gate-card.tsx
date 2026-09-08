@@ -211,9 +211,7 @@ export function ApprovalGateCard({ gates, onHoldingChange }: ApprovalGateCardPro
                     onChange={(event) => {
                       setNote(event.target.value);
                     }}
-                    placeholder={format("Vai para o {timeline}, junto da decisão.", {
-                      timeline: t("run.timeline"),
-                    })}
+                    placeholder="Justificativa. Fica registrada junto da decisão."
                     rows={2}
                     value={note}
                   />
@@ -235,12 +233,7 @@ export function ApprovalGateCard({ gates, onHoldingChange }: ApprovalGateCardPro
                     }}
                   />
                   <span className="text-muted-foreground text-[11px]">
-                    {format(
-                      "Pede confirmação. A decisão fica no {timeline} e não pode ser desfeita.",
-                      {
-                        timeline: t("run.timeline"),
-                      },
-                    )}
+                    Pede confirmação. A decisão fica registrada e não pode ser desfeita.
                   </span>
                 </div>
               </>

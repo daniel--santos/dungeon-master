@@ -294,9 +294,9 @@ export type EventFilterId = (typeof EVENT_FILTER_IDS)[number];
 /**
  * O rótulo de cada filtro.
  *
- * O grupo de ferramentas e o de steps usam a chave do glossário porque "Item"
- * e "Passo do ritual" são labels de entidade; os outros quatro são palavras
- * comuns e não têm chave.
+ * O grupo de ferramentas e o do motor usam a chave do glossário porque "Item"
+ * e "Ritual" são labels de entidade; os outros quatro são palavras comuns e
+ * não têm chave.
  */
 export const EVENT_FILTER_LABEL: Record<
   EventFilterId,
@@ -305,7 +305,9 @@ export const EVENT_FILTER_LABEL: Record<
   all: { text: "Tudo" },
   tools: { key: "entity.tool.plural" },
   text: { text: "Texto" },
-  workflow: { key: "entity.workflowStep.plural" },
+  // O nome do Ritual, e não "Passos do ritual": o rodapé do Diário é estreito
+  // e o label longo quebrava em três linhas dentro do chip.
+  workflow: { key: "entity.workflow" },
   usage: { text: "Uso" },
   system: { text: "Sistema" },
   diagnostic: { text: "Diagnóstico" },

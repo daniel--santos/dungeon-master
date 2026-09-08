@@ -171,7 +171,10 @@ export function WorkflowGraph({ definition, className }: WorkflowGraphProps) {
   const { nodes, edges } = useMemo(() => layoutDefinition(definition), [definition]);
 
   return (
-    <div className={cn("h-80 w-full", className)} data-workflow-graph>
+    // A altura vai também em estilo inline: o React Flow mede o contêiner na
+    // montagem, e em desenvolvimento a folha do Tailwind pode chegar um
+    // instante depois — sem a altura imediata ele avisa que não tem onde desenhar.
+    <div className={cn("w-full", className)} data-workflow-graph style={{ height: 320 }}>
       <ReactFlow
         colorMode="dark"
         edges={edges}
@@ -188,7 +191,6 @@ export function WorkflowGraph({ definition, className }: WorkflowGraphProps) {
         nodesFocusable={false}
         panOnDrag
         preventScrolling={false}
-        proOptions={{ hideAttribution: true }}
         zoomOnDoubleClick={false}
         zoomOnScroll={false}
       >
