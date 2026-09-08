@@ -54,6 +54,30 @@ export const CommandAccessSchema = z
 
 export type CommandAccess = z.infer<typeof CommandAccessSchema>;
 
+/**
+ * Os comandos que um Run recebe por padrão quando a política libera execução.
+ *
+ * São **subcomandos**, e não o programa inteiro: `git add` e `git commit`, nunca
+ * `git`. A diferença é `git push` e `git reset --hard`, que uma tarefa de código
+ * autônoma não precisa e que ninguém quer descobrir depois que aconteceram.
+ *
+ * A lista é o mínimo que faz uma tarefa terminar: sem poder commitar, o agente
+ * edita o arquivo e reporta `blocked`. Ler o repositório é assunto das
+ * ferramentas de leitura do harness, não do shell, então `ls` e `cat` ficam de
+ * fora — quem os quiser acrescenta em `allowedCommands`, e a escolha fica
+ * visível no perfil.
+ *
+ * Verificado com o Claude Code 2.1.263: com estes cinco prefixos, "crie um
+ * arquivo e faça commit" termina sem nenhuma permissão negada.
+ */
+export const DEFAULT_TRUSTED_COMMANDS: readonly string[] = [
+  "git add",
+  "git commit",
+  "git status",
+  "git diff",
+  "git log",
+];
+
 export const PermissionPolicySchema = z
   .object({
     workspaceWrite: z.boolean().describe("O agente pode escrever no workspace."),
