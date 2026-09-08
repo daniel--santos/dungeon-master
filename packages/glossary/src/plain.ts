@@ -222,6 +222,144 @@ export const plain: Record<GlossaryKey, string> = {
   "graph.cycle": "Essa dependência fecharia um ciclo no grafo: {path}. A aresta foi desfeita.",
   "graph.openProposals": "Tem propostas em aberto",
 
+  // -------------------------------------------------------------- knowledge
+  "knowledge.scribe": "Distiller",
+  "knowledge.type.fact": "Fato",
+  "knowledge.type.decision": "Decisão",
+  "knowledge.type.discovery": "Descoberta",
+  "knowledge.type.constraint": "Restrição",
+  "knowledge.type.procedure": "Procedimento",
+  "knowledge.type.summary": "Resumo do projeto",
+  "knowledge.status.pendingReview": "Aguardando revisão",
+  "knowledge.status.active": "Ativo",
+  "knowledge.status.rejected": "Recusado",
+  "knowledge.status.archived": "Arquivado",
+  "knowledge.review.pending": "Aguardando revisão",
+  "knowledge.review.reviewed": "Já revisados",
+  "knowledge.review.title": "Fila de revisão",
+  "knowledge.review.empty":
+    "Nenhum item aguarda revisão. Quando o Distiller promover um candidato, ele aparece aqui para você decidir.",
+  "knowledge.review.hint":
+    "O Distiller escreveu estes itens a partir do que as execuções aprenderam. Aprove o que vale, corrija o que quase vale, recuse o resto.",
+  "knowledge.decision.approve": "Aprovar o item",
+  "knowledge.decision.reject": "Recusar o item",
+  "knowledge.decision.editApprove": "Corrigir antes de aprovar",
+  "knowledge.decision.saveApprove": "Salvar e aprovar",
+  "knowledge.approve.done": "O item está ativo.",
+  "knowledge.reject.title": "Recusar este item de conhecimento?",
+  "knowledge.reject.body":
+    "O item fica registrado como recusado, com a sua nota, e nunca fica ativo. A decisão não pode ser desfeita.",
+  "knowledge.reject.done": "Item recusado.",
+  "knowledge.conflict": "Outra decisão chegou antes. Nada foi sobrescrito: o item está {status}.",
+  "knowledge.edit.title": "Corrigir o item",
+  "knowledge.edit.body":
+    "Título, conteúdo e tipo. Cada correção sobe a versão do item; o resumo do projeto não troca de tipo.",
+  "knowledge.edit.done": "Item salvo.",
+  "knowledge.archive.title": "Arquivar este item?",
+  "knowledge.archive.body":
+    "O item deixa de estar ativo e de contar para o resumo do projeto. Ele fica guardado e pode voltar depois.",
+  "knowledge.archive.action": "Arquivar o item",
+  "knowledge.archive.done": "Item arquivado.",
+  "knowledge.unarchive.action": "Reativar o item",
+  "knowledge.unarchive.done": "O item voltou a ficar ativo.",
+  "knowledge.detail.open": "Abrir o item",
+  "knowledge.summary.title": "Resumo do projeto",
+  "knowledge.summary.empty":
+    "O Distiller ainda não consolidou um resumo. Ele nasce no primeiro lote com itens ativos.",
+  "knowledge.summary.stale": "{n} itens ficaram ativos depois deste resumo.",
+  "knowledge.summary.fresh": "Cobre todos os itens ativos.",
+  "knowledge.distill.now": "Destilar agora",
+  "knowledge.distill.requested":
+    "Lote pedido. {n} candidatos esperam o Distiller, que roda em segundo plano.",
+  "knowledge.distill.nothing":
+    "Lote pedido, mas nenhum candidato está pendente: o lote vai terminar vazio.",
+  "knowledge.distill.done":
+    "Lote concluído: {promoted} promovidos, {merged} fundidos, {rejected} recusados.",
+  "knowledge.batches.title": "Lotes de destilação",
+  "knowledge.batches.empty":
+    "Nenhum lote ainda. O Distiller roda na cadência configurada, ou quando você pede.",
+  "knowledge.batch.status.running": "Em execução",
+  "knowledge.batch.status.succeeded": "Concluído",
+  "knowledge.batch.status.failed": "Falhou",
+  "knowledge.batch.trigger.timer": "Pela cadência",
+  "knowledge.batch.trigger.idle": "Por ociosidade",
+  "knowledge.batch.trigger.notify": "A pedido",
+  "knowledge.batch.trigger.manual": "Manual",
+  "knowledge.batch.counts":
+    "{candidates} candidatos · {promoted} promovidos · {merged} fundidos · {rejected} recusados",
+  "knowledge.batch.summaryRegenerated": "Resumo regenerado",
+  "knowledge.batch.forged": "Forjou uma Conquista",
+  "knowledge.candidate.status.pending": "Aguardando o Distiller",
+  "knowledge.candidate.status.promoted": "Promovido",
+  "knowledge.candidate.status.rejected": "Rejeitado pelo Distiller",
+  "knowledge.candidate.status.merged": "Fundido num item",
+  "knowledge.candidate.openItem": "Abrir o item",
+  "knowledge.provenance.title": "Proveniência",
+  "knowledge.provenance.run": "Execução de origem",
+  "knowledge.provenance.task": "Tarefa de origem",
+  "knowledge.provenance.batch": "Lote de destilação",
+  "knowledge.provenance.merged": "Candidatos fundidos neste item",
+  "knowledge.provenance.covered": "Itens cobertos por este resumo",
+  "knowledge.provenance.none":
+    "Sem execução de origem: escrito pelo Distiller a partir dos itens ativos.",
+  "knowledge.decisions.empty":
+    "Nenhuma decisão ainda. Quando uma execução registrar uma decisão e o Distiller a promover, ela entra nesta linha do tempo.",
+  "knowledge.decisions.from": "Decidida na execução",
+  "knowledge.tab.items": "Itens",
+  "knowledge.tab.batches": "Lotes",
+  "knowledge.list.empty":
+    "Nada aqui ainda. As execuções trazem candidatos, e o Distiller os transforma em itens.",
+  "knowledge.list.noMatch": "Nenhum item casa com esse filtro.",
+  "knowledge.search.placeholder": "Buscar no conhecimento…",
+  "knowledge.filter.type": "Tipo",
+  "knowledge.filter.status": "Estado",
+  "knowledge.filter.review": "Revisão",
+  "knowledge.pending.title": "Itens aguardando revisão",
+  "knowledge.overview.description":
+    "O que cada projeto já aprendeu. O Distiller escreve os itens a partir das execuções, e você aprova o que entra.",
+  "knowledge.overview.empty":
+    "Nenhum projeto ainda. O conhecimento nasce com a primeira execução que traz um candidato.",
+  "knowledge.overview.open": "Abrir o conhecimento",
+  "knowledge.overview.noSummary": "Sem resumo ainda",
+  "knowledge.overview.summaryAt": "Resumo escrito {when}",
+  "knowledge.count.active": "{n} ativos",
+  "knowledge.count.pending": "{n} aguardando revisão",
+
+  // ---------------------------------------------------------------- forged
+  "forged.section.title": "Conquistas forjadas em revisão",
+  "forged.section.empty":
+    "Nenhuma forjada em revisão. Quando o Distiller encontrar um resultado notável numa execução, a Conquista proposta aparece aqui antes de entrar na lista.",
+  "forged.section.hint":
+    "O Distiller escreveu estas Conquistas. Aprove as que valem, reescreva as que quase valem, descarte o resto.",
+  "forged.decision.approve": "Aprovar a forjada",
+  "forged.decision.rename": "Reescrever",
+  "forged.decision.discard": "Descartar a forjada",
+  "forged.rename.title": "Reescrever a Conquista forjada",
+  "forged.rename.body":
+    "Só o texto do tema muda: nome, descrição e fala. A versão sóbria descreve a condição e é escrita pelo código.",
+  "forged.rename.name": "Nome no tema",
+  "forged.rename.description": "Descrição no tema",
+  "forged.rename.flavor": "Fala do tema",
+  "forged.rename.plain": "Versão sóbria (não muda)",
+  "forged.discard.title": "Descartar esta Conquista forjada?",
+  "forged.discard.body":
+    "Ela nunca entra na lista de Conquistas. A definição fica guardada só para contar o intervalo entre forjadas. A decisão não pode ser desfeita.",
+  "forged.approve.done": "A Conquista forjada foi aprovada.",
+  "forged.rename.done": "Conquista reescrita.",
+  "forged.discard.done": "Conquista descartada.",
+  "forged.conflict": "Outra decisão chegou antes. Nada foi sobrescrito: a Conquista está {status}.",
+  "forged.status.pendingReview": "Em revisão",
+  "forged.status.approved": "Aprovada",
+  "forged.status.discarded": "Descartada",
+  "forged.provenance": "Proposta a partir de",
+  "forged.kind.nemesisDefeated": "Bug reaberto resolvido",
+  "forged.kind.victoryStreak": "Sequência de execuções bem-sucedidas",
+  "forged.kind.firstHarnessVictory": "Primeiro sucesso de um harness",
+  "forged.kind.durationRecord": "Recorde de duração",
+  "forged.toast.title": "Uma Conquista forjada espera revisão",
+  "forged.toast.body": "Aprove, reescreva ou descarte antes de ela entrar na lista.",
+  "forged.toast.open": "Abrir a revisão",
+
   // ------------------------------------------------------------------- env
   "env.host": "Host",
   "env.host.warning": "sem isolamento",
@@ -317,4 +455,22 @@ export const plain: Record<GlossaryKey, string> = {
   "settings.theme.toggle": "Tema Dungeon Master",
   "settings.theme.description":
     "Vocabulário de RPG na interface. Ligue para o tema de Dungeon Master.",
+  "settings.knowledge.title": "Conhecimento",
+  "settings.knowledge.description":
+    "Como o Distiller consolida o conhecimento de cada projeto, e quando.",
+  "settings.knowledge.humanReview": "Revisão humana",
+  "settings.knowledge.humanReview.description":
+    "Ligado, todo item que o Distiller promover espera a sua aprovação antes de ficar ativo. Desligado, ele fica ativo direto.",
+  "settings.knowledge.loadout": "Loadout do Distiller",
+  "settings.knowledge.loadout.description":
+    "O Distiller não executa nada: lê o prompt e responde JSON. Por isso o Loadout precisa de um harness com saída estruturada.",
+  "settings.knowledge.loadout.default": "O padrão: {name}",
+  "settings.knowledge.loadout.noStructuredOutput": "sem saída estruturada",
+  "settings.knowledge.every": "Cadência do Distiller",
+  "settings.knowledge.every.description":
+    "A cada quantos minutos o Distiller varre os candidatos pendentes de todos os projetos. Entre 1 e 1440.",
+  "settings.knowledge.forgeEvery": "Intervalo entre forjadas",
+  "settings.knowledge.forgeEvery.description":
+    "Quantas execuções precisam terminar entre duas Conquistas forjadas, para elas continuarem raras. Entre 1 e 10000.",
+  "settings.knowledge.saved": "Configuração de conhecimento salva.",
 };
