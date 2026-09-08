@@ -679,17 +679,17 @@ Fica pendente para as rodadas seguintes:
 
 ### Implementação
 
-- [ ] Integrar Sandcastle `docker()`
-- [ ] Docker preflight (Docker Desktop no Windows e no macOS)
-- [ ] Gerenciamento de imagem base
-- [ ] Claude Code, Codex e Pi em Docker
-- [ ] Montagem de workspace
-- [ ] Variáveis de ambiente controladas; usar o caminho `run()`, porque `createSandbox()` não propaga o env do provider a containers longevos
-- [ ] Política de rede
-- [ ] Limites de recursos quando possível
-- [ ] Cleanup de containers, inclusive em cancelamento
-- [ ] Logs de lifecycle do sandbox
-- [ ] Mesmo contrato de eventos do modo HOST
+- [x] ~~Integrar Sandcastle `docker()`~~ — backend próprio em `packages/runtime/src/docker.ts`. O `docker()` do Sandcastle sobe container longevo com `docker exec`, e o `exec` de lá não aceita `-e`; aqui é um `docker run --rm` por Run. Do Sandcastle veio a montagem do `.git` de worktree (`mountUtils.ts`), com atribuição.
+- [x] Docker preflight: daemon, versão do servidor, imagem presente e UID da imagem contra o do worker, com mensagem que diz o comando que resolve
+- [x] Gerenciamento de imagem base: `docker/agent.Dockerfile` e `pnpm docker:build`, com o contrato de UID/GID documentado em `docker/README.md`
+- [x] Claude Code e Pi em Docker. **Codex não**: o ADR 0001 o classificou como experimental, e `dockerExecution` dele é `false`
+- [x] Montagem de workspace, inclusive worktree do Windows com o `.git` do repositório pai remapeado
+- [x] Variáveis de ambiente controladas, pela allow-list do runtime; o valor nunca entra no argv (`-e NOME` sem `=`)
+- [x] Política de rede: `--network none` quando a política pede `NONE`. `ALLOWLIST` é rebaixado com `Diagnostic` e `enforced: false` — o Docker liga ou desliga a rede, e filtrar por host precisaria de um proxy
+- [x] Limites de recursos: `--cpus`, `--memory` e `--pids-limit` quando o perfil os trouxer
+- [x] Cleanup de containers, inclusive em cancelamento, com o desaparecimento **confirmado** por consulta e não presumido
+- [x] Logs de lifecycle do sandbox, como `Diagnostic` no diário do Run
+- [x] Mesmo contrato de eventos do modo HOST: os dois modos compartilham `buildArgs`, `parseLine` e `describeExit`; o que muda é o spawn
 
 ### Modelo de ExecutionProfile
 
@@ -735,6 +735,30 @@ Decisões aceitas na rodada das telas: o aceite do modo host fica em `user_setti
 Em curso na terceira rodada: allow-list de comandos por política (o modo configurado precisa commitar sem bypass); UI do `workspacePath` do Project (sem ela nenhuma Expedição nasce pela interface); "Retomar a Expedição"; `GET /runs` com `harnessKey` e `taskTitle`; Docker (2C) com spike de autenticação antes de qualquer promessa; projetor de Conquistas (2.5B).
 
 Pendências conhecidas: commits só coletados em `GIT_WORKTREE`; `COPY` recusado; `ApprovalRequested` não é emitido por nenhuma CLI no modo não interativo (Fase 4); Pi sem permissão por ferramenta (enforcement `ADVISORY`); rodar `pnpm dev:web` e o e2e ao mesmo tempo disputa o cache do Vite.
+
+## Andamento da 2C (08/09/2026)
+
+O modo `DOCKER` está implementado e "Masmorra selada" nasce **ligada**. O que decidiu isso foi o ADR [`docs/adr/0001-autenticacao-em-docker.md`](./adr/0001-autenticacao-em-docker.md): Claude Code e Pi têm caminho de credencial provado dentro do container, o Codex não.
+
+Provado com Run de verdade, em 08/09/2026, Windows 11 com Docker Desktop 29.7.2 sobre WSL2:
+
+- **`claude-code@docker` cumpre os onze casos da suíte de contrato**, autenticado pelo `~/.claude/.credentials.json` montado read-only — o segundo caminho do ADR. O `CLAUDE_CODE_OAUTH_TOKEN` continua sendo o recomendado, e não foi emitido: `claude setup-token` é interativo.
+- **Sync-out funciona sem passo de sincronização**: o agente criou um arquivo e commitou dentro do container, e o commit apareceu na branch do Run no repositório do host. É o que o bind mount do `.git` do repositório pai entrega, e é o que o ADR 0017 do Sandcastle existe para evitar precisar.
+- **Cancelamento remove o container e confirma**: `RunCancelled` com `processTreeTerminated = true` cerca de 700 ms depois do pedido, e `docker ps -a` sem sobra.
+- Imagem de 1,28 GB, build do zero em 74,7 s, partida de container entre 0,7 e 1,1 s.
+
+Três defeitos encontrados enquanto se provava isso, todos corrigidos:
+
+1. **O git recusava o worktree montado** com "detected dubious ownership". No Windows o Docker Desktop apresenta todo bind mount como `root:root` modo 0777 dentro do container, e o agente é uid 1000: ele escrevia o arquivo e não commitava, terminando o Run com sucesso aparente e espólio nenhum. A imagem passou a declarar os dois pontos de montagem como `safe.directory`.
+2. **A `environmentPolicy` do perfil não chegava ao container.** O mesmo Run enxergaria uma variável em Campo aberto e não em Masmorra selada.
+3. **Uma falha de provedor do Pi virava sucesso.** A CLI 0.85.1 fecha a mensagem com `stopReason: "error"` em vez de emitir linha `error`, e um 429 produzia `RunCompleted` com zero texto. Vale igual no host; estava escondido porque o provedor configurado lá respondia.
+
+Pendências da 2C:
+
+- **`pi@docker` não pôde ser verificado de ponta a ponta**: dentro do container o Pi cai no provedor `google` (a configuração de provedor do host não é montada, de propósito), e a `GEMINI_API_KEY` desta máquina está com a cota do free tier zerada — `limit: 0`. A falha é da conta, não do código, e agora aparece como `RunFailed` com a mensagem do provedor.
+- **`resume` entre Runs não foi provado no modo `DOCKER`.** A sessão da CLI vive dentro do container, e o `--rm` a leva embora. Vale investigar antes de prometer "Retomar a Expedição" em Masmorra selada.
+- **`ALLOWLIST` de rede não é imponível** sem um proxy no meio; hoje vira `Diagnostic` e `enforced: false`.
+- **`resourceLimits` ainda não tem campo no `ExecutionProfile`**; o backend já os aplica quando existirem.
 
 ## 2D — Observabilidade mínima de Run
 
