@@ -1,11 +1,6 @@
 import type { components } from "@dungeon-master/api-client";
 import type { TaskKind, TaskPriority, TaskStatus } from "@dungeon-master/contracts";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type UseQueryResult,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 import type { SortOrder, TaskSortField } from "@/lib/domain";
