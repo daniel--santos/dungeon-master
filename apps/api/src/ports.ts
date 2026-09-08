@@ -13,6 +13,7 @@ import type {
   ProjectStatus,
   Run,
   RunEvent,
+  RunListItem,
   SortOrder,
   Task,
   TaskDetail,
@@ -263,7 +264,7 @@ export interface RunStreamHandle {
 }
 
 export interface RunsPort {
-  list(input: PageRequest & { filters: RunFilters }): Promise<PageResult<Run>>;
+  list(input: PageRequest & { filters: RunFilters }): Promise<PageResult<RunListItem>>;
   get(runId: string): Promise<Run | null>;
   create(
     taskId: string,

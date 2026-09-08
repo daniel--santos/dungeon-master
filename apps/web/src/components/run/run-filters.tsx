@@ -39,9 +39,10 @@ export interface RunFiltersProps {
 /**
  * A barra de filtros da lista de Expedições.
  *
- * O estado mora na URL, como na lista de Tasks. `projectId` e `status` vão para
- * a API; o filtro por Harness é aplicado sobre a página, porque a rota ainda não
- * o aceita — e a tela diz isso em vez de fingir que o total mudou.
+ * O estado mora na URL, como na lista de Tasks, e os três filtros vão para a
+ * API: `projectId`, `status` e `harnessKey`. Por isso o contador da direita pode
+ * falar em `total` sem ressalva — ele conta o que o filtro deixa passar no
+ * banco, e não o que sobrou da página recebida.
  */
 export function RunFilters({
   value,

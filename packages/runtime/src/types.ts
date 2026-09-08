@@ -39,10 +39,52 @@ export type { EnforcementLevel, ExecutionMode, WorkspaceStrategy };
 export const PERMISSION_MODE_VALUES = ["DEFAULT", "CONFIGURED", "BYPASS"] as const;
 export type PermissionMode = (typeof PERMISSION_MODE_VALUES)[number];
 
+/** Quanto de execução de comando foi concedido, no vocabulário do domínio. */
+export const COMMAND_GRANT_VALUES = ["NONE", "ALLOWLIST"] as const;
+export type CommandGrant = (typeof COMMAND_GRANT_VALUES)[number];
+
+/**
+ * O que o agente pode fazer, dito **sem** o vocabulário de nenhuma CLI.
+ *
+ * É o degrau que faltava entre "vale o padrão da ferramenta" e "desliga tudo".
+ * Sem ele, `commandExecution: ALL` só tinha dois destinos possíveis, e os dois
+ * erravam: o modo de auto-aprovação de edições não deixa o agente commitar, e
+ * `bypass` entrega a máquina inteira.
+ *
+ * A divisão de responsabilidade é a mesma de sempre: **o worker decide o que
+ * conceder**, porque isso é regra de domínio; **o adapter traduz a concessão
+ * para os argumentos da CLI dele**, porque isso é vocabulário de ferramenta.
+ * Sem ela, ou o worker passaria a escrever `Bash(git:*)` — e a saber o que é
+ * Claude Code —, ou cada adapter decidiria sozinho o que "executar qualquer
+ * comando" significa, e decidiria diferente.
+ *
+ * Não existe concessão "todos os comandos". Um agente sem barreira nenhuma é
+ * `BYPASS`, que tem porta própria e exige opt-in visível.
+ */
+export interface PermissionGrant {
+  /** O agente pode criar, editar e apagar arquivos no diretório de trabalho. */
+  readonly workspaceWrite: boolean;
+  readonly commandExecution: CommandGrant;
+  /**
+   * Prefixos de comando liberados, como se digitados num shell: `git`,
+   * `pnpm test`, `node`. Cada adapter converte para o formato dele.
+   */
+  readonly allowedCommands: readonly string[];
+  /** Prefixos recusados mesmo dentro do que foi liberado. */
+  readonly deniedCommands: readonly string[];
+}
+
 export interface RuntimePermissionPolicy {
   readonly mode: PermissionMode;
   /** Modo nativo do harness, usado quando `mode` é `CONFIGURED`. */
   readonly harnessMode?: string;
+  /**
+   * A concessão que o adapter traduz em allow-list de ferramenta.
+   *
+   * Só é lida em `CONFIGURED`: em `DEFAULT` vale o padrão da CLI, e em `BYPASS`
+   * não há o que restringir.
+   */
+  readonly grant?: PermissionGrant;
   /**
    * Autoriza `BYPASS` fora de um ambiente com isolamento imposto.
    *

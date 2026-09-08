@@ -231,6 +231,15 @@ export const DiagnosticEventSchema = z
     ...executionEventBase,
     level: DiagnosticLevelSchema,
     source: DiagnosticSourceSchema,
+    code: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Código estável do diagnóstico, quando ele é um fato sobre o qual alguém " +
+          "decide algo — `PERMISSION_DENIED`, por exemplo. Existe para que o Worker e a " +
+          "interface reajam sem interpretar a frase, que muda de versão para versão.",
+      ),
     message: z.string().describe("Texto do diagnóstico."),
     detail: z.string().optional().describe("Corpo longo, quando houver."),
   })

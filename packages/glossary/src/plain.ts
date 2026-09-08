@@ -137,6 +137,10 @@ export const plain: Record<GlossaryKey, string> = {
   "workspaceStrategy.gitWorktree": "Worktree por execução",
   "workspaceStrategy.copy": "Cópia do diretório",
 
+  // ---------------------------------------------------------- workspaceKind
+  "workspaceKind.gitRepo": "Repositório git",
+  "workspaceKind.folder": "Pasta comum",
+
   // ----------------------------------------------------- harness.capability
   "harness.capability.streaming": "Saída incremental",
   "harness.capability.structuredOutput": "Saída estruturada",

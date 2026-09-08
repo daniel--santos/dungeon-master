@@ -208,13 +208,29 @@ export const RunStatusFilterSchema = z
 export const RunListQuerySchema = PageQuerySchema.extend({
   taskId: z.uuid().optional().describe("Só os Runs desta Task."),
   projectId: z.uuid().optional().describe("Só os Runs das Tasks deste Project."),
+  harnessKey: HarnessKeySchema.optional().describe("Só os Runs executados por este Harness."),
   status: RunStatusFilterSchema,
 }).meta({ id: "RunListQuery" });
 
 export type RunListQuery = z.infer<typeof RunListQuerySchema>;
 
+/**
+ * Um Run na listagem, com o título da Task junto.
+ *
+ * O título vem por junção, como `projectId`, e pelo mesmo motivo que a listagem
+ * de Projects devolve `ProjectDetail`: a tabela mostra o título em toda linha, e
+ * sem ele na resposta a tela faria uma leitura por linha — vinte Runs na página
+ * viravam vinte requisições. `GET /runs/{id}` continua devolvendo `Run`: o
+ * cockpit lê a Task inteira de qualquer jeito, para o status e as subtarefas.
+ */
+export const RunListItemSchema = RunSchema.extend({
+  taskTitle: z.string().describe("Título da Task no momento da leitura. Vem por junção."),
+}).meta({ id: "RunListItem", description: "Um Run na listagem, com o título da Task." });
+
+export type RunListItem = z.infer<typeof RunListItemSchema>;
+
 export const RunPageSchema = paginatedSchema(
-  RunSchema,
+  RunListItemSchema,
   "RunPage",
   "Uma página de Runs, do mais recente para o mais antigo.",
 );

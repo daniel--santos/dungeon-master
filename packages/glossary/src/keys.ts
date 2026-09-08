@@ -152,6 +152,13 @@ export const GLOSSARY_KEYS = [
   "workspaceStrategy.gitWorktree",
   "workspaceStrategy.copy",
 
+  // ---------------------------------------------------------- workspaceKind
+  // Que tipo de diretório o Project aponta. Não é tematizado: "repositório
+  // git" é o que habilita a estratégia de worktree, e um sinônimo de fantasia
+  // aqui esconderia justamente a informação que decide se ela funciona.
+  "workspaceKind.gitRepo",
+  "workspaceKind.folder",
+
   // ----------------------------------------------------- harness.capability
   // Os onze campos de `HarnessCapabilities`, na ordem do contrato.
   "harness.capability.streaming",

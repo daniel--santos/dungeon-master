@@ -1,6 +1,8 @@
 import {
+  type HarnessKey,
   type Run,
   type RunError,
+  type RunListItem,
   type RunResult,
   type RunStatus,
   type WorkspaceKind,
@@ -128,6 +130,7 @@ export async function getRun(
 export interface RunFilters {
   taskId?: string | undefined;
   projectId?: string | undefined;
+  harnessKey?: HarnessKey | undefined;
   status?: readonly RunStatus[] | undefined;
 }
 
@@ -142,16 +145,22 @@ export interface ListRunsInput extends PageInput {
  * O desempate por `id` é obrigatório e vem na mesma direção: sem ele, dois Runs
  * criados no mesmo milissegundo poderiam trocar de lugar entre uma página e a
  * seguinte, e um apareceria duas vezes ou nenhuma.
+ *
+ * O título da Task sai na mesma junção que já traz o `projectId`. Ele custa uma
+ * coluna e poupa uma leitura por linha na tabela da web; o `total` do rodapé
+ * também passa a considerar o filtro por Harness, que antes era aplicado só
+ * sobre a página recebida.
  */
 export async function listRuns(
   db: DatabaseExecutor,
   input: ListRunsInput,
-): Promise<PageResult<Run>> {
+): Promise<PageResult<RunListItem>> {
   const filters = input.filters ?? {};
   const conditions: SQL[] = [eq(runs.userId, input.userId)];
 
   if (filters.taskId !== undefined) conditions.push(eq(runs.taskId, filters.taskId));
   if (filters.projectId !== undefined) conditions.push(eq(tasks.projectId, filters.projectId));
+  if (filters.harnessKey !== undefined) conditions.push(eq(runs.harnessKey, filters.harnessKey));
   if (filters.status !== undefined && filters.status.length > 0) {
     conditions.push(inArray(runs.status, [...filters.status]));
   }
@@ -159,7 +168,7 @@ export async function listRuns(
   const where = and(...conditions);
 
   const rows = await db
-    .select({ run: runs, projectId: tasks.projectId })
+    .select({ run: runs, projectId: tasks.projectId, taskTitle: tasks.title })
     .from(runs)
     .innerJoin(tasks, eq(tasks.id, runs.taskId))
     .where(where)
@@ -174,7 +183,7 @@ export async function listRuns(
     .where(where);
 
   return {
-    items: rows.map((row) => toRun(row.run, row.projectId)),
+    items: rows.map((row) => ({ ...toRun(row.run, row.projectId), taskTitle: row.taskTitle })),
     total: counted?.total ?? 0,
   };
 }

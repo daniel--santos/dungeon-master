@@ -16,7 +16,13 @@
 import type { ExecutionEventOf, HarnessKey, UsageSummary } from "@dungeon-master/contracts";
 
 import type { HarnessCapabilities } from "./capabilities.js";
-import type { EnforcementLevel, ExecutionMode, ModelRef, PermissionMode } from "./types.js";
+import type {
+  EnforcementLevel,
+  ExecutionMode,
+  ModelRef,
+  PermissionGrant,
+  PermissionMode,
+} from "./types.js";
 
 /**
  * Os eventos que um adapter emite enquanto o agente trabalha.
@@ -73,11 +79,28 @@ export function isHarnessFinished(event: HarnessEvent): event is HarnessFinished
   return event.type === "HarnessFinished";
 }
 
+/**
+ * Código do `Diagnostic` que um adapter emite quando o harness nega uma
+ * ferramenta.
+ *
+ * Mora aqui, e não em cada adapter, porque quem reage a ele é o Worker: um
+ * código por harness obrigaria o Worker a conhecer os três. É também o que
+ * permite ao harness falso produzir a mesma situação sem CLI instalada.
+ */
+export const PERMISSION_DENIED_DIAGNOSTIC_CODE = "PERMISSION_DENIED";
+
 /** Política de permissão já resolvida pelo runtime, pronta para virar argv. */
 export interface ResolvedPermission {
   readonly mode: PermissionMode;
   /** Modo nativo do harness, quando `mode` é `CONFIGURED`. */
   readonly harnessMode?: string;
+  /**
+   * O que foi concedido, sem vocabulário de CLI. O adapter traduz.
+   *
+   * Presente em `CONFIGURED`. Ausente significa "vale o padrão da ferramenta",
+   * que é o que `DEFAULT` quer dizer.
+   */
+  readonly grant?: PermissionGrant;
   /** O nível que a UI vai mostrar depois que o adapter montar o comando. */
   readonly enforcement: EnforcementLevel;
 }

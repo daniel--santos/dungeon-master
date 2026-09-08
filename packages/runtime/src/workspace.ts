@@ -109,6 +109,28 @@ export interface CommitRef {
   readonly subject: string;
 }
 
+/** O que aconteceu com um arquivo durante o Run. */
+export const WORKSPACE_CHANGE_VALUES = ["ADDED", "MODIFIED", "DELETED", "RENAMED"] as const;
+export type WorkspaceChangeKind = (typeof WORKSPACE_CHANGE_VALUES)[number];
+
+export interface WorkspaceChange {
+  /** Caminho relativo à raiz do worktree, com `/` como separador (formato do git). */
+  readonly path: string;
+  readonly change: WorkspaceChangeKind;
+  /**
+   * Hash do blob depois da mudança, quando o git já o tinha calculado.
+   *
+   * Presente no que foi commitado, porque `git diff --raw` traz o hash de
+   * graça. Ausente no que ficou só na área de trabalho: ali o hash custaria um
+   * `git hash-object` por arquivo, e o preço não paga o campo.
+   */
+  readonly sha?: string;
+  /** Tamanho em bytes, quando o arquivo ainda existe. */
+  readonly bytes?: number;
+  /** Caminho anterior, num `RENAMED`. */
+  readonly previousPath?: string;
+}
+
 export interface WorkspaceManagerOptions {
   /**
    * Onde os worktrees ficam. Padrão:
@@ -128,6 +150,14 @@ export interface WorkspaceManager {
   hasUncommittedChanges(path: string): Promise<boolean>;
   /** Commits feitos no worktree depois de `baseCommit`, do mais antigo ao mais novo. */
   collectCommits(path: string, baseCommit: string): Promise<readonly CommitRef[]>;
+  /**
+   * Arquivos que o Run mexeu, commitados ou não, em relação a `baseCommit`.
+   *
+   * É de onde saem os `Artifact` de um harness que não os emite sozinho. Sem
+   * isto, só o Codex produziria espólios, e a mesma tarefa deixaria rastro
+   * diferente conforme a Guilda escolhida.
+   */
+  collectChanges(path: string, baseCommit: string): Promise<readonly WorkspaceChange[]>;
   /** O caminho onde o worktree de um Run ficaria. Não toca no disco. */
   worktreePathFor(repoPath: string, runId: string): string;
   /** O nome da branch de um Run. */
@@ -254,6 +284,56 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions = {}): W
       return { removed: true, keptBecauseDirty: false };
     },
 
+    collectChanges: async (path, baseCommit) => {
+      const target = normalizeAbsolutePath(path);
+
+      // Duas leituras, porque são duas perguntas: o que virou commit e o que
+      // ficou na área de trabalho. Um Run que commitou tudo responde só a
+      // primeira; um que foi cancelado no meio, só a segunda.
+      const commitadas = parseDiffRaw(
+        // `--abbrev=40` porque o padrão de `--raw` é abreviar para sete
+        // caracteres, e um hash abreviado não serve para buscar o blob depois.
+        await git(
+          ["diff", "--raw", "--abbrev=40", "--no-renames", "-z", `${baseCommit}..HEAD`],
+          target,
+        ),
+      );
+      const naArvore = parseStatusPorcelain(
+        await git(["status", "--porcelain=v1", "-z", "--untracked-files=all"], target),
+      );
+
+      // O estado da árvore ganha do que foi commitado no mesmo caminho: ele é
+      // mais recente. Um arquivo commitado e depois apagado é `DELETED`, não
+      // `ADDED`.
+      const porCaminho = new Map<string, WorkspaceChange>();
+      for (const mudanca of commitadas) porCaminho.set(mudanca.path, mudanca);
+      for (const mudanca of naArvore) {
+        const anterior = porCaminho.get(mudanca.path);
+        porCaminho.set(mudanca.path, {
+          ...mudanca,
+          // O hash veio do commit e continua valendo para quem quiser buscar o
+          // conteúdo commitado, mesmo que a árvore tenha mudado depois.
+          ...(anterior?.sha === undefined || mudanca.change === "DELETED"
+            ? {}
+            : { sha: anterior.sha }),
+        });
+      }
+
+      const resultado: WorkspaceChange[] = [];
+      for (const mudanca of [...porCaminho.values()].sort((a, b) => a.path.localeCompare(b.path))) {
+        if (mudanca.change === "DELETED") {
+          resultado.push(mudanca);
+          continue;
+        }
+        // `stat` é barato e local; o tamanho é o que faz um espólio parecer um
+        // arquivo em vez de um caminho solto na tela.
+        const bytes = await fileSize(join(target, mudanca.path));
+        resultado.push(bytes === undefined ? mudanca : { ...mudanca, bytes });
+      }
+
+      return resultado;
+    },
+
     collectCommits: async (path, baseCommit) => {
       const target = normalizeAbsolutePath(path);
       // `%x00` como separador: assunto de commit pode conter qualquer coisa
@@ -282,6 +362,124 @@ async function pathExists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Tamanho do arquivo, ou `undefined` quando ele não existe mais ou é diretório. */
+async function fileSize(path: string): Promise<number | undefined> {
+  try {
+    const info = await stat(path);
+    return info.isFile() ? info.size : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Letra de status do git para o nosso vocabulário. */
+function toChangeKind(letra: string): WorkspaceChangeKind {
+  switch (letra) {
+    case "A":
+    case "?":
+      return "ADDED";
+    case "D":
+      return "DELETED";
+    case "R":
+      return "RENAMED";
+    default:
+      // `M`, `T` (mudou o tipo), `C` (copiado) e o que o git inventar depois.
+      // Chamar de modificado é verdade em todos e não inventa categoria.
+      return "MODIFIED";
+  }
+}
+
+/**
+ * `git diff --raw -z` de `<base>..HEAD`.
+ *
+ * O formato é `:<modo antigo> <modo novo> <sha antigo> <sha novo> <status>\0<caminho>\0`,
+ * e o `-z` existe para o caminho não precisar de desescape: nome de arquivo com
+ * espaço, acento ou aspas passa intacto, e um `split` por linha não passaria.
+ */
+export function parseDiffRaw(saida: string): WorkspaceChange[] {
+  const campos = saida.split("\0");
+  const mudancas: WorkspaceChange[] = [];
+
+  for (let i = 0; i < campos.length; i += 1) {
+    const cabecalho = campos[i];
+    if (cabecalho === undefined || !cabecalho.startsWith(":")) continue;
+
+    const partes = cabecalho.slice(1).trim().split(/\s+/);
+    const status = partes[4] ?? "";
+    const shaNovo = partes[3] ?? "";
+    const change = toChangeKind(status.charAt(0));
+
+    const caminho = campos[i + 1];
+    if (caminho === undefined || caminho.length === 0) continue;
+    i += 1;
+
+    // `R` e `C` trazem dois caminhos: origem e destino, nessa ordem.
+    let previousPath: string | undefined;
+    let alvo = caminho;
+    if (status.startsWith("R") || status.startsWith("C")) {
+      const destino = campos[i + 1];
+      if (destino !== undefined && destino.length > 0) {
+        previousPath = caminho;
+        alvo = destino;
+        i += 1;
+      }
+    }
+
+    mudancas.push({
+      path: alvo,
+      change,
+      // Um sha só de zeros é o "não existe deste lado" do git.
+      ...(/^0+$/.test(shaNovo) || shaNovo.length === 0 ? {} : { sha: shaNovo }),
+      ...(previousPath === undefined ? {} : { previousPath }),
+    });
+  }
+
+  return mudancas;
+}
+
+/**
+ * `git status --porcelain=v1 -z`.
+ *
+ * Cada registro é `XY <caminho>\0`, e um rename traz o caminho de origem num
+ * registro extra logo depois. `X` é o índice e `Y` a árvore de trabalho; o que
+ * interessa aqui é "mudou de alguma forma", então vale a primeira letra que não
+ * for espaço.
+ */
+export function parseStatusPorcelain(saida: string): WorkspaceChange[] {
+  const registros = saida.split("\0");
+  const mudancas: WorkspaceChange[] = [];
+
+  for (let i = 0; i < registros.length; i += 1) {
+    const registro = registros[i];
+    if (registro === undefined || registro.length < 4) continue;
+
+    const indice = registro.charAt(0);
+    const arvore = registro.charAt(1);
+    const caminho = registro.slice(3);
+    if (caminho.length === 0) continue;
+
+    const letra = indice !== " " && indice !== "?" ? indice : arvore;
+    const change = toChangeKind(letra === " " ? indice : letra);
+
+    let previousPath: string | undefined;
+    if (indice === "R" || arvore === "R") {
+      const origem = registros[i + 1];
+      if (origem !== undefined && origem.length > 0) {
+        previousPath = origem;
+        i += 1;
+      }
+    }
+
+    mudancas.push({
+      path: caminho,
+      change,
+      ...(previousPath === undefined ? {} : { previousPath }),
+    });
+  }
+
+  return mudancas;
 }
 
 /**

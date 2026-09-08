@@ -68,6 +68,8 @@ export type HarnessSignal =
       readonly level: DiagnosticLevel;
       readonly message: string;
       readonly detail?: string;
+      /** Código estável, quando o diagnóstico é um fato acionável. */
+      readonly code?: string;
     }
   | {
       readonly kind: "artifact";
@@ -259,6 +261,7 @@ export function createHostAdapter(definition: HostAdapterDefinition): HarnessAda
                 type: "Diagnostic",
                 level: parsed.level,
                 source: "HARNESS",
+                ...(parsed.code === undefined ? {} : { code: parsed.code }),
                 message: parsed.message,
                 ...(parsed.detail === undefined ? {} : { detail: parsed.detail }),
               });
