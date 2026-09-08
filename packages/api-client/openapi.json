@@ -4554,6 +4554,519 @@
           "message"
         ],
         "description": "Um problema de validação do catálogo."
+      },
+      "AchievementListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AchievementListItem"
+            },
+            "description": "As Conquistas que casam com o filtro."
+          },
+          "counts": {
+            "$ref": "#/components/schemas/AchievementCounts"
+          }
+        },
+        "required": [
+          "items",
+          "counts"
+        ],
+        "description": "As Conquistas do usuário e a contagem por estado, sempre sobre o total."
+      },
+      "AchievementListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da definição gravada."
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "CATALOG",
+              "TEMPLATE",
+              "FORGED"
+            ],
+            "description": "Quem definiu: catálogo, template ou forjada."
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A chave do catálogo ou do template. Nula numa forjada."
+          },
+          "scopeType": {
+            "type": "string",
+            "enum": [
+              "GLOBAL",
+              "PROJECT",
+              "HARNESS",
+              "AGENT",
+              "TASK"
+            ],
+            "description": "A que a Conquista está presa."
+          },
+          "scopeId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Id do Project/Agent/Task, ou a chave do Harness."
+          },
+          "scopeLabel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nome atual da entidade do escopo, resolvido na leitura."
+          },
+          "name": {
+            "type": "object",
+            "properties": {
+              "theme": {
+                "type": "string",
+                "description": "A versão temática, com a voz do Dungeon Master."
+              },
+              "plain": {
+                "type": "string",
+                "description": "A versão sóbria, para o tema desligado."
+              }
+            },
+            "required": [
+              "theme",
+              "plain"
+            ],
+            "description": "Já formatado: o placeholder de um template é trocado pelo nome atual da entidade, para a Conquista acompanhar uma renomeação."
+          },
+          "description": {
+            "type": "object",
+            "properties": {
+              "theme": {
+                "type": "string",
+                "description": "A versão temática, com a voz do Dungeon Master."
+              },
+              "plain": {
+                "type": "string",
+                "description": "A versão sóbria, para o tema desligado."
+              }
+            },
+            "required": [
+              "theme",
+              "plain"
+            ]
+          },
+          "flavor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Só existe no tema; com ele desligado, fica oculto."
+          },
+          "icon": {
+            "type": "string",
+            "description": "Nome do ícone do lucide, em kebab-case."
+          },
+          "rarity": {
+            "type": "string",
+            "enum": [
+              "COMMON",
+              "RARE",
+              "EPIC",
+              "LEGENDARY"
+            ],
+            "description": "Raridade do tier corrente, que pode subir com ele."
+          },
+          "hidden": {
+            "type": "boolean",
+            "description": "Nasce oculta? Vira visível no primeiro progresso."
+          },
+          "state": {
+            "$ref": "#/components/schemas/AchievementState"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/AchievementTier"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/AchievementProgress"
+          },
+          "unlockedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Instante do último desbloqueio, em UTC."
+          }
+        },
+        "required": [
+          "id",
+          "origin",
+          "key",
+          "scopeType",
+          "scopeId",
+          "scopeLabel",
+          "name",
+          "description",
+          "flavor",
+          "icon",
+          "rarity",
+          "hidden",
+          "state",
+          "tier",
+          "progress",
+          "unlockedAt"
+        ],
+        "description": "Uma Conquista do usuário, com progresso e estado calculado."
+      },
+      "AchievementState": {
+        "type": "string",
+        "enum": [
+          "LOCKED",
+          "HIDDEN",
+          "IN_PROGRESS",
+          "UNLOCKED"
+        ],
+        "description": "Estado calculado de uma Conquista: bloqueada, oculta (sem progresso), em progresso ou desbloqueada. Derivado, nunca gravado."
+      },
+      "AchievementTier": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Maior tier já desbloqueado. `0` quando nenhum foi."
+          },
+          "total": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Quantos tiers a condição tem. `1` é o comum."
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Rótulo do tier corrente (`I`, `II`, `III`). Nulo quando há um tier só."
+          }
+        },
+        "required": [
+          "current",
+          "total",
+          "label"
+        ],
+        "description": "O tier corrente de uma Conquista."
+      },
+      "AchievementProgress": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Quanto já foi feito."
+          },
+          "target": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "O limiar do próximo tier."
+          },
+          "percent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "`current/target`, limitado a 100."
+          }
+        },
+        "required": [
+          "current",
+          "target",
+          "percent"
+        ],
+        "description": "Progresso de uma Conquista, para a barra."
+      },
+      "AchievementCounts": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Todas as Conquistas do usuário."
+          },
+          "unlocked": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "inProgress": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "locked": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hidden": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "total",
+          "unlocked",
+          "inProgress",
+          "locked",
+          "hidden"
+        ],
+        "description": "Contagem por estado, sempre sobre o conjunto inteiro, ignorando os filtros."
+      },
+      "AchievementUnlockPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AchievementUnlock"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página da crônica, do desbloqueio mais recente para o mais antigo."
+      },
+      "AchievementUnlock": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do desbloqueio."
+          },
+          "definitionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "CATALOG",
+              "TEMPLATE",
+              "FORGED"
+            ]
+          },
+          "name": {
+            "type": "object",
+            "properties": {
+              "theme": {
+                "type": "string",
+                "description": "A versão temática, com a voz do Dungeon Master."
+              },
+              "plain": {
+                "type": "string",
+                "description": "A versão sóbria, para o tema desligado."
+              }
+            },
+            "required": [
+              "theme",
+              "plain"
+            ]
+          },
+          "icon": {
+            "type": "string"
+          },
+          "rarity": {
+            "type": "string",
+            "enum": [
+              "COMMON",
+              "RARE",
+              "EPIC",
+              "LEGENDARY"
+            ]
+          },
+          "tier": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Qual limiar foi cruzado. `1` no caso comum."
+          },
+          "tierLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Run que causou o desbloqueio, quando houve um."
+          },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "unlockedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante do **fato** que desbloqueou, não o da gravação. É por isso que uma reconstrução produz a mesma crônica, com as mesmas datas."
+          },
+          "seenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Nulo até o usuário ver o toast ou a crônica."
+          }
+        },
+        "required": [
+          "id",
+          "definitionId",
+          "key",
+          "origin",
+          "name",
+          "icon",
+          "rarity",
+          "tier",
+          "tierLabel",
+          "runId",
+          "taskId",
+          "unlockedAt",
+          "seenAt"
+        ],
+        "description": "Um desbloqueio, com a Conquista resolvida."
+      },
+      "HeroStatsResponse": {
+        "type": "object",
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HeroStats"
+            },
+            "description": "Por Agent, do mais experiente para o menos."
+          },
+          "loadouts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HeroStats"
+            },
+            "description": "Por Loadout, na mesma ordem."
+          }
+        },
+        "required": [
+          "agents",
+          "loadouts"
+        ],
+        "description": "As estatísticas de Herói e de Equipamento, ambas projeção."
+      },
+      "HeroStats": {
+        "type": "object",
+        "properties": {
+          "scopeId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Id do Agent ou do Loadout."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nome atual. Nulo quando a entidade foi apagada."
+          },
+          "xp": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Experiência acumulada."
+          },
+          "level": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Nível derivado da experiência por fórmula fixa."
+          },
+          "xpToNextLevel": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Quanto falta para o próximo nível."
+          },
+          "expeditions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Runs terminados: vitórias, derrotas e cancelamentos."
+          },
+          "victories": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "defeats": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Runs em FAILED ou TIMED_OUT."
+          },
+          "monstersSlain": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Runs vitoriosos que concluíram uma Task `BUG`."
+          },
+          "tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tokens somados dos eventos `Usage`."
+          },
+          "topHarness": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Harness mais usado. Empate desfeito pela ordem alfabética."
+          }
+        },
+        "required": [
+          "scopeId",
+          "name",
+          "xp",
+          "level",
+          "xpToNextLevel",
+          "expeditions",
+          "victories",
+          "defeats",
+          "monstersSlain",
+          "tokens",
+          "topHarness"
+        ],
+        "description": "O acumulado de um Agent ou de um Loadout."
       }
     },
     "parameters": {}
@@ -7357,6 +7870,206 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AchievementCatalog"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/achievements": {
+      "get": {
+        "tags": [
+          "achievements"
+        ],
+        "summary": "As Conquistas do usuário, com progresso",
+        "description": "A projeção que o Worker mantém: catálogo carregado, templates já instanciados, progresso, tier e estado calculado. `state` é derivado em toda leitura e nunca é coluna. `counts` ignora os filtros de propósito: é o 'desbloqueadas de N' que fica ao lado deles.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CATALOG",
+                "TEMPLATE",
+                "FORGED"
+              ],
+              "description": "Só as Conquistas desta origem."
+            },
+            "required": false,
+            "description": "Só as Conquistas desta origem.",
+            "name": "origin",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "COMMON",
+                "RARE",
+                "EPIC",
+                "LEGENDARY"
+              ],
+              "description": "Raridade do tier corrente."
+            },
+            "required": false,
+            "description": "Raridade do tier corrente.",
+            "name": "rarity",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOCKED",
+                "HIDDEN",
+                "IN_PROGRESS",
+                "UNLOCKED"
+              ],
+              "description": "Só as neste estado."
+            },
+            "required": false,
+            "description": "Só as neste estado.",
+            "name": "state",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "As Conquistas e a contagem por estado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AchievementListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/achievements/unlocks": {
+      "get": {
+        "tags": [
+          "achievements"
+        ],
+        "summary": "A crônica de desbloqueios",
+        "description": "Do mais recente para o mais antigo. O desempate é por id descendente, que em UUIDv7 é a ordem de inserção: sem ele, dois desbloqueios do mesmo instante — o que acontece quando um fato cruza dois limiares — poderiam trocar de lugar entre páginas.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página da crônica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AchievementUnlockPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paginação inválida.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/achievements/unlocks/{id}/seen": {
+      "post": {
+        "tags": [
+          "achievements"
+        ],
+        "summary": "Marca um desbloqueio como visto",
+        "description": "Idempotente: marcar de novo devolve o mesmo `seenAt` em vez de reescrevê-lo. É o que apaga o destaque de novo no Hall depois do toast.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do desbloqueio."
+            },
+            "required": true,
+            "description": "UUIDv7 do desbloqueio.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O desbloqueio, já marcado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AchievementUnlock"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe desbloqueio com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/heroes/stats": {
+      "get": {
+        "tags": [
+          "heroes"
+        ],
+        "summary": "As estatísticas de Herói e de Equipamento",
+        "description": "Projeção, como tudo na Fase 2.5, e cosmética: nenhuma funcionalidade depende de nível. Os nomes vêm por junção na leitura, então acompanham uma renomeação; ficam nulos quando a entidade foi apagada.",
+        "responses": {
+          "200": {
+            "description": "Os acumulados por Agent e por Loadout.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeroStatsResponse"
                 }
               }
             }
