@@ -70,6 +70,7 @@ const EXPEDICAO_GUIADA: WorkflowDefinition = WorkflowDefinitionSchema.parse({
 const RUN: WorkflowRunContext = {
   runId: RUN_ID,
   harnessKey: "CLAUDE_CODE",
+  prompt: "Criar o CHANGELOG.md do projeto.",
   checkoutPath: process.platform === "win32" ? "C:\\checkout" : "/checkout",
   workspaceStrategy: "GIT_WORKTREE",
   executionMode: "HOST",
@@ -160,8 +161,14 @@ describe("Expedição guiada", () => {
     expect(h.store.runStatus).toBe("WAITING_APPROVAL");
     expect(h.store.gates).toHaveLength(1);
 
-    // O prompt do plano leva o resultado da análise, em texto claro.
+    // Todo passo de agente recebe a Task na frente; o do plano leva também o
+    // resultado da análise, em texto claro.
+    const pedidoDaAnalise = h.agent.requests.find((request) => request.stepKey === "analyze");
+    expect(pedidoDaAnalise?.prompt.startsWith("# Tarefa\n\nCriar o CHANGELOG.md do projeto.")).toBe(
+      true,
+    );
     const pedidoDoPlano = h.agent.requests.find((request) => request.stepKey === "plan");
+    expect(pedidoDoPlano?.prompt).toContain("Criar o CHANGELOG.md do projeto.");
     expect(pedidoDoPlano?.prompt).toContain("Escreva o plano.");
     expect(pedidoDoPlano?.prompt).toContain("«Analisar» (analyze)");
     expect(pedidoDoPlano?.prompt).toContain("Análise feita.");

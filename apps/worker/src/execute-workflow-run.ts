@@ -138,6 +138,7 @@ export async function executeWorkflowRun(deps: ExecuteRunDeps, claimed: ClaimedR
       run: {
         runId: run.id,
         harnessKey: harness,
+        prompt: run.prompt,
         checkoutPath,
         workspaceStrategy: strategy,
         executionMode: run.executionMode,

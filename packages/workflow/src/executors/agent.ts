@@ -44,7 +44,7 @@ export const agentStepExecutor: StepExecutor<AgentStepDefinition> = {
       context.stepsByKey,
       context.definitionsByKey,
     );
-    const prompt = buildStepPrompt(definition.prompt, outputs);
+    const prompt = buildStepPrompt(definition.prompt, outputs, { taskPrompt: run.prompt });
 
     let sessionId: string | undefined;
     let usage: UsageSummary | undefined;

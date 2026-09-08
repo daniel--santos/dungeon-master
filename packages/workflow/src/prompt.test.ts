@@ -3,8 +3,27 @@ import { describe, expect, it } from "vitest";
 import { buildStepPrompt, describeStepOutput, OUTPUT_TAIL_IN_PROMPT_CHARS } from "./prompt.js";
 
 describe("buildStepPrompt", () => {
-  it("sem includeOutputsOf devolve o prompt literal", () => {
+  it("sem Task nem includeOutputsOf devolve o prompt literal", () => {
     expect(buildStepPrompt("Faça.", [])).toBe("Faça.");
+  });
+
+  it("a Task do Run vem antes das instruções do passo", () => {
+    const prompt = buildStepPrompt("Analise a tarefa.", [], {
+      taskPrompt: "Criar CHANGELOG.md\n\nCom uma entrada Unreleased.",
+    });
+    expect(prompt).toBe(
+      [
+        "# Tarefa",
+        "",
+        "Criar CHANGELOG.md",
+        "",
+        "Com uma entrada Unreleased.",
+        "",
+        "# Este passo",
+        "",
+        "Analise a tarefa.",
+      ].join("\n"),
+    );
   });
 
   it("anexa uma seção por step referenciado, sem substituir placeholder", () => {

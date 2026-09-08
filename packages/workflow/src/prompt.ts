@@ -24,19 +24,35 @@ export interface StepOutputView {
   readonly error: RunStep["error"];
 }
 
-export function buildStepPrompt(prompt: string, outputs: readonly StepOutputView[]): string {
-  if (outputs.length === 0) return prompt;
+export function buildStepPrompt(
+  prompt: string,
+  outputs: readonly StepOutputView[],
+  options: { readonly taskPrompt?: string | undefined } = {},
+): string {
+  const tarefa = options.taskPrompt?.trim() ?? "";
+  const linhas: string[] = [];
 
-  const secoes = outputs.map(describeStepOutput);
-  return [
-    prompt.trimEnd(),
-    "",
-    "---",
-    "",
-    "Resultados de passos anteriores deste Workflow, para referência:",
-    "",
-    ...secoes,
-  ].join("\n");
+  // A Task vem primeiro: é o que o agente precisa saber antes de qualquer
+  // instrução do passo. Sem Task (um Workflow rodado sem Run, nos testes), o
+  // prompt do passo é o texto inteiro, como antes.
+  if (tarefa.length > 0) {
+    linhas.push("# Tarefa", "", tarefa, "", "# Este passo", "", prompt.trimEnd());
+  } else {
+    linhas.push(prompt.trimEnd());
+  }
+
+  if (outputs.length > 0) {
+    linhas.push(
+      "",
+      "---",
+      "",
+      "Resultados de passos anteriores deste Workflow, para referência:",
+      "",
+      ...outputs.map(describeStepOutput),
+    );
+  }
+
+  return linhas.join("\n");
 }
 
 /** Uma seção do prompt, por step referenciado. */

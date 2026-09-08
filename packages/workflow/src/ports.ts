@@ -39,6 +39,14 @@ import type {
 export interface WorkflowRunContext {
   readonly runId: string;
   readonly harnessKey: HarnessKey;
+  /**
+   * O prompt do Run: a Task como o usuário a descreveu.
+   *
+   * Vai na frente do prompt de **todo** step de agente. Sem ele, cada passo
+   * receberia só o texto genérico da definição ("analise a tarefa") e nenhum
+   * agente saberia qual tarefa é — foi o que a primeira prova manual mostrou.
+   */
+  readonly prompt: string;
   /** Diretório onde os steps agem: o worktree do Run, ou o checkout do usuário. */
   readonly checkoutPath: string;
   readonly workspaceStrategy: WorkspaceStrategy;
