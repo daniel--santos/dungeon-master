@@ -6,6 +6,7 @@ import {
 } from "@dungeon-master/contracts";
 import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
+import { HTTPException } from "hono/http-exception";
 import { streamSSE } from "hono/streaming";
 
 import { requestId } from "hono/request-id";
@@ -36,6 +37,8 @@ import {
   buildProblem,
   HttpProblem,
   problemResponse,
+  problemTitleForStatus,
+  problemTypeForStatus,
   ProblemType,
   toValidationIssues,
 } from "./problem.js";
@@ -345,6 +348,38 @@ export function createApp(options: CreateAppOptions) {
           instance,
           requestId: id,
           errors: error.errors,
+        }),
+      );
+    }
+
+    // Erros que o Hono levanta antes de qualquer handler nosso: corpo que não é
+    // JSON válido, `content-type` errado, corpo grande demais. Eles já sabem o
+    // status certo, e tratá-los como erro inesperado devolvia `500` para o que é
+    // culpa da requisição — o cliente via "erro interno" e ficava sem saber que
+    // bastava corrigir o corpo.
+    if (error instanceof HTTPException) {
+      const status = error.status;
+      const cliente = status < 500;
+
+      logger?.[cliente ? "warn" : "error"](
+        { requestId: id, err: error, status },
+        "exceção HTTP do framework",
+      );
+
+      return problemResponse(
+        c,
+        buildProblem({
+          status,
+          type: problemTypeForStatus(status),
+          title: problemTitleForStatus(status),
+          // A mensagem do Hono descreve o que veio errado na requisição
+          // ("Malformed JSON in request body") e é segura de mostrar. Num `5xx`
+          // ela pode carregar detalhe interno, e aí vale a regra de sempre.
+          detail: cliente
+            ? error.message
+            : "A requisição falhou por um erro inesperado. Consulte os logs pelo requestId.",
+          instance,
+          requestId: id,
         }),
       );
     }

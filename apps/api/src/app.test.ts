@@ -1,4 +1,5 @@
 import { HealthResponseSchema, ProblemDetailsSchema } from "@dungeon-master/contracts";
+import { HTTPException } from "hono/http-exception";
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "./app.js";
@@ -60,6 +61,43 @@ describe("erros", () => {
     expect(problem.status).toBe(404);
     expect(problem.instance).toBe("/api/v1/nao-existe");
     expect(problem.requestId).toBeTruthy();
+  });
+
+  it("corpo que não é JSON válido vira 400, e não 500", async () => {
+    // O Hono levanta `HTTPException(400)` no parser de corpo, antes de qualquer
+    // handler nosso rodar. Sem honrar o status dela, um corpo malformado saía
+    // como "erro interno" e o cliente ficava sem saber que bastava corrigir o
+    // JSON — o servidor levava a culpa por um erro da requisição.
+    const response = await appWithDatabase(true).request(`${API_BASE_PATH}/settings/theme`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: '{"value": ',
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("content-type")).toContain(PROBLEM_CONTENT_TYPE);
+
+    const problem = ProblemDetailsSchema.parse(await response.json());
+    expect(problem.status).toBe(400);
+    expect(problem.type).toContain("validation-error");
+    // O `detail` diz o que houve: uma mensagem do framework sobre a requisição
+    // é informação do cliente, não do servidor.
+    expect(problem.detail.toLowerCase()).toContain("json");
+    expect(problem.requestId).toBeTruthy();
+  });
+
+  it("uma HTTPException 5xx não vaza a mensagem interna", async () => {
+    const app = appWithDatabase(true);
+    app.get("/api/v1/explode", () => {
+      throw new HTTPException(503, { message: "postgres primary unreachable at 10.0.0.7" });
+    });
+
+    const response = await app.request("/api/v1/explode");
+
+    expect(response.status).toBe(503);
+    const problem = ProblemDetailsSchema.parse(await response.json());
+    expect(problem.detail).not.toContain("10.0.0.7");
+    expect(problem.detail).toContain("requestId");
   });
 });
 
