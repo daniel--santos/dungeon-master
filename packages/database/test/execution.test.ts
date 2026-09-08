@@ -19,6 +19,8 @@ import {
   transitionRun,
   writeRunTerminalStatus,
 } from "../src/run.js";
+import { listExecutionProfiles } from "../src/execution-profile.js";
+import { OPEN_FIELD_ALLOWED_COMMANDS } from "../src/seed-execution.js";
 import { getTaskDetail } from "../src/task.js";
 import {
   acquireWorkspaceLock,
@@ -781,5 +783,21 @@ describe("listRuns", () => {
       filters: { status: ["SUCCEEDED"] },
     });
     expect(porEstado.total).toBe(0);
+  });
+});
+
+describe("sementes de execução", () => {
+  it('"Campo aberto" nasce com a allow-list que faz uma tarefa de código terminar', async () => {
+    const perfis = await listExecutionProfiles(handle.db, { userId: USER });
+    const campoAberto = perfis.find((perfil) => perfil.name === "Campo aberto");
+
+    expect(campoAberto, "o perfil de host é semeado pelo db:seed").toBeDefined();
+    expect(campoAberto?.permissionPolicy.commandExecution).toBe("ALLOWLIST");
+    // `git` é o que separa "criou o arquivo" de "entregou o trabalho": sem ele
+    // o agente cria e não commita, e reporta `blocked`.
+    expect(campoAberto?.permissionPolicy.allowedCommands).toEqual([...OPEN_FIELD_ALLOWED_COMMANDS]);
+    // Bypass nunca é padrão: ele é opt-in explícito de quem edita o perfil.
+    expect(campoAberto?.permissionPolicy.allowUnsafeBypass).toBeUndefined();
+    expect(campoAberto?.enforcement).toBe("HARNESS_NATIVE");
   });
 });

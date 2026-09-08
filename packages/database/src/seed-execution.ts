@@ -1,4 +1,4 @@
-import type { HarnessCapabilities, HarnessKey } from "@dungeon-master/contracts";
+import type { HarnessCapabilities, HarnessKey, PermissionPolicy } from "@dungeon-master/contracts";
 import { and, eq } from "drizzle-orm";
 
 import type { Database } from "./client.js";
@@ -124,7 +124,25 @@ interface ExecutionProfileSeed {
   readonly enforcement: "ADVISORY" | "HARNESS_NATIVE" | "SANDBOX_ENFORCED";
   readonly enabled: boolean;
   readonly isDefault: boolean;
+  /** Ausente usa {@link DEFAULT_PERMISSION_POLICY}. */
+  readonly permissionPolicy?: PermissionPolicy;
 }
+
+/**
+ * A allow-list de comandos com que "Campo aberto" nasce.
+ *
+ * Ela existe porque um perfil sem comando nenhum não termina uma tarefa de
+ * código: o agente cria o arquivo, não consegue commitar e reporta `blocked`.
+ * Foi o que aconteceu no primeiro Run desta fase, e a correção não é afrouxar
+ * tudo — é dizer, na cara, quais comandos um Run pode executar.
+ *
+ * Cada prefixo aqui é uma porta aberta em toda execução do sistema, então a
+ * lista é o mínimo que faz uma tarefa de código funcionar de ponta a ponta:
+ * inspecionar e versionar o próprio worktree. Instalar dependência, publicar
+ * pacote ou apagar arquivo por comando **não** estão aqui de propósito; quem
+ * precisa acrescenta no perfil, e a escolha fica visível na tela.
+ */
+export const OPEN_FIELD_ALLOWED_COMMANDS: readonly string[] = ["git", "ls", "cat", "node"];
 
 /**
  * Os dois perfis de partida, com os nomes do glossário `dnd` na coluna `name`.
@@ -145,6 +163,12 @@ const EXECUTION_PROFILE_SEEDS: readonly ExecutionProfileSeed[] = [
     enforcement: "HARNESS_NATIVE",
     enabled: true,
     isDefault: true,
+    permissionPolicy: {
+      workspaceWrite: true,
+      commandExecution: "ALLOWLIST",
+      allowedCommands: [...OPEN_FIELD_ALLOWED_COMMANDS],
+      deniedCommands: [],
+    },
   },
   {
     name: "Masmorra selada",
@@ -204,7 +228,7 @@ export async function seedExecutionRegistry(
       mode: seed.mode,
       workspaceStrategy: seed.workspaceStrategy,
       enforcement: seed.enforcement,
-      permissionPolicy: DEFAULT_PERMISSION_POLICY,
+      permissionPolicy: seed.permissionPolicy ?? DEFAULT_PERMISSION_POLICY,
       environmentPolicy: DEFAULT_ENVIRONMENT_POLICY,
       networkPolicy: DEFAULT_NETWORK_POLICY,
       enabled: seed.enabled,
