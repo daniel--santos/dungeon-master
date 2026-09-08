@@ -191,9 +191,12 @@ function HallPage() {
             <div className="flex-1" />
 
             <span className="text-muted-foreground self-center text-xs">
+              {/* Rótulo e número, e não "13 bloqueada": os labels de estado são
+                  adjetivos no singular, e concordá-los pediria uma chave de
+                  plural por estado para ganhar nada. */}
               {format("{inProgress} · {locked}", {
-                inProgress: `${String(counts.inProgress)} ${t("achievement.state.inProgress").toLowerCase()}`,
-                locked: `${String(counts.locked)} ${t("achievement.state.locked").toLowerCase()}`,
+                inProgress: `${t("achievement.state.inProgress")}: ${String(counts.inProgress)}`,
+                locked: `${t("achievement.state.locked")}: ${String(counts.locked)}`,
               })}
             </span>
           </div>

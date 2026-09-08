@@ -143,10 +143,11 @@ export function ExecutionSection() {
             que diga se o daemon está no ar nem qual é a versão dele. O bloco
             mostra o que existe em vez de inventar um verde que não foi medido. */}
         <span className="text-muted-foreground text-[11.5px] leading-4.5">
-          {format(
-            "A versão e a data acima vêm do preflight de cada CLI. O preflight do próprio {docker} ainda não é exposto pela API.",
-            { docker: t("env.docker") },
-          )}
+          {/* Sem o nome do modo aqui: "o preflight do próprio Masmorra selada"
+              não é frase. Container é infraestrutura, e infraestrutura não é
+              tematizada (planejamento v0.4, seção 14). */}
+          A versão e a data acima vêm do preflight de cada CLI. O preflight do container em si ainda
+          não é exposto pela API.
         </span>
       </div>
     </section>
