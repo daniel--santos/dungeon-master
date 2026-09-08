@@ -25,6 +25,7 @@
     "dev:api": "pnpm --filter @dungeon-master/api run dev",
     "dev:web": "pnpm --filter @dungeon-master/web run dev",
     "dev:worker": "pnpm --filter @dungeon-master/worker run dev",
+    "dm": "pnpm --filter @dungeon-master/worker run dm",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

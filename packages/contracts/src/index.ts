@@ -24,3 +24,4 @@ export * from "./loadout.js";
 export * from "./run.js";
 export * from "./execution-event.js";
 export * from "./task-execution-result.js";
+export * from "./achievement.js";

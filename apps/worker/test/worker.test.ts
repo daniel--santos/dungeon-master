@@ -17,6 +17,7 @@ import { fakeHarness } from "@dungeon-master/runtime/testing";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
+import type { AchievementProjector } from "../src/achievements.js";
 import { newWorkerId } from "../src/config.js";
 import { createWorker, type Worker } from "../src/worker.js";
 import {
@@ -84,6 +85,7 @@ async function subirWorker(input: {
   runIdleTimeoutMs?: number;
   workerId?: string;
   start?: boolean;
+  achievements?: AchievementProjector;
 }): Promise<Worker> {
   const criado = createWorker({
     db,
@@ -91,6 +93,7 @@ async function subirWorker(input: {
     userId: USER,
     adapters: input.adapters ?? [fakeHarness()],
     workspace: managerPara(repositorio),
+    ...(input.achievements === undefined ? {} : { achievements: input.achievements }),
     config: {
       ...CONFIG_PADRAO,
       workerId: input.workerId ?? newWorkerId(),
@@ -705,5 +708,91 @@ describe("posse do workspace", () => {
     // A branch do Run some com o worktree; o repositório principal fica limpo.
     const status = await git(["status", "--porcelain"], repositorio.repo);
     expect(status.trim()).toBe("");
+  });
+});
+
+describe("projetor de Conquistas", () => {
+  /** Um projetor que só conta disparos: o que ele calcula é testado no banco. */
+  function projetorFalso() {
+    let disparos = 0;
+
+    const projector: AchievementProjector = {
+      trigger: () => {
+        disparos += 1;
+      },
+      run: async () => await Promise.resolve({ ok: true, processed: 0, unlocked: 0, error: null }),
+      drain: async () => {
+        await Promise.resolve();
+      },
+    };
+
+    return {
+      get disparos() {
+        return disparos;
+      },
+      projector,
+    };
+  }
+
+  it("cada tique dispara o projetor, mesmo sem Run na fila", async () => {
+    const falso = projetorFalso();
+    const criado = await subirWorker({ start: false, achievements: falso.projector });
+
+    await criado.pump();
+    await criado.pump();
+
+    expect(falso.disparos).toBe(2);
+  });
+
+  it("uma Expedição terminada dispara o projetor sem segurar o Run", async () => {
+    const cenario = await montarCenario(db, {
+      nome: "projetor",
+      workspacePath: repositorio.repo,
+    });
+    const falso = projetorFalso();
+    await subirWorker({ achievements: falso.projector });
+
+    const run = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: '@@fake:block {"status":"completed","summary":"pronto"}',
+    });
+
+    const terminado = await esperarStatusDeRun(db, run.id, ["SUCCEEDED", "FAILED", "TIMED_OUT"]);
+
+    // O Run terminou bem: o projetor não está no caminho de escrita do desfecho.
+    expect(terminado.status, JSON.stringify(terminado.error)).toBe("SUCCEEDED");
+    expect(falso.disparos).toBeGreaterThan(0);
+  });
+
+  it("um projetor que lança não derruba o tique nem o Run", async () => {
+    const cenario = await montarCenario(db, {
+      nome: "projetor-quebrado",
+      workspacePath: repositorio.repo,
+    });
+
+    // O contrato é do projetor, mas quem chama precisa sobreviver a ele: um
+    // `trigger` que lança viria de dentro do `finally` que solta o Run.
+    const quebrado: AchievementProjector = {
+      trigger: () => {
+        throw new Error("projetor quebrado");
+      },
+      run: async () => await Promise.resolve({ ok: false, processed: 0, unlocked: 0, error: "x" }),
+      drain: async () => {
+        await Promise.resolve();
+      },
+    };
+
+    await subirWorker({ achievements: quebrado });
+
+    const run = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: '@@fake:block {"status":"completed","summary":"pronto"}',
+    });
+
+    const terminado = await esperarStatusDeRun(db, run.id, ["SUCCEEDED", "FAILED", "TIMED_OUT"]);
+    expect(terminado.status, JSON.stringify(terminado.error)).toBe("SUCCEEDED");
+    expect(await statusDaTask(db, cenario.taskId)).toBe("COMPLETED");
   });
 });

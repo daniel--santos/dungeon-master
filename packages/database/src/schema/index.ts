@@ -1,3 +1,4 @@
+export * from "./achievement.js";
 export * from "./activity.js";
 export * from "./dashboard-event.js";
 export * from "./project.js";

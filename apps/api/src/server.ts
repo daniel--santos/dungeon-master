@@ -7,6 +7,7 @@ import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/dat
 
 import { createApp } from "./app.js";
 import {
+  createAchievementsPort,
   createEventsRuntime,
   createExecutionPort,
   createRunEventsRuntime,
@@ -59,6 +60,7 @@ const app = createApp({
   work: createWorkPort({ db: database.db, userId: LOCAL_USER_ID }),
   execution: createExecutionPort({ db: database.db, userId: LOCAL_USER_ID, runEvents }),
   achievements,
+  hall: createAchievementsPort({ db: database.db, userId: LOCAL_USER_ID }),
   logger,
   pingEnabled: config.nodeEnv !== "production",
 });

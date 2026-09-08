@@ -105,15 +105,19 @@ describe("DashboardEventSchema", () => {
   });
 
   it("tolera na leitura um tipo que ainda não existe no enum de escrita", () => {
+    // `approval.granted` chega na Fase 4 e ainda não está no enum de escrita.
+    // O exemplo precisa ser um tipo mesmo ausente: quando a Fase 2.5 pôs
+    // `achievement.unlocked` no enum, este teste passou a afirmar o contrário
+    // do que verifica, e foi assim que a falha apareceu.
     const parsed = DashboardEventSchema.parse({
       sequence: 1,
-      type: "achievement.unlocked",
+      type: "approval.granted",
       payload: null,
       createdAt: "2026-09-07T12:00:00.000Z",
     });
 
-    expect(parsed.type).toBe("achievement.unlocked");
-    expect(DashboardEventTypeSchema.safeParse("achievement.unlocked").success).toBe(false);
+    expect(parsed.type).toBe("approval.granted");
+    expect(DashboardEventTypeSchema.safeParse("approval.granted").success).toBe(false);
   });
 
   it("rejeita sequence zero ou negativo", () => {

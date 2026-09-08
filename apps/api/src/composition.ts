@@ -1,8 +1,12 @@
-import { loadCatalog, loadTemplates } from "@dungeon-master/achievements";
+import { loadCatalog, loadTemplates, xpToNextLevel } from "@dungeon-master/achievements";
 import { type DashboardEvent, RUN_EVENT_CHANNEL, type RunEvent } from "@dungeon-master/contracts";
 import {
   addTaskDependency,
   appendDashboardEvent,
+  listAchievementUnlockPage,
+  listAchievementViews,
+  markAchievementUnlockSeen,
+  readHeroStats,
   captureInboxTask,
   changeTaskStatus,
   createAgent,
@@ -62,6 +66,7 @@ import { DashboardEventPoller, PgNotifyListener, SseTransport } from "@dungeon-m
 
 import type { Logger } from "./logger.js";
 import type {
+  AchievementsPort,
   DashboardEventsPort,
   ExecutionPort,
   RunStreamHandle,
@@ -212,6 +217,32 @@ export function loadAchievementCatalog(options: { logger?: Logger } = {}): Achie
   }
 
   return { definitions: [...catalog.valid], templates: [...templates.valid], invalid };
+}
+
+export interface AchievementsPortOptions {
+  db: Database;
+  userId: string;
+}
+
+/**
+ * Liga o Hall dos Heróis à projeção.
+ *
+ * Só leitura: quem escreve progresso, desbloqueio e estatística é o projetor do
+ * Worker. Uma rota que projetasse sob demanda faria a abertura de uma tela
+ * gravar no banco, e duas abas abertas disputariam o mesmo cursor.
+ *
+ * `xpToNextLevel` entra do pacote puro, e não recalculada aqui: a curva de
+ * nível é dado do catálogo, e uma segunda fórmula divergiria da primeira.
+ */
+export function createAchievementsPort(options: AchievementsPortOptions): AchievementsPort {
+  const { db, userId } = options;
+
+  return {
+    list: (filters) => listAchievementViews(db, { userId, filters }),
+    unlocks: (page) => listAchievementUnlockPage(db, { userId, ...page }),
+    markSeen: (unlockId) => markAchievementUnlockSeen(db, { userId, unlockId }),
+    heroStats: () => readHeroStats(db, { userId, xpToNextLevel }),
+  };
 }
 
 // --------------------------------------------------------------------------
