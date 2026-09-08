@@ -235,3 +235,157 @@ export async function openApprovalGate(input: OpenApprovalGateInput): Promise<{ 
     await client.end();
   }
 }
+
+export interface SeedRunOutcomeInput {
+  /** Um Run em `QUEUED`, criado pela API. */
+  readonly runId: string;
+  /** As propostas que o resultado traz, na ordem de `discoveredTasks`. */
+  readonly proposals: readonly {
+    readonly title: string;
+    readonly description?: string;
+    readonly rationale?: string;
+  }[];
+  /** Os candidatos a conhecimento do resultado, se houver. */
+  readonly knowledge?: readonly {
+    readonly title: string;
+    readonly content: string;
+    readonly kind?: string;
+  }[];
+}
+
+/**
+ * Termina um Run em `SUCCEEDED` com propostas de trabalho, por SQL no banco
+ * do e2e (Fase 5B).
+ *
+ * Quem faz isso em produção é o Worker, ao escrever o desfecho pela porta
+ * `writeRunTerminalStatus`, e a configuração do Playwright não sobe Worker de
+ * propósito. A fixture escreve o que a porta escreveria, na mesma transação:
+ * o Run vai para `SUCCEEDED` com o `result` estruturado, a Task de origem vai
+ * para `COMPLETED`, cada `discoveredTask` vira uma linha de `proposed_task`
+ * em `PROPOSED` (com a posição que é a chave de idempotência), cada candidato
+ * vira uma linha de `knowledge_candidate`, e o `task.proposed` entra no
+ * dashboard — cujo trigger emite o `NOTIFY` no COMMIT, então a interface
+ * aberta recebe o toast pelo SSE de verdade.
+ *
+ * As decisões, essas são pela API: é o CAS de `POST /proposed-tasks/{id}/…`
+ * que o teste quer provar, e ele exige exatamente o estado que a fixture deixa.
+ */
+export async function seedRunOutcome(
+  input: SeedRunOutcomeInput,
+): Promise<{ proposedTaskIds: string[] }> {
+  const databaseUrl = process.env["DATABASE_URL"];
+  if (databaseUrl === undefined) {
+    throw new Error("DATABASE_URL não está no ambiente: rode pelo run-e2e.mjs.");
+  }
+
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+
+    const run = await client.query<{ user_id: string; task_id: string; project_id: string }>(
+      `SELECT r.user_id, r.task_id, t.project_id
+         FROM run r JOIN task t ON t.id = r.task_id
+        WHERE r.id = $1 AND r.status = 'QUEUED'
+        FOR UPDATE OF r`,
+      [input.runId],
+    );
+    const owner = run.rows[0];
+    if (owner === undefined) throw new Error(`O Run ${input.runId} não existe ou não está QUEUED.`);
+
+    const result = {
+      status: "completed",
+      summary: "Fixture do e2e: o trabalho terminou e apontou o que falta.",
+      artifacts: [],
+      discoveredTasks: input.proposals.map((proposal) => ({
+        title: proposal.title,
+        ...(proposal.description === undefined ? {} : { description: proposal.description }),
+        ...(proposal.rationale === undefined ? {} : { rationale: proposal.rationale }),
+      })),
+      knowledgeCandidates: (input.knowledge ?? []).map((candidate) => ({
+        title: candidate.title,
+        content: candidate.content,
+        ...(candidate.kind === undefined ? {} : { kind: candidate.kind }),
+      })),
+      warnings: [],
+    };
+
+    await client.query(
+      `UPDATE run
+         SET status = 'SUCCEEDED', started_at = coalesce(started_at, now()), finished_at = now(),
+             updated_at = now(), result = $2::jsonb
+       WHERE id = $1`,
+      [input.runId, JSON.stringify(result)],
+    );
+    await client.query(
+      `UPDATE task SET status = 'COMPLETED', completed_at = now(), updated_at = now() WHERE id = $1`,
+      [owner.task_id],
+    );
+
+    const proposedTaskIds: string[] = [];
+    for (const [position, proposal] of input.proposals.entries()) {
+      const id = randomUUID();
+      await client.query(
+        `INSERT INTO proposed_task
+           (id, user_id, project_id, origin_task_id, origin_run_id, position, title, description,
+            rationale, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PROPOSED')`,
+        [
+          id,
+          owner.user_id,
+          owner.project_id,
+          owner.task_id,
+          input.runId,
+          position,
+          proposal.title,
+          proposal.description ?? null,
+          proposal.rationale ?? null,
+        ],
+      );
+      proposedTaskIds.push(id);
+    }
+
+    for (const [position, candidate] of (input.knowledge ?? []).entries()) {
+      await client.query(
+        `INSERT INTO knowledge_candidate
+           (id, user_id, project_id, task_id, run_id, position, title, content, kind, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PENDING')`,
+        [
+          randomUUID(),
+          owner.user_id,
+          owner.project_id,
+          owner.task_id,
+          input.runId,
+          position,
+          candidate.title,
+          candidate.content,
+          candidate.kind ?? null,
+        ],
+      );
+    }
+
+    if (proposedTaskIds.length > 0) {
+      await client.query(
+        `INSERT INTO dashboard_event (user_id, type, payload) VALUES ($1, 'task.proposed', $2::jsonb)`,
+        [
+          owner.user_id,
+          JSON.stringify({
+            projectId: owner.project_id,
+            taskId: owner.task_id,
+            runId: input.runId,
+            count: proposedTaskIds.length,
+            proposedTaskIds,
+          }),
+        ],
+      );
+    }
+
+    await client.query("COMMIT");
+    return { proposedTaskIds };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    await client.end();
+  }
+}
