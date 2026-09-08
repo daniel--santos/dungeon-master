@@ -11,6 +11,7 @@ import { CancelRunDialog } from "@/components/run/cancel-run-dialog";
 import { FailurePanel } from "@/components/run/failure-panel";
 import { ResultPanel } from "@/components/run/result-panel";
 import { ResumeRunDialog } from "@/components/run/resume-run-dialog";
+import { RunOutcomePanel } from "@/components/run/run-outcome-panel";
 import { RunStepsPanel } from "@/components/run/run-steps-panel";
 import { RuntimeCard, SessionCard, TimeCard } from "@/components/run/runtime-column";
 import { Timeline } from "@/components/run/timeline";
@@ -317,6 +318,8 @@ function Cockpit({ run }: { run: RunRecord }) {
       </div>
 
       {guided && <RunStepsPanel live={live} now={now} runId={run.id} />}
+
+      {!live && <RunOutcomePanel run={run} />}
 
       {run.status === "SUCCEEDED" && <ResultPanel run={run} />}
       {(run.status === "FAILED" || run.status === "TIMED_OUT") && (

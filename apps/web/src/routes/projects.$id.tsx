@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Archive, ArchiveRestore, ListChecks, Plus } from "lucide-react";
+import { Archive, ArchiveRestore, ListChecks, Plus, Waypoints } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -9,12 +9,14 @@ import { ActivityLog } from "@/components/projects/activity-log";
 import { ProjectDialog } from "@/components/projects/project-dialog";
 import { TaskCounts, totalTasks } from "@/components/projects/task-counts";
 import { WorkspaceBadge } from "@/components/projects/workspace-badge";
+import { ProposalsPanel } from "@/components/proposal/proposals-panel";
 import { CreateTaskDialog } from "@/components/task/create-task-dialog";
 import { TaskTable } from "@/components/task/task-table";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/datetime";
 import type { SortOrder, TaskSortField } from "@/lib/domain";
 import { useGlossary } from "@/lib/glossary";
+import { PROPOSAL_COLOR } from "@/lib/proposal-domain";
 import { useProject, useProjectActivity, useSetProjectArchived } from "@/lib/projects";
 import { projectDetailSearchSchema } from "@/lib/search";
 import { useTasks } from "@/lib/tasks";
@@ -111,6 +113,12 @@ function ProjectDetailPage() {
           </div>
 
           <div className="flex flex-none items-center gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link data-project-graph-link params={{ id }} to="/projects/$id/graph">
+                <Waypoints aria-hidden />
+                <span>{t("entity.taskGraph")}</span>
+              </Link>
+            </Button>
             <Button
               onClick={() => {
                 setEditing(true);
@@ -131,12 +139,29 @@ function ProjectDetailPage() {
       <Panel className="flex flex-col gap-3 p-5">
         <div className="flex items-baseline justify-between gap-4">
           <span className="text-sm font-medium">Visão geral</span>
-          <span className="text-muted-foreground text-xs">
-            {format(totalTasks(detail.taskCounts) === 1 ? "{n} {one}" : "{n} {many}", {
-              n: totalTasks(detail.taskCounts),
-              one: t("entity.task"),
-              many: t("entity.task.plural"),
-            })}
+          <span className="text-muted-foreground flex items-center gap-x-3 text-xs">
+            {detail.openProposalCount > 0 && (
+              <span
+                data-project-open-proposals={detail.openProposalCount}
+                style={{ color: PROPOSAL_COLOR }}
+              >
+                {format(
+                  detail.openProposalCount === 1 ? "{n} {one} em aberto" : "{n} {many} em aberto",
+                  {
+                    n: detail.openProposalCount,
+                    one: t("entity.proposedTask"),
+                    many: t("entity.proposedTask.plural"),
+                  },
+                )}
+              </span>
+            )}
+            <span>
+              {format(totalTasks(detail.taskCounts) === 1 ? "{n} {one}" : "{n} {many}", {
+                n: totalTasks(detail.taskCounts),
+                one: t("entity.task"),
+                many: t("entity.task.plural"),
+              })}
+            </span>
           </span>
         </div>
         <TaskCounts counts={detail.taskCounts} />
@@ -149,6 +174,8 @@ function ProjectDetailPage() {
           </p>
         )}
       </Panel>
+
+      <ProposalsPanel projectId={id} showOriginTask />
 
       <Panel className="overflow-hidden">
         <PanelHeader

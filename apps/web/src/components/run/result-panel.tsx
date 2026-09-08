@@ -156,8 +156,8 @@ export function ResultPanel({ run }: { run: RunRecord }) {
               <Empty
                 icon={ListChecks}
                 note={format(
-                  "A {run} não propôs desdobramentos. A decomposição automática chega na Fase 5.",
-                  { run: t("entity.run") },
+                  "A {run} não propôs desdobramentos. Quando propuser, cada um vira uma {proposal} para você decidir.",
+                  { run: t("entity.run"), proposal: t("entity.proposedTask") },
                 )}
                 title="Nenhuma ainda"
               />
@@ -166,10 +166,7 @@ export function ResultPanel({ run }: { run: RunRecord }) {
             )}
           </Block>
 
-          <Block
-            icon={BookOpen}
-            title={format("Candidatos ao {knowledge}", { knowledge: t("entity.knowledge") })}
-          >
+          <Block icon={BookOpen} title={t("proposal.knowledge.summary")}>
             {knowledge.length === 0 ? (
               <Empty
                 icon={BookOpen}

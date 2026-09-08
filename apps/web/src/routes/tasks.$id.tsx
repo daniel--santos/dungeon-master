@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { Panel } from "@/components/panel";
 import { WorkspaceBadge } from "@/components/projects/workspace-badge";
+import { ProposalsPanel } from "@/components/proposal/proposals-panel";
 import { NewRunDialog } from "@/components/run/new-run-dialog";
 import { RunTable } from "@/components/run/run-table";
 import { KindChip, PriorityText, StatusChip } from "@/components/task/chips";
@@ -353,6 +354,13 @@ function Detail({ detail }: { detail: TaskDetail }) {
 
           <Subtasks detail={detail} resolved={resolved} />
 
+          {/* As propostas que as Expedições desta Task trouxeram (Fase 5B).
+              Só aparece com algo em aberto: a Missão é sobre a Missão, e a
+              caixa vazia mora na Campanha. */}
+          {detail.openProposalCount > 0 && (
+            <ProposalsPanel showOriginTask={false} taskId={detail.id} />
+          )}
+
           <Panel className="overflow-hidden">
             <Tabs className="gap-0" defaultValue="runs">
               <div className="border-border border-b px-3 py-2.5">
@@ -431,6 +439,24 @@ function Detail({ detail }: { detail: TaskDetail }) {
                 out: detail.dependents.length,
               })}
             </MetaRow>
+            {detail.openProposalCount > 0 && (
+              <MetaRow label={t("entity.proposedTask.plural")}>
+                <span data-task-open-proposals={detail.openProposalCount}>
+                  {format("{n} em aberto", { n: detail.openProposalCount })}
+                </span>
+              </MetaRow>
+            )}
+            {detail.projectId !== null && (
+              <MetaRow label={t("entity.taskGraph")}>
+                <Link
+                  className="underline-offset-2 hover:underline"
+                  params={{ id: detail.projectId }}
+                  to="/projects/$id/graph"
+                >
+                  Abrir
+                </Link>
+              </MetaRow>
+            )}
             <MetaRow label={t("task.field.createdAt")}>{formatDate(detail.createdAt)}</MetaRow>
             {detail.completedAt !== null && (
               <MetaRow label={format("{status} em", { status: t("task.status.completed") })}>
