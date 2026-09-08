@@ -174,8 +174,18 @@ export const GLOSSARY_KEYS = [
   "harness.capability.dockerExecution",
 
   // ------------------------------------------------------------------ hero
+  // Prefixo próprio, e não `hall.`, porque estes são rótulos de número: eles
+  // reaparecem na ficha do Agent e na tabela por Loadout, fora do Hall.
   "hero.xp",
   "hero.level",
+  "hero.toNextLevel",
+  "hero.expeditions",
+  "hero.victories",
+  "hero.defeats",
+  "hero.monstersSlain",
+  "hero.tokens",
+  "hero.topHarness",
+  "hero.byLoadout",
 
   // ----------------------------------------------------------------- infra
   "infra.worker",
@@ -204,6 +214,14 @@ export const GLOSSARY_KEYS = [
   "hall.filter.origin",
   "hall.filter.rarity",
   "hall.filter.state",
+  "hall.counter",
+  "hall.unseen",
+  "hall.progressOf",
+  "hall.tierOf",
+  "hall.bestiary.defeatedAt",
+  "hall.bestiary.slayer",
+  "hall.bestiary.nemesis",
+  "hall.chronicle.loadMore",
 
   // -------------------------------------------------------------- settings
   "settings.theme.toggle",
