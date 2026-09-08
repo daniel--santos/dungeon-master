@@ -251,6 +251,13 @@ export const dnd: Record<GlossaryKey, string> = {
   "hall.bestiary.nemesis": "Nêmesis",
   "hall.chronicle.loadMore": "Carregar mais",
 
+  // --------------------------------------------------------------- loadout
+  "loadout.noNativePermissions.title": "Esta Guilda não impõe permissão por comando",
+  "loadout.noNativePermissions.body":
+    "A CLI desta {harness} não consulta a lista de comandos do {profile}: a permissão é só pedida, nunca aplicada, e o enforcement da Expedição sai como ADVISORY.",
+  "loadout.noNativePermissions.antigravity":
+    "No Antigravity é o oposto: sem interface, a CLI não consulta lista nenhuma e nega todo comando. Em {host} ({hostWarning}), uma {run} que precise executar comandos termina em PERMISSION_DENIED; só `allowUnsafeBypass` no {profile} libera — e libera tudo.",
+
   // -------------------------------------------------------------- settings
   "settings.theme.toggle": "Tema Dungeon Master",
   "settings.theme.description": "Vocabulário de RPG na interface. Desligue para nomes neutros.",
