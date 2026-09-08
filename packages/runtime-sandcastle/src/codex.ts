@@ -162,17 +162,17 @@ export function codex(options: CodexOptions = {}) {
  * não um escape, que é o que um caminho do Windows precisa. Quando o valor tem
  * aspas simples ou caractere de controle, cai na string básica com escapes.
  */
+// eslint-disable-next-line no-control-regex -- os controles são o alvo.
+const TOML_CONTROL_CHAR = /[\u0000-\u001f\u007f]/;
+// eslint-disable-next-line no-control-regex -- idem, com a flag global para o replace.
+const TOML_CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
+
 export function tomlString(value: string): string {
-  // eslint-disable-next-line no-control-regex -- os controles são o alvo.
-  if (!value.includes("'") && !/[\u0000-\u001f\u007f]/.test(value)) return `'${value}'`;
+  if (!value.includes("'") && !TOML_CONTROL_CHAR.test(value)) return `'${value}'`;
   const escaped = value
     .replace(/\\/g, "\\\\")
     .replace(/"/g, '\\"')
-    // eslint-disable-next-line no-control-regex -- idem.
-    .replace(
-      /[\u0000-\u001f\u007f]/g,
-      (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
-    );
+    .replace(TOML_CONTROL_CHARS, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
   return `"${escaped}"`;
 }
 
