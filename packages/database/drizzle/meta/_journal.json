@@ -64,6 +64,13 @@
       "when": 1788834000000,
       "tag": "0008_masmorra_selada_habilitada",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788836000000,
+      "tag": "0009_antigravity_habilitado",
+      "breakpoints": true
     }
   ]
 }

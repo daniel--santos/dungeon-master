@@ -78,6 +78,31 @@ export interface ResolvedRunPolicies {
  */
 export { DEFAULT_TRUSTED_COMMANDS };
 
+/**
+ * O aviso do Antigravity, que erra para o lado oposto dos demais.
+ *
+ * Nos outros harnesses sem permissão nativa a allow-list é **frouxa**: uma vez
+ * que a ferramenta de shell existe, qualquer comando passa. No `agy` 1.1.27 ela
+ * é **inexistente em modo headless**: a CLI tem allow-list de comando em
+ * `settings.json`, mas não a consulta com `-p`, então nenhum comando passa, com
+ * lista ou sem ela. Medido contra a CLI real; está no README do
+ * `packages/runtime-antigravity`.
+ *
+ * A diferença muda o que o usuário deve fazer, e é por isso que ela tem texto
+ * próprio: acrescentar prefixos em `allowedCommands` não resolve nada aqui.
+ */
+const ANTIGRAVITY_ALLOWLIST_NOTE: PolicyNote = {
+  level: "WARN",
+  message:
+    "O Antigravity não consulta allow-list de comando em modo headless: neste Run nenhum " +
+    "comando de shell vai passar, e a lista do perfil não muda isso.",
+  detail:
+    "Acrescentar prefixos em `permissionPolicy.allowedCommands` não tem efeito neste harness. " +
+    "Para o agente executar comandos, ligue `allowUnsafeBypass` no ExecutionProfile — o que " +
+    "desliga todas as checagens da CLI, não só as da lista — ou escolha um harness com " +
+    "permissão por comando. O `enforcement` deste Run sai como ADVISORY.",
+};
+
 export interface ResolveRunPoliciesInput {
   readonly profile: ExecutionProfileSnapshot;
   readonly harnessKey: HarnessKey;
@@ -127,17 +152,22 @@ export function resolveRunPolicies(input: ResolveRunPoliciesInput): ResolvedRunP
 
     if (!capabilities.nativePermissions && grant.commandExecution === "ALLOWLIST") {
       // Diferenciar `policy requested` de `policy enforced` (documento técnico,
-      // seção 15): num harness sem permissão por comando, a lista restringe
-      // quais ferramentas existem, e nada impede um comando fora dela depois.
-      notes.push({
-        level: "WARN",
-        message:
-          `${harnessKey} não aplica permissão por comando: a lista de comandos é indicativa, ` +
-          "e o que a ferramenta de shell dele executa não é filtrado.",
-        detail:
-          "O `enforcement` deste Run sai como ADVISORY por isso. Para uma barreira de verdade, " +
-          "use um harness com permissão nativa ou espere o modo DOCKER da Fase 2C.",
-      });
+      // seção 15). Os dois harnesses sem permissão nativa erram para lados
+      // opostos, e dizer a mesma frase para os dois mandaria metade dos
+      // usuários fazer a coisa errada.
+      notes.push(
+        harnessKey === "ANTIGRAVITY"
+          ? ANTIGRAVITY_ALLOWLIST_NOTE
+          : {
+              level: "WARN",
+              message:
+                `${harnessKey} não aplica permissão por comando: a lista de comandos é indicativa, ` +
+                "e o que a ferramenta de shell dele executa não é filtrado.",
+              detail:
+                "O `enforcement` deste Run sai como ADVISORY por isso. Para uma barreira de verdade, " +
+                "use um harness com permissão nativa ou espere o modo DOCKER da Fase 2C.",
+            },
+      );
     }
 
     if (grant.deniedCommands.length > 0) {

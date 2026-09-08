@@ -310,6 +310,13 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
                 },
               }),
           permission: permission.permission,
+          // O schema nativo só viaja quando quem chamou o forneceu. Quem valida
+          // continua sendo a extração do bloco `<result>`, aqui embaixo: o
+          // schema nativo muda de quem é o trabalho de acertar o formato, não
+          // de quem confere.
+          ...(spec?.jsonSchema === undefined
+            ? {}
+            : { outputSchema: { jsonSchema: spec.jsonSchema, tag } }),
           ...(request.loadout.harnessArgs === undefined
             ? {}
             : { extraArgs: request.loadout.harnessArgs }),

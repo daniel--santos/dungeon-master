@@ -85,8 +85,8 @@ describe(`GET ${API_BASE_PATH}/harnesses`, () => {
       "PI",
       "ANTIGRAVITY",
     ]);
-    // Antigravity tem fase própria e nasce desligado.
-    expect(lista.items.find((item) => item.key === "ANTIGRAVITY")?.enabled).toBe(false);
+    // Antigravity nasce ligado desde a Fase 3, quando ganhou adapter próprio.
+    expect(lista.items.find((item) => item.key === "ANTIGRAVITY")?.enabled).toBe(true);
     expect(lista.items[0]?.capabilities.resume).toBe(true);
   });
 

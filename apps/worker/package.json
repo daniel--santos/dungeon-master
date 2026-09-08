@@ -22,6 +22,7 @@
     "@dungeon-master/platform": "workspace:*",
     "@dungeon-master/runs": "workspace:*",
     "@dungeon-master/runtime": "workspace:*",
+    "@dungeon-master/runtime-antigravity": "workspace:*",
     "@dungeon-master/runtime-sandcastle": "workspace:*",
     "dotenv": "17.4.2",
     "pino": "10.3.1",
