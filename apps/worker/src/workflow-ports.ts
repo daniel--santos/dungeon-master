@@ -12,7 +12,7 @@ import {
   updateRunExecutionFields,
   type Database,
 } from "@dungeon-master/database";
-import type { AgentRuntime, ExecutionRequest } from "@dungeon-master/runtime";
+import type { AgentRuntime, ExecutionRequest, McpServerSpec } from "@dungeon-master/runtime";
 import type { StepAgentRuntime, WorkflowStore } from "@dungeon-master/workflow";
 
 import { buildPrompt } from "./execute-run.js";
@@ -126,6 +126,11 @@ export interface StepAgentRuntimeInput {
   /** Caminhos anunciados como `Artifact` pelo harness; o diff do worktree não os repete. */
   readonly knownArtifacts: Set<string>;
   /**
+   * Os servidores MCP do Run, montados uma vez e repetidos em todo passo de
+   * agente: o Grimório é o mesmo do primeiro ao último passo.
+   */
+  readonly mcpServers?: readonly McpServerSpec[];
+  /**
    * O bloco de contexto do Run (Fase 7), o mesmo em todo passo de agente.
    * Vazio quando o Run segue sem contexto.
    */
@@ -189,6 +194,9 @@ export function createStepAgentRuntime(input: StepAgentRuntimeInput): StepAgentR
             }
           : {}),
         timeouts: { idleMs, completionMs },
+        ...(input.mcpServers === undefined || input.mcpServers.length === 0
+          ? {}
+          : { mcpServers: input.mcpServers }),
         signal: request.signal,
       };
 

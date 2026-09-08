@@ -374,6 +374,31 @@ mode`, e o changelog registra idas e vindas nesse comportamento. Não entra.
 | `nativePermissions` | `false` | allow-list de comando não é consultada headless |
 | `hostExecution`     | `true`  | onze casos da suíte com a CLI real              |
 | `dockerExecution`   | `false` | gate da Fase 3D                                 |
+| `mcpServers`        | `false` | só configuração global do usuário (abaixo)      |
+
+---
+
+## Servidores MCP (Fase 7)
+
+`mcpServers` fica **`false`**, e o motivo foi medido em 08/09/2026 contra a
+1.1.27. O `agy` sabe falar MCP — o `init` lista a ferramenta genérica
+`call_mcp_tool` e `agy mcp add|remove|list|enable|disable` existem —, mas o
+único lugar de onde ele lê servidores é a **configuração global do usuário**,
+`~/.gemini/config/mcp_config.json`, a mesma da IDE:
+
+- não há flag de linha de comando (`agy --help` não lista nada de MCP além do
+  subcomando `mcp`; o parser de flags do Go recusa `--mcp-config`);
+- não há variável de ambiente (as `AGY_*` do binário são de interface, de
+  atualização e de ADC; nenhuma aponta para configuração de MCP);
+- um `.mcp.json` no diretório de trabalho, no formato do Claude Code, **não é
+  lido**: com o arquivo em `--add-dir` e um prompt pedindo a ferramenta, o
+  processo do servidor nunca subiu e o agente respondeu `NO_TOOL`.
+
+Escopar um servidor por Run exigiria `agy mcp add` antes e `agy mcp remove`
+depois, reescrevendo a configuração que o usuário mantém à mão e que a IDE
+também lê; dois Runs em paralelo se sobrescreveriam. O runtime avisa no diário
+(`Diagnostic`, "não sobe servidores MCP em modo headless") e o Run segue sem as
+ferramentas do Grimório.
 
 ---
 

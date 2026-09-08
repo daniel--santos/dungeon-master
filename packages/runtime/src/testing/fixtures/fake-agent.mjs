@@ -33,6 +33,17 @@
  *   @@fake:spawn-child        sobe um neto que também ignora sinais
  *   @@fake:exit <code>        sai com este código
  *   @@fake:error <mensagem>   emite uma linha de erro e sai com código 1
+ *   @@fake:mcp <servidor> <ferramenta> [<argumentos JSON>]
+ *                             sobe o servidor MCP de `--mcp-config`, chama a
+ *                             ferramenta com os argumentos (objeto JSON; vazio
+ *                             sem eles) e emite tool_call/tool_result com o
+ *                             nome `mcp__<servidor>__<ferramenta>`
+ *
+ * `--mcp-config <json>` chega no argv com a mesma forma do Claude Code
+ * (`{"mcpServers":{"nome":{"command","args"}}}`): é o que o adapter falso
+ * monta a partir do `ExecutionRequest.mcpServers`, e a diretiva `mcp` prova
+ * que a configuração chegou inteira — comando, argumentos e ambiente —
+ * falando o protocolo de verdade com o servidor.
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -251,6 +262,29 @@ async function run(prompt, sessionFromArgv) {
         emittedResult = true;
         emit({ type: "result", text: directive.arg });
         break;
+      case "mcp": {
+        toolSeq += 1;
+        const id = `tool-${String(toolSeq)}`;
+        const match = /^(\S+)\s+(\S+)(?:\s+([\s\S]+))?$/.exec(directive.arg.trim());
+        const serverName = match?.[1] ?? "";
+        const toolName = match?.[2] ?? "";
+        const rawArgs = match?.[3]?.trim() ?? "";
+        const name = `mcp__${serverName}__${toolName}`;
+        emit({ type: "tool_call", id, name, args: rawArgs.length === 0 ? "{}" : rawArgs });
+        try {
+          const text = await callMcpTool(
+            serverName,
+            toolName,
+            rawArgs.length === 0 ? {} : JSON.parse(rawArgs),
+          );
+          texts.push(text);
+          emit({ type: "tool_result", id, name, ok: true, output: text });
+          emit({ type: "text", text });
+        } catch (error) {
+          emit({ type: "tool_result", id, name, ok: false, output: String(error) });
+        }
+        break;
+      }
       default:
         process.stderr.write(`diretiva desconhecida: ${directive.name}\n`);
         break;
@@ -260,4 +294,95 @@ async function run(prompt, sessionFromArgv) {
   if (!emittedResult) {
     emit({ type: "result", text: texts.join("") });
   }
+}
+
+/**
+ * Um cliente MCP mínimo: sobe o servidor configurado, faz o `initialize`, o
+ * `tools/call`, e devolve o texto do primeiro bloco. Sem SDK de propósito — o
+ * que se prova é que a configuração chegou, não a biblioteca.
+ *
+ * @param {string} serverName
+ * @param {string} toolName
+ * @param {Record<string, unknown>} toolArgs
+ * @returns {Promise<string>}
+ */
+function callMcpTool(serverName, toolName, toolArgs) {
+  const raw = readArgvValue("--mcp-config");
+  if (raw === undefined) return Promise.reject(new Error("sem --mcp-config no argv"));
+  /** @type {{ mcpServers?: Record<string, { command?: string; args?: string[] }> }} */
+  const config = JSON.parse(raw);
+  const server = config.mcpServers?.[serverName];
+  if (server === undefined || server.command === undefined) {
+    return Promise.reject(new Error(`servidor ${serverName} ausente em --mcp-config`));
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(server.command, server.args ?? [], {
+      stdio: ["pipe", "pipe", "inherit"],
+      env: process.env,
+    });
+    let buffer = "";
+    let nextId = 1;
+    /** @type {Map<number, (message: any) => void>} */
+    const pending = new Map();
+
+    /** @param {string} method @param {unknown} params @returns {Promise<any>} */
+    const request = (method, params) =>
+      new Promise((resolveRequest) => {
+        const id = nextId++;
+        pending.set(id, resolveRequest);
+        child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
+      });
+
+    child.on("error", reject);
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      buffer += chunk;
+      let index;
+      while ((index = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, index).trim();
+        buffer = buffer.slice(index + 1);
+        if (line.length === 0) continue;
+        try {
+          const message = JSON.parse(line);
+          const handler = typeof message.id === "number" ? pending.get(message.id) : undefined;
+          if (handler !== undefined) {
+            pending.delete(message.id);
+            handler(message);
+          }
+        } catch {
+          // Linha que não é JSON-RPC: ruído do servidor.
+        }
+      }
+    });
+
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error("o servidor MCP não respondeu em 10 s"));
+    }, 10_000);
+
+    (async () => {
+      await request("initialize", {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "fake-agent", version: "0.0.0" },
+      });
+      child.stdin.write(
+        `${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`,
+      );
+      const response = await request("tools/call", { name: toolName, arguments: toolArgs });
+      clearTimeout(timer);
+      child.stdin.end();
+      if (response.error !== undefined) {
+        reject(new Error(response.error.message ?? "erro do servidor MCP"));
+        return;
+      }
+      const block = response.result?.content?.[0];
+      resolve(typeof block?.text === "string" ? block.text : JSON.stringify(response.result));
+    })().catch((error) => {
+      clearTimeout(timer);
+      child.kill();
+      reject(error);
+    });
+  });
 }

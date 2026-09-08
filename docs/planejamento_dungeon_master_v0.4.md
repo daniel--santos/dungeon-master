@@ -267,6 +267,7 @@ agentic-work-os/
 │   ├── runtime-sandcastle/  # adapter Sandcastle (Claude, Codex, Pi)
 │   ├── runtime-antigravity/ # adapter direto (Fase 3)
 │   ├── knowledge/
+│   ├── knowledge-mcp/       # servidor MCP somente leitura do Grimório, por Run (Fase 7)
 │   ├── context/
 │   ├── artifacts/
 │   ├── observability/

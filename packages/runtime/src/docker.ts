@@ -161,6 +161,15 @@ export interface DockerRunOptions {
    */
   readonly network?: string;
   readonly limits?: DockerResourceLimits;
+  /**
+   * Entradas de `--add-host`, no formato `nome:endereço`.
+   *
+   * `host.docker.internal:host-gateway` é o que faz um processo de dentro do
+   * container alcançar um serviço do host — o PostgreSQL do servidor MCP do
+   * Grimório. O Docker Desktop já resolve o nome sem isso; o Docker do Linux
+   * não, e a entrada é inofensiva onde é redundante.
+   */
+  readonly extraHosts?: readonly string[];
 }
 
 /**
@@ -232,6 +241,7 @@ export function buildDockerRunArgs(
   args.push("-w", options.workdir);
 
   if (options.network !== undefined) args.push("--network", options.network);
+  for (const host of options.extraHosts ?? []) args.push("--add-host", host);
   if (options.limits?.cpus !== undefined) args.push("--cpus", String(options.limits.cpus));
   if (options.limits?.memory !== undefined) args.push("--memory", options.limits.memory);
   if (options.limits?.pidsLimit !== undefined) {

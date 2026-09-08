@@ -9,7 +9,7 @@
 // 0.147.0, então `forkSession` é `false` em vez de prometido. Verificado contra
 // a CLI 0.147.0 em 07/09/2026.
 
-import type { HarnessSignal } from "@dungeon-master/runtime";
+import type { HarnessSignal, McpServerSpec } from "@dungeon-master/runtime";
 import { capabilities } from "@dungeon-master/runtime";
 import type { UsageSummary } from "@dungeon-master/contracts";
 
@@ -65,6 +65,15 @@ export const CODEX_CAPABILITIES = capabilities({
   nativePermissions: true,
   hostExecution: true,
   dockerExecution: false,
+  // Fase 7. `-c mcp_servers.<nome>.command/args` sobe o servidor em `exec`;
+  // `env_vars` repassa as variáveis pelo **nome** (o Codex não herda o
+  // ambiente para servidores MCP — medido: só ~20 variáveis chegam sem ele);
+  // `default_tools_approval_mode="approve"` é o que faz a chamada rodar com
+  // `approval_policy="never"`, senão ela sai como "user cancelled MCP tool
+  // call". A chamada aparece no stream como item `mcp_tool_call` com `server`
+  // e `tool`. Medido contra a 0.147.0 em 08/09/2026; provado pelo caso
+  // `usesMcpServer` da suíte de contrato.
+  mcpServers: true,
 });
 
 /**
@@ -119,6 +128,8 @@ export function codexDefinition(options: CodexOptions = {}): CliHarnessDefinitio
         args.push("-c", 'approval_policy="never"');
       }
 
+      args.push(...codexMcpArgs(request.mcpServers));
+
       if (options.extraArgs !== undefined) args.push(...options.extraArgs);
       if (request.extraArgs !== undefined) args.push(...request.extraArgs);
 
@@ -142,6 +153,63 @@ export function codexDefinition(options: CodexOptions = {}): CliHarnessDefinitio
 /** Adapter do Codex CLI rodando no host. */
 export function codex(options: CodexOptions = {}) {
   return createCliHarnessAdapter(codexDefinition(options));
+}
+
+/**
+ * Um valor de string em TOML, para os `-c chave=valor` do Codex.
+ *
+ * String literal (aspas simples) sempre que der: nela `\\` é um caractere e
+ * não um escape, que é o que um caminho do Windows precisa. Quando o valor tem
+ * aspas simples ou caractere de controle, cai na string básica com escapes.
+ */
+// eslint-disable-next-line no-control-regex -- os controles são o alvo.
+const TOML_CONTROL_CHAR = /[\u0000-\u001f\u007f]/;
+// eslint-disable-next-line no-control-regex -- idem, com a flag global para o replace.
+const TOML_CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
+
+export function tomlString(value: string): string {
+  if (!value.includes("'") && !TOML_CONTROL_CHAR.test(value)) return `'${value}'`;
+  const escaped = value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(TOML_CONTROL_CHARS, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  return `"${escaped}"`;
+}
+
+/**
+ * Os `-c` que ligam os servidores MCP do pedido no Codex.
+ *
+ * Cada chave é um override de `config.toml`, no argv, e nada é gravado no
+ * `~/.codex` do usuário. `env_vars` leva só **nomes**: o valor de
+ * `DATABASE_URL` fica no ambiente do processo do Codex, que o repassa ao
+ * servidor. `enabled_tools` fecha a lista quando o servidor a declara.
+ */
+export function codexMcpArgs(servers: readonly McpServerSpec[] | undefined): string[] {
+  const args: string[] = [];
+  for (const server of servers ?? []) {
+    const prefix = `mcp_servers.${server.name}`;
+    if (server.transport === "STDIO") {
+      args.push("-c", `${prefix}.command=${tomlString(server.command)}`);
+      args.push("-c", `${prefix}.args=[${server.args.map(tomlString).join(", ")}]`);
+      if (server.envKeys !== undefined && server.envKeys.length > 0) {
+        args.push("-c", `${prefix}.env_vars=[${server.envKeys.map(tomlString).join(", ")}]`);
+      }
+    } else {
+      args.push("-c", `${prefix}.url=${tomlString(server.url)}`);
+    }
+    if (server.tools !== undefined && server.tools.length > 0) {
+      args.push("-c", `${prefix}.enabled_tools=[${server.tools.map(tomlString).join(", ")}]`);
+    }
+    args.push("-c", `${prefix}.default_tools_approval_mode="approve"`);
+  }
+  return args;
+}
+
+/** O nome canônico de uma chamada MCP no diário: o mesmo do Claude Code. */
+function mcpToolName(item: Record<string, unknown>): string {
+  const server = asString(item["server"]) ?? "mcp";
+  const tool = asString(item["tool"]) ?? "tool";
+  return `mcp__${server}__${tool}`;
 }
 
 /** Traduz uma linha do `codex exec --json`. */
@@ -186,7 +254,22 @@ function parseItemStarted(item: Record<string, unknown> | undefined): readonly H
     ];
   }
 
-  // Os demais tipos de item (`file_change`, `mcp_tool_call`, `web_search`)
+  // Uma chamada a servidor MCP leva servidor e ferramenta no nome, no mesmo
+  // formato do Claude Code, para o diário dizer "buscou no Grimório" e não
+  // "mcp_tool_call". Os argumentos vão como JSON, que é o que a CLI entrega.
+  if (item["type"] === "mcp_tool_call") {
+    const argumentos = item["arguments"];
+    return [
+      {
+        kind: "tool_call",
+        ...(id === undefined ? {} : { id }),
+        name: mcpToolName(item),
+        args: argumentos === undefined || argumentos === null ? "" : JSON.stringify(argumentos),
+      },
+    ];
+  }
+
+  // Os demais tipos de item (`file_change`, `web_search`)
   // também são trabalho do agente; o nome do tipo é o melhor rótulo disponível.
   const type = asString(item["type"]);
   if (type === undefined || type === "agent_message" || type === "reasoning") return [];
@@ -217,6 +300,29 @@ function parseItemCompleted(item: Record<string, unknown> | undefined): readonly
         name: "Bash",
         ok: exitCode === 0,
         output: asString(item["aggregated_output"]) ?? "",
+      },
+    ];
+  }
+
+  if (item["type"] === "mcp_tool_call") {
+    const error = asRecord(item["error"]);
+    const message = asString(error?.["message"]);
+    const result = asRecord(item["result"]);
+    const content = result?.["content"];
+    const texto = Array.isArray(content)
+      ? content
+          .map((block) => asString(asRecord(block)?.["text"]))
+          .filter((text): text is string => text !== undefined)
+          .join("\n")
+      : "";
+    const ok = asString(item["status"]) !== "failed" && error === undefined;
+    return [
+      {
+        kind: "tool_result",
+        ...(id === undefined ? {} : { id }),
+        name: mcpToolName(item),
+        ok,
+        output: ok ? texto : (message ?? texto ?? "A chamada MCP falhou."),
       },
     ];
   }

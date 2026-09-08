@@ -22,6 +22,7 @@ import { PERMISSION_DENIED_DIAGNOSTIC_CODE } from "@dungeon-master/runtime";
 
 import { executeWorkflowRun } from "./execute-workflow-run.js";
 import type { Logger } from "./logger.js";
+import { buildRunMcpServers } from "./mcp-servers.js";
 import { prepareRun, type PreparedRun } from "./prepare-run.js";
 import { resolveRunContext } from "./run-context.js";
 import { toRunEventInput } from "./run-events.js";
@@ -67,6 +68,12 @@ export interface ExecuteRunDeps {
   readonly workspace: WorkspaceManager;
   readonly logger?: Logger;
   readonly timeouts: { readonly idleMs: number; readonly completionMs: number };
+  /**
+   * A URL do banco deste Worker, entregue ao servidor MCP do Grimório pelo
+   * ambiente do harness. Ausente, o Grimório não é oferecido ao agente e o
+   * diário diz isso.
+   */
+  readonly databaseUrl?: string;
   /**
    * Motivo do cancelamento, quando quem pediu foi o próprio Worker.
    *
@@ -154,6 +161,19 @@ async function executeSimpleRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Prom
 
     const model = run.loadoutSnapshot.model;
 
+    // Os servidores MCP: o Grimório deste Project e os do Loadout. A lista vai
+    // no pedido; quem decide se a CLI os sobe é a capability do adapter, e o
+    // runtime avisa no diário quando não.
+    const mcp = buildRunMcpServers({
+      loadout: run.loadoutSnapshot,
+      projectId: claimed.project.id,
+      userId,
+      databaseUrl: deps.databaseUrl,
+    });
+    for (const nota of mcp.notes) {
+      await writer.diagnostic(nota.level === "DEBUG" ? "INFO" : nota.level, nota.message);
+    }
+
     // O schema só é pedido a quem sabe produzi-lo: o `AgentRuntime` recusa o
     // pedido inteiro quando o adapter não declara `structuredOutput`, e recusar
     // um Run por causa de uma capability seria pior que aceitar o texto final e
@@ -199,6 +219,7 @@ async function executeSimpleRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Prom
           }
         : {}),
       timeouts: { idleMs: deps.timeouts.idleMs, completionMs: deps.timeouts.completionMs },
+      ...(mcp.servers.length === 0 ? {} : { mcpServers: mcp.servers }),
       ...(resume === undefined ? {} : { resume }),
     };
 

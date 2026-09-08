@@ -31,6 +31,7 @@ const CAPABILITIES: HarnessCapabilities = {
   nativePermissions: true,
   hostExecution: true,
   dockerExecution: true,
+  mcpServers: true,
 };
 
 interface FakeAdapterOptions {

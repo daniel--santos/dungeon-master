@@ -126,6 +126,14 @@ export const ANTIGRAVITY_CAPABILITIES = capabilities({
   // chaveiro do sistema, e montar isso num container é decisão do ADR daquela
   // fase, não deste adapter.
   dockerExecution: false,
+  // Fase 7. O `agy` 1.1.27 só conhece servidor MCP pela configuração global
+  // do usuário (`~/.gemini/config/mcp_config.json`, a mesma da IDE, escrita
+  // por `agy mcp add`): não há flag de linha de comando, não há variável de
+  // ambiente e um `.mcp.json` no workspace **não** é lido — medido em
+  // 08/09/2026 (README, "Servidores MCP"). Escopar um servidor por Run
+  // exigiria reescrever a configuração global do usuário a cada Expedição, e
+  // dois Runs em paralelo se sobrescreveriam. Fica `false`, com aviso.
+  mcpServers: false,
 });
 
 /**

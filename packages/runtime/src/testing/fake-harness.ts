@@ -17,9 +17,15 @@ import { fileURLToPath } from "node:url";
 import type { UsageSummary } from "@dungeon-master/contracts";
 
 import { capabilities, type HarnessCapabilities } from "../capabilities.js";
-import type { HarnessAdapter, HarnessContext, PreflightResult } from "../harness.js";
+import type {
+  HarnessAdapter,
+  HarnessContext,
+  HarnessExecutionRequest,
+  PreflightResult,
+} from "../harness.js";
 import { PERMISSION_DENIED_DIAGNOSTIC_CODE } from "../harness.js";
 import { createHostAdapter, type HarnessSignal, type HostCommand } from "../host-adapter.js";
+import type { McpServerSpec } from "../mcp.js";
 
 /** Marcador que o runtime põe no prompt da retentativa de resultado estruturado. */
 const RETRY_MARKER = "Sua resposta anterior não produziu";
@@ -44,6 +50,13 @@ export interface FakeHarnessOptions {
    * isto, o falso não teria como se comportar diferente na segunda tentativa.
    */
   readonly retryScript?: string;
+  /**
+   * Observa cada pedido que chega ao adapter, já resolvido pelo runtime.
+   *
+   * É como um teste prova o que o runtime entregou — o ambiente por allow-list,
+   * os servidores MCP, o prompt com a instrução — sem ler o argv do processo.
+   */
+  readonly onRequest?: (request: HarnessExecutionRequest) => void;
 }
 
 const DEFAULT_CAPABILITIES = capabilities({
@@ -55,7 +68,27 @@ const DEFAULT_CAPABILITIES = capabilities({
   tokenUsage: true,
   modelSelection: true,
   hostExecution: true,
+  // O agente falso fala MCP de verdade com a diretiva `@@fake:mcp`: a
+  // configuração vai no argv como no Claude Code, e o servidor é subido e
+  // chamado pelo protocolo. Provado pelo caso `usesMcpServer` da suíte.
+  mcpServers: true,
 });
+
+/**
+ * A configuração de MCP que o agente falso recebe: a mesma forma do
+ * `--mcp-config` do Claude Code, para que a diretiva `mcp` do roteiro a leia
+ * como uma CLI de verdade leria.
+ */
+export function fakeMcpConfig(servers: readonly McpServerSpec[]): string {
+  const mcpServers: Record<string, unknown> = {};
+  for (const server of servers) {
+    mcpServers[server.name] =
+      server.transport === "STDIO"
+        ? { type: "stdio", command: server.command, args: [...server.args] }
+        : { type: "http", url: server.url };
+  }
+  return JSON.stringify({ mcpServers });
+}
 
 /** Um adapter completo, sem CLI instalada e sem rede. */
 export function fakeHarness(options: FakeHarnessOptions = {}): HarnessAdapter {
@@ -81,10 +114,15 @@ export function fakeHarness(options: FakeHarnessOptions = {}): HarnessAdapter {
       ),
 
     buildCommand: (request): HostCommand => {
+      options.onRequest?.(request);
+
       const args = [FAKE_AGENT_SCRIPT];
       if (request.model !== undefined) args.push("--model", request.model.id);
       if (request.resume !== undefined) args.push("--session", request.resume.harnessSessionId);
       if (request.permission.mode === "BYPASS") args.push("--dangerous");
+      if (request.mcpServers !== undefined && request.mcpServers.length > 0) {
+        args.push("--mcp-config", fakeMcpConfig(request.mcpServers));
+      }
       if (request.extraArgs !== undefined) args.push(...request.extraArgs);
 
       const prompt =

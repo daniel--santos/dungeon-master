@@ -84,6 +84,12 @@ export interface CreateWorkerOptions {
   /** Injetáveis para teste; o padrão monta os de produção. */
   readonly runtime?: AgentRuntime;
   readonly workspace?: WorkspaceManager;
+  /**
+   * A URL do banco, entregue ao servidor MCP do Grimório pelo ambiente do
+   * harness (Fase 7). Sem ela o Grimório não é oferecido a nenhum Run, e o
+   * boot avisa.
+   */
+  readonly databaseUrl?: string;
 }
 
 export interface WorkerBootReport {
@@ -248,6 +254,7 @@ export function createWorker(options: CreateWorkerOptions): Worker {
           },
           cancelReasons,
           signal: controller.signal,
+          ...(options.databaseUrl === undefined ? {} : { databaseUrl: options.databaseUrl }),
           ...(logger === undefined ? {} : { logger }),
         },
         claimed,
@@ -320,6 +327,26 @@ export function createWorker(options: CreateWorkerOptions): Worker {
         adapters: options.adapters,
         ...(logger === undefined ? {} : { logger }),
       });
+
+      // A capability de servidores MCP por adapter, nos dois modos: é o que
+      // diz, antes de qualquer Run, em quais harnesses o Grimório chega como
+      // ferramenta e em quais ele vira só um aviso no diário.
+      logger?.info(
+        {
+          knowledgeMcp: options.databaseUrl === undefined ? "desligado" : "ligado",
+          harnesses: options.adapters.map((adapter) => ({
+            adapter: adapter.id,
+            mode: adapter.executionMode ?? "HOST",
+            mcpServers: adapter.capabilities.mcpServers,
+          })),
+        },
+        "servidores MCP por harness",
+      );
+      if (options.databaseUrl === undefined) {
+        logger?.warn(
+          "o Worker não recebeu a URL do banco; o servidor MCP do Grimório não será oferecido",
+        );
+      }
 
       const reconciled = await reconcileOrphanRuns({
         db,

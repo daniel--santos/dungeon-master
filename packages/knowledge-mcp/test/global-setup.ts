@@ -1,0 +1,24 @@
+import { startTestPostgres } from "@dungeon-master/database/testing";
+
+declare module "vitest" {
+  interface ProvidedContext {
+    databaseUrl: string;
+  }
+}
+
+interface GlobalSetupContext {
+  provide: <K extends "databaseUrl">(key: K, value: string) => void;
+}
+
+/**
+ * O mesmo PostgreSQL embutido dos testes de `@dungeon-master/database`: `pg_ctl`,
+ * migrações aplicadas e o usuário local semeado. Os motivos de não usar Docker
+ * estão em `packages/database/src/testing/embedded-postgres.ts`.
+ */
+export default async function setup({ provide }: GlobalSetupContext) {
+  const postgres = await startTestPostgres({ prefix: "dm-knowledge-mcp-pgdata-" });
+  provide("databaseUrl", postgres.databaseUrl);
+  return async () => {
+    await postgres.stop();
+  };
+}

@@ -45,6 +45,11 @@ import type {
   ResolvedNetwork,
 } from "./harness.js";
 import { createHostAdapter, type HarnessSignal, type HostCommand } from "./host-adapter.js";
+import {
+  mcpServersForContainer,
+  mcpServersWithoutContainerLaunch,
+  type McpServerSpec,
+} from "./mcp.js";
 import type { RuntimeResourceLimits } from "./types.js";
 
 /** Quanto tempo um preflight aprovado vale. Igual ao do adapter de host. */
@@ -52,6 +57,9 @@ const PREFLIGHT_TTL_MS = 300_000;
 
 /** Teto do `--version` **dentro** do container: sobe um container inteiro. */
 const VERSION_TIMEOUT_MS = 60_000;
+
+/** O nome pelo qual o container alcança o host, ligado por `--add-host`. */
+export const CONTAINER_HOST_GATEWAY = "host.docker.internal:host-gateway";
 
 /** Checagem de autenticação não interativa, rodada dentro do container. */
 export interface ContainerAuthCheck {
@@ -154,6 +162,85 @@ function toDockerLimits(limits: RuntimeResourceLimits | undefined): DockerResour
   };
 }
 
+export interface DockerRunCommandInput {
+  readonly definition: DockerHarnessDefinition;
+  readonly request: HarnessExecutionRequest;
+  readonly image: string;
+  readonly containerName: string;
+  readonly workspaceDir: string;
+  readonly user: string;
+  /** Os mounts do checkout, já resolvidos (worktree e `.git` pai). */
+  readonly workspaceMounts: readonly DockerMount[];
+  readonly limits?: RuntimeResourceLimits | undefined;
+}
+
+/**
+ * O `docker run` de um Run, como `HostCommand`: argv, ambiente do cliente e
+ * stdin.
+ *
+ * Pura de propósito — sem `docker rm`, sem sistema de arquivos —, porque é o
+ * argv que guarda os erros caros deste backend: um segredo que vaza para a
+ * linha de comando, um mount que não é read-only, um `--network` que não
+ * chega. O teste monta um pedido e lê o comando, sem subir container nenhum.
+ */
+export function buildDockerRunCommand(input: DockerRunCommandInput): {
+  readonly command: HostCommand;
+  readonly warnings: readonly string[];
+} {
+  const { definition, request } = input;
+
+  const credenciais = definition.credentialMounts?.(request.env) ?? [];
+  const mcp = prepareContainerMcp(request.mcpServers);
+
+  // O ambiente inteiro que o runtime montou, e **não** só as chaves de
+  // credencial. `request.env` já é uma allow-list: o `AgentRuntime` a montou
+  // com o piso do sistema operacional, as chaves que o adapter declarou e as
+  // variáveis que a `environmentPolicy` do perfil pediu. Filtrar de novo por
+  // `containerEnvKeys` aqui jogaria fora justamente as da política — um Run em
+  // Campo aberto enxergaria `MY_VAR` e o mesmo Run em Masmorra selada não,
+  // sem nada no diário explicando a diferença.
+  //
+  // `buildContainerEnv` tira o que não faz sentido lá dentro: o piso do SO,
+  // que a imagem define melhor, e os caminhos que só existem no host.
+  //
+  // As variáveis reescritas para o container (o endereço do banco do servidor
+  // MCP) entram por cima com o valor de lá: o argv continua levando só o
+  // nome, e o valor viaja pelo ambiente do cliente como qualquer segredo.
+  const env = { ...buildContainerEnv(request.env), ...mcp.env };
+  const { args, stdin } = definition.buildArgs({
+    ...request,
+    ...(mcp.servers === undefined ? {} : { mcpServers: mcp.servers }),
+  });
+
+  const dockerArgs = buildDockerRunArgs(
+    {
+      image: input.image,
+      containerName: input.containerName,
+      workdir: input.workspaceDir,
+      user: input.user,
+      mounts: [...input.workspaceMounts, ...credenciais, ...mcp.mounts],
+      envKeys: Object.keys(env),
+      network: dockerNetworkFor(request.network),
+      limits: toDockerLimits(input.limits),
+      ...(mcp.reachHost ? { extraHosts: [CONTAINER_HOST_GATEWAY] } : {}),
+    },
+    [definition.binary, ...args],
+  );
+
+  return {
+    command: {
+      command: "docker",
+      args: dockerArgs,
+      // Os valores vão pelo ambiente do processo cliente do Docker, que é o que
+      // o `-e NOME` do argv manda repassar. É o que mantém o segredo fora da
+      // linha de comando visível na tabela de processos do host.
+      env,
+      ...(stdin === undefined ? {} : { stdin }),
+    },
+    warnings: mcp.warnings,
+  };
+}
+
 export function createDockerAdapter(
   definition: DockerHarnessDefinition,
   options: DockerAdapterOptions = {},
@@ -166,14 +253,19 @@ export function createDockerAdapter(
   /** Diretórios temporários do `.git` de sobreposição, por execução. */
   const tempDirs = new Map<string, string>();
   /**
-   * Avisos do preparo dos mounts, por execução.
+   * Avisos do preparo do container, por execução.
    *
    * Um checkout cujo `.git` o runtime não reconheceu ainda roda — o container
    * recebe os arquivos —, mas `git status` falha lá dentro e o agente não
    * consegue commitar. Engolir isso produziria um Run que termina "com sucesso"
-   * sem espólio nenhum e sem ninguém saber por quê.
+   * sem espólio nenhum e sem ninguém saber por quê. Um servidor MCP do Loadout
+   * sem comando para dentro da imagem é o outro caso: ele sobe se o comando
+   * existir lá, e o aviso diz o que aconteceu se não subir.
    */
-  const avisos = new Map<string, string>();
+  const avisos = new Map<string, string[]>();
+  const avisar = (executionId: string, aviso: string): void => {
+    avisos.set(executionId, [...(avisos.get(executionId) ?? []), aviso]);
+  };
   let cached: { result: PreflightResult; at: number } | undefined;
 
   /** Roda um comando curto dentro de um container descartável. */
@@ -289,46 +381,20 @@ export function createDockerAdapter(
       containerWorkspaceDir: workspaceDir,
     });
     if (workspace.tempDir !== undefined) tempDirs.set(request.executionId, workspace.tempDir);
-    if (workspace.warning !== undefined) avisos.set(request.executionId, workspace.warning);
+    if (workspace.warning !== undefined) avisar(request.executionId, workspace.warning);
 
-    const credenciais = definition.credentialMounts?.(request.env) ?? [];
-
-    // O ambiente inteiro que o runtime montou, e **não** só as chaves de
-    // credencial. `request.env` já é uma allow-list: o `AgentRuntime` a montou
-    // com o piso do sistema operacional, as chaves que o adapter declarou e as
-    // variáveis que a `environmentPolicy` do perfil pediu. Filtrar de novo por
-    // `containerEnvKeys` aqui jogaria fora justamente as da política — um Run em
-    // Campo aberto enxergaria `MY_VAR` e o mesmo Run em Masmorra selada não,
-    // sem nada no diário explicando a diferença.
-    //
-    // `buildContainerEnv` tira o que não faz sentido lá dentro: o piso do SO,
-    // que a imagem define melhor, e os caminhos que só existem no host.
-    const env = buildContainerEnv(request.env);
-    const { args, stdin } = definition.buildArgs(request);
-
-    const dockerArgs = buildDockerRunArgs(
-      {
-        image,
-        containerName,
-        workdir: workspaceDir,
-        user,
-        mounts: [...workspace.mounts, ...credenciais],
-        envKeys: Object.keys(env),
-        network: dockerNetworkFor(request.network),
-        limits: toDockerLimits(request.resourceLimits ?? options.limits),
-      },
-      [definition.binary, ...args],
-    );
-
-    return {
-      command: "docker",
-      args: dockerArgs,
-      // Os valores vão pelo ambiente do processo cliente do Docker, que é o que
-      // o `-e NOME` do argv manda repassar. É o que mantém o segredo fora da
-      // linha de comando visível na tabela de processos do host.
-      env,
-      ...(stdin === undefined ? {} : { stdin }),
-    };
+    const { command, warnings } = buildDockerRunCommand({
+      definition,
+      request,
+      image,
+      containerName,
+      workspaceDir,
+      user,
+      workspaceMounts: workspace.mounts,
+      limits: request.resourceLimits ?? options.limits,
+    });
+    for (const aviso of warnings) avisar(request.executionId, aviso);
+    return command;
   };
 
   const inner = createHostAdapter({
@@ -369,22 +435,24 @@ export function createDockerAdapter(
       try {
         for await (const event of inner.execute(request)) {
           yield event;
-          // O aviso do preparo dos mounts só existe depois de `buildCommand`,
-          // que roda dentro de `inner.execute`. Emiti-lo logo após o primeiro
-          // evento o coloca no Diário antes de qualquer coisa que o agente
-          // tenha feito sem git.
-          const aviso = avisos.get(request.executionId);
-          if (aviso !== undefined) {
+          // Os avisos do preparo do container só existem depois de
+          // `buildCommand`, que roda dentro de `inner.execute`. Emiti-los logo
+          // após o primeiro evento os coloca no Diário antes de qualquer coisa
+          // que o agente tenha feito sem git ou sem o servidor.
+          const pendentes = avisos.get(request.executionId);
+          if (pendentes !== undefined) {
             avisos.delete(request.executionId);
-            yield {
-              type: "Diagnostic",
-              timestamp: new Date().toISOString(),
-              harness: definition.key,
-              level: "WARN",
-              source: "RUNTIME",
-              code: "DOCKER_WORKSPACE_MOUNT",
-              message: aviso,
-            };
+            for (const aviso of pendentes) {
+              yield {
+                type: "Diagnostic",
+                timestamp: new Date().toISOString(),
+                harness: definition.key,
+                level: "WARN",
+                source: "RUNTIME",
+                code: "DOCKER_CONTAINER_PREPARATION",
+                message: aviso,
+              };
+            }
           }
         }
       } finally {
@@ -410,6 +478,51 @@ export function createDockerAdapter(
       return resultado;
     },
   };
+}
+
+interface ContainerMcp {
+  /** A lista reescrita para dentro do container, ou `undefined` sem servidores. */
+  readonly servers: readonly McpServerSpec[] | undefined;
+  readonly mounts: readonly DockerMount[];
+  /** Variáveis reescritas: nome no argv, valor no ambiente do cliente. */
+  readonly env: Readonly<Record<string, string>>;
+  /** Algum servidor roda dentro do container e precisa alcançar o host. */
+  readonly reachHost: boolean;
+  readonly warnings: readonly string[];
+}
+
+/**
+ * O que os servidores MCP pedem ao container.
+ *
+ * Os que trazem `container` ganham o mount read-only do arquivo, o comando de
+ * dentro da imagem e as variáveis reescritas; os `STDIO` sem `container` são
+ * repassados como estão, com um aviso — o comando do host raramente existe na
+ * imagem, e o diário precisa dizer por que o servidor não subiu.
+ */
+export function prepareContainerMcp(servers: readonly McpServerSpec[] | undefined): ContainerMcp {
+  if (servers === undefined || servers.length === 0) {
+    return { servers: undefined, mounts: [], env: {}, reachHost: false, warnings: [] };
+  }
+
+  const mounts: DockerMount[] = [];
+  const env: Record<string, string> = {};
+  let reachHost = false;
+  for (const server of servers) {
+    if (server.transport !== "STDIO" || server.container === undefined) continue;
+    reachHost = true;
+    for (const mount of server.container.mounts ?? []) {
+      mounts.push({ ...mount, readOnly: mount.readOnly ?? true });
+    }
+    Object.assign(env, server.container.env ?? {});
+  }
+
+  const warnings = mcpServersWithoutContainerLaunch(servers).map(
+    (server) =>
+      `O servidor MCP ${server.name} do Loadout foi repassado ao container com o comando ` +
+      `do host (${server.command}); ele só sobe se o comando existir na imagem do agente.`,
+  );
+
+  return { servers: mcpServersForContainer(servers), mounts, env, reachHost, warnings };
 }
 
 /** As chaves pedidas que existem no ambiente. */

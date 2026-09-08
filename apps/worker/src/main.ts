@@ -85,6 +85,9 @@ const worker = createWorker({
   // (planejamento v0.4, Fase 3B).
   adapters: [...hostAdapters(), ...antigravityHostAdapters(), ...dockerAdapters()],
   achievements,
+  // A URL do banco vai ao servidor MCP do Grimório pelo ambiente do harness
+  // (Fase 7): o mesmo banco deste Worker, escopado por Project e usuário.
+  databaseUrl: config.databaseUrl,
   logger,
 });
 
