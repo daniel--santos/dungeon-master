@@ -82,7 +82,14 @@ export const PI_CAPABILITIES = capabilities({
   // comando que não existe.
   nativePermissions: false,
   hostExecution: true,
-  dockerExecution: false,
+  // Fase 2C: a credencial do Pi é a chave do provedor (`GEMINI_API_KEY` e
+  // irmãs), entregue por variável, que é exatamente a forma que o sanitizador
+  // de credenciais sabe redigir. Provado no spike do ADR 0001.
+  //
+  // `nativePermissions` continua `false` e não muda com o modo: o que o
+  // container acrescenta é o degrau `SANDBOX_ENFORCED`, calculado a partir do
+  // modo do perfil, e não uma permissão por ferramenta que o Pi não tem.
+  dockerExecution: true,
 });
 
 /**

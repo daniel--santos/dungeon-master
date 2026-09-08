@@ -79,9 +79,14 @@ export const CLAUDE_CODE_CAPABILITIES = capabilities({
   agentSelection: true,
   nativePermissions: true,
   hostExecution: true,
-  // Fase 2C. Prometer aqui antes de existir seria o tipo de suposição que a
-  // matriz de capabilities existe para evitar.
-  dockerExecution: false,
+  // Fase 2C. Ligado depois do spike do ADR 0001, que provou os dois caminhos de
+  // credencial — `CLAUDE_CODE_OAUTH_TOKEN` e o `.credentials.json` montado
+  // read-only — com chamada real à API de dentro do container.
+  //
+  // A matriz é do **harness**, e não do adapter: os dois adapters do Claude Code
+  // (host e container) compartilham este objeto de propósito, porque duas
+  // matrizes para o mesmo harness divergiriam sem ninguém notar.
+  dockerExecution: true,
 });
 
 /**
