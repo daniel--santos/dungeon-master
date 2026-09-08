@@ -19,6 +19,7 @@ export * from "./run-task-coupling.js";
 export * from "./run-step-status.js";
 export * from "./workflow-graph.js";
 export * from "./predicates.js";
+export * from "./proposed-task-rules.js";
 
 /** Marca de que um valor é imutável do ponto de vista do domínio. */
 export type Readonly_<T> = { readonly [K in keyof T]: T[K] };
