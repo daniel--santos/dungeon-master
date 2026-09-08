@@ -744,6 +744,18 @@ Pendências que ficam registradas:
 - Um comando composto do agente (`git add X; git commit`) é negado pela CLI mesmo com os prefixos liberados; custa um turno ao agente.
 - **2.5D (web)**: Hall com progresso real, toast de desbloqueio, Heróis, Bestiário e Crônica com dados — próxima rodada.
 
+## Fechamento da Fase 2.5D e andamento da Fase 3 (08/09/2026)
+
+**Fase 2.5 completa.** Web do Hall com dados reais: cartas nos quatro estados com progresso e desbloqueio, contador real, filtros da URL alimentando a API, marcação de visto, toast de desbloqueio em qualquer tela (visto ao vivo após uma Expedição real: "Primeira Expedição"), abas Heróis, Bestiário e Crônica com dados, aba na URL (`tab`), Masmorra selada habilitada no diálogo de Nova Expedição, bloco de Execução em Settings. 10 testes de ponta a ponta; o e2e do Hall não sobe o Worker e usa `pnpm dm achievements rebuild` entre ação e conferência.
+
+Pendências de API deixadas pela web (rodada curta de backend a fazer):
+
+- O payload de `achievement.unlocked` não traz a descrição da Conquista; sem tema o toast mostra estado e grau.
+- Nada expõe reaberturas de Task; a coluna de nêmesis do Bestiário existe vazia.
+- O preflight do Docker não é exposto pela API; Settings mostra só o preflight das CLIs de host.
+
+**Fase 3 em andamento** (dois agentes, branches `feat/fase3-antigravity` e `feat/fase3-docker-gate`): adapter direto do Antigravity no host em `packages/runtime-antigravity` com spike de contrato da CLI 1.1.27, suíte de contrato real e falsa, registro no Worker e seed; e o gate 3D com ADR `0002-antigravity-em-docker` e a imagem 0.2.0 com o `agy`. A fiação do adapter em Docker vem depois que o de host existir.
+
 ## Andamento anterior da Fase 2 (histórico)
 
 Mergeadas e verdes no CI: 2A (modelo, banco, API), 2B (runtime e adapters de host; ADR em `packages/runtime-sandcastle/README.md`: os adapters não dependem do Sandcastle em runtime), o Worker (laço, reconciliação, cancelamento confirmado, shutdown gracioso, `resumeFromRunId`, marca d'água do poller) e as telas (cadastros, Nova Expedição com aceite do modo host, Expedições, Cristal de Visão com diário ao vivo e AlertDialog de cancelamento).
