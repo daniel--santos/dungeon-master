@@ -14,6 +14,7 @@ function task(overrides: Partial<Task> = {}): Task {
     id: "0199aaaa-0000-7000-8000-000000000001",
     projectId: "0199bbbb-0000-7000-8000-000000000001",
     parentTaskId: null,
+    workflowId: null,
     title: "Encerrar a árvore de processos no Windows",
     description: null,
     kind: "BUG",

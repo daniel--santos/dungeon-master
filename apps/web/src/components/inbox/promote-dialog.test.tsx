@@ -18,6 +18,7 @@ const CAPTURE: Task = {
   id: "0199aaaa-0000-7000-8000-000000000001",
   projectId: null,
   parentTaskId: null,
+  workflowId: null,
   title: "ver por que a autenticação quebra",
   description: null,
   kind: "FEATURE",

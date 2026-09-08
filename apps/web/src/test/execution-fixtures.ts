@@ -109,6 +109,7 @@ export const TASK: TaskDetailRecord = {
   id: "0199eeee-0000-7000-8000-000000000001",
   projectId: "0199ffff-0000-7000-8000-000000000001",
   parentTaskId: null,
+  workflowId: null,
   title: "Worker não encerra a árvore de processos no Windows",
   description: "taskkill devolve 0 mesmo com um filho vivo.",
   kind: "BUG",
