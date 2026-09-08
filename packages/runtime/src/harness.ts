@@ -120,6 +120,21 @@ export interface ResolvedNetwork {
   readonly enforced: boolean;
 }
 
+/**
+ * Resultado estruturado pedido, já no vocabulário que um adapter usa.
+ *
+ * Só chega preenchido quando quem chamou o Run forneceu o JSON Schema junto do
+ * Standard Schema. A validação continua sendo do runtime, depois: isto aqui é
+ * a chance de um harness com schema nativo acertar o formato na primeira vez,
+ * em vez de depender de o modelo seguir a instrução do prompt.
+ */
+export interface HarnessStructuredOutput {
+  /** JSON Schema, como objeto. O adapter serializa se a CLI pedir string. */
+  readonly jsonSchema: unknown;
+  /** Tag onde o runtime vai procurar o bloco. Padrão do runtime: `result`. */
+  readonly tag: string;
+}
+
 /** Pedido de retomada de sessão. */
 export interface ResumeRequest {
   readonly harnessSessionId: string;
@@ -142,6 +157,14 @@ export interface HarnessExecutionRequest {
   readonly model?: ModelRef;
   readonly resume?: ResumeRequest;
   readonly permission: ResolvedPermission;
+  /**
+   * Schema nativo, quando o pedido trouxe `outputSchema.jsonSchema`.
+   *
+   * Um adapter sem structured output nativo ignora o campo: a instrução do
+   * bloco `<result>` já foi acrescentada ao prompt pelo runtime, e é ela que
+   * vale para todos.
+   */
+  readonly outputSchema?: HarnessStructuredOutput;
   /** Argumentos extras do Loadout, já em forma de array. */
   readonly extraArgs?: readonly string[];
   /**
