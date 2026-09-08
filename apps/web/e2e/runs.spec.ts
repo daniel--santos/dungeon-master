@@ -113,6 +113,10 @@ test("cadastra herói e equipamento, parte com o aceite e cancela pelo diálogo"
   await page.getByRole("button", { name: `Nova ${dnd["entity.run"]}` }).click();
 
   const dialog = page.getByRole("dialog");
+  // Escolha explícita: o banco de teste também semeia o Loadout do Escriba do
+  // Grimório (Fase 6), então "Forja do e2e" não é mais o único Equipamento
+  // nem o pré-selecionado.
+  await escolher(page, dnd["entity.loadout"], /Forja do e2e/);
   await expect(dialog.getByText("Forja do e2e").first()).toBeVisible();
 
   // Sem o aceite explícito, a Expedição não parte. É a exigência da Fase 2B.
