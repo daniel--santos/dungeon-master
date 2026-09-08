@@ -1,6 +1,6 @@
 import type { components } from "@dungeon-master/api-client";
 import { API_BASE_PATH } from "@dungeon-master/api-client";
-import type { RunStatus } from "@dungeon-master/contracts";
+import type { HarnessKey, RunStatus } from "@dungeon-master/contracts";
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
@@ -15,6 +15,7 @@ type CreateRun = components["schemas"]["CreateRun"];
 export interface RunListParams {
   readonly taskId?: string;
   readonly projectId?: string;
+  readonly harnessKey?: HarnessKey;
   readonly status?: readonly RunStatus[];
   readonly page?: number;
   readonly pageSize?: number;
@@ -34,6 +35,7 @@ function toQuery(params: RunListParams) {
     ...(rest.pageSize === undefined ? {} : { pageSize: String(rest.pageSize) }),
     ...(rest.taskId === undefined ? {} : { taskId: rest.taskId }),
     ...(rest.projectId === undefined ? {} : { projectId: rest.projectId }),
+    ...(rest.harnessKey === undefined ? {} : { harnessKey: rest.harnessKey }),
     ...(status === undefined || status.length === 0 ? {} : { status: [...status] }),
   };
 }

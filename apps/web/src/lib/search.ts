@@ -59,11 +59,9 @@ const HARNESS_KEY_VALUES = ["CLAUDE_CODE", "CODEX", "PI", "ANTIGRAVITY"] as cons
 /**
  * O filtro da lista de Expedições.
  *
- * `projectId` e `status` viajam para a API; `harnessKey` não, porque
- * `GET /api/v1/runs` ainda não filtra por harness e a lista o aplica sobre a
- * página que recebeu. O parâmetro fica na URL de qualquer jeito: o link
- * continua reproduzindo a mesma tela, e o dia em que a rota aceitar o filtro
- * só o `toQuery` muda.
+ * Os três — `projectId`, `harnessKey` e `status` — viajam para a API, então o
+ * link reproduz a mesma tela e o total do rodapé é o do servidor. Os valores
+ * são os enums canônicos: a URL não muda com o interruptor de tema.
  */
 export const runSearchSchema = z.object({
   projectId: z.uuid().optional().catch(undefined),
