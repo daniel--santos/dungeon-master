@@ -26,6 +26,7 @@ describe("TaskSchema", () => {
       id: UUID,
       projectId: null,
       parentTaskId: null,
+      workflowId: null,
       title: "ver por que a autenticação quebra no módulo X",
       description: null,
       kind: "RESEARCH",

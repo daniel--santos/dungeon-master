@@ -250,6 +250,11 @@ export const DiagnosticEventSchema = z
  *
  * `approvalKey` é a chave estável do gate, e não o id do step: é por ela que a
  * retomada encontra o gate depois de um restart do worker (planejamento, Fase 4).
+ *
+ * O motor de Workflow emite o mesmo evento ao abrir um ApprovalGate, com o
+ * `harness` do Run e `gateId`/`stepKey` preenchidos: é um pedido de aprovação
+ * como qualquer outro para quem lê a timeline, e a decisão sai depois como
+ * `ApprovalGranted` ou `ApprovalRejected` do `WorkflowEvent`.
  */
 export const ApprovalRequestedEventSchema = z
   .object({
@@ -258,6 +263,11 @@ export const ApprovalRequestedEventSchema = z
     approvalKey: z.string().min(1).describe("Chave estável do pedido de aprovação."),
     summary: z.string().describe("O que está sendo pedido, em uma linha."),
     toolName: z.string().min(1).optional().describe("Ferramenta que disparou o pedido."),
+    gateId: z
+      .uuid()
+      .optional()
+      .describe("O ApprovalGate, quando o pedido vem de um step `approval`."),
+    stepKey: z.string().min(1).optional().describe("Chave do step `approval` que pediu."),
   })
   .meta({ id: "ApprovalRequestedEvent" });
 

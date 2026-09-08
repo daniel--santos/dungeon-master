@@ -83,6 +83,13 @@ export const TaskSchema = z
       .nullable()
       .describe("Project dono da Task. Nulo apenas enquanto o status é `INBOX`."),
     parentTaskId: z.uuid().nullable().describe("Task mãe, quando esta é uma subtarefa."),
+    workflowId: z
+      .uuid()
+      .nullable()
+      .describe(
+        "Workflow que os Runs desta Task seguem. Nulo é o Run simples, de um agente só. " +
+          "O Run congela a definição vigente ao nascer, então trocar aqui não afeta Run em voo.",
+      ),
     title: z.string().describe("Título da Task."),
     description: z.string().nullable().describe("Descrição livre."),
     kind: TaskKindSchema,
@@ -161,6 +168,10 @@ export const CreateTaskSchema = z
       .uuid()
       .nullish()
       .describe("Task mãe. Precisa pertencer ao mesmo Project e não estar em `INBOX`."),
+    workflowId: z
+      .uuid()
+      .nullish()
+      .describe("Workflow que os Runs desta Task seguem. Precisa existir."),
     title: TitleSchema.describe("Título da Task."),
     description: DescriptionSchema.nullish().describe("Descrição livre."),
     kind: TaskKindSchema.optional().describe(`Padrão: \`${DEFAULT_TASK_KIND}\`.`),
@@ -188,6 +199,13 @@ export const UpdateTaskSchema = z
       .uuid()
       .nullish()
       .describe("Troca ou remove a Task mãe. `null` desliga a subtarefa da mãe."),
+    workflowId: z
+      .uuid()
+      .nullish()
+      .describe(
+        "Troca ou remove o Workflow. `null` volta ao Run simples. Não afeta Runs já criados: " +
+          "cada um congelou a definição que valia quando nasceu.",
+      ),
     title: TitleSchema.optional(),
     description: DescriptionSchema.nullish(),
     kind: TaskKindSchema.optional(),
