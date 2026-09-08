@@ -517,7 +517,14 @@ describe("a identidade do git dentro do agente", () => {
 
     const comIdentidade = join(base, "com-identidade.gitconfig");
     await writeFile(comIdentidade, "[user]\n\temail = teste@dungeon.master\n\tname = Teste\n");
-    await writeFile(join(base, "sem-identidade.gitconfig"), "[core]\n\tquotepath = false\n");
+    // `useConfigOnly` é o que torna o cenário determinístico: sem ele, git no
+    // macOS e no Linux inventa uma identidade a partir da conta do sistema e do
+    // hostname e o commit passa com um aviso. Só o Windows falhava sozinho, e
+    // foi assim que o CI do macOS reprovou este teste.
+    await writeFile(
+      join(base, "sem-identidade.gitconfig"),
+      "[core]\n\tquotepath = false\n[user]\n\tuseConfigOnly = true\n",
+    );
     configComIdentidade = comIdentidade;
     configSemIdentidade = join(base, "sem-identidade.gitconfig");
 
@@ -595,6 +602,6 @@ describe("a identidade do git dentro do agente", () => {
     expect(relatos.toLowerCase()).toContain("git commit");
     // A mensagem do git muda de versão para versão; o que não muda é ele
     // reclamar de identidade.
-    expect(relatos.toLowerCase()).toMatch(/identity|user\.email|empty ident/u);
+    expect(relatos.toLowerCase()).toMatch(/identity|user\.email|empty ident|auto-detection/u);
   });
 });
