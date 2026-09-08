@@ -344,6 +344,9 @@ importers:
       '@dungeon-master/events':
         specifier: workspace:*
         version: link:../events
+      '@dungeon-master/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
       dotenv:
         specifier: 17.4.2
         version: 17.4.2

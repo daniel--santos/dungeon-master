@@ -306,6 +306,8 @@ export async function limpar(handle: DatabaseHandle): Promise<void> {
     "hero_stats",
     "proposed_task",
     "knowledge_candidate",
+    "knowledge_item",
+    "distillation_run",
     "workspace_lock",
     "approval_gate",
     "run_step",

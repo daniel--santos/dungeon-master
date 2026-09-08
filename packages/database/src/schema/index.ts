@@ -9,4 +9,6 @@ export * from "./workflow.js";
 export * from "./run.js";
 export * from "./run-step.js";
 export * from "./proposed-task.js";
+export * from "./knowledge-item.js";
+export * from "./distillation.js";
 export * from "./knowledge-candidate.js";

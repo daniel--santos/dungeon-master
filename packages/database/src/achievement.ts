@@ -18,7 +18,7 @@ import {
 } from "@dungeon-master/achievements";
 import type { AchievementState, HarnessKey } from "@dungeon-master/contracts";
 import type { EventsLogger } from "@dungeon-master/events";
-import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 
 import type { DatabaseExecutor } from "./dashboard-event.js";
 import { newId } from "./ids.js";
@@ -365,6 +365,15 @@ export async function syncTemplateInstances(
 // Leitura crua, para o projetor
 // --------------------------------------------------------------------------
 
+/**
+ * As definições que **contam**: tudo do catálogo e dos templates, e das
+ * forjadas só as aprovadas.
+ *
+ * Uma forjada em revisão ou descartada fica fora daqui de propósito, e é isto
+ * que impede o projetor de ser afetado por uma Conquista que o usuário ainda
+ * não carimbou (planejamento v0.4, Fase 2.5C): o projetor e o Hall leem
+ * pela mesma função, então o que um não vê o outro também não mostra.
+ */
 export async function listAchievementDefinitionRows(
   db: DatabaseExecutor,
   input: { userId: string },
@@ -372,7 +381,15 @@ export async function listAchievementDefinitionRows(
   return await db
     .select()
     .from(achievementDefinitions)
-    .where(eq(achievementDefinitions.userId, input.userId))
+    .where(
+      and(
+        eq(achievementDefinitions.userId, input.userId),
+        or(
+          isNull(achievementDefinitions.reviewStatus),
+          eq(achievementDefinitions.reviewStatus, "APPROVED"),
+        ),
+      ),
+    )
     .orderBy(asc(achievementDefinitions.naturalKey));
 }
 

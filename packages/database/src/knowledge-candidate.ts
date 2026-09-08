@@ -15,9 +15,9 @@ import { type KnowledgeCandidateRow, knowledgeCandidates } from "./schema/knowle
  * KnowledgeCandidate: o que um Run aprendeu, à espera da destilação
  * (documento técnico, seção 21).
  *
- * Só duas operações nesta fase: gravar, na transação do desfecho do Run, e
- * listar. Promover ou rejeitar é trabalho do Distiller da Fase 6, que vai
- * consumir a tabela sob advisory lock por Project.
+ * Duas operações do lado do Run: gravar, na transação do desfecho, e listar.
+ * Promover, rejeitar ou mesclar é trabalho do Distiller
+ * (`knowledge-distiller.ts`), sob advisory lock por Project.
  */
 
 export function toKnowledgeCandidate(row: KnowledgeCandidateRow): KnowledgeCandidate {
@@ -30,6 +30,11 @@ export function toKnowledgeCandidate(row: KnowledgeCandidateRow): KnowledgeCandi
     content: row.content,
     kind: row.kind,
     status: row.status,
+    decision: row.decision,
+    reason: row.reason,
+    knowledgeItemId: row.knowledgeItemId,
+    distillationRunId: row.distillationRunId,
+    processedAt: row.processedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -40,6 +45,12 @@ export interface PersistKnowledgeCandidatesInput {
   taskId: string;
   runId: string;
   candidates: readonly KnowledgeCandidateInput[];
+  /**
+   * Deslocamento da posição. As `decisions` do resultado entram pela mesma
+   * porta numa faixa própria, para não colidir com os `knowledgeCandidates`
+   * na chave `(run_id, position)`.
+   */
+  positionOffset?: number;
 }
 
 function normalizar(text: string): string {
@@ -58,6 +69,7 @@ export async function persistKnowledgeCandidates(
   db: DatabaseExecutor,
   input: PersistKnowledgeCandidatesInput,
 ): Promise<{ inserted: number }> {
+  const offset = input.positionOffset ?? 0;
   const values = input.candidates.flatMap((candidate, position) => {
     const title = normalizar(candidate.title);
     const content = normalizar(candidate.content);
@@ -70,7 +82,7 @@ export async function persistKnowledgeCandidates(
         projectId: input.projectId,
         taskId: input.taskId,
         runId: input.runId,
-        position,
+        position: offset + position,
         title,
         content,
         kind: kind === null || kind.length === 0 ? null : kind,

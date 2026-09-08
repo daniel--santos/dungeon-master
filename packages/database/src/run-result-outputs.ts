@@ -1,6 +1,9 @@
 import {
+  DECISION_CANDIDATE_KIND,
   type DiscoveredTask,
   DiscoveredTaskSchema,
+  type ExecutionDecision,
+  ExecutionDecisionSchema,
   type KnowledgeCandidateInput,
   KnowledgeCandidateInputSchema,
   type RunResult,
@@ -22,8 +25,12 @@ import { persistDiscoveredTasks } from "./proposed-task.js";
  * idempotência por `(run_id, position)` de cada tabela é o que permite
  * reprocessar um resultado sem duplicar.
  *
- * `RunResult` é um objeto aberto, e o que chega em `discoveredTasks` e
- * `knowledgeCandidates` foi validado pelo runtime contra
+ * As `decisions` (Fase 6) entram como candidatos com `kind` = `decision`,
+ * numa faixa de posição própria: o Distiller as promove como itens
+ * `DECISION`, e a mesma idempotência por Run e posição vale para elas.
+ *
+ * `RunResult` é um objeto aberto, e o que chega em `discoveredTasks`,
+ * `knowledgeCandidates` e `decisions` foi validado pelo runtime contra
  * `TaskExecutionResultSchema` antes de virar `RunCompleted`. A validação é
  * repetida aqui, item a item, por causa do caminho agregado e de resultados
  * escritos por versões anteriores: um item torto é pulado com aviso, e não
@@ -42,7 +49,19 @@ export interface PersistRunResultOutputsInput {
 export interface RunResultOutputs {
   readonly proposedTasks: number;
   readonly knowledgeCandidates: number;
+  /** As `decisions` gravadas como candidatos `DECISION`. */
+  readonly decisions: number;
 }
+
+/**
+ * A faixa de posição das `decisions` em `knowledge_candidate`.
+ *
+ * Os `knowledgeCandidates` ocupam `0..n-1`; as decisões começam aqui. Um
+ * resultado com dez mil candidatos não existe, e se existisse o excedente
+ * colidiria na chave única e seria pulado pelo `ON CONFLICT DO NOTHING`, e
+ * não gravado errado.
+ */
+export const DECISION_POSITION_OFFSET = 10_000;
 
 function itensValidos<T>(
   value: unknown,
@@ -74,6 +93,17 @@ function itensValidos<T>(
   return validos;
 }
 
+/** Uma `decision` como candidato: o resumo é o título; o porquê vai no conteúdo. */
+export function decisionToCandidate(decision: ExecutionDecision): KnowledgeCandidateInput {
+  const summary = decision.summary.trim();
+  const rationale = decision.rationale?.trim() ?? "";
+  return {
+    title: summary,
+    content: rationale.length === 0 ? summary : `${summary}\n\n${rationale}`,
+    kind: DECISION_CANDIDATE_KIND,
+  };
+}
+
 export async function persistRunResultOutputs(
   db: DatabaseExecutor,
   input: PersistRunResultOutputsInput,
@@ -89,6 +119,12 @@ export async function persistRunResultOutputs(
     (item) => KnowledgeCandidateInputSchema.safeParse(item),
     input,
     "knowledgeCandidates",
+  );
+  const decisions = itensValidos<ExecutionDecision>(
+    input.result["decisions"],
+    (item) => ExecutionDecisionSchema.safeParse(item),
+    input,
+    "decisions",
   );
 
   const propostas = await persistDiscoveredTasks(db, {
@@ -107,5 +143,18 @@ export async function persistRunResultOutputs(
     candidates,
   });
 
-  return { proposedTasks: propostas.inserted, knowledgeCandidates: conhecimento.inserted };
+  const decididas = await persistKnowledgeCandidates(db, {
+    userId: input.userId,
+    projectId: input.projectId,
+    taskId: input.taskId,
+    runId: input.runId,
+    candidates: decisions.map(decisionToCandidate),
+    positionOffset: DECISION_POSITION_OFFSET,
+  });
+
+  return {
+    proposedTasks: propostas.inserted,
+    knowledgeCandidates: conhecimento.inserted,
+    decisions: decididas.inserted,
+  };
 }

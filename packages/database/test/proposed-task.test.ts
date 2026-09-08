@@ -190,7 +190,7 @@ describe("gravação no desfecho do Run", () => {
       projectId,
       result: RESULTADO,
     });
-    expect(denovo).toEqual({ proposedTasks: 0, knowledgeCandidates: 0 });
+    expect(denovo).toEqual({ proposedTasks: 0, knowledgeCandidates: 0, decisions: 0 });
 
     const propostas = await listProposedTasks(handle.db, { userId: USER, page: 1, pageSize: 10 });
     expect(propostas.total).toBe(2);
