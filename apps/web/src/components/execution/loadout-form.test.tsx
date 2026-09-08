@@ -127,6 +127,64 @@ describe("aviso de permissão do Equipamento", () => {
     expect(aviso()).toBeNull();
   });
 
+  it("hidrata a política de contexto do Equipamento e a grava junto com o resto", async () => {
+    client.PATCH.mockResolvedValue(ok({ ...LOADOUT, version: LOADOUT.version + 1 }) as never);
+    montar({
+      ...LOADOUT,
+      knowledgePolicy: { includeProjectSummary: true, includeDecisions: false, maxItems: 4 },
+      contextPolicy: { includeParentContext: false, includeDependencyContext: true, maxTokens: 0 },
+    });
+
+    const policy = await waitFor(() => {
+      const element = document.querySelector("[data-loadout-policy]");
+      expect(element).not.toBeNull();
+      return element as HTMLElement;
+    });
+    expect(policy.textContent).toContain(dnd["loadout.policy.title"]);
+    expect(policy.textContent).toContain(dnd["loadout.policy.includeProjectSummary"]);
+
+    const toggle = (name: string) =>
+      policy.querySelector(`[data-loadout-policy-switch="${name}"]`) as HTMLButtonElement;
+    const field = (name: string) =>
+      policy.querySelector(`[data-loadout-policy-field="${name}"]`) as HTMLInputElement;
+
+    expect(toggle("includeProjectSummary").getAttribute("data-state")).toBe("checked");
+    expect(toggle("includeDecisions").getAttribute("data-state")).toBe("unchecked");
+    expect(toggle("includeParentContext").getAttribute("data-state")).toBe("unchecked");
+    expect(toggle("includeDependencyContext").getAttribute("data-state")).toBe("checked");
+    expect(field("maxItems").value).toBe("4");
+    expect(field("maxTokens").value).toBe("0");
+
+    // Um teto que não é inteiro trava o salvar; um inteiro destrava.
+    fireEvent.change(field("maxItems"), { target: { value: "x" } });
+    const salvar = screen.getByRole("button", { name: "Salvar" }) as HTMLButtonElement;
+    await waitFor(() => {
+      expect(salvar.disabled).toBe(true);
+    });
+    fireEvent.change(field("maxItems"), { target: { value: "6" } });
+    fireEvent.click(toggle("includeDecisions"));
+    fireEvent.change(field("maxTokens"), { target: { value: "3000" } });
+    await waitFor(() => {
+      expect(salvar.disabled).toBe(false);
+    });
+
+    fireEvent.click(salvar);
+    await waitFor(() => {
+      expect(client.PATCH).toHaveBeenCalledTimes(1);
+    });
+    const [, request] = client.PATCH.mock.calls[0] as [string, { body: Record<string, unknown> }];
+    expect(request.body["knowledgePolicy"]).toEqual({
+      includeProjectSummary: true,
+      includeDecisions: true,
+      maxItems: 6,
+    });
+    expect(request.body["contextPolicy"]).toEqual({
+      includeParentContext: false,
+      includeDependencyContext: true,
+      maxTokens: 3000,
+    });
+  });
+
   it("num Equipamento existente, o aviso já vem aberto, e troca de texto com o tema", async () => {
     montar({ ...LOADOUT, harnessId: ANTIGRAVITY.id });
 
