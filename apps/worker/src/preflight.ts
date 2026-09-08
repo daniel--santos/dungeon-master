@@ -58,7 +58,17 @@ export async function runBootPreflight(
   const { db, userId, adapters, logger } = input;
   const outcomes: PreflightOutcome[] = [];
 
-  for (const adapter of adapters) {
+  // Só os adapters de host. A linha do Harness no banco guarda **uma**
+  // `installedVersion`, e ela descreve a CLI desta máquina; deixar o adapter de
+  // container escrever ali faria a tela de Guildas mostrar a versão de dentro da
+  // imagem em cima da versão do host, alternando conforme a ordem do registro.
+  // O preflight do modo `DOCKER` acontece por Run, dentro do `AgentRuntime`, que
+  // é onde a imagem e o daemon importam — e onde subir um container é aceitável.
+  // A matriz de capabilities é a mesma nos dois adapters de propósito, então
+  // `dockerExecution` continua sendo gravado corretamente a partir do host.
+  const doHost = adapters.filter((adapter) => (adapter.executionMode ?? "HOST") === "HOST");
+
+  for (const adapter of doHost) {
     let result: PreflightResult;
     try {
       result = await adapter.preflight({

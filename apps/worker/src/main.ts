@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/database";
-import { hostAdapters } from "@dungeon-master/runtime-sandcastle";
+import { dockerAdapters, hostAdapters } from "@dungeon-master/runtime-sandcastle";
 
 import { loadConfig } from "./config.js";
 import { createLogger } from "./logger.js";
@@ -47,7 +47,12 @@ const worker = createWorker({
   pool: database.pool,
   userId: LOCAL_USER_ID,
   config,
-  adapters: hostAdapters(),
+  // Os dois modos no mesmo registry: a chave é o par `(harness, modo)`, e quem
+  // escolhe entre `claude-code@host` e `claude-code@docker` é o
+  // `ExecutionProfile.mode` do Run. Registrar os adapters de container não custa
+  // nada quando não há Docker: o preflight deles é que falha, com a mensagem que
+  // diz o que instalar ou construir.
+  adapters: [...hostAdapters(), ...dockerAdapters()],
   logger,
 });
 
