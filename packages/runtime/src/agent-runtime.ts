@@ -179,7 +179,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     let usage: UsageSummary | undefined;
 
     try {
-      const adapter = options.registry.resolve(harnessKey);
+      const adapter = options.registry.resolve(harnessKey, request.executionProfile.mode);
       control.adapter = adapter;
 
       // ---------------------------------------------------------- capabilities

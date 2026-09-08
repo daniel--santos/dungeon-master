@@ -290,6 +290,42 @@ injeção, e o pacote roda inteiro em teste sem infraestrutura.
   `forkSession` é `false` em vez de prometido. O raciocínio de qual flag usar, qual linha
   traz o id de sessão e como mapear o consumo de tokens de cada harness é do original.
 
+### Sandcastle — packages/runtime (Fase 2C, execução em Docker)
+
+#### `packages/runtime/src/docker.ts` (montagem do workspace)
+
+- Origem: Sandcastle — `src/mountUtils.ts@e99f832` (`PARENT_GIT_SANDBOX_DIR`,
+  `parseGitdirPath` e `patchGitMountsForWindows`)
+- Copyright: (c) 2026 Matt Pocock. Licensed under the MIT License.
+- Modo: adaptar
+- Fase: 2C
+- Testes: `packages/runtime/src/docker.test.ts`, com os casos de `mountUtils.test.ts` que
+  se aplicam: clone comum (`.git` diretório, atalho de saída), worktree com `gitdir:` em
+  caminho do Windows, worktree com `gitdir:` POSIX, `.git` sem a linha `gitdir:` e `.git`
+  ilegível. Os casos da origem que não vieram são os que reescrevem uma lista de mounts
+  vinda de `resolveGitMounts`, função que não existe aqui.
+- Changes: o `Effect.gen`/`Effect.tryPromise` virou `async`/`await` com `try`/`catch`, e
+  o `WorktreeError` virou o campo `warning` do resultado — um `.git` estranho vira
+  `Diagnostic` e não derruba o Run. O remapeamento do `.git` pai deixou de ser
+  condicional a `win32`: no original, fora do Windows o `.git` pai é montado no mesmo
+  caminho do host e o `gitdir:` resolve por acaso, o que faz o caminho do host vazar para
+  dentro do container e cria dois comportamentos para testar em vez de um. Aqui o
+  destino é sempre `/.dungeon-master-parent-git` e o `.git` de sobreposição é sempre
+  escrito. `parseGitdirPath` devolve `undefined` em vez de confiar na forma do caminho,
+  porque a entrada vem de um arquivo no disco do usuário. A função produz os mounts do
+  zero em vez de reescrever uma lista pré-existente. Os parâmetros injetáveis de I/O da
+  origem foram preservados: são o que torna o comportamento de Windows testável na nossa
+  matriz. Nenhum import de `effect` sobrou.
+
+  O que **não** veio: `normalizeMounts`, `formatVolumeMount`, `processFileMountParents`,
+  `resolveUserMounts` e `defaultImageName`. O ciclo de vida do container também é nosso e
+  não do original — o Sandcastle usa `docker run -d` mais `docker exec` sobre uma imagem
+  com `ENTRYPOINT ["sleep","infinity"]`, e aqui é um `docker run --rm` por Run, porque o
+  `docker exec` de lá não aceita `-e` e o `env` do provider não chega a container longevo
+  (documento técnico, seção 18.1). O `docker/agent.Dockerfile` segue o contrato de UID/GID
+  de `.sandcastle/Dockerfile` (ADR 0005 e ADR 0014 de lá), com a atribuição no cabeçalho
+  do próprio arquivo.
+
 ## Licença deste projeto
 
 Dungeon Master é distribuído sob a licença MIT. Veja [`LICENSE`](./LICENSE).

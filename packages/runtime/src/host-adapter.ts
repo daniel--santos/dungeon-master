@@ -27,6 +27,7 @@ import type {
   PreflightResult,
 } from "./harness.js";
 import { startProcess, type RunningProcess } from "./process.js";
+import type { ExecutionMode } from "./types.js";
 
 /** `Omit` que distribui sobre a união, em vez de reduzi-la aos campos comuns. */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -97,6 +98,13 @@ export interface HostCommand {
 export interface HostAdapterDefinition {
   readonly id: string;
   readonly key: HarnessKey;
+  /**
+   * Modo declarado ao registry. Padrão: `HOST`.
+   *
+   * O backend de container reaproveita esta mesma base — o que muda entre os
+   * dois modos é o spawn — e por isso precisa poder dizer `DOCKER` aqui.
+   */
+  readonly executionMode?: ExecutionMode;
   readonly capabilities: HarnessCapabilities;
   readonly environmentKeys?: readonly string[];
   buildCommand(request: HarnessExecutionRequest): HostCommand | Promise<HostCommand>;
@@ -332,6 +340,7 @@ export function createHostAdapter(definition: HostAdapterDefinition): HarnessAda
   return {
     id: definition.id,
     key: definition.key,
+    executionMode: definition.executionMode ?? "HOST",
     capabilities: definition.capabilities,
     ...(definition.environmentKeys === undefined
       ? {}
