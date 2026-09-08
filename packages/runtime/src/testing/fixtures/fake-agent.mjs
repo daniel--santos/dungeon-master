@@ -23,6 +23,10 @@
  *   @@fake:stderr <texto>     escreve no stderr
  *   @@fake:block <json>       emite <result>json</result> como texto
  *   @@fake:result <texto>     emite a linha de resultado final
+ *   @@fake:denied <ferramenta>  o harness nega a ferramenta por permissão
+ *   @@fake:write <caminho> <texto>  escreve um arquivo no diretório de trabalho
+ *   @@fake:delete <caminho>   apaga um arquivo do diretório de trabalho
+ *   @@fake:git <args>         roda `git` no diretório de trabalho (para commitar)
  *   @@fake:sleep <ms>         espera
  *   @@fake:hang               nunca mais emite nada e nunca sai
  *   @@fake:ignore-signals     passa a ignorar SIGTERM, SIGINT e SIGBREAK
@@ -31,7 +35,9 @@
  *   @@fake:error <mensagem>   emite uma linha de erro e sai com código 1
  */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { rmSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CHILD_MARKER = "--fake-child";
@@ -167,6 +173,27 @@ async function run(prompt, sessionFromArgv) {
       }
       case "stderr":
         process.stderr.write(`${directive.arg}\n`);
+        break;
+      case "denied":
+        emit({ type: "permission_denied", tool: directive.arg });
+        break;
+      case "write": {
+        // O agente falso escrevendo arquivo de verdade é o que prova o caminho
+        // inteiro dos espólios: o worker lê o diff do worktree, não o stream.
+        const espaco = directive.arg.indexOf(" ");
+        const caminho = espaco === -1 ? directive.arg : directive.arg.slice(0, espaco);
+        const conteudo = espaco === -1 ? "" : directive.arg.slice(espaco + 1);
+        writeFileSync(resolve(process.cwd(), caminho), conteudo + "\n");
+        break;
+      }
+      case "delete":
+        rmSync(resolve(process.cwd(), directive.arg), { force: true });
+        break;
+      case "git":
+        spawnSync("git", directive.arg.split(" ").filter(Boolean), {
+          cwd: process.cwd(),
+          stdio: "ignore",
+        });
         break;
       case "sleep":
         await delay(Number(directive.arg) || 0);

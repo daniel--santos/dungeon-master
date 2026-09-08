@@ -5,6 +5,7 @@ import type {
 } from "@dungeon-master/contracts";
 import type {
   HarnessCapabilities,
+  PermissionGrant,
   RuntimeEnvironmentPolicy,
   RuntimePermissionPolicy,
 } from "@dungeon-master/runtime";
@@ -14,32 +15,35 @@ import type {
  *
  * **Isto é regra de domínio, e por isso mora no Worker.** `packages/contracts`
  * declara o que o usuário pediu (`workspaceWrite`, `commandExecution`,
- * `allowedVariables`); `packages/runtime` declara o que um adapter sabe montar
- * (`mode`, `harnessMode`, `allowList`). Quem decide que "executar qualquer
- * comando" vira **qual** modo de permissão de CLI é uma decisão sobre
- * segurança, não sobre argv — e um adapter que a tomasse sozinho tomaria uma
- * diferente por harness.
+ * `allowedVariables`); `packages/runtime` declara o que um adapter sabe montar.
+ * O que o Worker decide é **quanto conceder**; o que cada adapter decide é como
+ * escrever isso no argv dele. Sem essa divisão, ou o Worker passaria a saber o
+ * que é `Bash(git:*)`, ou cada adapter inventaria o seu próprio significado
+ * para "executar qualquer comando".
  *
- * ## A regra dura
+ * ## Três degraus, não dois
  *
- * `commandExecution: ALL` em `HOST` com `enforcement = HARNESS_NATIVE` vira o
- * **modo de auto-aprovação nativo da CLI**, nunca `bypass`. A diferença é toda:
- * auto-aprovação deixa a CLI continuar aplicando as barreiras dela (caminhos
- * proibidos, comandos negados, confirmação para o que é destrutivo) sem parar
- * para perguntar; `bypass` desliga as barreiras. Um Loadout copiado de outra
- * máquina não pode virar bypass silencioso na máquina de alguém.
+ * A primeira versão desta função tinha só dois destinos, e os dois erravam. O
+ * modo de auto-aprovação de edições (`acceptEdits` no Claude Code) libera
+ * escrita de arquivo e **não** libera comando: um Run com ele criou o arquivo
+ * pedido, não conseguiu `git add`, e reportou `blocked`. `bypass` liberava
+ * tudo, inclusive o que ninguém pediu.
  *
- * `bypass` só sai em dois casos, os dois visíveis:
+ * O degrau do meio é a **concessão**: o Worker diz o que o agente pode fazer —
+ * escrever no workspace, executar estes prefixos de comando — e o adapter
+ * traduz para `--allowedTools`, `--sandbox` ou `--tools`, conforme a CLI.
  *
- * 1. `enforcement = SANDBOX_ENFORCED` — há isolamento de verdade em volta, e é
- *    o container que limita, não a CLI (planejamento v0.4, Fase 2C).
- * 2. `permissionPolicy.allowUnsafeBypass = true` — opt-in explícito de quem
- *    editou o perfil. Nesse caso o Run emite um `Diagnostic` e grava uma linha
- *    no diário do Project: quem ligou isso deixou rastro.
+ * ## A regra dura continua a mesma
  *
- * "Nunca usar `sandbox.interactive()` do Sandcastle, que pula permissões
- * incondicionalmente" (planejamento v0.4, Fase 2B) é a mesma regra vista pelo
- * outro lado.
+ * `bypass` só sai com `enforcement = SANDBOX_ENFORCED` — há isolamento de
+ * verdade em volta — ou com `permissionPolicy.allowUnsafeBypass = true`, opt-in
+ * explícito de quem editou o perfil. No segundo caso o Run emite um
+ * `Diagnostic` e grava uma linha no diário do Project.
+ *
+ * `commandExecution: ALL` **nunca** vira `bypass` sozinho. Ele vira a concessão
+ * mais larga que ainda é uma lista: os comandos de trabalho que qualquer tarefa
+ * de código precisa, mais o que o perfil listar. Um agente sem lista nenhuma é
+ * outro pedido, e tem outra porta.
  */
 
 export interface PolicyNote {
@@ -65,23 +69,15 @@ export interface ResolvedRunPolicies {
 }
 
 /**
- * O nome do modo de auto-aprovação de cada CLI.
+ * Os comandos que `commandExecution: ALL` concede por padrão.
  *
- * É vocabulário do harness, não nosso: `acceptEdits` é o que o Claude Code
- * chama de "não me pergunte a cada edição", e `workspace-write` é o sandbox do
- * Codex que libera escrita dentro do diretório de trabalho. Os dois param antes
- * do que é destrutivo fora do workspace, que é exatamente a diferença para
- * `bypass`.
- *
- * `undefined` significa "esta CLI não tem um modo assim". Nesse caso vale o
- * padrão dela, e o Run registra que o pedido não pôde ser atendido — em vez de
- * escalar para bypass, que seria conceder mais do que se pediu.
+ * `git` está aqui porque uma tarefa de código que não pode commitar não termina
+ * — foi exatamente assim que o primeiro Run desta fase parou. A lista é curta de
+ * propósito: cada prefixo aqui é uma porta aberta em toda execução do sistema,
+ * e ampliar isto é decisão de projeto, não conveniência de um Run. Um perfil que
+ * precisa de mais acrescenta em `allowedCommands`.
  */
-const AUTO_APPROVE_MODE: Partial<Record<HarnessKey, string>> = {
-  CLAUDE_CODE: "acceptEdits",
-  CODEX: "workspace-write",
-  // Pi não declara `nativePermissions`, e Antigravity chega na Fase 3.
-};
+export const DEFAULT_TRUSTED_COMMANDS: readonly string[] = ["git"];
 
 export interface ResolveRunPoliciesInput {
   readonly profile: ExecutionProfileSnapshot;
@@ -97,82 +93,69 @@ export function resolveRunPolicies(input: ResolveRunPoliciesInput): ResolvedRunP
 
   const sandboxEnforced = profile.enforcement === "SANDBOX_ENFORCED";
   const optIn = policy.allowUnsafeBypass === true;
+  const querTudo = policy.commandExecution === "ALL";
 
-  let permission: RuntimePermissionPolicy = { mode: "DEFAULT" };
+  let permission: RuntimePermissionPolicy;
   let bypassWithoutSandbox = false;
 
-  if (policy.commandExecution === "ALL") {
-    if (sandboxEnforced) {
-      permission = { mode: "BYPASS" };
-      notes.push({
-        level: "INFO",
-        message:
-          "Execução de comandos liberada com as checagens da CLI desligadas, dentro de um " +
-          "ambiente com isolamento imposto.",
-      });
-    } else if (optIn) {
-      // O opt-in é a única porta de bypass sem isolamento, e ela é barulhenta
-      // de propósito: `Diagnostic` no log e linha no diário do Project.
-      permission = { mode: "BYPASS", allowBypassWithoutSandbox: true };
-      bypassWithoutSandbox = true;
-      notes.push({
-        level: "WARN",
-        message:
-          "Este Run roda com as checagens de permissão da CLI desligadas e SEM isolamento: " +
-          "o agente tem as mesmas permissões do seu usuário no sistema.",
-        detail:
-          `Origem: allowUnsafeBypass = true no ExecutionProfile "${profile.name}". ` +
-          "Desligue a opção no perfil para voltar ao modo de auto-aprovação nativo do harness.",
-      });
-    } else {
-      const harnessMode = AUTO_APPROVE_MODE[harnessKey];
-      if (harnessMode !== undefined && capabilities.nativePermissions) {
-        permission = { mode: "CONFIGURED", harnessMode };
-        notes.push({
-          level: "INFO",
-          message:
-            `Execução de comandos liberada pelo modo nativo do harness (${harnessMode}). ` +
-            "As barreiras da própria CLI continuam valendo.",
-        });
-      } else {
-        notes.push({
-          level: "WARN",
-          message:
-            `A política pede execução de qualquer comando, mas ${harnessKey} não tem um modo ` +
-            "de auto-aprovação nativo. Vale o padrão da CLI, e o agente pode parar pedindo " +
-            "confirmação.",
-        });
-      }
-    }
-  } else if (policy.commandExecution === "ALLOWLIST" && policy.allowedCommands.length > 0) {
-    // A allow-list é `ADVISORY` na Fase 2: nenhuma das três CLIs aceita uma
-    // lista de comandos permitidos pela linha de comando. Dizer isso alto é o
-    // que a seção 15 do documento técnico chama de não confundir política
-    // pedida com política imposta.
+  if (querTudo && sandboxEnforced) {
+    permission = { mode: "BYPASS" };
+    notes.push({
+      level: "INFO",
+      message:
+        "Execução de comandos liberada com as checagens da CLI desligadas, dentro de um " +
+        "ambiente com isolamento imposto.",
+    });
+  } else if (querTudo && optIn) {
+    // O opt-in é a única porta de bypass sem isolamento, e ela é barulhenta de
+    // propósito: `Diagnostic` no log e linha no diário do Project.
+    permission = { mode: "BYPASS", allowBypassWithoutSandbox: true };
+    bypassWithoutSandbox = true;
     notes.push({
       level: "WARN",
       message:
-        "A allow-list de comandos é apenas indicativa nesta versão: nenhuma das CLIs de " +
-        "agente aceita a lista por parâmetro, então nada impede tecnicamente um comando " +
-        "fora dela.",
-      detail: `Comandos declarados: ${policy.allowedCommands.join(", ")}.`,
+        "Este Run roda com as checagens de permissão da CLI desligadas e SEM isolamento: " +
+        "o agente tem as mesmas permissões do seu usuário no sistema.",
+      detail:
+        `Origem: allowUnsafeBypass = true no ExecutionProfile "${profile.name}". ` +
+        "Desligue a opção no perfil para voltar ao modo configurado por allow-list.",
     });
-  }
+  } else {
+    const grant = buildGrant(policy, querTudo);
+    permission = { mode: "CONFIGURED", grant };
 
-  if (policy.deniedCommands.length > 0 && permission.mode === "BYPASS") {
-    notes.push({
-      level: "WARN",
-      message: "A lista de comandos negados não é aplicada com as checagens da CLI desligadas.",
-      detail: `Comandos negados no perfil: ${policy.deniedCommands.join(", ")}.`,
-    });
+    notes.push(describeGrant(grant, querTudo));
+
+    if (!capabilities.nativePermissions && grant.commandExecution === "ALLOWLIST") {
+      // Diferenciar `policy requested` de `policy enforced` (documento técnico,
+      // seção 15): num harness sem permissão por comando, a lista restringe
+      // quais ferramentas existem, e nada impede um comando fora dela depois.
+      notes.push({
+        level: "WARN",
+        message:
+          `${harnessKey} não aplica permissão por comando: a lista de comandos é indicativa, ` +
+          "e o que a ferramenta de shell dele executa não é filtrado.",
+        detail:
+          "O `enforcement` deste Run sai como ADVISORY por isso. Para uma barreira de verdade, " +
+          "use um harness com permissão nativa ou espere o modo DOCKER da Fase 2C.",
+      });
+    }
+
+    if (grant.deniedCommands.length > 0) {
+      notes.push({
+        level: "INFO",
+        message: `Comandos recusados mesmo dentro da lista: ${grant.deniedCommands.join(", ")}.`,
+      });
+    }
   }
 
   if (!policy.workspaceWrite) {
     notes.push({
-      level: "WARN",
+      level: "INFO",
       message:
-        "A política pede workspace somente leitura, e isso não é imposto no modo HOST: " +
-        "worktree é isolamento de código, não de sistema de arquivos.",
+        "A política pede workspace somente leitura: as ferramentas de escrita ficam fora da " +
+        "allow-list. Isso não impede o agente de escrever por outro caminho — worktree é " +
+        "isolamento de código, não de sistema de arquivos.",
     });
   }
 
@@ -185,4 +168,67 @@ export function resolveRunPolicies(input: ResolveRunPoliciesInput): ResolvedRunP
   };
 
   return { permission, environment, notes, bypassWithoutSandbox };
+}
+
+/**
+ * A concessão que o adapter vai traduzir.
+ *
+ * `ALL` sem opt-in é a lista de trabalho mais o que o perfil pediu; `ALLOWLIST`
+ * é exatamente o que o perfil pediu; `NONE` não concede comando nenhum.
+ * Duplicatas somem porque `Bash(git:*)` duas vezes no argv não ajuda ninguém a
+ * ler o comando no log.
+ */
+function buildGrant(
+  policy: ExecutionProfileSnapshot["permissionPolicy"],
+  querTudo: boolean,
+): PermissionGrant {
+  const daPolitica = policy.allowedCommands.map((comando) => comando.trim()).filter(Boolean);
+
+  const permitidos =
+    policy.commandExecution === "NONE"
+      ? []
+      : [...new Set(querTudo ? [...DEFAULT_TRUSTED_COMMANDS, ...daPolitica] : daPolitica)];
+
+  return {
+    workspaceWrite: policy.workspaceWrite,
+    commandExecution: policy.commandExecution === "NONE" ? "NONE" : "ALLOWLIST",
+    allowedCommands: permitidos,
+    deniedCommands: policy.deniedCommands.map((comando) => comando.trim()).filter(Boolean),
+  };
+}
+
+/** A frase que explica, no log do Run, o que o agente pode fazer. */
+function describeGrant(grant: PermissionGrant, querTudo: boolean): PolicyNote {
+  if (grant.commandExecution === "NONE") {
+    return {
+      level: "INFO",
+      message: grant.workspaceWrite
+        ? "O agente pode ler e escrever no workspace, e não pode executar comandos."
+        : "O agente pode apenas ler o workspace.",
+    };
+  }
+
+  if (grant.allowedCommands.length === 0) {
+    return {
+      level: "WARN",
+      message:
+        "A política libera execução de comandos mas não lista nenhum, então nenhum comando " +
+        "passa. Acrescente prefixos em `allowedCommands` no ExecutionProfile.",
+    };
+  }
+
+  return {
+    level: "INFO",
+    message:
+      `Execução liberada por allow-list para: ${grant.allowedCommands.join(", ")}. ` +
+      (grant.workspaceWrite ? "Escrita no workspace liberada." : "Workspace somente leitura."),
+    ...(querTudo
+      ? {
+          detail:
+            "A política pede execução de qualquer comando. Sem `allowUnsafeBypass`, isso vira " +
+            `a lista de trabalho padrão (${DEFAULT_TRUSTED_COMMANDS.join(", ")}) mais o que o ` +
+            "perfil declarou — e não uma permissão irrestrita.",
+        }
+      : {}),
+  };
 }

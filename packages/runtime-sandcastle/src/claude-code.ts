@@ -9,8 +9,8 @@
 // de ser o padrão e passou a exigir política explícita. Verificado contra a CLI
 // 2.1.263 em 07/09/2026.
 
-import type { HarnessSignal } from "@dungeon-master/runtime";
-import { capabilities } from "@dungeon-master/runtime";
+import type { HarnessSignal, ResolvedPermission } from "@dungeon-master/runtime";
+import { capabilities, PERMISSION_DENIED_DIAGNOSTIC_CODE } from "@dungeon-master/runtime";
 import type { UsageSummary } from "@dungeon-master/contracts";
 
 import {
@@ -107,11 +107,25 @@ export function claudeCode(options: ClaudeCodeOptions = {}) {
       // padrão da própria ferramenta, que é o mais restritivo.
       if (request.permission.mode === "BYPASS") {
         args.push("--dangerously-skip-permissions");
-      } else if (
-        request.permission.mode === "CONFIGURED" &&
-        request.permission.harnessMode !== undefined
-      ) {
-        args.push("--permission-mode", request.permission.harnessMode);
+      } else {
+        if (request.permission.mode === "CONFIGURED") {
+          // `acceptEdits` é o piso do modo configurado: ele tira do caminho a
+          // confirmação de cada edição. Quem libera **comando** é a
+          // `--allowedTools` abaixo, e não o modo — foi essa confusão que fez o
+          // primeiro Run desta fase terminar `blocked` sem conseguir commitar.
+          args.push("--permission-mode", request.permission.harnessMode ?? "acceptEdits");
+
+          const permitidas = allowedToolsFor(request.permission.grant);
+          if (permitidas.length > 0) args.push("--allowedTools", permitidas.join(","));
+
+          const negadas = deniedToolsFor(request.permission.grant);
+          if (negadas.length > 0) args.push("--disallowedTools", negadas.join(","));
+        }
+
+        // Sem ninguém para responder, o que fosse perguntar é **negado**, e não
+        // fica esperando. É a diferença entre um Run que falha dizendo o que
+        // faltou na allow-list e um Run pendurado até o timeout de ociosidade.
+        args.push("--permission-prompts", "none");
       }
 
       if (request.resume !== undefined) {
@@ -141,6 +155,110 @@ export function claudeCode(options: ClaudeCodeOptions = {}) {
   };
 
   return createCliHarnessAdapter(definition);
+}
+
+/**
+ * Ferramentas que existem em qualquer Run configurado, porque ler não muda nada.
+ *
+ * `Glob` e `Grep` entram junto de `Read` de propósito: sem elas o agente
+ * procura arquivo com `Bash`, que é exatamente o que a allow-list de comandos
+ * deveria evitar.
+ */
+const READ_ONLY_TOOLS = ["Read", "Glob", "Grep"] as const;
+
+/** As que escrevem no workspace, liberadas só com `workspaceWrite`. */
+const WRITE_TOOLS = ["Edit", "Write", "NotebookEdit"] as const;
+
+/** As duas ferramentas de shell da CLI. No Windows a segunda é a preferida. */
+const SHELL_TOOLS = ["Bash", "PowerShell"] as const;
+
+/**
+ * A concessão do domínio virando `--allowedTools`.
+ *
+ * O formato de comando é `<Ferramenta>(<prefixo>:*)`, que é como a CLI casa o
+ * começo da linha de comando. Um prefixo com espaço (`pnpm test`) funciona
+ * igual: o casamento é textual.
+ *
+ * **`PowerShell` entra junto de `Bash`.** No Windows é ela que o agente tenta
+ * primeiro, e uma lista só com `Bash` produz uma negação por tarefa e um turno
+ * gasto refazendo o mesmo comando na outra ferramenta — verificado contra a CLI
+ * 2.1.263. Liberar as duas com o mesmo prefixo é o que faz a mesma política
+ * valer igual nos dois sistemas.
+ *
+ * Uma allow-list vazia **não** vira `Bash` solto. Conceder a ferramenta inteira
+ * porque a lista veio vazia transformaria o perfil mais restritivo no mais
+ * permissivo de todos.
+ *
+ * Limite conhecido, medido na CLI real: um comando composto — `git add X; if
+ * ($?) { git commit … }` — não casa com prefixo nenhum, porque a CLI não valida
+ * estaticamente as partes de uma cadeia, e é negado mesmo com `git` liberado. O
+ * agente reescreve em comandos simples e segue. É por isso que uma negação
+ * isolada não reprova o Run.
+ */
+export function allowedToolsFor(grant: ResolvedPermission["grant"]): string[] {
+  if (grant === undefined) return [];
+
+  const tools: string[] = [...READ_ONLY_TOOLS];
+  if (grant.workspaceWrite) tools.push(...WRITE_TOOLS);
+
+  if (grant.commandExecution === "ALLOWLIST") {
+    for (const comando of grant.allowedCommands) {
+      const prefixo = comando.trim();
+      if (prefixo.length === 0) continue;
+      for (const shell of SHELL_TOOLS) tools.push(`${shell}(${prefixo}:*)`);
+    }
+  }
+
+  return tools;
+}
+
+/**
+ * Uma ferramenta negada pela política vira diagnóstico, não falha imediata.
+ *
+ * A tentação é encerrar o Run na primeira negação. A CLI real desaconselha:
+ * medido contra a 2.1.263 no Windows, o agente tenta a ferramenta `PowerShell`,
+ * é negado, e refaz o mesmo trabalho com `Bash` — que estava na allow-list —
+ * terminando a tarefa. Reprovar aquele Run seria descartar trabalho concluído
+ * por causa de uma tentativa que o próprio agente contornou.
+ *
+ * Quem decide se a negação foi fatal é o **Worker**, no fim: ele já sabe se o
+ * agente entregou `completed` ou parou. Aqui o dever é só deixar o fato
+ * registrado no ponto em que aconteceu, com um código estável para ninguém
+ * precisar interpretar a mensagem, e com o texto que diz o que fazer.
+ *
+ * `--permission-prompts none` no argv é o que garante que uma negação é
+ * imediata em vez de uma espera: sem ninguém para aprovar, a CLI recusa e seg
+ * em frente, e o Run nunca fica pendurado até o timeout de ociosidade.
+ */
+export function describePermissionDenied(input: {
+  tool: string | undefined;
+  reason: string | undefined;
+}): readonly HarnessSignal[] {
+  const tool = input.tool ?? "uma ferramenta";
+  const reason = input.reason ?? "sem motivo informado";
+
+  return [
+    {
+      kind: "diagnostic",
+      level: "WARN",
+      code: PERMISSION_DENIED_DIAGNOSTIC_CODE,
+      message: `Permissão negada para ${tool}: ${reason}`,
+      detail:
+        `Se o Run terminar sem concluir a tarefa, libere ${tool} no ExecutionProfile — em ` +
+        "`permissionPolicy.allowedCommands`, quando for um comando — ou, se ele precisa mesmo " +
+        "rodar sem barreira, ligue `allowUnsafeBypass` no perfil, ciente de que o agente passa " +
+        "a ter as suas permissões no sistema.",
+    },
+  ];
+}
+
+/** Os prefixos negados, que ganham do que a allow-list liberou. */
+export function deniedToolsFor(grant: ResolvedPermission["grant"]): string[] {
+  if (grant === undefined) return [];
+  return grant.deniedCommands
+    .map((comando) => comando.trim())
+    .filter((comando) => comando.length > 0)
+    .flatMap((comando) => SHELL_TOOLS.map((shell) => `${shell}(${comando}:*)`));
 }
 
 /** Traduz uma linha do `--output-format stream-json` do Claude Code. */
@@ -173,17 +291,10 @@ function parseSystem(obj: Record<string, unknown>): readonly HarnessSignal[] {
     return sessionId === undefined ? [] : [{ kind: "session", id: sessionId }];
   }
   if (obj["subtype"] === "permission_denied") {
-    const tool = asString(obj["tool_name"]) ?? "ferramenta";
-    const reason = asString(obj["decision_reason"]) ?? asString(obj["message"]) ?? "sem motivo";
-    // Uma permissão negada não é falha do Run: é a política funcionando. Vira
-    // diagnóstico para que a interface consiga mostrar por que o agente parou.
-    return [
-      {
-        kind: "diagnostic",
-        level: "WARN",
-        message: `Permissão negada para ${tool}: ${reason}`,
-      },
-    ];
+    return describePermissionDenied({
+      tool: asString(obj["tool_name"]),
+      reason: asString(obj["decision_reason"]) ?? asString(obj["message"]),
+    });
   }
   return [];
 }
