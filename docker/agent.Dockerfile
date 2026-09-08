@@ -81,6 +81,24 @@ ENV HOME=/home/agent \
     npm_config_update_notifier=false \
     CI=1
 
+# O git precisa ser avisado de que estes dois diretórios são confiáveis, senão
+# recusa o repositório com "detected dubious ownership" e o agente não commita.
+#
+# A causa é do bind mount, e não nossa: no Windows, o Docker Desktop apresenta
+# todo arquivo montado como `root:root` com modo 0777 dentro do container,
+# independentemente da permissão no host (medido em 07/09/2026 com o Docker
+# Desktop 29.7.2 sobre WSL2). O processo do agente é uid 1000, vê um repositório
+# de outro dono, e o git para — mesmo podendo escrever, porque o modo é 0777.
+#
+# Os dois caminhos são pontos de montagem fixos **desta** imagem, e não caminhos
+# do host: a exceção é estreita e não vale para nada que o usuário monte por
+# conta. As alternativas seriam piores — rodar como root, ou o `chown -R` de
+# partida que o ADR 0005 do Sandcastle removeu justamente por ser caro e
+# destrutivo.
+RUN git config --global --add safe.directory /home/agent/workspace \
+  && git config --global --add safe.directory /.dungeon-master-parent-git \
+  && git config --global --add safe.directory '/.dungeon-master-parent-git/*'
+
 # O worktree do Run é montado aqui. O `-w` do `docker run` repete o caminho, mas
 # deixar o padrão certo torna a imagem utilizável à mão para depurar.
 WORKDIR /home/agent/workspace
