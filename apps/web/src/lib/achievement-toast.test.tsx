@@ -30,6 +30,10 @@ const PAYLOAD: UnlockPayload = {
   unlockId: "0199bbbb-0000-7000-8000-000000000001",
   definitionId: "0199aaaa-0000-7000-8000-000000000001",
   name: { theme: "Primeira Expedição", plain: "Primeira execução" },
+  description: {
+    theme: "Vencer a primeira Expedição. Uma.",
+    plain: "Concluir a primeira execução com sucesso.",
+  },
   icon: "flag",
   rarity: "RARE",
   flavor: "A arquibancada fingiu surpresa.",
@@ -147,6 +151,9 @@ describe("toast de desbloqueio", () => {
     expect(await screen.findByText("Primeira execução")).toBeTruthy();
     expect(screen.queryByText("Primeira Expedição")).toBeNull();
     expect(screen.queryByText(PAYLOAD.flavor!)).toBeNull();
+    // No lugar da fala de anúncio entra a descrição sóbria, que veio no payload.
+    expect(screen.getByText(PAYLOAD.description!.plain)).toBeTruthy();
+    expect(screen.queryByText(PAYLOAD.description!.theme)).toBeNull();
   });
 
   it("um payload ilegível não vira toast quebrado", async () => {
@@ -195,17 +202,28 @@ describe("conteúdo do toast", () => {
       template.replace(/\{(\w+)\}/g, (all, name: string) => String(params?.[name] ?? all)),
   });
 
-  it("no tema, traz a fala de anúncio; sem ele, o estado e o grau", () => {
+  it("no tema, traz a fala de anúncio; sem ele, a descrição sóbria, o estado e o grau", () => {
     const comTema = unlockToastContent({ ...PAYLOAD, tierLabel: "II" }, glossary("dnd"));
     expect(comTema.name).toBe("Primeira Expedição");
-    expect(comTema.flavor).toBe(PAYLOAD.flavor);
+    expect(comTema.body).toBe(PAYLOAD.flavor);
     expect(comTema.footer).toContain(dnd["achievement.state.unlocked"]);
     expect(comTema.footer).toContain("II");
 
     const semTema = unlockToastContent({ ...PAYLOAD, tierLabel: "II" }, glossary("plain"));
     expect(semTema.name).toBe("Primeira execução");
-    expect(semTema.flavor).toBeUndefined();
+    expect(semTema.body).toBe(PAYLOAD.description!.plain);
     expect(semTema.footer).toContain(plain["achievement.state.unlocked"]);
+  });
+
+  it("sem fala de anúncio, o tema cai na descrição temática", () => {
+    const semFala = unlockToastContent({ ...PAYLOAD, flavor: null }, glossary("dnd"));
+    expect(semFala.body).toBe(PAYLOAD.description!.theme);
+  });
+
+  it("um payload antigo, sem descrição, ainda vira toast", () => {
+    const { description: _description, ...antigo } = PAYLOAD;
+    expect(unlockToastContent(antigo, glossary("plain")).body).toBeUndefined();
+    expect(unlockToastContent(antigo, glossary("dnd")).body).toBe(PAYLOAD.flavor);
   });
 
   it("sem grau, o rodapé é só o estado", () => {

@@ -471,7 +471,8 @@ export function formatDefinitionName(
   };
 }
 
-function formatDefinitionDescription(
+/** A descrição, com o mesmo tratamento de placeholder do nome. */
+export function formatDefinitionDescription(
   row: AchievementDefinitionRow,
   labels: Map<string, string>,
 ): { theme: string; plain: string } {

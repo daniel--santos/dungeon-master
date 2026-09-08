@@ -24,6 +24,7 @@ import type { EventsLogger } from "@dungeon-master/events";
 import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 
 import {
+  formatDefinitionDescription,
   formatDefinitionName,
   harnessSlug,
   listAchievementDefinitionRows,
@@ -808,6 +809,7 @@ async function applyBatch(
     for (const { id, record } of linhasInseridas) {
       const definicao = record.definition;
       const nome = formatDefinitionName(definicao, labels);
+      const descricao = formatDefinitionDescription(definicao, labels);
       const rotulos = definicao.tiers;
       const escala = definicao.tierRarities;
 
@@ -820,6 +822,10 @@ async function applyBatch(
           key: definicao.catalogKey ?? definicao.templateKey,
           origin: definicao.origin,
           name: nome,
+          // A descrição vai junto porque o toast precisa dela nos dois temas:
+          // com o tema desligado não há fala de anúncio, e sem a descrição o
+          // modo sóbrio só teria estado e grau para mostrar.
+          description: descricao,
           icon: definicao.icon,
           rarity: escala?.[record.tier - 1] ?? definicao.rarity,
           flavor: definicao.flavor,
