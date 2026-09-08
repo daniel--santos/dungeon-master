@@ -210,3 +210,46 @@ describe("format", () => {
     expect(placeholdersOf("Primeira Expedição")).toEqual([]);
   });
 });
+
+describe("Fase 4C — Rituais e Selos", () => {
+  it("cobre os cinco tipos de step, os oito estados de RunStep e os dois motivos de pulo", () => {
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("workflowStep.type."))).toHaveLength(5);
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("runStep.status."))).toHaveLength(8);
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("runStep.skip."))).toHaveLength(2);
+  });
+
+  it("cobre as duas decisões e os três estados do gate", () => {
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("approval.decision."))).toHaveLength(2);
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("approval.status."))).toHaveLength(3);
+  });
+
+  it("as decisões são tematizadas: Selo no tema, verbo neutro sem ele", () => {
+    expect(t("dnd", "approval.decision.approve")).toBe("Conceder o Selo");
+    expect(t("dnd", "approval.decision.reject")).toBe("Negar o Selo");
+    expect(t("plain", "approval.decision.approve")).toBe("Aprovar");
+    expect(t("plain", "approval.decision.reject")).toBe("Recusar");
+  });
+
+  it("o estado de espera do RunStep é o mesmo texto do estado de Run", () => {
+    for (const theme of themes) {
+      expect(t(theme, "runStep.status.waitingApproval")).toBe(
+        t(theme, "run.status.waitingApproval"),
+      );
+    }
+  });
+
+  it("o motivo de pulo não é tematizado", () => {
+    for (const key of [
+      "runStep.skip.predicateFalse",
+      "runStep.skip.dependencyNotSucceeded",
+    ] as const) {
+      expect(t("dnd", key)).toBe(t("plain", key));
+    }
+  });
+
+  it("o aviso de decisão perdida traz o placeholder do estado", () => {
+    for (const theme of themes) {
+      expect(placeholdersOf(t(theme, "approval.conflict"))).toEqual(["status"]);
+    }
+  });
+});
