@@ -26,6 +26,8 @@ export const runKeys = {
   list: (params: RunListParams) => ["runs", "list", params] as const,
   detail: (id: string) => ["runs", "detail", id] as const,
   events: (id: string) => ["runs", "events", id] as const,
+  steps: (id: string) => ["runs", "steps", id] as const,
+  gates: (id: string) => ["runs", "gates", id] as const,
 };
 
 function toQuery(params: RunListParams) {
@@ -54,6 +56,15 @@ export function useRuns(params: RunListParams): UseQueryResult<RunPage> {
   });
 }
 
+/** Lê um Run. Exportado para quem precisa do registro sem o ciclo de releitura. */
+export async function fetchRun(id: string): Promise<Run> {
+  const { data, error, response } = await api.GET("/api/v1/runs/{id}", {
+    params: { path: { id } },
+  });
+  if (data === undefined) fail(error, response.status, "Não foi possível ler a execução");
+  return data;
+}
+
 /**
  * Um Run, relido enquanto ele não for terminal.
  *
@@ -66,13 +77,7 @@ export function useRuns(params: RunListParams): UseQueryResult<RunPage> {
 export function useRun(id: string): UseQueryResult<Run> {
   return useQuery({
     queryKey: runKeys.detail(id),
-    queryFn: async () => {
-      const { data, error, response } = await api.GET("/api/v1/runs/{id}", {
-        params: { path: { id } },
-      });
-      if (data === undefined) fail(error, response.status, "Não foi possível ler a execução");
-      return data;
-    },
+    queryFn: () => fetchRun(id),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status !== undefined && isLiveRunStatus(status) ? 3_000 : false;

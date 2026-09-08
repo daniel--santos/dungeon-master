@@ -31,6 +31,12 @@ const SCANNED_PREFIXES = [
   "env.",
   "task.status.",
   "task.priority.",
+  // Fase 4C: os estados de RunStep e todo o vocabulário do Selo — decisões,
+  // estados do gate, títulos e textos dos diálogos. `workflowStep.type.` fica
+  // de fora de propósito: "Comando" e "Validação" são palavras comuns que já
+  // aparecem como rótulo de campo em telas que nada têm a ver com Workflow.
+  "runStep.status.",
+  "approval.",
 ] as const;
 
 const EXEMPT_FILES = new Set(["lib/glossary.ts", "lib/api-types.ts", "routeTree.gen.ts"]);
@@ -175,7 +181,7 @@ describe("nenhum label de entidade escrito à mão", () => {
     expect(mentions(stripComments("<span>Item</span>"), "Item")).toBe(true);
   });
 
-  it("cobre os sete grupos de chaves que a regra exige", () => {
+  it("cobre os nove grupos de chaves que a regra exige", () => {
     for (const prefix of SCANNED_PREFIXES) {
       expect(
         SCANNED_KEYS.some((key) => key.startsWith(prefix)),
@@ -183,7 +189,17 @@ describe("nenhum label de entidade escrito à mão", () => {
       ).toBe(true);
     }
 
-    for (const label of ["Missões", "Tarefas", "Campanhas", "Concluída", "Urgente", "Você"]) {
+    for (const label of [
+      "Missões",
+      "Tarefas",
+      "Campanhas",
+      "Concluída",
+      "Urgente",
+      "Você",
+      "Conceder o Selo",
+      "Aprovar",
+      "Pulado",
+    ]) {
       expect(FORBIDDEN, label).toContain(label);
     }
   });

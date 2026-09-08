@@ -173,7 +173,7 @@ export function Timeline({ state, filter, onFilterChange, live }: TimelineProps)
               <button
                 key={id}
                 className={cn(
-                  "flex h-7 items-center gap-1.75 rounded-lg border px-2.5 text-[12.5px]",
+                  "flex h-7 items-center gap-1.75 rounded-lg border px-2.5 text-[12.5px] whitespace-nowrap",
                   on ? "border-input bg-white/[0.08]" : "text-muted-foreground border-transparent",
                 )}
                 data-event-filter={id}

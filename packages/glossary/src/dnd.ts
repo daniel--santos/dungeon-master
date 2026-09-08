@@ -117,6 +117,56 @@ export const dnd: Record<GlossaryKey, string> = {
   "run.cockpit": "Cristal de Visão",
   "run.timeline": "Diário da Expedição",
 
+  // ---------------------------------------------------------------- workflow
+  "workflow.none": "Nenhum · Expedição simples",
+  "workflow.captureNote":
+    "A definição vigente do Ritual é congelada quando a Expedição parte. Editar o Ritual depois não muda esta Expedição.",
+  "workflow.delete.title": "Apagar o Ritual?",
+  "workflow.delete.body":
+    "O Ritual some da lista, e as Missões que o escolheram voltam à Expedição simples. Se alguma Expedição já partiu com ele, a exclusão é recusada e nada muda.",
+  "workflow.delete.inUse":
+    "Este Ritual já foi usado por uma Expedição, e o histórico dela precisa da definição. Ele não pode ser apagado.",
+
+  // ------------------------------------------------------ workflowStep.type
+  "workflowStep.type.agent": "Herói",
+  "workflowStep.type.command": "Comando",
+  "workflowStep.type.validation": "Validação",
+  "workflowStep.type.approval": "Selo da Guilda",
+  "workflowStep.type.knowledge": "Grimório",
+
+  // --------------------------------------------------------- runStep.status
+  "runStep.status.pending": "Pendente",
+  "runStep.status.running": "Em andamento",
+  "runStep.status.waitingApproval": "Aguardando o Selo",
+  "runStep.status.succeeded": "Cumprido",
+  "runStep.status.failed": "Falhou",
+  "runStep.status.skipped": "Pulado",
+  "runStep.status.timedOut": "Exausto",
+  "runStep.status.cancelled": "Cancelado",
+
+  // ----------------------------------------------------------- runStep.skip
+  "runStep.skip.predicateFalse": "Condição não atendida",
+  "runStep.skip.dependencyNotSucceeded": "Dependência não concluída",
+
+  // --------------------------------------------------------------- approval
+  "approval.card.title": "Carta do Selo",
+  "approval.decision.approve": "Conceder o Selo",
+  "approval.decision.reject": "Negar o Selo",
+  "approval.status.pending": "Pendente",
+  "approval.status.granted": "Concedido",
+  "approval.status.rejected": "Negado",
+  "approval.confirm.approve.title": "Conceder o Selo da Guilda?",
+  "approval.confirm.approve.body":
+    "A Expedição sai da espera e volta à fila, e o Herói segue para o passo seguinte. A decisão fica gravada no Diário da Expedição e não pode ser desfeita.",
+  "approval.confirm.reject.title": "Negar o Selo da Guilda?",
+  "approval.confirm.reject.body":
+    "O passo de aprovação termina como Falhou e a Expedição volta à fila para o Ritual decidir o que vem depois. A decisão fica gravada no Diário da Expedição e não pode ser desfeita.",
+  "approval.conflict": "Outra mão selou antes da sua. Nada foi sobrescrito: o Selo está {status}.",
+  "approval.pending.title": "Selos pendentes",
+  "approval.pending.empty":
+    "Nenhum Selo pendente. Quando um Ritual parar num passo de aprovação, o pedido aparece aqui.",
+  "approval.toast.title": "A Guilda pede o Selo",
+
   // ------------------------------------------------------------------- env
   "env.host": "Campo aberto",
   "env.host.warning": "sem isolamento",

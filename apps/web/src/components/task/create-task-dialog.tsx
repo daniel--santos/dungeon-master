@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { WorkflowSelect } from "@/components/workflow/workflow-select";
 import { TASK_KIND, TASK_KINDS, TASK_PRIORITIES, TASK_PRIORITY } from "@/lib/domain";
 import { useGlossary } from "@/lib/glossary";
 import { useProjects } from "@/lib/projects";
@@ -55,6 +56,7 @@ export function CreateTaskDialog({
   const [target, setTarget] = useState(projectId ?? "");
   const [kind, setKind] = useState<TaskKind>("FEATURE");
   const [priority, setPriority] = useState<TaskPriority>("MEDIUM");
+  const [workflowId, setWorkflowId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -63,6 +65,7 @@ export function CreateTaskDialog({
     setTarget(projectId ?? "");
     setKind("FEATURE");
     setPriority("MEDIUM");
+    setWorkflowId(null);
   }, [open, projectId]);
 
   const options = projects.data?.items ?? [];
@@ -79,6 +82,7 @@ export function CreateTaskDialog({
         description: description.trim() === "" ? null : description.trim(),
         kind,
         priority,
+        ...(workflowId === null ? {} : { workflowId }),
       },
       {
         onSuccess: (task) => {
@@ -188,6 +192,14 @@ export function CreateTaskDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="create-task-workflow">{t("entity.workflow")}</Label>
+            <WorkflowSelect id="create-task-workflow" onChange={setWorkflowId} value={workflowId} />
+            <span className="text-muted-foreground text-[11px] leading-4">
+              {t("workflow.captureNote")}
+            </span>
           </div>
         </form>
 

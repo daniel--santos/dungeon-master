@@ -16,13 +16,14 @@ import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as LoadoutsRouteImport } from './routes/loadouts'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as WorkflowsRouteImport } from './routes/workflows'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsIdRouteImport } from './routes/projects.$id'
 import { Route as RunsIndexRouteImport } from './routes/runs.index'
 import { Route as RunsIdRouteImport } from './routes/runs.$id'
 import { Route as TasksIndexRouteImport } from './routes/tasks.index'
 import { Route as TasksIdRouteImport } from './routes/tasks.$id'
+import { Route as WorkflowsIndexRouteImport } from './routes/workflows.index'
+import { Route as WorkflowsIdRouteImport } from './routes/workflows.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -59,11 +60,6 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WorkflowsRoute = WorkflowsRouteImport.update({
-  id: '/workflows',
-  path: '/workflows',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ProjectsIndexRoute = ProjectsIndexRouteImport.update({
   id: '/projects/',
   path: '/projects/',
@@ -94,6 +90,16 @@ const TasksIdRoute = TasksIdRouteImport.update({
   path: '/tasks/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WorkflowsIndexRoute = WorkflowsIndexRouteImport.update({
+  id: '/workflows/',
+  path: '/workflows/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkflowsIdRoute = WorkflowsIdRouteImport.update({
+  id: '/workflows/$id',
+  path: '/workflows/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -103,13 +109,14 @@ export interface FileRoutesByFullPath {
   '/knowledge': typeof KnowledgeRoute
   '/loadouts': typeof LoadoutsRoute
   '/settings': typeof SettingsRoute
-  '/workflows': typeof WorkflowsRoute
   '/projects/$id': typeof ProjectsIdRoute
   '/runs/$id': typeof RunsIdRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/workflows/$id': typeof WorkflowsIdRoute
   '/projects/': typeof ProjectsIndexRoute
   '/runs/': typeof RunsIndexRoute
   '/tasks/': typeof TasksIndexRoute
+  '/workflows/': typeof WorkflowsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -119,13 +126,14 @@ export interface FileRoutesByTo {
   '/knowledge': typeof KnowledgeRoute
   '/loadouts': typeof LoadoutsRoute
   '/settings': typeof SettingsRoute
-  '/workflows': typeof WorkflowsRoute
   '/projects/$id': typeof ProjectsIdRoute
   '/runs/$id': typeof RunsIdRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/workflows/$id': typeof WorkflowsIdRoute
   '/projects': typeof ProjectsIndexRoute
   '/runs': typeof RunsIndexRoute
   '/tasks': typeof TasksIndexRoute
+  '/workflows': typeof WorkflowsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -136,13 +144,14 @@ export interface FileRoutesById {
   '/knowledge': typeof KnowledgeRoute
   '/loadouts': typeof LoadoutsRoute
   '/settings': typeof SettingsRoute
-  '/workflows': typeof WorkflowsRoute
   '/projects/$id': typeof ProjectsIdRoute
   '/runs/$id': typeof RunsIdRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/workflows/$id': typeof WorkflowsIdRoute
   '/projects/': typeof ProjectsIndexRoute
   '/runs/': typeof RunsIndexRoute
   '/tasks/': typeof TasksIndexRoute
+  '/workflows/': typeof WorkflowsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -154,13 +163,14 @@ export interface FileRouteTypes {
     | '/knowledge'
     | '/loadouts'
     | '/settings'
-    | '/workflows'
     | '/projects/$id'
     | '/runs/$id'
     | '/tasks/$id'
+    | '/workflows/$id'
     | '/projects/'
     | '/runs/'
     | '/tasks/'
+    | '/workflows/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -170,13 +180,14 @@ export interface FileRouteTypes {
     | '/knowledge'
     | '/loadouts'
     | '/settings'
-    | '/workflows'
     | '/projects/$id'
     | '/runs/$id'
     | '/tasks/$id'
+    | '/workflows/$id'
     | '/projects'
     | '/runs'
     | '/tasks'
+    | '/workflows'
   id:
     | '__root__'
     | '/'
@@ -186,13 +197,14 @@ export interface FileRouteTypes {
     | '/knowledge'
     | '/loadouts'
     | '/settings'
-    | '/workflows'
     | '/projects/$id'
     | '/runs/$id'
     | '/tasks/$id'
+    | '/workflows/$id'
     | '/projects/'
     | '/runs/'
     | '/tasks/'
+    | '/workflows/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -203,13 +215,14 @@ export interface RootRouteChildren {
   KnowledgeRoute: typeof KnowledgeRoute
   LoadoutsRoute: typeof LoadoutsRoute
   SettingsRoute: typeof SettingsRoute
-  WorkflowsRoute: typeof WorkflowsRoute
   ProjectsIdRoute: typeof ProjectsIdRoute
   RunsIdRoute: typeof RunsIdRoute
   TasksIdRoute: typeof TasksIdRoute
+  WorkflowsIdRoute: typeof WorkflowsIdRoute
   ProjectsIndexRoute: typeof ProjectsIndexRoute
   RunsIndexRoute: typeof RunsIndexRoute
   TasksIndexRoute: typeof TasksIndexRoute
+  WorkflowsIndexRoute: typeof WorkflowsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -263,13 +276,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/workflows': {
-      id: '/workflows'
-      path: '/workflows'
-      fullPath: '/workflows'
-      preLoaderRoute: typeof WorkflowsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/projects/': {
       id: '/projects/'
       path: '/projects'
@@ -312,6 +318,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TasksIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/workflows/': {
+      id: '/workflows/'
+      path: '/workflows'
+      fullPath: '/workflows/'
+      preLoaderRoute: typeof WorkflowsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workflows/$id': {
+      id: '/workflows/$id'
+      path: '/workflows/$id'
+      fullPath: '/workflows/$id'
+      preLoaderRoute: typeof WorkflowsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -323,13 +343,14 @@ const rootRouteChildren: RootRouteChildren = {
   KnowledgeRoute: KnowledgeRoute,
   LoadoutsRoute: LoadoutsRoute,
   SettingsRoute: SettingsRoute,
-  WorkflowsRoute: WorkflowsRoute,
   ProjectsIdRoute: ProjectsIdRoute,
   RunsIdRoute: RunsIdRoute,
   TasksIdRoute: TasksIdRoute,
+  WorkflowsIdRoute: WorkflowsIdRoute,
   ProjectsIndexRoute: ProjectsIndexRoute,
   RunsIndexRoute: RunsIndexRoute,
   TasksIndexRoute: TasksIndexRoute,
+  WorkflowsIndexRoute: WorkflowsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

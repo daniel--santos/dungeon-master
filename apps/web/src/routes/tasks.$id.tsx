@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { WorkflowSelect } from "@/components/workflow/workflow-select";
 import { formatDate, relativeTime } from "@/lib/datetime";
 import { canTransition, TASK_KIND } from "@/lib/domain";
 import { useGlossary } from "@/lib/glossary";
@@ -32,6 +33,7 @@ import {
   useUpdateTask,
 } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
+import { useWorkflows } from "@/lib/workflows";
 import { hasWorkspace } from "@/lib/workspace";
 
 type TaskDetail = components["schemas"]["TaskDetail"];
@@ -73,8 +75,14 @@ function Detail({ detail }: { detail: TaskDetail }) {
   const [departing, setDeparting] = useState(false);
   const [title, setTitle] = useState(detail.title);
   const [description, setDescription] = useState(detail.description ?? "");
+  const [workflowId, setWorkflowId] = useState<string | null>(detail.workflowId);
 
   const project = useProject(detail.projectId);
+  const workflows = useWorkflows();
+  const workflow =
+    detail.workflowId === null
+      ? null
+      : (workflows.data?.items.find((item) => item.id === detail.workflowId) ?? null);
   const projectTitle = detail.projectId === null ? null : (project.data?.title ?? "…");
 
   // Só depois de ler o Project dá para afirmar que falta workspace. Enquanto a
@@ -86,6 +94,7 @@ function Detail({ detail }: { detail: TaskDetail }) {
   function startEditing() {
     setTitle(detail.title);
     setDescription(detail.description ?? "");
+    setWorkflowId(detail.workflowId);
     setEditing(true);
   }
 
@@ -95,6 +104,9 @@ function Detail({ detail }: { detail: TaskDetail }) {
         id: detail.id,
         title: title.trim(),
         description: description.trim() === "" ? null : description.trim(),
+        // Sempre presente: `null` volta ao Run simples, e o servidor só grava
+        // o que de fato mudou.
+        workflowId,
       },
       {
         onSuccess: () => {
@@ -320,6 +332,23 @@ function Detail({ detail }: { detail: TaskDetail }) {
                 {detail.description}
               </p>
             )}
+
+            {editing && (
+              <div className="border-border mt-1.5 flex flex-col gap-1.5 border-t pt-3.5">
+                <label className="text-sm font-medium" htmlFor="task-workflow">
+                  {t("entity.workflow")}
+                </label>
+                <WorkflowSelect
+                  className="max-w-md"
+                  id="task-workflow"
+                  onChange={setWorkflowId}
+                  value={workflowId}
+                />
+                <span className="text-muted-foreground text-[11px] leading-4">
+                  {t("workflow.captureNote")}
+                </span>
+              </div>
+            )}
           </Panel>
 
           <Subtasks detail={detail} resolved={resolved} />
@@ -376,6 +405,22 @@ function Detail({ detail }: { detail: TaskDetail }) {
             </MetaRow>
             <MetaRow label="Prioridade">
               <PriorityText priority={detail.priority} />
+            </MetaRow>
+            <MetaRow label={t("entity.workflow")}>
+              {detail.workflowId === null ? (
+                <span className="text-muted-foreground" data-task-workflow="">
+                  {t("workflow.none")}
+                </span>
+              ) : (
+                <Link
+                  className="underline-offset-2 hover:underline"
+                  data-task-workflow={detail.workflowId}
+                  params={{ id: detail.workflowId }}
+                  to="/workflows/$id"
+                >
+                  {workflow?.name ?? "…"}
+                </Link>
+              )}
             </MetaRow>
             <MetaRow label={t("entity.subtask.plural")}>
               {format("{done} de {total}", { done: resolved, total: detail.children.length })}

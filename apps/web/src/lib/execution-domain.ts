@@ -5,6 +5,7 @@ import type {
   ExecutionMode,
   HarnessCapabilities,
   RunStatus,
+  WorkflowEventType,
   WorkspaceStrategy,
 } from "@dungeon-master/contracts";
 import type { GlossaryKey } from "@dungeon-master/glossary";
@@ -17,8 +18,12 @@ import {
   Hourglass,
   KeyRound,
   Package,
+  Play,
   Quote,
+  ShieldCheck,
   ShieldHalf,
+  ShieldX,
+  SkipForward,
   Terminal,
   TriangleAlert,
   type LucideIcon,
@@ -228,12 +233,32 @@ export const EXECUTION_EVENT: Record<ExecutionEventType, EventPresentation> = {
   Artifact: { icon: Package, color: ACCENT_AMBER, dim: false, group: "system" },
   Usage: { icon: Gauge, color: "var(--muted-foreground)", dim: true, group: "usage" },
   Diagnostic: { icon: TriangleAlert, color: ACCENT_AMBER, dim: false, group: "diagnostic" },
-  ApprovalRequested: { icon: ShieldHalf, color: ACCENT_AMBER, dim: false, group: "system" },
+  ApprovalRequested: { icon: ShieldHalf, color: ACCENT_AMBER, dim: false, group: "workflow" },
   SessionCaptured: { icon: KeyRound, color: "var(--muted-foreground)", dim: true, group: "system" },
   RunCompleted: { icon: CircleCheckBig, color: ACCENT_GREEN, dim: false, group: "system" },
   RunFailed: { icon: CircleX, color: "var(--destructive)", dim: false, group: "system" },
   RunTimedOut: { icon: Hourglass, color: ACCENT_AMBER, dim: false, group: "system" },
   RunCancelled: { icon: CircleStop, color: "var(--muted-foreground)", dim: true, group: "system" },
+};
+
+/**
+ * Como cada `WorkflowEvent` aparece no Diário (Fase 4C).
+ *
+ * União separada de `ExecutionEvent` no contrato, mapa separado aqui — e os
+ * dois exaustivos: um evento novo do motor quebra a compilação neste arquivo
+ * em vez de cair na apresentação de "tipo desconhecido".
+ */
+export const WORKFLOW_EVENT: Record<WorkflowEventType, EventPresentation> = {
+  StepStarted: { icon: Play, color: ACCENT_BLUE, dim: false, group: "workflow" },
+  StepFinished: { icon: CircleCheckBig, color: ACCENT_GREEN, dim: false, group: "workflow" },
+  StepSkipped: {
+    icon: SkipForward,
+    color: "var(--muted-foreground)",
+    dim: true,
+    group: "workflow",
+  },
+  ApprovalGranted: { icon: ShieldCheck, color: ACCENT_GREEN, dim: false, group: "workflow" },
+  ApprovalRejected: { icon: ShieldX, color: "var(--destructive)", dim: false, group: "workflow" },
 };
 
 /** Um tipo que o worker emitiu e esta versão da web ainda não conhece. */
@@ -245,20 +270,33 @@ export const UNKNOWN_EVENT: EventPresentation = {
 };
 
 export function eventPresentation(type: string): EventPresentation {
-  return (EXECUTION_EVENT as Record<string, EventPresentation | undefined>)[type] ?? UNKNOWN_EVENT;
+  return (
+    (EXECUTION_EVENT as Record<string, EventPresentation | undefined>)[type] ??
+    (WORKFLOW_EVENT as Record<string, EventPresentation | undefined>)[type] ??
+    UNKNOWN_EVENT
+  );
 }
 
 /* ------------------------------------------------------- filtros do rodapé */
 
-export const EVENT_FILTER_IDS = ["all", "tools", "text", "usage", "system", "diagnostic"] as const;
+export const EVENT_FILTER_IDS = [
+  "all",
+  "tools",
+  "text",
+  "workflow",
+  "usage",
+  "system",
+  "diagnostic",
+] as const;
 
 export type EventFilterId = (typeof EVENT_FILTER_IDS)[number];
 
 /**
  * O rótulo de cada filtro.
  *
- * O grupo de ferramentas usa a chave do glossário porque "Item" é um label de
- * entidade; os outros quatro são palavras comuns e não têm chave.
+ * O grupo de ferramentas e o do motor usam a chave do glossário porque "Item"
+ * e "Ritual" são labels de entidade; os outros quatro são palavras comuns e
+ * não têm chave.
  */
 export const EVENT_FILTER_LABEL: Record<
   EventFilterId,
@@ -267,6 +305,9 @@ export const EVENT_FILTER_LABEL: Record<
   all: { text: "Tudo" },
   tools: { key: "entity.tool.plural" },
   text: { text: "Texto" },
+  // O nome do Ritual, e não "Passos do ritual": o rodapé do Diário é estreito
+  // e o label longo quebrava em três linhas dentro do chip.
+  workflow: { key: "entity.workflow" },
   usage: { text: "Uso" },
   system: { text: "Sistema" },
   diagnostic: { text: "Diagnóstico" },

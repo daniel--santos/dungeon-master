@@ -48,3 +48,23 @@ export type RunResultRecord = components["schemas"]["RunResult"];
 export type TaskRecord = components["schemas"]["Task"];
 export type TaskDetailRecord = components["schemas"]["TaskDetail"];
 export type ProjectRecord = components["schemas"]["Project"];
+
+export type WorkflowRecord = components["schemas"]["Workflow"];
+export type WorkflowPageRecord = components["schemas"]["WorkflowPage"];
+export type WorkflowDefinitionBody = components["schemas"]["WorkflowDefinition"];
+export type WorkflowStepDefinitionRecord = components["schemas"]["WorkflowStepDefinition"];
+export type WorkflowVersionRecord = components["schemas"]["WorkflowVersion"];
+export type WorkflowVersionPageRecord = components["schemas"]["WorkflowVersionPage"];
+export type WorkflowVersionDetailRecord = components["schemas"]["WorkflowVersionDetail"];
+
+export type RunStepRecord = components["schemas"]["RunStep"];
+export type RunStepListRecord = components["schemas"]["RunStepList"];
+// O gerador acrescenta `| null` à união porque `RunStep.result` é anulável;
+// o resultado em si, quando existe, é a união discriminada por `kind`.
+export type RunStepResultRecord = NonNullable<components["schemas"]["RunStepResult"]>;
+
+export type ApprovalGateRecord = components["schemas"]["ApprovalGate"];
+export type ApprovalGateListRecord = components["schemas"]["ApprovalGateList"];
+export type ApprovalGateListItemRecord = components["schemas"]["ApprovalGateListItem"];
+export type ApprovalGatePageRecord = components["schemas"]["ApprovalGatePage"];
+export type ResolveApprovalGateBody = components["schemas"]["ResolveApprovalGate"];

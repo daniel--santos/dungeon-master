@@ -1,28 +1,33 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Clock, ExternalLink, Gem, GitBranch, ListChecks, Play } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { RunStatusChip } from "@/components/execution/chips";
 import { EnvBadge } from "@/components/execution/env-badge";
 import { Panel } from "@/components/panel";
+import { ApprovalGateCard } from "@/components/run/approval-gate-card";
 import { CancelRunDialog } from "@/components/run/cancel-run-dialog";
 import { FailurePanel } from "@/components/run/failure-panel";
 import { ResultPanel } from "@/components/run/result-panel";
 import { ResumeRunDialog } from "@/components/run/resume-run-dialog";
+import { RunStepsPanel } from "@/components/run/run-steps-panel";
 import { RuntimeCard, SessionCard, TimeCard } from "@/components/run/runtime-column";
 import { Timeline } from "@/components/run/timeline";
 import { KindChip, PriorityText, StatusChip } from "@/components/task/chips";
 import { Button } from "@/components/ui/button";
 import type { RunRecord } from "@/lib/api-types";
+import { useRunGates } from "@/lib/approvals";
 import { formatDateTime } from "@/lib/datetime";
-import { isLiveRunStatus, WORKSPACE_STRATEGY } from "@/lib/execution-domain";
+import { eventPresentation, isLiveRunStatus, WORKSPACE_STRATEGY } from "@/lib/execution-domain";
 import { useGlossary } from "@/lib/glossary";
 import { useProject } from "@/lib/projects";
 import { useRunEvents } from "@/lib/run-events";
-import { canResumeRun, useRun } from "@/lib/runs";
+import { canResumeRun, runKeys, useRun } from "@/lib/runs";
 import { runDetailSearchSchema } from "@/lib/search";
 import { useTask } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
+import { useWorkflowVersion } from "@/lib/workflows";
 
 export const Route = createFileRoute("/runs/$id")({
   validateSearch: runDetailSearchSchema,
@@ -77,6 +82,29 @@ function Cockpit({ run }: { run: RunRecord }) {
   const [cancelling, setCancelling] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+
+  // A Fase 4: o Run com Ritual tem passos, e pode estar parado num gate.
+  const guided = run.workflowVersionId !== null;
+  const version = useWorkflowVersion(run.workflowVersionId);
+  const gates = useRunGates(run.id, live && guided);
+  const [holdingGate, setHoldingGate] = useState(false);
+  const onHoldingChange = useCallback((holding: boolean) => {
+    setHoldingGate(holding);
+  }, []);
+
+  // O Diário chega primeiro; a lista de passos é lida do banco. Um evento do
+  // motor no stream é o sinal de que o banco mudou, e a releitura sai na hora
+  // em vez de esperar o próximo ciclo.
+  const queryClient = useQueryClient();
+  const lastEventType = events.events.at(-1)?.type;
+  const lastSequence = events.lastSequence;
+  useEffect(() => {
+    if (!guided || lastEventType === undefined) return;
+    if (eventPresentation(lastEventType).group !== "workflow") return;
+    void queryClient.invalidateQueries({ queryKey: runKeys.steps(run.id) });
+    void queryClient.invalidateQueries({ queryKey: runKeys.gates(run.id) });
+    void queryClient.invalidateQueries({ queryKey: runKeys.detail(run.id) });
+  }, [guided, lastEventType, lastSequence, queryClient, run.id]);
 
   // Decisão de UX da Fase 2: retomar só aparece quando a Guilda declara
   // `resume` e uma sessão foi capturada. Um botão que sempre existe e às vezes
@@ -181,6 +209,10 @@ function Cockpit({ run }: { run: RunRecord }) {
         </div>
       </div>
 
+      {guided && (run.status === "WAITING_APPROVAL" || holdingGate) && (
+        <ApprovalGateCard gates={gates.data?.items ?? []} onHoldingChange={onHoldingChange} />
+      )}
+
       <div className="grid min-h-150 items-stretch gap-5 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
         <div className="flex min-h-0 flex-col gap-4">
           <Panel className="flex flex-col gap-2 px-4 pt-3.5 pb-4">
@@ -199,6 +231,22 @@ function Cockpit({ run }: { run: RunRecord }) {
                   to="/projects/$id"
                 >
                   {project.data?.title ?? "…"}
+                </Link>
+              )}
+            </MetaRow>
+            <MetaRow label={t("entity.workflow")}>
+              {!guided ? (
+                <span className="text-muted-foreground">{t("workflow.none")}</span>
+              ) : version.data === undefined ? (
+                "…"
+              ) : (
+                <Link
+                  className="underline-offset-2 hover:underline"
+                  data-run-workflow={version.data.workflowId}
+                  params={{ id: version.data.workflowId }}
+                  to="/workflows/$id"
+                >
+                  {`${version.data.definition.name} · v${String(version.data.version)}`}
                 </Link>
               )}
             </MetaRow>
@@ -267,6 +315,8 @@ function Cockpit({ run }: { run: RunRecord }) {
           />
         </div>
       </div>
+
+      {guided && <RunStepsPanel live={live} now={now} runId={run.id} />}
 
       {run.status === "SUCCEEDED" && <ResultPanel run={run} />}
       {(run.status === "FAILED" || run.status === "TIMED_OUT") && (

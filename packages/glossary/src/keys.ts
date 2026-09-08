@@ -130,6 +130,62 @@ export const GLOSSARY_KEYS = [
   "run.cockpit",
   "run.timeline",
 
+  // ---------------------------------------------------------------- workflow
+  // Textos da tela de Workflow (Fase 4C). As frases inteiras moram aqui, e não
+  // no componente, porque cada uma cita a entidade no tema: "o Ritual" numa,
+  // "o workflow" na outra.
+  "workflow.none",
+  "workflow.captureNote",
+  "workflow.delete.title",
+  "workflow.delete.body",
+  "workflow.delete.inUse",
+
+  // ------------------------------------------------------ workflowStep.type
+  // Os cinco tipos de step do contrato, na ordem de `WORKFLOW_STEP_TYPE_VALUES`.
+  "workflowStep.type.agent",
+  "workflowStep.type.command",
+  "workflowStep.type.validation",
+  "workflowStep.type.approval",
+  "workflowStep.type.knowledge",
+
+  // --------------------------------------------------------- runStep.status
+  // Os oito estados de RunStep. Cada glossário concorda com o gênero da sua
+  // própria entidade: "Passo do ritual" é masculino, "Etapa do workflow" é
+  // feminino, e um adjetivo só para os dois erraria num deles.
+  "runStep.status.pending",
+  "runStep.status.running",
+  "runStep.status.waitingApproval",
+  "runStep.status.succeeded",
+  "runStep.status.failed",
+  "runStep.status.skipped",
+  "runStep.status.timedOut",
+  "runStep.status.cancelled",
+
+  // ----------------------------------------------------------- runStep.skip
+  // Os dois motivos de `StepSkipReason`. Não são tematizados: dizem por que o
+  // motor não rodou o step, e isso é informação de execução.
+  "runStep.skip.predicateFalse",
+  "runStep.skip.dependencyNotSucceeded",
+
+  // --------------------------------------------------------------- approval
+  // O Selo da Guilda: a carta no cockpit, as duas decisões, os três estados
+  // do gate, os diálogos de confirmação, o aviso de decisão perdida (CAS), a
+  // lista de pendentes e o toast.
+  "approval.card.title",
+  "approval.decision.approve",
+  "approval.decision.reject",
+  "approval.status.pending",
+  "approval.status.granted",
+  "approval.status.rejected",
+  "approval.confirm.approve.title",
+  "approval.confirm.approve.body",
+  "approval.confirm.reject.title",
+  "approval.confirm.reject.body",
+  "approval.conflict",
+  "approval.pending.title",
+  "approval.pending.empty",
+  "approval.toast.title",
+
   // ------------------------------------------------------------------- env
   "env.host",
   "env.host.warning",

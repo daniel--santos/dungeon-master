@@ -1,17 +1,26 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+
+export type PanelProps = Omit<ComponentProps<"section">, "className" | "children"> & {
+  readonly className?: string;
+  readonly children: ReactNode;
+};
 
 /**
  * A superfície de conteúdo do design da Fase 1.
  *
  * Existe ao lado do `Card` do shadcn porque o canvas fixou raio 14 e espaçamento
  * próprio, e envolver o `Card` para desfazer o padding dele custaria mais do que
- * a caixa que ele daria.
+ * a caixa que ele daria. Os atributos restantes vão para a `section`: é por
+ * `data-*` que os testes de ponta a ponta encontram um painel.
  */
-export function Panel({ className, children }: { className?: string; children: ReactNode }) {
+export function Panel({ className, children, ...rest }: PanelProps) {
   return (
-    <section className={cn("bg-card border-border rounded-[14px] border shadow-sm", className)}>
+    <section
+      className={cn("bg-card border-border rounded-[14px] border shadow-sm", className)}
+      {...rest}
+    >
       {children}
     </section>
   );

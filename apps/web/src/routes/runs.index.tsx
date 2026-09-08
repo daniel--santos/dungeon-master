@@ -5,6 +5,7 @@ import { useCallback, useMemo } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Panel } from "@/components/panel";
+import { PendingGatesPanel } from "@/components/run/pending-gates-panel";
 import { RunFilters, type RunFilterValue } from "@/components/run/run-filters";
 import { RunTable } from "@/components/run/run-table";
 import { useHarnesses } from "@/lib/execution";
@@ -87,6 +88,8 @@ function RunsPage() {
       />
 
       <div className="flex flex-col gap-4">
+        <PendingGatesPanel />
+
         <RunFilters
           harnesses={harnesses.data?.items ?? []}
           onChange={onFilterChange}

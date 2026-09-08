@@ -118,6 +118,57 @@ export const plain: Record<GlossaryKey, string> = {
   "run.cockpit": "Painel da execução",
   "run.timeline": "Linha do tempo",
 
+  // ---------------------------------------------------------------- workflow
+  "workflow.none": "Nenhum · execução simples",
+  "workflow.captureNote":
+    "A definição vigente do workflow é congelada quando a execução é criada. Editar o workflow depois não afeta esta execução.",
+  "workflow.delete.title": "Apagar o workflow?",
+  "workflow.delete.body":
+    "O workflow some da lista, e as tarefas que o escolheram voltam à execução simples. Se alguma execução já o usou, a exclusão é recusada e nada muda.",
+  "workflow.delete.inUse":
+    "Este workflow já foi usado por uma execução, e o histórico dela precisa da definição. Ele não pode ser apagado.",
+
+  // ------------------------------------------------------ workflowStep.type
+  "workflowStep.type.agent": "Agente",
+  "workflowStep.type.command": "Comando",
+  "workflowStep.type.validation": "Validação",
+  "workflowStep.type.approval": "Aprovação",
+  "workflowStep.type.knowledge": "Conhecimento",
+
+  // --------------------------------------------------------- runStep.status
+  "runStep.status.pending": "Pendente",
+  "runStep.status.running": "Em andamento",
+  "runStep.status.waitingApproval": "Aguardando aprovação",
+  "runStep.status.succeeded": "Concluída",
+  "runStep.status.failed": "Falhou",
+  "runStep.status.skipped": "Pulada",
+  "runStep.status.timedOut": "Tempo esgotado",
+  "runStep.status.cancelled": "Cancelada",
+
+  // ----------------------------------------------------------- runStep.skip
+  "runStep.skip.predicateFalse": "Condição não atendida",
+  "runStep.skip.dependencyNotSucceeded": "Dependência não concluída",
+
+  // --------------------------------------------------------------- approval
+  "approval.card.title": "Pedido de aprovação",
+  "approval.decision.approve": "Aprovar",
+  "approval.decision.reject": "Recusar",
+  "approval.status.pending": "Pendente",
+  "approval.status.granted": "Concedida",
+  "approval.status.rejected": "Recusada",
+  "approval.confirm.approve.title": "Aprovar este pedido?",
+  "approval.confirm.approve.body":
+    "A execução volta à fila e o agente segue para a próxima etapa. A decisão fica registrada na linha do tempo e não pode ser desfeita.",
+  "approval.confirm.reject.title": "Recusar este pedido?",
+  "approval.confirm.reject.body":
+    "A etapa de aprovação termina como Falhou e a execução volta à fila para o workflow decidir o que vem depois. A decisão fica registrada na linha do tempo e não pode ser desfeita.",
+  "approval.conflict":
+    "Outra decisão chegou antes. Nada foi sobrescrito: a aprovação está {status}.",
+  "approval.pending.title": "Aprovações pendentes",
+  "approval.pending.empty":
+    "Nenhuma aprovação pendente. Quando um workflow parar numa etapa de aprovação, o pedido aparece aqui.",
+  "approval.toast.title": "Aprovação pedida",
+
   // ------------------------------------------------------------------- env
   "env.host": "Host",
   "env.host.warning": "sem isolamento",

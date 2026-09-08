@@ -32,6 +32,21 @@ export function useLiveQueries(): void {
 
       if (event.type.startsWith("project.")) {
         void queryClient.invalidateQueries({ queryKey: ["projects"] });
+        return;
+      }
+
+      if (event.type.startsWith("workflow.")) {
+        // Criar, editar ou apagar um Workflow muda a lista, o detalhe e as
+        // escolhas que a Task oferece.
+        void queryClient.invalidateQueries({ queryKey: ["workflows"] });
+        return;
+      }
+
+      if (event.type.startsWith("approval.")) {
+        // Um gate aberto ou decidido muda a caixa de pendentes, o estado do Run
+        // (que parou ou voltou à fila) e os steps dele.
+        void queryClient.invalidateQueries({ queryKey: ["approval-gates"] });
+        void queryClient.invalidateQueries({ queryKey: ["runs"] });
       }
     });
   }, [addListener, queryClient]);
