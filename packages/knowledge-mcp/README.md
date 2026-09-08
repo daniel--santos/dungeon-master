@@ -21,13 +21,13 @@ própria, e este não é.
 
 ## Ferramentas
 
-| Ferramenta                         | O que devolve                                                                 |
-| ---------------------------------- | ----------------------------------------------------------------------------- |
-| `search_knowledge(query, limit?)`  | páginas `ACTIVE` do Project por FTS, com título, tipo, trecho e id            |
-| `get_knowledge_item(id)`           | uma página inteira, limitada a `CONTENT_CHARS`                                |
-| `get_project_summary()`            | o `SUMMARY` corrente e as contagens de páginas ativas                         |
-| `list_decisions(limit?)`           | as decisões `ACTIVE`, da mais antiga para a mais recente                      |
-| `get_task_context(taskId)`         | título, descrição, estado, Task mãe, dependências e dependentes de uma Task   |
+| Ferramenta                        | O que devolve                                                               |
+| --------------------------------- | --------------------------------------------------------------------------- |
+| `search_knowledge(query, limit?)` | páginas `ACTIVE` do Project por FTS, com título, tipo, trecho e id          |
+| `get_knowledge_item(id)`          | uma página inteira, limitada a `CONTENT_CHARS`                              |
+| `get_project_summary()`           | o `SUMMARY` corrente e as contagens de páginas ativas                       |
+| `list_decisions(limit?)`          | as decisões `ACTIVE`, da mais antiga para a mais recente                    |
+| `get_task_context(taskId)`        | título, descrição, estado, Task mãe, dependências e dependentes de uma Task |
 
 Regras que valem para todas, provadas em `src/tools.test.ts` e `test/stdio.test.ts`:
 
