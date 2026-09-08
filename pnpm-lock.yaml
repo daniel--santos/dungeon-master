@@ -220,6 +220,9 @@ importers:
       '@dungeon-master/runtime-sandcastle':
         specifier: workspace:*
         version: link:../../packages/runtime-sandcastle
+      '@dungeon-master/workflow':
+        specifier: workspace:*
+        version: link:../../packages/workflow
       dotenv:
         specifier: 17.4.2
         version: 17.4.2

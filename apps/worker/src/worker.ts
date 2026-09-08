@@ -1,8 +1,10 @@
 import { RUN_CANCEL_CHANNEL, RUN_QUEUE_CHANNEL } from "@dungeon-master/contracts";
 import {
+  cancelRunWaitingApproval,
   claimNextQueuedRun,
   createPgNotifier,
   listCancelRequestedRunIds,
+  listRunsWaitingApprovalWithCancelRequested,
   type ClaimedRun,
   type Database,
 } from "@dungeon-master/database";
@@ -138,6 +140,14 @@ export function createWorker(options: CreateWorkerOptions): Worker {
   const cancelados = new Set<string>();
   /** Por que o Worker cancelou. Lido por `executeRun` ao escrever o desfecho. */
   const cancelReasons = new Map<string, string>();
+  /**
+   * O sinal de cancelamento de cada Run em voo.
+   *
+   * `runtime.cancel` alcança o agente; o sinal alcança o resto — um Run com
+   * Workflow entre dois passos, ou num step de comando, não tem agente para
+   * o runtime matar.
+   */
+  const sinais = new Map<string, AbortController>();
 
   let loop: IdleLoop | undefined;
   let stopping = false;
@@ -168,6 +178,8 @@ export function createWorker(options: CreateWorkerOptions): Worker {
 
     logger?.info({ runId, reason }, "cancelando run em voo");
 
+    sinais.get(runId)?.abort();
+
     // `runtime.cancel` espera a árvore de processos ser tratada. Esperar isso
     // dentro do tique seguraria o laço inteiro por um kill que no Windows
     // confirma por polling; o desfecho continua vindo pelo `RunCancelled`, que
@@ -186,7 +198,43 @@ export function createWorker(options: CreateWorkerOptions): Worker {
     for (const runId of pedidos) cancelar(runId, "user_request");
   };
 
+  /**
+   * Fecha os Runs parados em gate com cancelamento pedido.
+   *
+   * Em `WAITING_APPROVAL` ninguém está executando: o Run soltou o Worker ao
+   * abrir o gate, e o pedido de cancelamento só marcou a coluna. Quem o leva a
+   * `CANCELLED` — passo do gate cancelado, `RunCancelled` no diário, Task de
+   * volta a `READY` — é este laço, na próxima passada.
+   */
+  const cancelarEmEspera = async (): Promise<void> => {
+    const ids = await listRunsWaitingApprovalWithCancelRequested(db, { userId });
+    for (const runId of ids) {
+      try {
+        const fechado = await cancelRunWaitingApproval(db, {
+          userId,
+          runId,
+          reason: "user_request",
+          ...(logger === undefined ? {} : { logger }),
+        });
+        if (fechado === null || !fechado.ok) {
+          logger?.warn(
+            { runId, failure: fechado === null ? "RUN_NOT_FOUND" : fechado.failure },
+            "não consegui cancelar o run em espera de aprovação",
+          );
+          continue;
+        }
+        logger?.info({ runId }, "run em espera de aprovação cancelado");
+      } catch (error) {
+        // Escrita terminal que falhou: sem compensação pelo mesmo canal; a
+        // próxima passada tenta de novo, porque a marca continua lá.
+        logger?.error({ err: error, runId }, "falha ao cancelar o run em espera de aprovação");
+      }
+    }
+  };
+
   const executar = async (claimed: ClaimedRun): Promise<void> => {
+    const controller = new AbortController();
+    sinais.set(claimed.run.id, controller);
     try {
       await executeRun(
         {
@@ -199,6 +247,7 @@ export function createWorker(options: CreateWorkerOptions): Worker {
             completionMs: config.runCompletionTimeoutMs,
           },
           cancelReasons,
+          signal: controller.signal,
           ...(logger === undefined ? {} : { logger }),
         },
         claimed,
@@ -207,6 +256,7 @@ export function createWorker(options: CreateWorkerOptions): Worker {
       emVoo.delete(claimed.run.id);
       cancelados.delete(claimed.run.id);
       cancelReasons.delete(claimed.run.id);
+      sinais.delete(claimed.run.id);
       // O desfecho acabou de ser gravado: projetar agora é o que faz o toast
       // chegar junto do fim da Expedição, e não no tique seguinte.
       projetar();
@@ -246,6 +296,7 @@ export function createWorker(options: CreateWorkerOptions): Worker {
     }
 
     await checarCancelamentos();
+    await cancelarEmEspera();
 
     // Uma linha por tique: o projetor tem contrato de nunca lançar e volta na
     // hora, então nada aqui espera por ele. É a rede para todo fato que não
@@ -293,7 +344,12 @@ export function createWorker(options: CreateWorkerOptions): Worker {
 
         cancelListener = new PgNotifyListener({
           notifier,
-          drainable: { drainNow: checarCancelamentos },
+          drainable: {
+            drainNow: async () => {
+              await checarCancelamentos();
+              await cancelarEmEspera();
+            },
+          },
           channel: RUN_CANCEL_CHANNEL,
           ...(logger === undefined ? {} : { logger }),
         });

@@ -1,4 +1,9 @@
-import type { DiagnosticLevel, ExecutionEvent, HarnessKey } from "@dungeon-master/contracts";
+import type {
+  DiagnosticLevel,
+  ExecutionEvent,
+  HarnessKey,
+  RunEventPayload,
+} from "@dungeon-master/contracts";
 import type { RunEventInput } from "@dungeon-master/database";
 
 /**
@@ -14,7 +19,7 @@ import type { RunEventInput } from "@dungeon-master/database";
  * o fato aconteceu é diferente do instante em que ele foi gravado, e num Run
  * longo a diferença é visível na timeline.
  */
-export function toRunEventInput(event: ExecutionEvent): RunEventInput {
+export function toRunEventInput(event: RunEventPayload): RunEventInput {
   const timestamp = new Date(event.timestamp);
   return {
     type: event.type,
