@@ -35,6 +35,8 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         description: "Cadastros de execução: Harness, Model, Agent, ExecutionProfile e Loadout.",
       },
       { name: "runs", description: "Runs: as tentativas concretas de realizar uma Task." },
+      { name: "workflows", description: "Workflows: o processo de uma execução, como dados." },
+      { name: "approvals", description: "ApprovalGates: as pausas humanas de um Run." },
       { name: "achievements", description: "O catálogo versionado de Conquistas." },
     ],
   }) as unknown as Record<string, unknown>;

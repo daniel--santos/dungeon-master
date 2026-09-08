@@ -24,6 +24,11 @@ import {
 } from "./handlers/registry.js";
 import { registerRunRoutes } from "./handlers/runs.js";
 import { registerTaskRoutes } from "./handlers/tasks.js";
+import {
+  registerApprovalGateRoutes,
+  registerRunWorkflowRoutes,
+  registerWorkflowRoutes,
+} from "./handlers/workflows.js";
 import type { Logger } from "./logger.js";
 import type {
   AchievementsPort,
@@ -42,6 +47,7 @@ import {
   problemTypeForStatus,
   ProblemType,
   toValidationIssues,
+  validationStatusFor,
 } from "./problem.js";
 import { eventsPingRoute, eventsStreamRoute } from "./routes/events.js";
 import { healthRoute } from "./routes/health.js";
@@ -110,14 +116,21 @@ export function createApp(options: CreateAppOptions) {
 
   const app = new OpenAPIHono({
     // Erro de validação de entrada vira 400 com `errors[]`, no formato RFC 9457.
+    // Um corpo bem formado que quebra uma regra estrutural do schema — a
+    // definição de um Workflow com ciclo, por exemplo — vira 422, com os mesmos
+    // `errors[]` apontando o campo.
     defaultHook: (result, c) => {
       if (result.success) return;
 
+      const status = validationStatusFor(result.error);
       const problem = buildProblem({
-        status: 400,
+        status,
         type: ProblemType.validation,
-        title: "Requisição inválida",
-        detail: "Um ou mais campos da requisição não passaram na validação.",
+        title: status === 422 ? "Conteúdo inválido" : "Requisição inválida",
+        detail:
+          status === 422
+            ? "O corpo está bem formado, mas quebra uma regra do recurso. Veja `errors[]`."
+            : "Um ou mais campos da requisição não passaram na validação.",
         instance: new URL(c.req.url).pathname,
         requestId: c.get("requestId"),
         errors: toValidationIssues(result.error),
@@ -290,6 +303,12 @@ export function createApp(options: CreateAppOptions) {
   registerLoadoutRoutes(app, options.execution.loadouts);
   registerRunRoutes(app, options.execution.runs, logger === undefined ? {} : { logger });
 
+  // ------------------------------------------------------------- Workflow
+
+  registerRunWorkflowRoutes(app, options.execution.runs);
+  registerWorkflowRoutes(app, options.execution.workflows);
+  registerApprovalGateRoutes(app, options.execution.approvalGates);
+
   // ------------------------------------------------------------- Conquistas
 
   registerAchievementRoutes(app, options.achievements, options.hall);
@@ -317,6 +336,8 @@ export function createApp(options: CreateAppOptions) {
         description: "Cadastros de execução: Harness, Model, Agent, ExecutionProfile e Loadout.",
       },
       { name: "runs", description: "Runs: as tentativas concretas de realizar uma Task." },
+      { name: "workflows", description: "Workflows: o processo de uma execução, como dados." },
+      { name: "approvals", description: "ApprovalGates: as pausas humanas de um Run." },
       {
         name: "achievements",
         description: "O catálogo versionado de Conquistas e a projeção de progresso.",
@@ -360,6 +381,7 @@ export function createApp(options: CreateAppOptions) {
           instance,
           requestId: id,
           errors: error.errors,
+          extensions: error.extensions,
         }),
       );
     }

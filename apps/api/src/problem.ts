@@ -32,6 +32,14 @@ export class HttpProblem extends Error {
   readonly type: string;
   readonly title: string;
   readonly errors: ValidationIssue[] | undefined;
+  /**
+   * Membros de extensão da RFC 9457, mesclados ao corpo.
+   *
+   * Existem para a resposta carregar um dado estruturado que o `detail` só
+   * conseguiria descrever em prosa: o estado atual de um gate cuja decisão
+   * perdeu a corrida, por exemplo. Nunca sobrescrevem os campos padrão.
+   */
+  readonly extensions: Record<string, unknown> | undefined;
 
   constructor(init: {
     status: ContentfulStatusCode;
@@ -39,6 +47,7 @@ export class HttpProblem extends Error {
     detail: string;
     type?: string;
     errors?: ValidationIssue[];
+    extensions?: Record<string, unknown>;
   }) {
     super(init.detail);
     this.name = "HttpProblem";
@@ -46,6 +55,7 @@ export class HttpProblem extends Error {
     this.title = init.title;
     this.type = init.type ?? "about:blank";
     this.errors = init.errors;
+    this.extensions = init.extensions;
   }
 }
 
@@ -94,10 +104,16 @@ export interface BuildProblemInput {
   type?: string;
   requestId?: string | undefined;
   errors?: ValidationIssue[] | undefined;
+  extensions?: Record<string, unknown> | undefined;
 }
 
+/**
+ * Os campos padrão são escritos **depois** das extensões: uma extensão
+ * chamada `status` ou `detail` não pode trocar o significado da resposta.
+ */
 export function buildProblem(input: BuildProblemInput): ProblemDetails {
   const problem: ProblemDetails = {
+    ...(input.extensions ?? {}),
     type: input.type ?? "about:blank",
     title: input.title,
     status: input.status,
@@ -113,6 +129,23 @@ export function buildProblem(input: BuildProblemInput): ProblemDetails {
   }
 
   return problem;
+}
+
+/**
+ * Um corpo bem formado que quebra uma regra estrutural do schema é `422`.
+ *
+ * O Zod distingue os dois casos: forma errada (tipo, campo ausente, enum
+ * fora da lista) sai com códigos próprios; uma regra escrita em
+ * `superRefine` ou `refine` — ciclo de dependências, referência a step
+ * inexistente — sai como `custom`. Quando **todos** os issues são `custom`,
+ * o corpo tinha a forma certa e o que falhou foi o conteúdo, que é
+ * exatamente o que 422 diz. Um único issue de forma leva a resposta de volta
+ * a `400`: o cliente precisa corrigir a forma antes de qualquer regra fazer
+ * sentido.
+ */
+export function validationStatusFor(error: ZodError): 400 | 422 {
+  if (error.issues.length === 0) return 400;
+  return error.issues.every((issue) => issue.code === "custom") ? 422 : 400;
 }
 
 /**

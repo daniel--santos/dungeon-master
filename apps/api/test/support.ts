@@ -68,6 +68,8 @@ export async function limparTudo(handle: DatabaseHandle): Promise<void> {
     "achievement_cursor",
     "achievement_definition",
     "hero_stats",
+    "approval_gate",
+    "run_step",
     "workspace_lock",
     "run_event",
     "run",
@@ -77,6 +79,9 @@ export async function limparTudo(handle: DatabaseHandle): Promise<void> {
     "activity",
     "task_dependency",
     "task",
+    "workflow_step",
+    "workflow_version",
+    "workflow",
     "project",
     "dashboard_event",
   ]) {
