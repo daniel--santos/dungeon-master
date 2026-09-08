@@ -23,6 +23,7 @@ import {
 } from "@dungeon-master/workflow";
 
 import type { ExecuteRunDeps } from "./execute-run.js";
+import { buildRunMcpServers } from "./mcp-servers.js";
 import { prepareRun, type PreparedRun } from "./prepare-run.js";
 import { toRunEventInput, workerDiagnostic } from "./run-events.js";
 import { createRunOutcomeWriter } from "./run-writers.js";
@@ -119,6 +120,18 @@ export async function executeWorkflowRun(deps: ExecuteRunDeps, claimed: ClaimedR
       },
     });
 
+    // Os servidores MCP são os mesmos em todo passo de agente: montados uma
+    // vez, com os avisos no diário antes do primeiro passo.
+    const mcp = buildRunMcpServers({
+      loadout: run.loadoutSnapshot,
+      projectId: claimed.project.id,
+      userId,
+      databaseUrl: deps.databaseUrl,
+    });
+    for (const nota of mcp.notes) {
+      await writer.diagnostic(nota.level === "DEBUG" ? "INFO" : nota.level, nota.message);
+    }
+
     const agent = createStepAgentRuntime({
       runtime: deps.runtime,
       run,
@@ -130,6 +143,7 @@ export async function executeWorkflowRun(deps: ExecuteRunDeps, claimed: ClaimedR
         writer.harnessVersion = version;
       },
       knownArtifacts: artefatosDoHarness,
+      mcpServers: mcp.servers,
     });
 
     const commands = commandExecutorFor(run.executionMode, policies);

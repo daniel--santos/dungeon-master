@@ -20,6 +20,7 @@
     "@dungeon-master/database": "workspace:*",
     "@dungeon-master/events": "workspace:*",
     "@dungeon-master/knowledge": "workspace:*",
+    "@dungeon-master/knowledge-mcp": "workspace:*",
     "@dungeon-master/platform": "workspace:*",
     "@dungeon-master/runs": "workspace:*",
     "@dungeon-master/runtime": "workspace:*",
