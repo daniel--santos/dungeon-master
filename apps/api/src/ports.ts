@@ -20,11 +20,15 @@ import type {
   TaskPriority,
   TaskSort,
   TaskStatus,
+  HeroStatsResponse,
   UserSettings,
   UserSettingsKey,
   WorkspaceKind,
 } from "@dungeon-master/contracts";
 import type {
+  AchievementListFilters,
+  AchievementListResult,
+  AchievementUnlockView,
   CreateAgentInput,
   CreateExecutionProfileInput,
   CreateLoadoutInput,
@@ -285,6 +289,21 @@ export interface ExecutionPort {
   readonly runs: RunsPort;
 }
 
+/**
+ * O Hall dos Heróis: a projeção que o Worker mantém.
+ *
+ * Separada de `AchievementCatalog`, que é o arquivo versionado e não tem
+ * usuário nem banco: as quatro leituras daqui têm progresso, e progresso é
+ * estado. Quem escreve é o projetor do Worker; a API só lê.
+ */
+export interface AchievementsPort {
+  list(filters: AchievementListFilters): Promise<AchievementListResult>;
+  unlocks(page: PageRequest): Promise<PageResult<AchievementUnlockView>>;
+  /** `null` quando não existe desbloqueio com este id: é o 404. */
+  markSeen(unlockId: string): Promise<AchievementUnlockView | null>;
+  heroStats(): Promise<HeroStatsResponse>;
+}
+
 /** As três juntas, para `createApp` receber uma dependência em vez de três. */
 export interface WorkPort {
   readonly projects: ProjectsPort;
@@ -306,6 +325,7 @@ export function createSpecPorts(): {
   work: WorkPort;
   execution: ExecutionPort;
   achievements: AchievementCatalog;
+  hall: AchievementsPort;
 } {
   const recusar = (recurso: string): never => {
     throw new Error(`Porta inerte: ${recurso} não está disponível nesta instância da app.`);
@@ -402,5 +422,11 @@ export function createSpecPorts(): {
     // forma das rotas, e ler o disco ali faria a spec depender de um arquivo
     // que nada na spec descreve. O catálogo real entra por injeção no boot.
     achievements: { definitions: [], templates: [], invalid: [] },
+    hall: {
+      list: inerte("a listagem de Conquistas"),
+      unlocks: inerte("a crônica de desbloqueios"),
+      markSeen: inerte("a marcação de desbloqueio visto"),
+      heroStats: inerte("as estatísticas de Herói"),
+    },
   };
 }
