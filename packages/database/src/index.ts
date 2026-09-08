@@ -32,6 +32,7 @@ export * from "./registry.js";
 export * from "./run.js";
 export * from "./run-event.js";
 export * from "./run-step.js";
+export * from "./run-workflow.js";
 export * from "./approval-gate.js";
 export * from "./workflow.js";
 export * from "./seed-workflow.js";
