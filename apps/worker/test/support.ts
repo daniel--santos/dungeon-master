@@ -116,6 +116,8 @@ export async function montarCenario(
     commandExecution?: CommandAccess;
     /** Harness do Loadout. Padrão: `CLAUDE_CODE`, que é o do harness falso. */
     harnessKey?: HarnessKey;
+    /** Workflow da Task. Ausente é o Run simples, de um agente só. */
+    workflowId?: string;
   },
 ): Promise<Cenario> {
   const project = await createProject(db, { userId: USER, title: `Project ${input.nome}` });
@@ -126,7 +128,12 @@ export async function montarCenario(
     .where(and(eq(projects.id, project.id), eq(projects.userId, USER)));
 
   const task = exigirOk(
-    await createTask(db, { userId: USER, projectId: project.id, title: `Task ${input.nome}` }),
+    await createTask(db, {
+      userId: USER,
+      projectId: project.id,
+      title: `Task ${input.nome}`,
+      ...(input.workflowId === undefined ? {} : { workflowId: input.workflowId }),
+    }),
     `a criação da Task ${input.nome}`,
   );
 
@@ -298,8 +305,13 @@ export async function limpar(handle: DatabaseHandle): Promise<void> {
     "achievement_definition",
     "hero_stats",
     "workspace_lock",
+    "approval_gate",
+    "run_step",
     "run_event",
     "run",
+    "workflow_step",
+    "workflow_version",
+    "workflow",
     "loadout",
     "model",
     "agent",

@@ -1,4 +1,9 @@
-import { listOrphanRunRows, writeRunTerminalStatus, type Database } from "@dungeon-master/database";
+import {
+  listOrphanRunRows,
+  settleOrphanRunSteps,
+  writeRunTerminalStatus,
+  type Database,
+} from "@dungeon-master/database";
 import { isTerminalStatusWriteError } from "@dungeon-master/events";
 
 import type { Logger } from "./logger.js";
@@ -80,6 +85,18 @@ export async function reconcileOrphanRuns(
     });
 
     try {
+      if (run.workflowVersionId !== null) {
+        // Os RunSteps abertos assentam antes do Run: o passo que estava
+        // rodando vira FAILED com WORKER_LOST e os que nunca rodaram, CANCELLED.
+        // Sem isso a tela por passos mostraria um passo "em execução" dentro
+        // de um Run já fechado.
+        const steps = await settleOrphanRunSteps(db, { userId, runId: run.id, workerId });
+        logger?.warn(
+          { runId: run.id, failed: steps.failed, cancelled: steps.cancelled },
+          "run steps do run órfão assentados",
+        );
+      }
+
       const escrito = await writeRunTerminalStatus(db, {
         userId,
         runId: run.id,

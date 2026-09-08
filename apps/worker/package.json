@@ -24,6 +24,7 @@
     "@dungeon-master/runtime": "workspace:*",
     "@dungeon-master/runtime-antigravity": "workspace:*",
     "@dungeon-master/runtime-sandcastle": "workspace:*",
+    "@dungeon-master/workflow": "workspace:*",
     "dotenv": "17.4.2",
     "pino": "10.3.1",
     "pino-pretty": "13.1.3"

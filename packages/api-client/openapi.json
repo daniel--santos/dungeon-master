@@ -3168,12 +3168,56 @@
                 "type": "string",
                 "minLength": 1
               },
+              "artifacts": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TaskExecutionArtifact"
+                },
+                "description": "Arquivos que o agente declarou ter produzido neste step."
+              },
               "knowledgeCandidates": {
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/KnowledgeCandidateInput"
                 },
                 "description": "O que o agente aprendeu. O step `knowledge` consolida isto."
+              },
+              "usage": {
+                "type": "object",
+                "properties": {
+                  "inputTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Tokens de entrada não cacheados."
+                  },
+                  "outputTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Tokens gerados."
+                  },
+                  "cacheReadInputTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Tokens de entrada servidos do cache."
+                  },
+                  "cacheCreationInputTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Tokens de entrada gravados no cache."
+                  },
+                  "costUsd": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Custo informado pelo harness, quando existir."
+                  }
+                },
+                "required": [
+                  "inputTokens",
+                  "outputTokens",
+                  "cacheReadInputTokens",
+                  "cacheCreationInputTokens"
+                ],
+                "description": "Consumo de tokens do step."
               }
             },
             "required": [
@@ -3321,6 +3365,27 @@
           }
         ],
         "description": "O resultado de um RunStep, por tipo de step."
+      },
+      "TaskExecutionArtifact": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Caminho relativo ao workspace do Run."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Classificação livre: `file`, `patch`, `report`."
+          },
+          "summary": {
+            "type": "string",
+            "description": "O que este arquivo é, em uma linha."
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "description": "Um arquivo que a execução produziu."
       },
       "KnowledgeCandidateInput": {
         "type": "object",

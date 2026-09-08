@@ -10,34 +10,30 @@ import {
   TASK_EXECUTION_RESULT_INSTRUCTION,
 } from "@dungeon-master/contracts";
 import {
-  acquireWorkspaceLock,
-  appendRunEvent,
-  getActiveRunByPath,
   getRun,
-  recordDomainEvent,
   releaseWorkspaceLock,
   transitionRun,
   updateRunExecutionFields,
-  writeRunTerminalStatus,
   type ClaimedRun,
   type Database,
-  type RunEventInput,
 } from "@dungeon-master/database";
-import { isTerminalStatusWriteError } from "@dungeon-master/events";
-import { normalizeAbsolutePath } from "@dungeon-master/platform";
-import type {
-  AgentRuntime,
-  CommitRef,
-  ExecutionRequest,
-  WorkspaceChange,
-  WorkspaceManager,
-  WorktreeHandle,
-} from "@dungeon-master/runtime";
-import { GitCommandError, PERMISSION_DENIED_DIAGNOSTIC_CODE } from "@dungeon-master/runtime";
+import type { AgentRuntime, ExecutionRequest, WorkspaceManager } from "@dungeon-master/runtime";
+import { PERMISSION_DENIED_DIAGNOSTIC_CODE } from "@dungeon-master/runtime";
 
+import { executeWorkflowRun } from "./execute-workflow-run.js";
 import type { Logger } from "./logger.js";
-import { resolveRunPolicies } from "./policy.js";
-import { toRunEventInput, workerDiagnostic, workerRunFailed } from "./run-events.js";
+import { prepareRun, type PreparedRun } from "./prepare-run.js";
+import { toRunEventInput } from "./run-events.js";
+import { createRunOutcomeWriter } from "./run-writers.js";
+import {
+  comumDoDesfecho,
+  normalizeArtifactPath,
+  recoveryMessage,
+  settleWorkspace,
+  toArtifactEvent,
+} from "./workspace-outcome.js";
+
+export { normalizeArtifactPath, recoveryMessage, toArtifactEvent };
 
 /** Os quatro eventos que fecham o fluxo. Um deles sempre chega, e é o último. */
 type TerminalExecutionEvent = Extract<
@@ -48,28 +44,19 @@ type TerminalExecutionEvent = Extract<
 /**
  * A execução de um Run, do claim ao desfecho gravado.
  *
- * É aqui que a 2A e a 2B se encontram: o modelo (fila, trava, log append-only,
- * escrita terminal transacional) de um lado, o runtime (worktree, timeouts,
- * kill de árvore, resultado estruturado) do outro. Esta função é a única que
- * conhece os dois.
+ * Dois caminhos, escolhidos pelo que o Run é:
  *
- * A ordem não é arbitrária, e cada passo existe por um acidente conhecido:
+ * - **Run simples** (`workflowVersionId` nulo): uma execução de agente, aqui
+ *   mesmo. É onde a 2A e a 2B se encontram — o modelo (fila, trava, log
+ *   append-only, escrita terminal transacional) de um lado, o runtime
+ *   (worktree, timeouts, kill de árvore, resultado estruturado) do outro.
+ * - **Run com Workflow**: a preparação é a mesma, e depois o motor de
+ *   `@dungeon-master/workflow` conduz os passos (`execute-workflow-run.ts`).
  *
- * 1. **Trava de workspace antes de qualquer processo.** Dois `run()` do
- *    Sandcastle com a mesma branch nomeada recebem o mesmo diretório e
- *    corrompem em silêncio (documento técnico, seção 16); a trava é nossa e
- *    mora no PostgreSQL.
- * 2. **Worktree depois da trava.** Criar primeiro deixaria diretório órfão
- *    quando a trava fosse recusada.
- * 3. **Confirmação de posse imediatamente antes de subir o processo.** Entre
- *    dois Runs que ainda não começaram, a trava vai para o de `id` menor; é o
- *    desempate determinístico da 2A, e a única janela em que um Run perde uma
- *    trava que pegou.
- * 4. **`RunStarted` é quem move `PREPARING → RUNNING`.** O estado do banco segue
- *    o processo, não a intenção.
- * 5. **O evento terminal e o status terminal saem na mesma transação.** Um Run
- *    `SUCCEEDED` cujo `RunCompleted` não foi gravado contaria a história pela
- *    metade.
+ * Duas regras valem nos dois: `RunStarted` é quem move `PREPARING → RUNNING`
+ * — o estado do banco segue o processo, não a intenção — e o evento terminal
+ * e o status terminal saem na mesma transação, porque um Run `SUCCEEDED` cujo
+ * `RunCompleted` não foi gravado contaria a história pela metade.
  */
 
 export interface ExecuteRunDeps {
@@ -87,26 +74,34 @@ export interface ExecuteRunDeps {
    * desistindo. O mapa é preenchido antes de `runtime.cancel`.
    */
   readonly cancelReasons?: Map<string, string>;
-}
-
-/** O que a preparação decidiu, antes de o primeiro processo subir. */
-interface Preparation {
-  readonly repoPath: string;
-  readonly checkoutPath: string;
-  readonly worktree: WorktreeHandle | undefined;
+  /**
+   * Cancelamento deste Run, disparado pelo Worker.
+   *
+   * O Run simples é cancelado por `runtime.cancel(runId)`; o Run com Workflow
+   * precisa do sinal também, porque entre dois passos e durante um step de
+   * comando não há execução de agente para o runtime cancelar.
+   */
+  readonly signal?: AbortSignal;
 }
 
 export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Promise<void> {
+  if (claimed.run.workflowVersionId !== null) {
+    await executeWorkflowRun(deps, claimed);
+    return;
+  }
+  await executeSimpleRun(deps, claimed);
+}
+
+async function executeSimpleRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Promise<void> {
   const { db, userId, logger } = deps;
-  const { run, project, task } = claimed;
+  const { run } = claimed;
   const harness: HarnessKey = run.harnessKey;
   const iniciadoEm = Date.now();
 
-  let preparation: Preparation | undefined;
+  const writer = createRunOutcomeWriter({ db, userId, run, logger, startedAt: iniciadoEm });
+
+  let preparation: PreparedRun | undefined;
   let lockAcquired = false;
-  let terminalWritten = false;
-  let sessionId: string | null = run.harnessSessionId;
-  let harnessVersion: string | null = run.harnessVersion;
   let usage: UsageSummary | undefined;
   /**
    * Caminhos que o harness já anunciou como `Artifact` no stream.
@@ -127,225 +122,12 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
    */
   const ferramentasNegadas = new Set<string>();
 
-  const append = async (event: ExecutionEvent): Promise<void> => {
-    await appendRunEvent(db, {
-      userId,
-      runId: run.id,
-      event: toRunEventInput(event),
-      ...(logger === undefined ? {} : { logger }),
-    });
-  };
-
-  const diagnostic = async (
-    level: "INFO" | "WARN" | "ERROR",
-    message: string,
-    detail?: string,
-  ): Promise<void> => {
-    await append(
-      workerDiagnostic({
-        harness,
-        level,
-        message,
-        ...(detail === undefined ? {} : { detail }),
-      }),
-    );
-  };
-
-  /**
-   * Fecha o Run sem que nenhum processo tenha subido.
-   *
-   * `PREPARING → FAILED` existe justamente para isto: preflight, worktree e
-   * trava são trabalho que pode dar errado antes do agente, e uma falha ali não
-   * é um Run que rodou mal — é um Run que não chegou a rodar.
-   */
-  const failPreparation = async (input: {
-    code: string;
-    message: string;
-    retryable: boolean;
-    detail?: string;
-    extra?: Record<string, unknown>;
-  }): Promise<void> => {
-    await diagnostic("ERROR", input.message, input.detail);
-    const evento = workerRunFailed({
-      harness,
-      code: input.code,
-      message: input.message,
-      retryable: input.retryable,
-      durationMs: Date.now() - iniciadoEm,
-    });
-    await writeTerminal({
-      status: "FAILED",
-      error: {
-        code: input.code,
-        message: input.message,
-        retryable: input.retryable,
-        ...(input.extra ?? {}),
-      },
-      events: [toRunEventInput(evento)],
-    });
-  };
-
-  const writeTerminal = async (input: {
-    status: "SUCCEEDED" | "FAILED" | "TIMED_OUT" | "CANCELLED";
-    result?: RunResult;
-    error?: Record<string, unknown> & { message: string };
-    events: readonly RunEventInput[];
-  }): Promise<void> => {
-    try {
-      await writeRunTerminalStatus(db, {
-        userId,
-        runId: run.id,
-        status: input.status,
-        ...(input.result === undefined ? {} : { result: input.result }),
-        ...(input.error === undefined ? {} : { error: input.error }),
-        ...(harnessVersion === null ? {} : { harnessVersion }),
-        ...(sessionId === null ? {} : { harnessSessionId: sessionId }),
-        events: input.events,
-        ...(logger === undefined ? {} : { logger }),
-      });
-      terminalWritten = true;
-    } catch (error) {
-      // Nenhum resultado comum pode ser reportado pelo canal que acabou de
-      // falhar (CLAUDE.md, seção 9). O log é o que sobra, e a reconciliação da
-      // próxima partida fecha o Run.
-      const nivel = isTerminalStatusWriteError(error) ? "fatal" : "error";
-      logger?.[nivel](
-        { err: error, runId: run.id, status: input.status },
-        "falha ao gravar o status terminal do Run; sem escrita compensatória",
-      );
-    }
-  };
-
   try {
-    // ------------------------------------------------------------ workspace
-    if (project.workspacePath === null || project.workspacePath.trim() === "") {
-      await failPreparation({
-        code: "PROJECT_WITHOUT_WORKSPACE",
-        message:
-          "O Project não tem um caminho de workspace, e um agente sem diretório de trabalho " +
-          "não é um Run que roda pior: é um Run que não pode começar.",
-        retryable: false,
-      });
-      return;
-    }
-
-    const repoPath = normalizeAbsolutePath(project.workspacePath);
-    const strategy = run.executionProfileSnapshot.workspaceStrategy;
-
-    if (strategy === "COPY") {
-      await failPreparation({
-        code: "WORKSPACE_STRATEGY_UNSUPPORTED",
-        message:
-          "A estratégia de workspace COPY ainda não existe. Use CURRENT ou GIT_WORKTREE no " +
-          "ExecutionProfile.",
-        retryable: false,
-      });
-      return;
-    }
-
-    const checkoutPath =
-      strategy === "GIT_WORKTREE" ? deps.workspace.worktreePathFor(repoPath, run.id) : repoPath;
-
-    // (a) A trava vem antes de tudo: ela é o que garante um Run ativo por par
-    // (repositório, caminho de checkout), inclusive entre processos diferentes.
-    const lock = await acquireWorkspaceLock(db, {
-      userId,
-      repoPath,
-      checkoutPath,
-      runId: run.id,
-    });
-
-    if (!lock.acquired) {
-      await failPreparation({
-        code: "WORKSPACE_LOCKED",
-        message:
-          `O caminho ${checkoutPath} já está reservado pelo Run ${lock.heldBy}. ` +
-          "Um Run ativo por caminho de checkout é a regra que impede dois agentes de " +
-          "escreverem no mesmo diretório.",
-        // Retentável: a trava sai sozinha quando o outro Run terminar.
-        retryable: true,
-        detail: `Motivo: ${lock.reason}. Reservado desde ${lock.heldSince}.`,
-        extra: { heldByRunId: lock.heldBy, checkoutPath },
-      });
-      return;
-    }
-    lockAcquired = true;
-
-    if (lock.reclaimed) {
-      await diagnostic(
-        "WARN",
-        "A trava do workspace estava presa por um Run que já não existe e foi recuperada.",
-        `Caminho: ${checkoutPath}.`,
-      );
-    }
-
-    // (b) O worktree. O runtime recebe `checkoutPath` preenchido e, por
-    // contrato, não cria nem remove nada — quem preparou desfaz.
-    let worktree: WorktreeHandle | undefined;
-    if (strategy === "GIT_WORKTREE") {
-      try {
-        worktree = await deps.workspace.create({ repoPath, runId: run.id });
-      } catch (error) {
-        await failPreparation({
-          code: "WORKTREE_CREATE_FAILED",
-          message: `Não consegui criar o worktree do Run em ${checkoutPath}.`,
-          retryable: true,
-          detail: error instanceof Error ? error.message : String(error),
-        });
-        return;
-      }
-    }
-    preparation = { repoPath, checkoutPath, worktree };
-
-    await updateRunExecutionFields(db, { userId, runId: run.id, workspacePath: checkoutPath });
-
-    // (c) Confirmação de posse imediatamente antes de subir o processo. É a
-    // leitura barata que fecha a janela do desempate por `id` menor.
-    const dono = await getActiveRunByPath(db, { userId, repoPath, checkoutPath });
-    if (dono === null || dono.id !== run.id) {
-      await failPreparation({
-        code: "WORKSPACE_LOCK_LOST",
-        message:
-          `A trava de ${checkoutPath} passou para o Run ${dono?.id ?? "(nenhum)"} entre a ` +
-          "aquisição e a subida do processo. Nada foi executado.",
-        retryable: true,
-        extra: { checkoutPath },
-      });
-      return;
-    }
-
-    // (d) Políticas. A tradução é regra de domínio e mora em `policy.ts`.
-    const politicas = resolveRunPolicies({
-      profile: run.executionProfileSnapshot,
-      harnessKey: harness,
-      capabilities: run.loadoutSnapshot.harness.capabilities,
-    });
-
-    for (const nota of politicas.notes) {
-      await diagnostic(nota.level === "DEBUG" ? "INFO" : nota.level, nota.message, nota.detail);
-    }
-
-    if (politicas.bypassWithoutSandbox) {
-      // O diário do Project sobrevive à tela de histórico do Run, e é onde a
-      // pergunta "por que esse agente teve permissão para tudo?" será feita.
-      await db.transaction(async (tx) => {
-        await recordDomainEvent(tx, {
-          userId,
-          projectId: project.id,
-          taskId: task.id,
-          taskTitle: task.title,
-          type: "run.permission_bypassed",
-          payload: {
-            runId: run.id,
-            taskId: task.id,
-            projectId: project.id,
-            executionMode: run.executionMode,
-            enforcement: run.executionProfileSnapshot.enforcement,
-            executionProfileName: run.executionProfileSnapshot.name,
-          },
-        });
-      });
-    }
+    const prep = await prepareRun({ deps, claimed, writer, reuseExistingWorktree: false });
+    lockAcquired = prep.lockAcquired;
+    if (!prep.ok) return;
+    preparation = prep.prepared;
+    const { repoPath, checkoutPath, strategy, policies } = prep.prepared;
 
     // (e) Retomada de sessão, quando o Run nasceu de um "retomar a Expedição".
     let resume: ExecutionRequest["resume"];
@@ -353,7 +135,7 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
       const origem = await getRun(db, { userId, runId: run.resumedFromRunId });
       const sessaoOrigem = origem?.harnessSessionId ?? null;
       if (sessaoOrigem === null) {
-        await failPreparation({
+        await writer.failPreparation({
           code: "RESUME_SOURCE_WITHOUT_SESSION",
           message:
             `O Run ${run.resumedFromRunId}, de onde este deveria retomar, não tem id de ` +
@@ -374,7 +156,7 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
     // preflight de partida atualiza com a do adapter.
     const querSchema = run.loadoutSnapshot.harness.capabilities.structuredOutput;
     if (!querSchema) {
-      await diagnostic(
+      await writer.diagnostic(
         "WARN",
         `${harness} não produz resultado estruturado; o desfecho será sintetizado a partir ` +
           "do texto final do agente.",
@@ -399,8 +181,8 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
         name: run.executionProfileSnapshot.name,
         mode: run.executionProfileSnapshot.mode,
         workspaceStrategy: strategy,
-        permissionPolicy: politicas.permission,
-        environmentPolicy: politicas.environment,
+        permissionPolicy: policies.permission,
+        environmentPolicy: policies.environment,
       },
       prompt: buildPrompt(run.loadoutSnapshot.agent.instructions, run.prompt),
       ...(querSchema
@@ -419,7 +201,7 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
     for await (const event of deps.runtime.execute(request)) {
       switch (event.type) {
         case "RunStarted": {
-          harnessVersion = event.harnessVersion;
+          writer.harnessVersion = event.harnessVersion;
           const movido = await transitionRun(db, {
             userId,
             runId: run.id,
@@ -435,14 +217,14 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
               { runId: run.id, failure: movido === null ? "RUN_NOT_FOUND" : movido.failure },
               "não consegui mover o Run para RUNNING",
             );
-            await append(event);
+            await writer.append(event);
           }
           break;
         }
 
         case "SessionCaptured": {
-          sessionId = event.harnessSessionId;
-          await append(event);
+          writer.sessionId = event.harnessSessionId;
+          await writer.append(event);
           // Fora da transação da transição de propósito: o id de sessão chega
           // com o Run já em `RUNNING`, e não existe aresta `RUNNING → RUNNING`.
           await updateRunExecutionFields(db, {
@@ -455,19 +237,19 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
 
         case "Usage":
           usage = event.usage;
-          await append(event);
+          await writer.append(event);
           break;
 
         case "Artifact":
           artefatosDoHarness.add(normalizeArtifactPath(event.path));
-          await append(event);
+          await writer.append(event);
           break;
 
         case "Diagnostic":
           if (event.code === PERMISSION_DENIED_DIAGNOSTIC_CODE) {
             ferramentasNegadas.add(describeDeniedTool(event.message));
           }
-          await append(event);
+          await writer.append(event);
           break;
 
         case "RunCompleted":
@@ -478,14 +260,14 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
           break;
 
         default:
-          await append(event);
+          await writer.append(event);
       }
     }
 
-    if (!terminalWritten) {
+    if (!writer.terminalWritten) {
       // O `AgentRuntime` promete um evento terminal em qualquer caminho. Chegar
       // aqui é defeito, e o Run não pode ficar `RUNNING` por causa dele.
-      await failPreparation({
+      await writer.failPreparation({
         code: "NO_TERMINAL_EVENT",
         message:
           "O runtime encerrou o fluxo de eventos sem um evento terminal. O desfecho real " +
@@ -495,8 +277,8 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
     }
   } catch (error) {
     logger?.error({ err: error, runId: run.id }, "erro inesperado ao executar o Run");
-    if (!terminalWritten) {
-      await failPreparation({
+    if (!writer.terminalWritten) {
+      await writer.failPreparation({
         code: "WORKER_ERROR",
         message: "O Worker falhou ao conduzir este Run.",
         retryable: true,
@@ -528,69 +310,17 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
    */
   async function finalize(event: TerminalExecutionEvent): Promise<void> {
     const sucesso = event.type === "RunCompleted";
-    const worktree = preparation?.worktree;
 
-    let commits: readonly CommitRef[] = [];
-    let changes: readonly WorkspaceChange[] = [];
-    if (worktree !== undefined) {
-      // As duas leituras falham em silêncio para não derrubar um Run que já
-      // terminou, mas silêncio no log do worker é invisível: no CI o aviso não
-      // aparece, e um `result.commits` ausente ficou sem explicação por uma
-      // rodada inteira. O `Diagnostic` é persistido, sai antes do evento
-      // terminal e leva o stderr do git, que é onde o motivo está escrito.
-      try {
-        commits = await deps.workspace.collectCommits(worktree.path, worktree.baseCommit);
-      } catch (error) {
-        logger?.warn({ err: error, runId: run.id }, "não consegui coletar os commits do worktree");
-        await diagnostic(
-          "WARN",
-          "Não consegui ler os commits do worktree; o resultado deste Run sai sem eles.",
-          descreverFalhaDeGit(error),
-        );
-      }
-      try {
-        changes = await deps.workspace.collectChanges(worktree.path, worktree.baseCommit);
-      } catch (error) {
-        logger?.warn({ err: error, runId: run.id }, "não consegui ler o diff do worktree");
-        await diagnostic(
-          "WARN",
-          "Não consegui ler o diff do worktree; este Run não emitiu Artifact algum.",
-          descreverFalhaDeGit(error),
-        );
-      }
-    }
-
-    // Os espólios saem **antes** do evento terminal, porque depois dele nada
-    // mais é emitido (contrato do `ExecutionEvent`). Só o Codex anuncia
-    // artefatos sozinho; sem esta passagem, a mesma tarefa deixaria rastro
-    // diferente conforme a Guilda escolhida.
-    for (const mudanca of changes) {
-      if (artefatosDoHarness.has(normalizeArtifactPath(mudanca.path))) continue;
-      await append(toArtifactEvent(harness, mudanca));
-    }
-
-    // O worktree é removido só num sucesso limpo. Falha, timeout, cancelamento
-    // e mudança não commitada preservam: é onde está a prova do que aconteceu.
-    let preservedPath: string | undefined = worktree === undefined ? undefined : worktree.path;
-
-    if (worktree !== undefined && sucesso) {
-      try {
-        const removido = await deps.workspace.remove(worktree.path, { keepIfDirty: true });
-        if (removido.removed) preservedPath = undefined;
-      } catch (error) {
-        logger?.warn({ err: error, runId: run.id }, "falha ao remover o worktree do Run");
-      }
-    }
-
-    if (preservedPath !== undefined && worktree !== undefined) {
-      await diagnostic(
-        sucesso ? "WARN" : "INFO",
-        sucesso
-          ? "O worktree foi preservado porque sobrou mudança não commitada."
-          : "O worktree foi preservado para você inspecionar o que aconteceu.",
-        recoveryMessage({ worktree, commits }),
-      );
-    }
+    const { commits, preservedPath } = await settleWorkspace({
+      workspace: deps.workspace,
+      writer,
+      logger,
+      runId: run.id,
+      harness,
+      worktree: preparation?.worktree,
+      success: sucesso,
+      knownArtifacts: artefatosDoHarness,
+    });
 
     if (event.type === "RunCompleted") {
       let estruturado = event.output as TaskExecutionResult | undefined;
@@ -605,7 +335,7 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
           status: "completed",
           summary: event.summary.trim().length > 0 ? event.summary : "(sem resumo do agente)",
         };
-        await diagnostic(
+        await writer.diagnostic(
           "WARN",
           "O agente terminou sem o bloco <result>; o resultado foi sintetizado a partir do " +
             "texto final e o veredito assumido como `completed`.",
@@ -621,7 +351,7 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
       // retentável; a correção é uma edição no perfil.
       if (estruturado.status !== "completed" && ferramentasNegadas.size > 0) {
         const negadas = [...ferramentasNegadas].sort().join(", ");
-        await writeTerminal({
+        await writer.writeTerminal({
           status: "FAILED",
           error: {
             code: "PERMISSION_DENIED",
@@ -645,14 +375,14 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
         ...(preservedPath === undefined ? {} : { preservedWorktreePath: preservedPath }),
       };
 
-      await writeTerminal({ status: "SUCCEEDED", result, events: [toRunEventInput(event)] });
+      await writer.writeTerminal({ status: "SUCCEEDED", result, events: [toRunEventInput(event)] });
       return;
     }
 
     const comum = comumDoDesfecho(preservedPath, commits);
 
     if (event.type === "RunFailed") {
-      await writeTerminal({
+      await writer.writeTerminal({
         status: "FAILED",
         error: {
           ...(event.error.code === undefined ? {} : { code: event.error.code }),
@@ -666,7 +396,7 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
     }
 
     if (event.type === "RunTimedOut") {
-      await writeTerminal({
+      await writer.writeTerminal({
         status: "TIMED_OUT",
         error: {
           code: `TIMEOUT_${event.kind}`,
@@ -689,7 +419,7 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
     const motivo = deps.cancelReasons?.get(run.id);
     const desligando = motivo === "worker_shutdown";
 
-    await writeTerminal({
+    await writer.writeTerminal({
       status: "CANCELLED",
       error: {
         code: desligando ? "WORKER_SHUTDOWN" : "CANCELLED",
@@ -711,37 +441,6 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
   }
 }
 
-/** Os campos que todo desfecho carrega, tenha ele resultado ou erro. */
-/**
- * O que dizer sobre um comando `git` que falhou na coleta.
- *
- * O `stderr` do git é a única linha que diz o motivo de verdade — "Author
- * identity unknown", "dubious ownership", "not a git repository" —, e ele só
- * existe dentro de `GitCommandError`. Sem ele o diagnóstico repetiria a
- * mensagem genérica e mandaria o leitor adivinhar.
- */
-function descreverFalhaDeGit(error: unknown): string {
-  if (error instanceof GitCommandError) {
-    const stderr = error.failure.stderr.trim();
-    return (
-      `git ${error.failure.args.join(" ")} em ${error.failure.cwd} ` +
-      `terminou com código ${String(error.failure.code)}.` +
-      (stderr.length === 0 ? "" : ` ${stderr}`)
-    );
-  }
-  return error instanceof Error ? error.message : String(error);
-}
-
-function comumDoDesfecho(
-  preservedWorktreePath: string | undefined,
-  commits: readonly CommitRef[],
-): Record<string, unknown> {
-  return {
-    ...(preservedWorktreePath === undefined ? {} : { preservedWorktreePath }),
-    ...(commits.length === 0 ? {} : { commits }),
-  };
-}
-
 /**
  * O nome da ferramenta dentro da mensagem de negação.
  *
@@ -755,43 +454,6 @@ export function describeDeniedTool(message: string): string {
 }
 
 /**
- * Um caminho comparável entre o que o harness anunciou e o que o diff achou.
- *
- * O git fala em `/` e caminho relativo; um harness pode mandar `.\OLA.md` ou o
- * caminho absoluto do worktree. Sem normalizar, o mesmo arquivo entraria duas
- * vezes na timeline.
- */
-export function normalizeArtifactPath(path: string): string {
-  return path.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "").toLowerCase();
-}
-
-/**
- * Uma mudança do worktree virando espólio.
- *
- * `kind` carrega **o que aconteceu com o arquivo**, e não a palavra "file": o
- * campo é classificação livre no contrato, e "criado" ou "apagado" é o que quem
- * lê a timeline precisa saber. O tamanho vai junto quando o arquivo ainda
- * existe, porque um caminho sem tamanho não parece um arquivo.
- */
-export function toArtifactEvent(harness: HarnessKey, change: WorkspaceChange): ExecutionEvent {
-  const kind = {
-    ADDED: "created",
-    MODIFIED: "modified",
-    DELETED: "deleted",
-    RENAMED: "renamed",
-  }[change.change];
-
-  return {
-    type: "Artifact",
-    timestamp: new Date().toISOString(),
-    harness,
-    path: change.path,
-    kind,
-    ...(change.bytes === undefined ? {} : { bytes: change.bytes }),
-  };
-}
-
-/**
  * O prompt que chega ao agente.
  *
  * As instruções do Agent vão na frente do pedido da Task, e não em
@@ -801,44 +463,4 @@ export function toArtifactEvent(harness: HarnessKey, change: WorkspaceChange): E
 export function buildPrompt(instructions: string, prompt: string): string {
   const papel = instructions.trim();
   return papel.length === 0 ? prompt : `${papel}\n\n---\n\n${prompt}`;
-}
-
-/**
- * A mensagem de recuperação, com comandos copiáveis.
- *
- * No espírito do `RecoveryMessage` do Sandcastle: quando algo é preservado, o
- * diagnóstico precisa dizer onde está e o que fazer com aquilo. Um caminho sem
- * comando obriga quem lê a lembrar a sintaxe de `git worktree remove`, e é
- * nessa hora que alguém apaga o diretório errado.
- */
-export function recoveryMessage(input: {
-  worktree: WorktreeHandle;
-  commits: readonly CommitRef[];
-}): string {
-  const { worktree, commits } = input;
-  const linhas = [
-    `Worktree preservado em: ${worktree.path}`,
-    `Branch: ${worktree.branch} (a partir de ${worktree.baseCommit.slice(0, 12)})`,
-    "",
-    "Para inspecionar:",
-    `  cd "${worktree.path}"`,
-    "  git status",
-    `  git log --oneline ${worktree.baseCommit.slice(0, 12)}..HEAD`,
-    "",
-    "Para trazer o trabalho para o repositório principal:",
-    `  git -C "${worktree.repoPath}" merge ${worktree.branch}`,
-    "",
-    "Para descartar:",
-    `  git -C "${worktree.repoPath}" worktree remove --force "${worktree.path}"`,
-    `  git -C "${worktree.repoPath}" branch -D ${worktree.branch}`,
-  ];
-
-  if (commits.length > 0) {
-    linhas.push("", `Commits neste worktree (${String(commits.length)}):`);
-    for (const commit of commits) {
-      linhas.push(`  ${commit.sha.slice(0, 12)} ${commit.subject}`);
-    }
-  }
-
-  return linhas.join("\n");
 }

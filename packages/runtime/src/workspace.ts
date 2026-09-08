@@ -146,6 +146,17 @@ export interface WorkspaceManagerOptions {
 
 export interface WorkspaceManager {
   create(options: CreateWorktreeOptions): Promise<WorktreeHandle>;
+  /**
+   * Reabre o worktree de um Run que já existe no disco, sem criar nada.
+   *
+   * É o caminho da retomada de um Run com Workflow: o worktree ficou de pé
+   * enquanto o Run esperava um gate, e o Worker que o reclama de novo — o
+   * mesmo ou outro, depois de um restart — precisa do mesmo diretório, com o
+   * trabalho dos passos anteriores dentro. Devolve `null` quando não há
+   * worktree no caminho; lança quando há algo lá que não é um worktree deste
+   * repositório.
+   */
+  reopen(options: CreateWorktreeOptions): Promise<WorktreeHandle | null>;
   remove(path: string, options?: RemoveWorktreeOptions): Promise<RemoveWorktreeResult>;
   hasUncommittedChanges(path: string): Promise<boolean>;
   /** Commits feitos no worktree depois de `baseCommit`, do mais antigo ao mais novo. */
@@ -253,6 +264,48 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions = {}): W
 
       await mkdir(dirname(target), { recursive: true });
       await git([...NO_CONFIG_LOCK_FLAGS, "worktree", "add", "-b", branch, target, ref], repo);
+
+      return { path: target, branch, repoPath: repo, baseRef: ref, baseCommit };
+    },
+
+    reopen: async ({ repoPath, runId, baseRef }) => {
+      const repo = normalizeAbsolutePath(repoPath);
+      const target = worktreePathFor(repo, runId);
+      const branch = branchFor(runId);
+      const ref = baseRef ?? "HEAD";
+
+      if (!(await pathExists(target))) return null;
+
+      // O diretório precisa ser um worktree deste repositório, na branch do
+      // Run. Qualquer outra coisa no caminho é um erro de quem chamou, não um
+      // worktree a reaproveitar.
+      const toplevel = normalizeAbsolutePath(
+        (await git(["rev-parse", "--show-toplevel"], target)).trim(),
+      );
+      if (toplevel !== target) {
+        throw new RuntimeRequestError(
+          `${target} existe mas não é a raiz de um worktree (git aponta para ${toplevel}).`,
+          { code: "WORKTREE_PATH_TAKEN" },
+        );
+      }
+      const atual = (await git(["rev-parse", "--abbrev-ref", "HEAD"], target)).trim();
+      if (atual !== branch) {
+        throw new RuntimeRequestError(
+          `${target} está na branch ${atual}, e o worktree do Run deveria estar em ${branch}.`,
+          { code: "WORKTREE_PATH_TAKEN" },
+        );
+      }
+
+      // O commit de onde o worktree partiu é a entrada mais antiga do reflog
+      // da branch: `worktree add -b` grava "Created from HEAD" com o sha de
+      // então. Sem reflog (repositório sem `core.logAllRefUpdates`), o HEAD
+      // atual serve de base: os commits anteriores deixam de ser coletados,
+      // mas o diff da árvore continua certo.
+      const reflog = (await git(["reflog", "show", "--format=%H", branch], target))
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+      const baseCommit = reflog.at(-1) ?? (await git(["rev-parse", "HEAD"], target)).trim();
 
       return { path: target, branch, repoPath: repo, baseRef: ref, baseCommit };
     },

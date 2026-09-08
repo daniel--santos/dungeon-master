@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // O pacote sobe processos, lê o disco e usa timers: builtins do Node, que o
+    // TypeScript 6 não puxa sozinho (CLAUDE.md, seção 7).
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}

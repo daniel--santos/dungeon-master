@@ -1,8 +1,12 @@
 import { z } from "zod";
 
+import { UsageSummarySchema } from "./execution-event.js";
 import { PageQuerySchema, paginatedSchema } from "./pagination.js";
 import { RUN_PROMPT_MAX_LENGTH, RunErrorSchema, RunResultStatusSchema } from "./run.js";
-import { KnowledgeCandidateInputSchema } from "./task-execution-result.js";
+import {
+  KnowledgeCandidateInputSchema,
+  TaskExecutionArtifactSchema,
+} from "./task-execution-result.js";
 
 /**
  * Workflow é o Ritual: o **processo** de uma execução, separado da inteligência
@@ -748,10 +752,15 @@ export const RunStepResultSchema = z
         summary: z.string().optional().describe("Resumo escrito pelo agente."),
         output: z.unknown().optional().describe("Structured output validado, quando houver."),
         harnessSessionId: z.string().min(1).optional(),
+        artifacts: z
+          .array(TaskExecutionArtifactSchema)
+          .optional()
+          .describe("Arquivos que o agente declarou ter produzido neste step."),
         knowledgeCandidates: z
           .array(KnowledgeCandidateInputSchema)
           .optional()
           .describe("O que o agente aprendeu. O step `knowledge` consolida isto."),
+        usage: UsageSummarySchema.optional().describe("Consumo de tokens do step."),
       })
       .describe("Resultado de um step `agent`."),
     z
