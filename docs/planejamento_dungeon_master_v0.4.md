@@ -831,6 +831,24 @@ Pendências que ficam registradas:
 
 **Fase 7 iniciada** (Context Engine): `packages/context` com o montador de contexto estável ao longo do Run (Resumo da Campanha, decretos e itens relevantes, contexto da Missão mãe e das dependências, artefatos, orçamento de tokens com o estimador rápido), sanitização anti-injeção antes de reinjetar texto escrito por modelo, ferramentas somente leitura de busca no Grimório expostas ao agente, e registro do que foi recuperado por Expedição.
 
+## Fechamento da Fase 7 (08/09/2026)
+
+**Critério de conclusão da Fase 7 cumprido**: o agente recebe só o contexto relevante da Campanha, montado uma vez no início da Expedição e congelado para preservar o cache de prompt, com detalhes sob demanda por ferramentas somente leitura do Grimório, e tudo fica registrado. Provado com Claude Code real: só a página relevante entrou no contexto por busca textual, o agente a citou no resultado, e a Expedição retomada herdou o mesmo texto ignorando uma página inserida depois; em outra Expedição, no host e em Docker, o agente chamou `search_knowledge` e `get_knowledge_item`, achou a página certa, ignorou a pendente de revisão e commitou o resultado.
+
+O que entrou, em três ondas:
+
+- **7A, montador de contexto**: `packages/context` puro com portas, seis seções (Resumo da Campanha, decretos, páginas por `ts_rank` sobre título e descrição da Missão, Missão mãe e dependências, artefatos de Expedições anteriores, habilidades do Equipamento), orçamento por fatias com o estimador rápido do TencentDB Agent Memory, corte por prioridade (artefatos, páginas, linhagem, decretos, resumo com piso), sanitização única com `escapeXmlTags` e `stripInjectedContext` compartilhada com o Grimório, render determinístico num bloco `<context>` antes de "# Tarefa"; `run_context` (migração `0013`) montado ao reclamar a Expedição, herdado na retomada (`inheritedFromRunId`) e igual em todos os passos de agente do Ritual; `GET /runs/{id}/context` com os estados montado, vazio, desligado e falhou; configurações `context.*`; a política de conhecimento do Equipamento manda por Equipamento e as configurações globais são o teto.
+- **7B, ferramentas**: `packages/knowledge-mcp`, servidor MCP por stdio somente leitura (`search_knowledge`, `get_knowledge_item`, `get_project_summary`, `list_decisions`, `get_task_context`), escopado à Campanha e ao usuário, empacotado num arquivo só; `ExecutionRequest.mcpServers` com capability `mcpServers` por Guilda: Claude Code no host e em Docker (servidor dentro do container, `DATABASE_URL` pelo ambiente apontando para `host.docker.internal`), Codex no host, Pi e Antigravity sem caminho headless na versão pinada, com o motivo nos READMEs; servidores MCP do Equipamento repassados; instrução das ferramentas aplicada pelo runtime; `DATABASE_URL` redigida no diário; suítes de contrato reais 12/12 em `claude-code@host`, `codex@host`, `pi@host` e `claude-code@docker`.
+- **7C, web**: painel "Provisões da Expedição" no cockpit (estado, medidor total e por seção, itens com motivo, score, tokens e link para a origem, excluídos, herança, texto do bloco com copiar); consultas ao Grimório destacadas no Diário com contador; bloco Provisões em Settings; políticas de conhecimento e de contexto editáveis no Equipamento; 19 testes de ponta a ponta.
+
+Pendências que ficam registradas:
+
+- `GET /runs/{id}/context` não distingue Expedição inexistente de contexto ainda não montado; não há leitura de contextos por Missão.
+- A capability `mcpServers` não está no contrato da API; o `target` STDIO do Equipamento não aceita caminho com espaço; o commit do Codex no Windows é barrado pelo sandbox dele; sessão contínua e relevância híbrida (RRF, embeddings) ficam para depois.
+- Ambiente: nesta máquina o Node 24.15 mata processos em silêncio sob carga; com Node 22.19 a suíte de ponta a ponta passou de primeira. O e2e passou a servir a build de produção por `vite preview`.
+
+**Fases 0 a 7 concluídas.** A Fase 8 (Loadouts avançados, Skills e Tools) aguarda decisão.
+
 ## Andamento anterior da Fase 2 (histórico)
 
 Mergeadas e verdes no CI: 2A (modelo, banco, API), 2B (runtime e adapters de host; ADR em `packages/runtime-sandcastle/README.md`: os adapters não dependem do Sandcastle em runtime), o Worker (laço, reconciliação, cancelamento confirmado, shutdown gracioso, `resumeFromRunId`, marca d'água do poller) e as telas (cadastros, Nova Expedição com aceite do modo host, Expedições, Cristal de Visão com diário ao vivo e AlertDialog de cancelamento).
