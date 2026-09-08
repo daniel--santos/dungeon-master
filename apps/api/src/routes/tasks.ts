@@ -5,6 +5,8 @@ import {
   TaskDetailSchema,
   TaskListQuerySchema,
   TaskPageSchema,
+  TaskReopeningListQuerySchema,
+  TaskReopeningListSchema,
   TaskSchema,
   UpdateTaskSchema,
 } from "@dungeon-master/contracts";
@@ -169,5 +171,31 @@ export const tasksRemoveDependencyRoute = createRoute({
       content: { "application/json": { schema: TaskDetailSchema } },
     },
     404: problem("Alguma das duas Tasks não existe."),
+  },
+});
+
+/**
+ * Recurso próprio, e não `/tasks/reopenings`: um caminho fixo debaixo de
+ * `/tasks/{id}` dependeria da ordem de registro para não cair no `{id}`, e a
+ * validação de UUID devolveria `400` em vez da lista.
+ */
+export const tasksReopeningsRoute = createRoute({
+  method: "get",
+  path: `${API_BASE_PATH}/task-reopenings`,
+  tags: ["tasks"],
+  summary: "As Tasks já reabertas, com a contagem",
+  description:
+    "Conta no diário as transições `task.status_changed` que saem de " +
+    "`COMPLETED` — a mesma definição que instancia a Conquista de nêmesis. Só " +
+    "as Tasks com pelo menos uma reabertura aparecem, da mais recente para a " +
+    "mais antiga. A máquina de estados de hoje não tem aresta saindo de " +
+    "`COMPLETED`, então a lista fica vazia até que reabrir seja possível.",
+  request: { query: TaskReopeningListQuerySchema },
+  responses: {
+    200: {
+      description: "As reaberturas por Task.",
+      content: { "application/json": { schema: TaskReopeningListSchema } },
+    },
+    400: problem("Filtro inválido."),
   },
 });

@@ -306,3 +306,51 @@ export const TaskPageSchema = paginatedSchema(
 );
 
 export type TaskPage = z.infer<typeof TaskPageSchema>;
+
+// --------------------------------------------------------------------------
+// Reaberturas
+// --------------------------------------------------------------------------
+
+/**
+ * Quantas vezes uma Task saiu de `COMPLETED`.
+ *
+ * Não é coluna: é contado no diário (`activity`), das transições
+ * `task.status_changed` que **saem** de `COMPLETED`. É a mesma definição que
+ * instancia a Conquista de nêmesis, e existe uma só de propósito. A máquina de
+ * estados de hoje não tem aresta saindo de `COMPLETED`, então a contagem é
+ * zero para toda Task até que reabrir seja possível; a leitura já está pronta
+ * para esse dia.
+ */
+export const TaskReopeningSchema = z
+  .object({
+    taskId: z.uuid(),
+    count: z.number().int().positive().describe("Quantas vezes a Task saiu de `COMPLETED`."),
+    lastReopenedAt: z.iso.datetime().describe("Instante da última reabertura, em UTC."),
+  })
+  .meta({
+    id: "TaskReopening",
+    description: "As reaberturas de uma Task, contadas no diário. Só Tasks com pelo menos uma.",
+  });
+
+export type TaskReopening = z.infer<typeof TaskReopeningSchema>;
+
+export const TaskReopeningListQuerySchema = z
+  .object({
+    kind: TaskKindSchema.optional().describe("Só as Tasks deste tipo."),
+  })
+  .meta({ id: "TaskReopeningListQuery" });
+
+export type TaskReopeningListQuery = z.infer<typeof TaskReopeningListQuerySchema>;
+
+export const TaskReopeningListSchema = z
+  .object({
+    items: z
+      .array(TaskReopeningSchema)
+      .describe("Uma entrada por Task reaberta, da reabertura mais recente para a mais antiga."),
+  })
+  .meta({
+    id: "TaskReopeningList",
+    description: "As Tasks que já foram reabertas, com a contagem.",
+  });
+
+export type TaskReopeningList = z.infer<typeof TaskReopeningListSchema>;

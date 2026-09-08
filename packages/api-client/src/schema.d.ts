@@ -736,6 +736,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/task-reopenings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * As Tasks já reabertas, com a contagem
+         * @description Conta no diário as transições `task.status_changed` que saem de `COMPLETED` — a mesma definição que instancia a Conquista de nêmesis. Só as Tasks com pelo menos uma reabertura aparecem, da mais recente para a mais antiga. A máquina de estados de hoje não tem aresta saindo de `COMPLETED`, então a lista fica vazia até que reabrir seja possível.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Só as Tasks deste tipo. */
+                    kind?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description As reaberturas por Task. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskReopeningList"];
+                    };
+                };
+                /** @description Filtro inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tasks/{id}": {
         parameters: {
             query?: never;
@@ -3773,6 +3824,23 @@ export interface components {
          * @enum {string}
          */
         TaskPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+        /** @description As Tasks que já foram reabertas, com a contagem. */
+        TaskReopeningList: {
+            /** @description Uma entrada por Task reaberta, da reabertura mais recente para a mais antiga. */
+            items: components["schemas"]["TaskReopening"][];
+        };
+        /** @description As reaberturas de uma Task, contadas no diário. Só Tasks com pelo menos uma. */
+        TaskReopening: {
+            /** Format: uuid */
+            taskId: string;
+            /** @description Quantas vezes a Task saiu de `COMPLETED`. */
+            count: number;
+            /**
+             * Format: date-time
+             * @description Instante da última reabertura, em UTC.
+             */
+            lastReopenedAt: string;
+        };
         /** @description Corpo de `POST /api/v1/tasks`. Nasce em `READY`. */
         CreateTask: {
             /**

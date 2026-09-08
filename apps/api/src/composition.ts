@@ -52,6 +52,7 @@ import {
   listRunEventsSince,
   listRuns,
   listRunSteps,
+  listTaskReopenings,
   listTasks,
   listWorkflows,
   listWorkflowVersions,
@@ -552,6 +553,7 @@ export function createWorkPort(options: WorkPortOptions): WorkPort {
         addTaskDependency(db, { userId, taskId, dependsOnTaskId }),
       removeDependency: (taskId, dependsOnTaskId) =>
         removeTaskDependency(db, { userId, taskId, dependsOnTaskId }),
+      reopenings: (filters) => listTaskReopenings(db, { userId, kind: filters.kind }),
     },
     inbox: {
       capture: (text) => captureInboxTask(db, { userId, text }),

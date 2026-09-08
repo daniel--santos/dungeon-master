@@ -23,6 +23,7 @@ import type {
   TaskDetail,
   TaskKind,
   TaskPriority,
+  TaskReopening,
   TaskSort,
   TaskStatus,
   HeroStatsResponse,
@@ -184,6 +185,8 @@ export interface TasksPort {
     dependsOnTaskId: string,
   ): Promise<Result<TaskDetail, DependencyWriteFailure> | null>;
   removeDependency(taskId: string, dependsOnTaskId: string): Promise<TaskDetail | null>;
+  /** Só as Tasks já reabertas, com a contagem. Vazio enquanto reabrir não existir. */
+  reopenings(filters: { kind?: TaskKind | undefined }): Promise<TaskReopening[]>;
 }
 
 export interface PromoteInboxRequest {
@@ -419,6 +422,7 @@ export function createSpecPorts(): {
         changeStatus: inerte("a transição de status"),
         addDependency: inerte("a criação de dependência"),
         removeDependency: inerte("a remoção de dependência"),
+        reopenings: inerte("a contagem de reaberturas"),
       },
       inbox: {
         capture: inerte("a captura da Inbox"),

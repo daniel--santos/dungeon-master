@@ -2,6 +2,7 @@ import {
   DEFAULT_TASK_SORT,
   DEFAULT_TASK_SORT_ORDER,
   type TaskPage,
+  type TaskReopeningList,
   type TaskStatus,
 } from "@dungeon-master/contracts";
 import type { TaskFilters } from "@dungeon-master/database";
@@ -16,6 +17,7 @@ import {
   tasksGetRoute,
   tasksListRoute,
   tasksRemoveDependencyRoute,
+  tasksReopeningsRoute,
   tasksUpdateRoute,
 } from "../routes/tasks.js";
 import {
@@ -62,6 +64,13 @@ export function registerTaskRoutes(app: OpenAPIHono, tasks: TasksPort): void {
     });
 
     const body: TaskPage = { items: result.items, page, pageSize, total: result.total };
+
+    return c.json(body, 200);
+  });
+
+  app.openapi(tasksReopeningsRoute, async (c) => {
+    const { kind } = c.req.valid("query");
+    const body: TaskReopeningList = { items: await tasks.reopenings({ kind }) };
 
     return c.json(body, 200);
   });

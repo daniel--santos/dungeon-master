@@ -6,6 +6,7 @@ import {
   type TaskDetail,
   type TaskKind,
   type TaskPriority,
+  type TaskReopening,
   type TaskSort,
   type TaskStatus,
   type TaskSummary,
@@ -190,6 +191,59 @@ function taskOrderBy(sort: TaskSort, order: SortOrder): SQL[] {
  * O padrão é `updatedAt desc`, a ordem de "no que eu estava mexendo": é o que a
  * tela abre mostrando, e o que valia antes de existir escolha.
  */
+/**
+ * O que conta como reabertura: uma linha de `activity` do tipo
+ * `task.status_changed` cuja transição **sai** de `COMPLETED`.
+ *
+ * Um fragmento só, usado pela contagem do Bestiário e pela instanciação da
+ * Conquista de nêmesis: duas definições de "reaberta" divergiriam na primeira
+ * mudança, e a tela mostraria um número que a Conquista não reconhece. O
+ * fragmento pressupõe `activity` com o alias `a`.
+ *
+ * A máquina de estados de hoje não tem aresta saindo de `COMPLETED`, então a
+ * consulta não encontra nada; ela existe pronta porque é ela que passa a valer
+ * no dia em que reabrir uma Task for possível.
+ */
+export const TASK_REOPENING_ACTIVITY = sql`a.type = 'task.status_changed'
+  and a.payload ->> 'from' = 'COMPLETED'
+  and a.task_id is not null`;
+
+export interface ListTaskReopeningsInput {
+  userId: string;
+  kind?: TaskKind | undefined;
+}
+
+/**
+ * As Tasks que já saíram de `COMPLETED`, com quantas vezes e quando foi a última.
+ *
+ * Só quem tem pelo menos uma: a lista é esparsa de propósito, e quem lê junta
+ * por `taskId` com a página de Tasks que já tem. Da reabertura mais recente
+ * para a mais antiga, com desempate por id para a ordem ser estável.
+ */
+export async function listTaskReopenings(
+  db: DatabaseExecutor,
+  input: ListTaskReopeningsInput,
+): Promise<TaskReopening[]> {
+  const kindFilter = input.kind === undefined ? sql`` : sql`and k.kind = ${input.kind}`;
+
+  const result = await db.execute<{ task_id: string; total: string; last_at: Date }>(
+    sql`select a.task_id, count(*) as total, max(a.created_at) as last_at
+        from activity a
+        join task k on k.id = a.task_id
+        where a.user_id = ${input.userId}
+          and ${TASK_REOPENING_ACTIVITY}
+          ${kindFilter}
+        group by a.task_id
+        order by max(a.created_at) desc, a.task_id desc`,
+  );
+
+  return result.rows.map((row) => ({
+    taskId: row.task_id,
+    count: Number(row.total),
+    lastReopenedAt: new Date(row.last_at).toISOString(),
+  }));
+}
+
 export async function listTasks(
   db: DatabaseExecutor,
   input: ListTasksInput,

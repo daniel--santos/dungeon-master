@@ -37,6 +37,7 @@ import { agents, loadouts } from "./schema/execution.js";
 import { projects } from "./schema/project.js";
 import { runs } from "./schema/run.js";
 import { tasks } from "./schema/task.js";
+import { TASK_REOPENING_ACTIVITY } from "./task.js";
 
 /**
  * O repositório das Conquistas: carga do catálogo, instanciação de templates e
@@ -252,11 +253,14 @@ async function agentCandidates(db: DatabaseExecutor, userId: string): Promise<Sc
 /**
  * Os Monstros reabertos duas ou mais vezes.
  *
- * "Reaberta" é uma transição que **sai** de `COMPLETED`, lida do diário. Hoje a
- * máquina de estados de Task não tem essa aresta — `COMPLETED` é terminal —,
- * então a consulta não devolve nada e o template `nemesis` não é instanciado. A
- * consulta existe pronta porque é ela que passa a valer no dia em que reabrir
- * uma Task for possível, e escrevê-la depois seria escrever a Conquista de novo.
+ * "Reaberta" é o que `TASK_REOPENING_ACTIVITY` diz: uma transição que **sai**
+ * de `COMPLETED`, lida do diário. A definição é uma só, dividida com a
+ * contagem que o Bestiário mostra, para a Conquista e a tela concordarem
+ * sobre o mesmo fato. Hoje a máquina de estados de Task não tem essa aresta —
+ * `COMPLETED` é terminal —, então a consulta não devolve nada e o template
+ * `nemesis` não é instanciado. A consulta existe pronta porque é ela que passa
+ * a valer no dia em que reabrir uma Task for possível, e escrevê-la depois
+ * seria escrever a Conquista de novo.
  */
 async function reopenedBugCandidates(
   db: DatabaseExecutor,
@@ -270,9 +274,7 @@ async function reopenedBugCandidates(
           from activity a
           join task k on k.id = a.task_id and k.kind = 'BUG'
           where a.user_id = ${userId}
-            and a.type = 'task.status_changed'
-            and a.payload ->> 'from' = 'COMPLETED'
-            and a.task_id is not null
+            and ${TASK_REOPENING_ACTIVITY}
         ) t
         where t.rn = 2`,
   );

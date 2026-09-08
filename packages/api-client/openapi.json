@@ -817,6 +817,47 @@
         ],
         "description": "Prioridade de uma Task."
       },
+      "TaskReopeningList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskReopening"
+            },
+            "description": "Uma entrada por Task reaberta, da reabertura mais recente para a mais antiga."
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "As Tasks que já foram reabertas, com a contagem."
+      },
+      "TaskReopening": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "count": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Quantas vezes a Task saiu de `COMPLETED`."
+          },
+          "lastReopenedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante da última reabertura, em UTC."
+          }
+        },
+        "required": [
+          "taskId",
+          "count",
+          "lastReopenedAt"
+        ],
+        "description": "As reaberturas de uma Task, contadas no diário. Só Tasks com pelo menos uma."
+      },
       "CreateTask": {
         "type": "object",
         "properties": {
@@ -7475,6 +7516,55 @@
           },
           "409": {
             "description": "Project arquivado, ou Task mãe em outro Project ou na Inbox.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/task-reopenings": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "As Tasks já reabertas, com a contagem",
+        "description": "Conta no diário as transições `task.status_changed` que saem de `COMPLETED` — a mesma definição que instancia a Conquista de nêmesis. Só as Tasks com pelo menos uma reabertura aparecem, da mais recente para a mais antiga. A máquina de estados de hoje não tem aresta saindo de `COMPLETED`, então a lista fica vazia até que reabrir seja possível.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "BUG",
+                "FEATURE",
+                "RESEARCH",
+                "CHORE"
+              ],
+              "description": "Só as Tasks deste tipo."
+            },
+            "required": false,
+            "description": "Só as Tasks deste tipo.",
+            "name": "kind",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "As reaberturas por Task.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskReopeningList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro inválido.",
             "content": {
               "application/problem+json": {
                 "schema": {
