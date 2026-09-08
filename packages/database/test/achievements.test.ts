@@ -341,6 +341,31 @@ describe("desbloqueio", () => {
     expect(guardiao.progress.target).toBe(25);
   });
 
+  it("um segundo passe sem fato novo não mexe no contador", async () => {
+    await expedicao({ title: "Monstro contado uma vez", kind: "BUG", status: "SUCCEEDED" });
+    await expedicao({ title: "Monstro contado duas vezes", kind: "BUG", status: "SUCCEEDED" });
+
+    await projetar();
+    const depoisDoPrimeiro = porChave(
+      (await listAchievementViews(handle.db, { userId: USER })).items,
+      "monster_slayer",
+    ).progress.current;
+
+    // Três passes seguidos sem nenhum fato novo. O cursor guarda o instante da
+    // última linha, e `timestamptz` tem microssegundo: se ele voltar do banco
+    // truncado em milissegundo, a própria linha do cursor volta a casar com
+    // `(created_at, id) > (cursor)` e o mesmo fato é somado a cada tique.
+    for (let i = 0; i < 3; i += 1) await projetar();
+
+    const depois = porChave(
+      (await listAchievementViews(handle.db, { userId: USER })).items,
+      "monster_slayer",
+    ).progress.current;
+
+    expect(depois).toBe(depoisDoPrimeiro);
+    expect(depois).toBeGreaterThan(0);
+  });
+
   it("reprocessar não desbloqueia duas vezes", async () => {
     await expedicao({ title: "Selar a cripta", status: "SUCCEEDED" });
     await projetar();

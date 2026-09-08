@@ -37,7 +37,6 @@ import type { Database } from "./client.js";
 import { appendDashboardEvent, type DatabaseExecutor } from "./dashboard-event.js";
 import { newId } from "./ids.js";
 import {
-  type AchievementCursorRow,
   type AchievementDefinitionRow,
   achievementCursors,
   achievementDefinitions,
@@ -130,11 +129,30 @@ interface HeroDelta {
   readonly tokens?: number;
 }
 
+/**
+ * Onde um lote parou.
+ *
+ * `positionAt` é **texto**, e não `Date`, de propósito. `timestamptz` do
+ * PostgreSQL tem precisão de microssegundo e o `Date` do JavaScript só chega a
+ * milissegundo: passar o instante por um `Date` trunca `01:02:39.856845` para
+ * `01:02:39.856`, e a linha recém-consumida volta a casar com
+ * `(created_at, id) > (cursor)` no passe seguinte. O cursor ficava parado na
+ * última linha e a reprocessava a cada tique, somando o mesmo fato para sempre.
+ *
+ * Mantendo o valor como o texto que o PostgreSQL devolveu, ele volta ao banco
+ * com os mesmos microssegundos e a comparação anda. `null` só em
+ * `dashboard_event`, que ordena por `sequence` e não usa o instante.
+ */
+interface BatchCursor {
+  readonly positionAt: string | null;
+  readonly positionId: string;
+}
+
 interface Batch {
   readonly events: ProjectionEvent[];
   readonly heroes: HeroDelta[];
   readonly rows: number;
-  readonly cursor: { positionAt: Date | null; positionId: string } | null;
+  readonly cursor: BatchCursor | null;
 }
 
 const EMPTY_BATCH: Batch = { events: [], heroes: [], rows: 0, cursor: null };
@@ -252,46 +270,54 @@ function durationOf(run: RunContext): number | undefined {
 // Cursores
 // --------------------------------------------------------------------------
 
+/**
+ * Lê o cursor com o instante em **texto**.
+ *
+ * Não usa o `select` do Drizzle porque a coluna está mapeada como `Date`, e é
+ * exatamente essa conversão que perde os microssegundos — veja
+ * {@link BatchCursor}. O `::text` devolve o que o PostgreSQL guardou, inteiro.
+ */
 async function readCursor(
   db: DatabaseExecutor,
   input: { userId: string; source: AchievementSource },
-): Promise<AchievementCursorRow | null> {
-  const [row] = await db
-    .select()
-    .from(achievementCursors)
-    .where(
-      and(eq(achievementCursors.userId, input.userId), eq(achievementCursors.source, input.source)),
-    );
+): Promise<BatchCursor | null> {
+  const { rows } = await db.execute<{ position_at: string | null; position_id: string | null }>(
+    sql`select c.position_at::text as position_at, c.position_id
+        from achievement_cursor c
+        where c.user_id = ${input.userId}::uuid
+          and c.source = ${input.source}::achievement_source`,
+  );
 
-  return row ?? null;
+  const row = rows[0];
+  if (row === undefined || row.position_id === null) return null;
+  return { positionAt: row.position_at, positionId: row.position_id };
 }
 
 async function writeCursor(
   db: DatabaseExecutor,
-  input: {
-    userId: string;
-    source: AchievementSource;
-    positionAt: Date | null;
-    positionId: string;
-  },
+  input: { userId: string; source: AchievementSource } & BatchCursor,
 ): Promise<void> {
-  await db
-    .insert(achievementCursors)
-    .values({
-      source: input.source,
-      userId: input.userId,
-      positionAt: input.positionAt,
-      positionId: input.positionId,
-    })
-    .onConflictDoUpdate({
-      target: [achievementCursors.source, achievementCursors.userId],
-      set: { positionAt: input.positionAt, positionId: input.positionId, updatedAt: new Date() },
-    });
+  // Também em SQL cru, e pelo mesmo motivo do `readCursor`: o texto volta ao
+  // banco com os microssegundos que vieram dele.
+  await db.execute(
+    sql`insert into achievement_cursor (source, user_id, position_at, position_id, updated_at)
+        values (
+          ${input.source}::achievement_source,
+          ${input.userId}::uuid,
+          ${input.positionAt}::timestamptz,
+          ${input.positionId},
+          now()
+        )
+        on conflict (source, user_id) do update
+          set position_at = excluded.position_at,
+              position_id = excluded.position_id,
+              updated_at = now()`,
+  );
 }
 
 /** `(created_at, id) > (cursor)`, ou nada quando o cursor ainda não existe. */
-function afterCursor(cursor: AchievementCursorRow | null, table: string): SQL | undefined {
-  if (cursor === null || cursor.positionAt === null || cursor.positionId === null) return undefined;
+function afterCursor(cursor: BatchCursor | null, table: string): SQL | undefined {
+  if (cursor === null || cursor.positionAt === null) return undefined;
   const coluna = sql.raw(`${table}.created_at`);
   const id = sql.raw(`${table}.id`);
   return sql`(${coluna}, ${id}) > (${cursor.positionAt}::timestamptz, ${cursor.positionId}::uuid)`;
@@ -316,12 +342,14 @@ async function drainActivity(db: DatabaseExecutor, ctx: DrainContext): Promise<B
     await db.execute<{
       id: string;
       created_at: Date;
+      position_at: string;
       type: string;
       payload: unknown;
       task_id: string | null;
       project_id: string | null;
     }>(
-      sql`select a.id, a.created_at, a.type, a.payload, a.task_id, a.project_id
+      sql`select a.id, a.created_at, a.created_at::text as position_at,
+                 a.type, a.payload, a.task_id, a.project_id
           from activity a
           where a.user_id = ${ctx.userId}
             and a.created_at <= ${ctx.cutoff}::timestamptz
@@ -467,10 +495,7 @@ async function drainActivity(db: DatabaseExecutor, ctx: DrainContext): Promise<B
     events,
     heroes,
     rows: rows.length,
-    cursor:
-      ultima === undefined
-        ? null
-        : { positionAt: new Date(ultima.created_at), positionId: ultima.id },
+    cursor: ultima === undefined ? null : { positionAt: ultima.position_at, positionId: ultima.id },
   };
 }
 
@@ -479,8 +504,14 @@ async function drainRunEvents(db: DatabaseExecutor, ctx: DrainContext): Promise<
   const depois = afterCursor(cursor, "e");
 
   const rows = (
-    await db.execute<{ id: string; created_at: Date; run_id: string; payload: unknown }>(
-      sql`select e.id, e.created_at, e.run_id, e.payload
+    await db.execute<{
+      id: string;
+      created_at: Date;
+      position_at: string;
+      run_id: string;
+      payload: unknown;
+    }>(
+      sql`select e.id, e.created_at, e.created_at::text as position_at, e.run_id, e.payload
           from run_event e
           where e.user_id = ${ctx.userId}
             and e.type = 'Usage'
@@ -513,10 +544,7 @@ async function drainRunEvents(db: DatabaseExecutor, ctx: DrainContext): Promise<
     events: [],
     heroes,
     rows: rows.length,
-    cursor:
-      ultima === undefined
-        ? null
-        : { positionAt: new Date(ultima.created_at), positionId: ultima.id },
+    cursor: ultima === undefined ? null : { positionAt: ultima.position_at, positionId: ultima.id },
   };
 }
 
@@ -814,7 +842,10 @@ async function applyBatch(
   }
 
   const heroEstados = await loadHeroStates(tx, { userId, keys: chaves });
-  const heroAlterados = new Set<string>();
+  // O que mudou, guardado com o par que o identifica em vez de com uma chave
+  // a ser desmontada depois: o separador era um byte NUL literal no meio do
+  // arquivo, o que fazia `grep` e `diff` tratarem o módulo como binário.
+  const heroAlterados = new Map<string, { scope: HeroScope; scopeId: string }>();
 
   const aplicar = (scope: HeroScope, scopeId: string, delta: HeroDelta): void => {
     const chave = heroKey(scope, scopeId);
@@ -826,7 +857,7 @@ async function applyBatch(
 
     if (proximo === atual) return;
     heroEstados.set(chave, proximo);
-    heroAlterados.add(`${scope} ${scopeId}`);
+    heroAlterados.set(chave, { scope, scopeId });
   };
 
   for (const delta of batch.heroes) {
@@ -834,9 +865,8 @@ async function applyBatch(
     aplicar("LOADOUT", delta.loadoutId, delta);
   }
 
-  for (const chave of heroAlterados) {
-    const [scope, scopeId] = chave.split(" ") as [HeroScope, string];
-    const estado = heroEstados.get(heroKey(scope, scopeId));
+  for (const [chave, { scope, scopeId }] of heroAlterados) {
+    const estado = heroEstados.get(chave);
     if (estado === undefined) continue;
 
     const guilda = topHarness(estado.harnessCounts);
