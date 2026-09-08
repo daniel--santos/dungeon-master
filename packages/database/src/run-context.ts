@@ -282,7 +282,7 @@ export function createDatabaseContextStore(
 
       const artifacts: ArtifactSource[] = [];
       for (const row of rows) {
-        for (const [position, artifact] of artifactsOf(row.result).entries()) {
+        for (const { position, artifact } of artifactsOf(row.result)) {
           if (artifacts.length >= limit) return artifacts;
           artifacts.push({
             runId: row.id,
@@ -299,23 +299,32 @@ export function createDatabaseContextStore(
   };
 }
 
+interface PositionedArtifact {
+  /** A posição no `artifacts[]` do resultado, contando os itens pulados. */
+  position: number;
+  artifact: { path: string; kind?: string; summary?: string };
+}
+
 /**
- * Os artefatos de um resultado, validados um a um.
+ * Os artefatos de um resultado, validados um a um, cada um com a posição no
+ * array original.
  *
  * `RunResult` é um objeto aberto: o que chega em `artifacts` foi validado pelo
  * runtime quando o Run terminou, mas um resultado agregado de Workflow ou um
- * escrito por versão anterior pode trazer um item torto. Ele é pulado; a
- * posição dos demais é a do array, para o id do item continuar estável.
+ * escrito por versão anterior pode trazer um item torto. Ele é pulado, e a
+ * posição dos demais continua sendo a do array — é ela que forma o id
+ * `<runId>:<posição>` do item, e um id que mudasse conforme o vizinho torto
+ * apontaria para artefatos diferentes em dois registros do mesmo Run.
  */
-function artifactsOf(
-  result: RunResult | null,
-): Array<{ path: string; kind?: string; summary?: string }> {
+function artifactsOf(result: RunResult | null): PositionedArtifact[] {
   const bruto = result?.["artifacts"];
   if (!Array.isArray(bruto)) return [];
-  const validos: Array<{ path: string; kind?: string; summary?: string }> = [];
-  for (const candidato of bruto) {
+  const validos: PositionedArtifact[] = [];
+  bruto.forEach((candidato, position) => {
     const parsed = TaskExecutionArtifactSchema.safeParse(candidato);
-    validos.push(parsed.success ? parsed.data : { path: "" });
-  }
-  return validos.filter((artifact) => artifact.path.trim().length > 0);
+    if (parsed.success && parsed.data.path.trim().length > 0) {
+      validos.push({ position, artifact: parsed.data });
+    }
+  });
+  return validos;
 }

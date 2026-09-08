@@ -322,10 +322,12 @@ describe("a porta ContextStore sobre o PostgreSQL", () => {
       result: {
         status: "failed",
         summary: "Tentativa anterior.",
+        // O item torto no meio: ele é pulado, e o de depois mantém a posição
+        // do array (2), para o id `<runId>:<posição>` continuar estável.
         artifacts: [
           { path: "src/a.ts" },
-          { path: "src/b.ts", summary: "Parte B" },
           { caminho: "torto" } as never,
+          { path: "src/b.ts", summary: "Parte B" },
         ],
       },
     });
@@ -416,7 +418,7 @@ describe("a porta ContextStore sobre o PostgreSQL", () => {
       {
         runId: runAnterior,
         taskId: esta.id,
-        position: 1,
+        position: 2,
         path: "src/b.ts",
         kind: null,
         summary: "Parte B",
