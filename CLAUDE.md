@@ -70,6 +70,10 @@ Aplicadas pelo ESLint em `eslint.config.mjs`. Quebrar qualquer uma falha em `pnp
 - **`packages/workflow`** segue a mesma linha do runtime: não importa `packages/database`
   nem `packages/events`; persistência, runtime de agente, executor de processo e relógio
   entram pelas portas de `ports.ts`, e o Worker faz a fiação com os repositórios reais.
+- **`packages/knowledge` e `packages/context`** seguem a mesma linha do workflow, e ainda
+  não importam os pacotes de runtime; o `context` também não importa `knowledge` nem
+  builtins do Node: a sanitização copiada do TencentDB mora no `context` e é o `knowledge`
+  que importa dela — o sentido inverso seria um ciclo.
 - **`packages/glossary` e `packages/achievements`** são puros: só `zod` e `node:*`.
 - **`packages/platform`** importa somente builtins do Node e módulos do próprio pacote.
 - **`packages/events`** não depende de Hono nem de `pg`: writer, fonte e notificador entram

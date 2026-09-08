@@ -1,3 +1,4 @@
+import { buildFtsQuery } from "@dungeon-master/context";
 import type { KnowledgeItemProvenance, UsageSummary } from "@dungeon-master/contracts";
 import type { EventsLogger } from "@dungeon-master/events";
 import type {
@@ -158,28 +159,9 @@ export async function loadRunTranscripts(
   return transcripts;
 }
 
-/**
- * A consulta de recall: as palavras do candidato, em OR.
- *
- * `plainto_tsquery` faria AND, e um candidato de vinte palavras nunca
- * casaria com um item de dez; o recall quer "parecido", não "igual". As
- * palavras passam por `to_tsvector` primeiro, para a mesma normalização do
- * índice, e ficam as doze mais longas — a pergunta é sobre os termos raros.
- */
-export function buildFtsQuery(text: string): string | null {
-  const palavras = [
-    ...new Set(
-      text
-        .toLowerCase()
-        .split(/[^\p{L}\p{N}]+/u)
-        .filter((palavra) => palavra.length >= 3),
-    ),
-  ]
-    .sort((a, b) => b.length - a.length)
-    .slice(0, 12);
-
-  return palavras.length === 0 ? null : palavras.join(" | ");
-}
+// A consulta de recall — as palavras do candidato, em OR, as doze mais longas
+// — é `buildFtsQuery` de `@dungeon-master/context`: a mesma definição de "o
+// que é parecido com este texto" que o montador de contexto usa (Fase 7).
 
 function toExistingItem(row: KnowledgeItemRow): ExistingKnowledgeItem {
   return {

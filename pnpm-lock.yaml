@@ -220,6 +220,9 @@ importers:
       '@dungeon-master/achievements':
         specifier: workspace:*
         version: link:../../packages/achievements
+      '@dungeon-master/context':
+        specifier: workspace:*
+        version: link:../../packages/context
       '@dungeon-master/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -323,6 +326,22 @@ importers:
         specifier: 5.0.0
         version: 5.0.0(@types/node@26.5.0)(jsdom@30.0.1)(vite@8.2.2(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))
 
+  packages/context:
+    dependencies:
+      '@dungeon-master/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      '@types/node':
+        specifier: 26.5.0
+        version: 26.5.0
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 5.0.0
+        version: 5.0.0(@types/node@26.5.0)(jsdom@30.0.1)(vite@8.2.2(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))
+
   packages/contracts:
     dependencies:
       zod:
@@ -341,6 +360,9 @@ importers:
       '@dungeon-master/achievements':
         specifier: workspace:*
         version: link:../achievements
+      '@dungeon-master/context':
+        specifier: workspace:*
+        version: link:../context
       '@dungeon-master/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -421,6 +443,9 @@ importers:
 
   packages/knowledge:
     dependencies:
+      '@dungeon-master/context':
+        specifier: workspace:*
+        version: link:../context
       '@dungeon-master/contracts':
         specifier: workspace:*
         version: link:../contracts

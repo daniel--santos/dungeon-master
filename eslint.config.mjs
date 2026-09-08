@@ -45,6 +45,9 @@ const WORKFLOW_BOUNDARY_MESSAGE =
 const KNOWLEDGE_BOUNDARY_MESSAGE =
   "Fronteira: packages/knowledge não importa banco, ORM, HTTP, logger, o writer de eventos nem os pacotes de runtime; persistência, advisory lock, modelo e relógio entram por contrato (ports.ts).";
 
+const CONTEXT_BOUNDARY_MESSAGE =
+  "Fronteira: packages/context é puro — não importa banco, ORM, HTTP, logger, runtime, knowledge nem builtins do Node; a leitura do Grimório, da linhagem e dos artefatos entra por contrato (ports.ts).";
+
 export default tseslint.config(
   {
     ignores: [
@@ -315,6 +318,36 @@ export default tseslint.config(
             {
               group: ["**/packages/database/**", "**/packages/runtime*/**", "**/apps/**"],
               message: KNOWLEDGE_BOUNDARY_MESSAGE,
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // --------------------------------------------------------- packages/context
+  //
+  // O montador decide o que entra no bloco de contexto, em que ordem e dentro
+  // de qual orçamento; quem lê as tabelas — o FTS, a linhagem, os artefatos —
+  // é quem implementa a porta `ContextStore` de `ports.ts`: o Worker, com os
+  // repositórios reais, ou a memória dos testes. A lista é a do knowledge mais
+  // o próprio knowledge, porque a sanitização copiada do TencentDB mora aqui e
+  // é o knowledge que importa daqui; o sentido inverso seria um ciclo.
+  {
+    files: ["packages/context/src/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex:
+                "^(@dungeon-master/(database|api-client|events|knowledge|runtime|runtime-sandcastle|runtime-antigravity|workflow|platform)|drizzle-orm|drizzle-kit|pg|postgres|embedded-postgres|hono|@hono/.*|pino|node:.*)($|/)",
+              message: CONTEXT_BOUNDARY_MESSAGE,
+            },
+            {
+              group: ["**/packages/database/**", "**/packages/runtime*/**", "**/apps/**"],
+              message: CONTEXT_BOUNDARY_MESSAGE,
             },
           ],
         },
