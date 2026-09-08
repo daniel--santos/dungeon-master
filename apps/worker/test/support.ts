@@ -255,6 +255,32 @@ export async function eventosDoRun(db: Database, runId: string): Promise<RunEven
   return await listRunEventsSince(db, { userId: USER, runId, afterSequence: 0, limit: 500 });
 }
 
+/**
+ * O diário do Run em uma string, para a mensagem de uma asserção que falhou.
+ *
+ * Um `expect` que quebra dizendo só "undefined" manda quem lê a saída do CI
+ * adivinhar o que o Run fez. O diário é onde o motivo está: foi assim que uma
+ * falha de `git commit` dentro do agente passou uma rodada inteira sem
+ * explicação, porque o log do worker não aparece no runner e o evento
+ * aparecia.
+ */
+export function diarioDoRun(eventos: readonly RunEvent[]): string {
+  return eventos
+    .map((evento) => {
+      const payload =
+        typeof evento.payload === "object" && evento.payload !== null
+          ? (evento.payload as Record<string, unknown>)
+          : {};
+      const partes = [evento.type];
+      for (const campo of ["level", "message", "detail", "path", "kind", "text", "output"]) {
+        const valor = payload[campo];
+        if (typeof valor === "string" && valor.length > 0) partes.push(`${campo}=${valor}`);
+      }
+      return `  ${String(evento.sequence)}. ${partes.join(" | ")}`;
+    })
+    .join("\n");
+}
+
 /** Apaga tudo o que os testes escrevem, na ordem das chaves estrangeiras. */
 export async function limpar(handle: DatabaseHandle): Promise<void> {
   // `run` referencia a si mesma por `resumed_from_run_id`, com `on delete set

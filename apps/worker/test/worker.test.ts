@@ -12,7 +12,12 @@ import {
   type Database,
   type DatabaseHandle,
 } from "@dungeon-master/database";
-import { createWorkspaceManager, type HarnessAdapter } from "@dungeon-master/runtime";
+import {
+  createWorkspaceManager,
+  GitCommandError,
+  type HarnessAdapter,
+  type WorkspaceManager,
+} from "@dungeon-master/runtime";
 import { fakeHarness } from "@dungeon-master/runtime/testing";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
@@ -23,6 +28,7 @@ import {
   abrirBanco,
   CONFIG_PADRAO,
   criarRepositorio,
+  diarioDoRun,
   enfileirar,
   esperar,
   esperarStatusDeRun,
@@ -84,13 +90,14 @@ async function subirWorker(input: {
   runIdleTimeoutMs?: number;
   workerId?: string;
   start?: boolean;
+  workspace?: WorkspaceManager;
 }): Promise<Worker> {
   const criado = createWorker({
     db,
     pool: handle.pool,
     userId: USER,
     adapters: input.adapters ?? [fakeHarness()],
-    workspace: managerPara(repositorio),
+    workspace: input.workspace ?? managerPara(repositorio),
     config: {
       ...CONFIG_PADRAO,
       workerId: input.workerId ?? newWorkerId(),
@@ -230,15 +237,20 @@ describe("espólios pelo diff do worktree", () => {
     });
 
     const terminado = await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED"]);
-    expect(terminado.status, JSON.stringify(terminado.error)).toBe("SUCCEEDED");
-
     const eventos = await eventosDoRun(db, criado.id);
+    // O diário entra na mensagem de toda asserção daqui para baixo: o log do
+    // worker não aparece no CI, e sem ele uma falha aqui não diz o que o Run
+    // fez. Foi o que custou uma rodada para descobrir que o `git commit` do
+    // agente é que estava falhando.
+    const diario = diarioDoRun(eventos);
+    expect(terminado.status, `${JSON.stringify(terminado.error)}\n${diario}`).toBe("SUCCEEDED");
+
     const artefatos = eventos
       .filter((evento) => evento.type === "Artifact")
       .map((evento) => evento.payload as { path: string; kind?: string; bytes?: number });
 
     const porCaminho = new Map(artefatos.map((artefato) => [artefato.path, artefato]));
-    expect([...porCaminho.keys()].sort()).toEqual(["OLA.md", "RASCUNHO.md", "README.md"]);
+    expect([...porCaminho.keys()].sort(), diario).toEqual(["OLA.md", "RASCUNHO.md", "README.md"]);
     expect(porCaminho.get("OLA.md")?.kind).toBe("created");
     expect(porCaminho.get("README.md")?.kind).toBe("modified");
     expect(porCaminho.get("OLA.md")?.bytes).toBeGreaterThan(0);
@@ -249,9 +261,67 @@ describe("espólios pelo diff do worktree", () => {
 
     // O commit do agente foi coletado, e o worktree ficou preservado porque
     // sobrou mudança não commitada.
-    const commits = terminado.result?.["commits"] as ReadonlyArray<{ subject: string }>;
-    expect(commits.map((commit) => commit.subject)).toEqual(["commit-do-agente"]);
+    // `commits` ausente é a forma que a falha do CI tinha: o `git commit` do
+    // agente não passava, `collectCommits` devolvia lista vazia e o campo era
+    // omitido. Afirmar a presença antes de mapear troca um `TypeError` sem
+    // pista pelo diário do Run.
+    const commits = terminado.result?.["commits"] as ReadonlyArray<{ subject: string }> | undefined;
+    expect(commits, `o Run terminou sem commits.\n${diario}`).toBeDefined();
+    expect(commits?.map((commit) => commit.subject)).toEqual(["commit-do-agente"]);
     expect(terminado.result?.["preservedWorktreePath"]).toBeTypeOf("string");
+  });
+
+  it("uma coleta que falha vira Diagnostic com o stderr do git", async () => {
+    // A falha de `collectCommits` só virava `logger.warn`, e o log do worker
+    // não aparece no CI: um `result.commits` ausente ficou uma rodada inteira
+    // sem explicação. O `Diagnostic` é persistido e sai antes do terminal, que
+    // é o único lugar onde quem lê o diário do Run vai procurar.
+    const real = managerPara(repositorio);
+    const quebrado: WorkspaceManager = {
+      ...real,
+      collectCommits: () =>
+        Promise.reject(
+          new GitCommandError("git log falhou", {
+            args: ["log", "--reverse"],
+            cwd: "/worktree",
+            code: 128,
+            stderr: "fatal: detected dubious ownership in repository",
+          }),
+        ),
+    };
+
+    const cenario = await montarCenario(db, {
+      nome: "coleta-ruim",
+      workspacePath: repositorio.repo,
+    });
+    await subirWorker({ workspace: quebrado });
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: '@@fake:block {"status":"completed","summary":"terminei"}',
+    });
+
+    const terminado = await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED"]);
+    // Uma coleta que falha não derruba um Run que já terminou o trabalho.
+    expect(terminado.status).toBe("SUCCEEDED");
+
+    const eventos = await eventosDoRun(db, criado.id);
+    const aviso = eventos.find(
+      (evento) =>
+        evento.type === "Diagnostic" &&
+        String((evento.payload as { message?: string }).message).includes("commits do worktree"),
+    );
+    expect(aviso, diarioDoRun(eventos)).toBeDefined();
+
+    const payload = aviso?.payload as { level: string; detail?: string };
+    expect(payload.level).toBe("WARN");
+    expect(payload.detail).toContain("dubious ownership");
+    expect(payload.detail).toContain("git log --reverse");
+
+    // Antes do terminal: depois dele nada mais é emitido.
+    const tipos = eventos.map((evento) => evento.type);
+    expect(tipos.indexOf("Diagnostic")).toBeLessThan(tipos.indexOf("RunCompleted"));
   });
 
   it("um Run que não mexeu em nada não inventa espólio", async () => {
