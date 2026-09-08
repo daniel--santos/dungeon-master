@@ -49,6 +49,7 @@ import {
   getProject,
   getProposedTask,
   getRun,
+  getRunContext,
   getTaskDetail,
   getTaskGraph,
   getWorkflow,
@@ -504,6 +505,7 @@ export function createExecutionPort(options: ExecutionPortOptions): ExecutionPor
       openStream: (runId) => runEvents.openStream(runId),
       steps: (runId) => listRunSteps(db, { userId, runId }),
       gates: (runId) => listRunApprovalGates(db, { userId, runId }),
+      context: (runId) => getRunContext(db, { userId, runId }),
     },
     workflows: {
       list: (page) => listWorkflows(db, { userId, ...page }),
