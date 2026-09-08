@@ -279,6 +279,24 @@ describe("buildContainerEnv", () => {
     expect(env).toEqual({ CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-x" });
   });
 
+  it("deixa passar a variável que a política do perfil declarou", () => {
+    // `buildContainerEnv` recebe o ambiente **inteiro** que o runtime montou por
+    // allow-list, e não só as chaves de credencial do adapter: é assim que uma
+    // variável pedida na `environmentPolicy` chega ao container. Filtrar de novo
+    // aqui faria o mesmo Run enxergar `MY_VAR` em Campo aberto e não em Masmorra
+    // selada, sem nada no diário explicando a diferença.
+    const env = buildContainerEnv({
+      PATH: "/usr/bin",
+      MY_VAR: "declarada-no-perfil",
+      CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-x",
+    });
+
+    expect(env).toEqual({
+      MY_VAR: "declarada-no-perfil",
+      CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-x",
+    });
+  });
+
   it("corta o piso dos dois sistemas, e não só o desta máquina", () => {
     // Senão o teste passaria no Windows e falharia no macOS, que é exatamente o
     // tipo de divergência que a matriz de CI existe para pegar.

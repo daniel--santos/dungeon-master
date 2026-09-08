@@ -283,7 +283,18 @@ export function createDockerAdapter(
     if (workspace.warning !== undefined) avisos.set(request.executionId, workspace.warning);
 
     const credenciais = definition.credentialMounts?.(request.env) ?? [];
-    const env = buildContainerEnv(pick(request.env, definition.containerEnvKeys));
+
+    // O ambiente inteiro que o runtime montou, e **não** só as chaves de
+    // credencial. `request.env` já é uma allow-list: o `AgentRuntime` a montou
+    // com o piso do sistema operacional, as chaves que o adapter declarou e as
+    // variáveis que a `environmentPolicy` do perfil pediu. Filtrar de novo por
+    // `containerEnvKeys` aqui jogaria fora justamente as da política — um Run em
+    // Campo aberto enxergaria `MY_VAR` e o mesmo Run em Masmorra selada não,
+    // sem nada no diário explicando a diferença.
+    //
+    // `buildContainerEnv` tira o que não faz sentido lá dentro: o piso do SO,
+    // que a imagem define melhor, e os caminhos que só existem no host.
+    const env = buildContainerEnv(request.env);
     const { args, stdin } = definition.buildArgs(request);
 
     const dockerArgs = buildDockerRunArgs(
