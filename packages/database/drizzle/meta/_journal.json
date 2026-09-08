@@ -43,6 +43,13 @@
       "when": 1788821468886,
       "tag": "0005_reconciliacao_e_retomada_de_run",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788826289286,
+      "tag": "0006_conquistas_projecao_e_stats",
+      "breakpoints": true
     }
   ]
 }
