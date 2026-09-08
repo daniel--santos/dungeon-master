@@ -1,6 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Clock, ExternalLink, Gem, GitBranch, ListChecks, Play } from "lucide-react";
+import {
+  BookOpen,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  Gem,
+  GitBranch,
+  ListChecks,
+  Play,
+} from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { RunStatusChip } from "@/components/execution/chips";
@@ -10,6 +19,7 @@ import { ApprovalGateCard } from "@/components/run/approval-gate-card";
 import { CancelRunDialog } from "@/components/run/cancel-run-dialog";
 import { FailurePanel } from "@/components/run/failure-panel";
 import { ResultPanel } from "@/components/run/result-panel";
+import { RunContextPanel } from "@/components/run/run-context-panel";
 import { ResumeRunDialog } from "@/components/run/resume-run-dialog";
 import { RunOutcomePanel } from "@/components/run/run-outcome-panel";
 import { RunStepsPanel } from "@/components/run/run-steps-panel";
@@ -22,6 +32,8 @@ import { useRunGates } from "@/lib/approvals";
 import { formatDateTime } from "@/lib/datetime";
 import { eventPresentation, isLiveRunStatus, WORKSPACE_STRATEGY } from "@/lib/execution-domain";
 import { useGlossary } from "@/lib/glossary";
+import { KNOWLEDGE_COLOR } from "@/lib/knowledge-domain";
+import { countKnowledgeToolCalls } from "@/lib/knowledge-tools";
 import { useProject } from "@/lib/projects";
 import { useRunEvents } from "@/lib/run-events";
 import { canResumeRun, runKeys, useRun } from "@/lib/runs";
@@ -124,6 +136,10 @@ function Cockpit({ run }: { run: RunRecord }) {
 
   const profile = run.executionProfileSnapshot;
 
+  // Quantas vezes o agente foi ao Grimório (Fase 7C): as chamadas às
+  // ferramentas do servidor MCP do conhecimento, contadas sobre o Diário.
+  const knowledgeCalls = countKnowledgeToolCalls(events.events);
+
   return (
     <>
       <div className="flex flex-none flex-col gap-2">
@@ -193,6 +209,25 @@ function Cockpit({ run }: { run: RunRecord }) {
           <RunStatusChip status={run.status} />
           {task.data !== undefined && <KindChip kind={task.data.kind} />}
           <EnvBadge mode={run.executionMode} size="lg" />
+          {knowledgeCalls > 0 && (
+            <span
+              className="flex h-[22px] items-center gap-1.5 rounded-lg border px-2 text-xs whitespace-nowrap"
+              data-knowledge-tool-calls={knowledgeCalls}
+              style={{
+                borderColor: `color-mix(in oklch, ${KNOWLEDGE_COLOR} 45%, transparent)`,
+                backgroundColor: `color-mix(in oklch, ${KNOWLEDGE_COLOR} 10%, transparent)`,
+                color: KNOWLEDGE_COLOR,
+              }}
+            >
+              <BookOpen aria-hidden className="size-3" />
+              <span>
+                {format(
+                  knowledgeCalls === 1 ? t("context.toolCalls.one") : t("context.toolCalls.many"),
+                  { n: knowledgeCalls },
+                )}
+              </span>
+            </span>
+          )}
 
           <div className="flex-1" />
 
@@ -318,6 +353,8 @@ function Cockpit({ run }: { run: RunRecord }) {
       </div>
 
       {guided && <RunStepsPanel live={live} now={now} runId={run.id} />}
+
+      <RunContextPanel run={run} />
 
       {!live && <RunOutcomePanel run={run} />}
 

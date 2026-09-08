@@ -37,6 +37,8 @@ export type LoadoutRecord = components["schemas"]["Loadout"];
 export type CreateLoadoutBody = components["schemas"]["CreateLoadout"];
 export type UpdateLoadoutBody = components["schemas"]["UpdateLoadout"];
 export type LoadoutSnapshotRecord = components["schemas"]["LoadoutSnapshot"];
+export type KnowledgePolicyRecord = components["schemas"]["KnowledgePolicy"];
+export type ContextPolicyRecord = components["schemas"]["ContextPolicy"];
 export type ExecutionProfileSnapshotRecord = components["schemas"]["ExecutionProfileSnapshot"];
 export type McpServerRecord = components["schemas"]["McpServerRef"];
 
@@ -46,6 +48,10 @@ export type RunPageRecord = components["schemas"]["RunPage"];
 export type RunEventRecord = components["schemas"]["RunEvent"];
 export type RunEventListRecord = components["schemas"]["RunEventList"];
 export type RunResultRecord = components["schemas"]["RunResult"];
+export type RunContextRecord = components["schemas"]["RunContext"];
+export type ContextSectionRecord = components["schemas"]["ContextSection"];
+export type ContextItemRecord = components["schemas"]["ContextItem"];
+export type ContextExclusionRecord = components["schemas"]["ContextExclusion"];
 
 export type TaskRecord = components["schemas"]["Task"];
 export type TaskDetailRecord = components["schemas"]["TaskDetail"];
