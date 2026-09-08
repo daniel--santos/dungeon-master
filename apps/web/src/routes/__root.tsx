@@ -6,6 +6,7 @@ import { CommandPalette, useCommandPalette } from "@/components/app-shell/comman
 import { Header } from "@/components/app-shell/header";
 import { Sidebar } from "@/components/app-shell/sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { useAchievementToasts } from "@/lib/achievement-toast";
 import { useEventsStore } from "@/lib/events";
 import { useThemeSetting } from "@/lib/glossary";
 import { useLiveQueries } from "@/lib/live";
@@ -29,6 +30,10 @@ function RootLayout() {
   // Uma escrita em qualquer aba — ou por outro processo — invalida a query
   // correspondente aqui, pelo mesmo stream.
   useLiveQueries();
+
+  // O desbloqueio acontece enquanto o usuário está em qualquer tela, então o
+  // anúncio mora no layout raiz e não no Hall.
+  useAchievementToasts();
 
   // Uma conexão SSE por aba, aberta no layout raiz e viva enquanto a aba
   // estiver. `connect` é idempotente, o que importa porque o StrictMode monta o

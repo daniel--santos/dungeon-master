@@ -1,76 +1,69 @@
-import { dnd } from "@dungeon-master/glossary";
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { AchievementCard } from "@/components/hall/achievement-card";
-import { filterCards, hallSearchSchema, type AchievementCard as Card } from "@/lib/achievements";
+import {
+  achievementKeys,
+  hallSearchSchema,
+  toAchievementQuery,
+  type HallFilters,
+} from "@/lib/achievements";
 
 /**
- * O filtro do Hall vive nos parâmetros de busca da rota.
+ * O filtro do Hall vive nos parâmetros de busca da rota, e vai para a API.
  *
- * O teste faz o caminho inteiro que a tela faz: a URL vira filtro tipado pelo
- * schema, o filtro escolhe as cartas, e a grade mostra só o que sobrou.
+ * Desde a Fase 2.5D a peneira não é mais no cliente: o que a URL diz vira a
+ * query de `GET /achievements`, e é a API que responde só com o que casa. Isso
+ * importa porque o medidor ao lado dos filtros continua contando o **total** —
+ * `counts` ignora os filtros de propósito —, e um filtro aplicado no cliente
+ * teria de manter duas listas para conseguir a mesma coisa.
+ *
+ * O teste faz o caminho inteiro: a URL vira filtro tipado pelo schema, o filtro
+ * vira a query, e a query vira a chave de cache.
  */
 
-function card(overrides: Partial<Card> & Pick<Card, "key">): Card {
-  return {
-    origin: "CATALOG",
-    rarity: "COMMON",
-    state: "LOCKED",
-    icon: "flag",
-    name: { theme: overrides.key, plain: overrides.key },
-    description: { theme: "…", plain: "…" },
-    flavor: undefined,
-    tierRarities: undefined,
-    ...overrides,
-  };
-}
-
-const CARDS: Card[] = [
-  card({ key: "comum" }),
-  card({ key: "epica-uma", rarity: "EPIC" }),
-  card({ key: "epica-outra", rarity: "EPIC" }),
-  card({ key: "rara", rarity: "RARE" }),
-  card({ key: "oculta", rarity: null, state: "HIDDEN", origin: "TEMPLATE", name: null }),
-];
-
-afterEach(cleanup);
-
 describe("filtros do Hall", () => {
-  it("lê raridade, origem e estado da URL, e ignora o que não conhece", () => {
-    expect(hallSearchSchema.parse({ rarity: "EPIC" })).toEqual({ rarity: "EPIC" });
-    expect(hallSearchSchema.parse({ origin: "TEMPLATE", state: "HIDDEN" })).toEqual({
-      origin: "TEMPLATE",
-      state: "HIDDEN",
+  it("lê aba, raridade, origem e estado da URL, e ignora o que não conhece", () => {
+    expect(hallSearchSchema.parse({ rarity: "EPIC" })).toEqual({
+      tab: undefined,
+      origin: undefined,
+      rarity: "EPIC",
+      state: undefined,
     });
+
+    expect(
+      hallSearchSchema.parse({ origin: "TEMPLATE", state: "HIDDEN", tab: "bestiary" }),
+    ).toEqual({ tab: "bestiary", origin: "TEMPLATE", rarity: undefined, state: "HIDDEN" });
+
     // Um valor inválido cai no padrão em vez de derrubar a rota.
-    expect(hallSearchSchema.parse({ rarity: "MITICA" })).toEqual({ rarity: undefined });
+    expect(hallSearchSchema.parse({ rarity: "MITICA" }).rarity).toBeUndefined();
+    expect(hallSearchSchema.parse({ tab: "inventario" }).tab).toBeUndefined();
   });
 
-  it("mostra só as cartas da raridade pedida na URL", () => {
-    const filters = hallSearchSchema.parse({ rarity: "EPIC" });
-    const shown = filterCards(CARDS, filters);
+  it("leva para a query só o que a URL trouxe", () => {
+    expect(toAchievementQuery(hallSearchSchema.parse({}))).toEqual({});
 
-    render(
-      <>
-        {shown.map((item) => (
-          <AchievementCard key={item.key} card={item} />
-        ))}
-      </>,
-    );
+    expect(toAchievementQuery(hallSearchSchema.parse({ rarity: "EPIC" }))).toEqual({
+      rarity: "EPIC",
+    });
 
-    expect(shown.map((item) => item.key)).toEqual(["epica-uma", "epica-outra"]);
-    expect(screen.getAllByText(dnd["achievement.rarity.epic"])).toHaveLength(2);
-    expect(screen.queryByText(dnd["achievement.rarity.common"])).toBeNull();
+    expect(
+      toAchievementQuery(
+        hallSearchSchema.parse({ origin: "CATALOG", rarity: "RARE", state: "UNLOCKED" }),
+      ),
+    ).toEqual({ origin: "CATALOG", rarity: "RARE", state: "UNLOCKED" });
   });
 
-  it("a carta oculta não é alcançada por filtro de raridade, e é pelo de estado", () => {
-    expect(filterCards(CARDS, { rarity: "COMMON" }).map((item) => item.key)).toEqual(["comum"]);
-    expect(filterCards(CARDS, { state: "HIDDEN" }).map((item) => item.key)).toEqual(["oculta"]);
-    expect(filterCards(CARDS, { origin: "TEMPLATE" }).map((item) => item.key)).toEqual(["oculta"]);
+  it("a aba não entra na query: trocar de aba não refaz a consulta", () => {
+    const semAba = hallSearchSchema.parse({ rarity: "EPIC" });
+    const comAba = hallSearchSchema.parse({ rarity: "EPIC", tab: "chronicle" });
+
+    expect(toAchievementQuery(comAba)).toEqual(toAchievementQuery(semAba));
   });
 
-  it("sem filtro nenhum, a grade mostra o catálogo inteiro", () => {
-    expect(filterCards(CARDS, hallSearchSchema.parse({}))).toHaveLength(CARDS.length);
+  it("filtros diferentes têm chaves de cache diferentes", () => {
+    const um: HallFilters = { origin: undefined, rarity: "EPIC", state: undefined };
+    const outro: HallFilters = { origin: undefined, rarity: "RARE", state: undefined };
+
+    expect(achievementKeys.list(um)).not.toEqual(achievementKeys.list(outro));
+    expect(achievementKeys.list(um)[0]).toBe(achievementKeys.all[0]);
   });
 });

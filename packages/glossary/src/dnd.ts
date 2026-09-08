@@ -156,6 +156,14 @@ export const dnd: Record<GlossaryKey, string> = {
   // ------------------------------------------------------------------ hero
   "hero.xp": "Experiência",
   "hero.level": "Nível",
+  "hero.toNextLevel": "Para o próximo nível",
+  "hero.expeditions": "Expedições",
+  "hero.victories": "Vitórias",
+  "hero.defeats": "Derrotas",
+  "hero.monstersSlain": "Monstros derrotados",
+  "hero.tokens": "Tokens",
+  "hero.topHarness": "Guilda mais usada",
+  "hero.byLoadout": "Por Equipamento",
 
   // ----------------------------------------------------------------- infra
   "infra.worker": "Worker",
@@ -184,6 +192,14 @@ export const dnd: Record<GlossaryKey, string> = {
   "hall.filter.origin": "Origem",
   "hall.filter.rarity": "Raridade",
   "hall.filter.state": "Estado",
+  "hall.counter": "{unlocked} de {total} desbloqueadas",
+  "hall.unseen": "Ainda não vista",
+  "hall.progressOf": "{current} de {target}",
+  "hall.tierOf": "Grau {label}",
+  "hall.bestiary.defeatedAt": "Derrotado em",
+  "hall.bestiary.slayer": "Quem derrotou",
+  "hall.bestiary.nemesis": "Nêmesis",
+  "hall.chronicle.loadMore": "Carregar mais",
 
   // -------------------------------------------------------------- settings
   "settings.theme.toggle": "Tema Dungeon Master",

@@ -1,6 +1,6 @@
 import type { components } from "@dungeon-master/api-client";
 import type { GlossaryKey } from "@dungeon-master/glossary";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import {
   BookOpen,
   CircleQuestionMark,
@@ -21,27 +21,39 @@ import {
   WandSparkles,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { z } from "zod";
 
 import { api } from "@/lib/api";
 import { fail } from "@/lib/problem";
 
 /**
- * O catálogo de Conquistas, que na Fase 1 é só leitura.
+ * As Conquistas do usuário, com progresso real (planejamento v0.4, Fase 2.5D).
  *
- * Não há progresso nem desbloqueio: a projeção chega na Fase 2.5. O que existe
- * aqui é o catálogo versionado que a API carrega no boot, e a decisão de
- * mostrá-lo inteiro desde o começo, para o usuário ver o que há para conquistar.
+ * Até a Fase 2.5B o Hall lia o catálogo versionado e mostrava tudo bloqueado,
+ * porque não havia projeção. Agora quem responde é `GET /achievements`: as
+ * definições já gravadas, os templates que os dados do usuário instanciaram, o
+ * progresso e o estado calculado. O catálogo continua exposto na API, e é a
+ * fonte que o e2e compara com a tela, mas a grade não o lê mais.
+ *
+ * Nenhum estado é derivado aqui. `state`, `tier` e `progress` chegam prontos,
+ * porque quem sabe o limiar do próximo tier é a condição do catálogo, e uma
+ * segunda regra na web divergiria da primeira no dia em que um limiar mudasse.
  */
 
-type AchievementCatalog = components["schemas"]["AchievementCatalog"];
+type AchievementListItem = components["schemas"]["AchievementListItem"];
+type AchievementListResponse = components["schemas"]["AchievementListResponse"];
 type AchievementDefinition = components["schemas"]["AchievementDefinition"];
+type AchievementUnlockPage = components["schemas"]["AchievementUnlockPage"];
+type AchievementUnlockRecord = components["schemas"]["AchievementUnlock"];
+
+export type { AchievementListItem, AchievementUnlockRecord };
 
 export type AchievementRarity = AchievementDefinition["rarity"];
 export type AchievementOrigin = AchievementDefinition["origin"];
+export type AchievementCounts = components["schemas"]["AchievementCounts"];
 
-/** Os estados que a carta pode ter. Na Fase 1 só os dois primeiros acontecem. */
+/** Os quatro estados que a carta pode ter, na ordem em que a jornada os produz. */
 export const ACHIEVEMENT_STATES = ["LOCKED", "HIDDEN", "IN_PROGRESS", "UNLOCKED"] as const;
 export type AchievementState = (typeof ACHIEVEMENT_STATES)[number];
 
@@ -115,8 +127,25 @@ export function achievementIcon(name: string): LucideIcon {
 
 export const HIDDEN_ICON = CircleQuestionMark;
 
-/** Uma carta da grade do Hall, já normalizada para render. */
+/**
+ * Uma carta da grade, já normalizada para render.
+ *
+ * A normalização é uma só: **uma carta oculta não vaza nada**. A API já manda
+ * `hidden` e o estado `HIDDEN`, mas manda junto o nome e a raridade, porque o
+ * mesmo item deixa de ser oculto no primeiro progresso e a tela não deveria
+ * pedir de novo. Apagar aqui o que não pode aparecer mantém a decisão num
+ * lugar só, em vez de espalhar `state === "HIDDEN" ? … : …` pela carta.
+ */
 export interface AchievementCard {
+  /**
+   * Identidade da carta na grade.
+   *
+   * É o `id` da definição gravada, e não a chave do catálogo, porque um
+   * template vira **uma definição por entidade**: dois Projects produzem dois
+   * "Guardião de {campanha}" com a mesma `key` e ids diferentes.
+   */
+  readonly id: string;
+  /** A chave do catálogo ou do template. Vazia numa forjada, que não tem uma. */
   readonly key: string;
   readonly origin: AchievementOrigin;
   /** Nula na carta oculta, que não revela a raridade. */
@@ -126,89 +155,37 @@ export interface AchievementCard {
   readonly name: { readonly theme: string; readonly plain: string } | null;
   readonly description: { readonly theme: string; readonly plain: string } | null;
   readonly flavor: string | undefined;
-  readonly tierRarities: readonly AchievementRarity[] | undefined;
-}
-
-/**
- * A chave da carta que representa as Conquistas geradas a partir da sua jornada.
- *
- * Os templates do catálogo não são Conquistas de ninguém ainda: cada um vira
- * uma carta concreta quando os seus dados a instanciam, na Fase 2.5. Mostrar um
- * card por template fingiria que já existem cinco Conquistas fixas esperando;
- * mostrar uma carta oculta diz a verdade — há mais o que descobrir, e ainda não
- * dá para dizer o quê.
- */
-export const TEMPLATE_CARD_KEY = "__templates__";
-
-function toCard(definition: AchievementDefinition): AchievementCard {
-  const hidden = definition.hidden;
-  return {
-    key: definition.key,
-    origin: definition.origin,
-    rarity: hidden ? null : definition.rarity,
-    state: hidden ? "HIDDEN" : "LOCKED",
-    icon: definition.icon,
-    name: hidden ? null : definition.name,
-    description: hidden ? null : definition.description,
-    flavor: hidden ? undefined : definition.flavor,
-    tierRarities: definition.tierRarities,
+  /** Tier corrente e total. `total > 1` é o que faz a carta mostrar o grau. */
+  readonly tier: {
+    readonly current: number;
+    readonly total: number;
+    readonly label: string | null;
   };
+  readonly progress: {
+    readonly current: number;
+    readonly target: number;
+    readonly percent: number;
+  };
+  readonly unlockedAt: string | null;
 }
 
-export interface Hall {
-  readonly cards: readonly AchievementCard[];
-  /** Definições que contam para o medidor: as que não são ocultas. */
-  readonly total: number;
-  readonly unlocked: number;
-}
+export function toCard(item: AchievementListItem): AchievementCard {
+  const hidden = item.state === "HIDDEN";
 
-export const achievementKeys = { catalog: ["achievements", "catalog"] as const };
-
-function useCatalog(): UseQueryResult<AchievementCatalog> {
-  return useQuery({
-    queryKey: achievementKeys.catalog,
-    queryFn: async () => {
-      const { data, error, response } = await api.GET("/api/v1/achievements/catalog");
-      if (data === undefined) fail(error, response.status, "Não foi possível ler o catálogo");
-      return data;
-    },
-    // Catálogo é dado versionado, não estado: relê no reload, não a cada foco.
-    staleTime: Number.POSITIVE_INFINITY,
-  });
-}
-
-/** O catálogo já no formato da grade, com o medidor de progresso. */
-export function useHall(): { query: UseQueryResult<AchievementCatalog>; hall: Hall } {
-  const query = useCatalog();
-  const catalog = query.data;
-
-  const hall = useMemo<Hall>(() => {
-    if (catalog === undefined) return { cards: [], total: 0, unlocked: 0 };
-
-    const cards = catalog.definitions.map(toCard);
-
-    if (catalog.templates.length > 0) {
-      cards.push({
-        key: TEMPLATE_CARD_KEY,
-        origin: "TEMPLATE",
-        rarity: null,
-        state: "HIDDEN",
-        icon: "help-circle",
-        name: null,
-        description: null,
-        flavor: undefined,
-        tierRarities: undefined,
-      });
-    }
-
-    return {
-      cards,
-      total: catalog.definitions.filter((definition) => !definition.hidden).length,
-      unlocked: 0,
-    };
-  }, [catalog]);
-
-  return { query, hall };
+  return {
+    id: item.id,
+    key: item.key ?? item.id,
+    origin: item.origin,
+    rarity: hidden ? null : item.rarity,
+    state: item.state,
+    icon: item.icon,
+    name: hidden ? null : item.name,
+    description: hidden ? null : item.description,
+    flavor: hidden ? undefined : (item.flavor ?? undefined),
+    tier: item.tier,
+    progress: item.progress,
+    unlockedAt: item.unlockedAt,
+  };
 }
 
 /**
@@ -217,24 +194,162 @@ export function useHall(): { query: UseQueryResult<AchievementCatalog>; hall: Ha
  * Cada chave tem `.catch()`: uma URL colada à mão nunca derruba a tela, o valor
  * inválido some e a grade abre inteira. Os valores são os enums canônicos, e
  * não os labels, então a URL não muda com o interruptor de tema.
+ *
+ * `tab` está aqui pelo mesmo motivo que o resto: a aba aberta é estado de
+ * navegação, e um link para o Bestiário precisa abrir no Bestiário.
  */
+export const HALL_TABS = ["achievements", "heroes", "bestiary", "chronicle"] as const;
+export type HallTab = (typeof HALL_TABS)[number];
+
 export const hallSearchSchema = z.object({
+  tab: z.enum(HALL_TABS).optional().catch(undefined),
   origin: z.enum(ACHIEVEMENT_ORIGINS).optional().catch(undefined),
   rarity: z.enum(ACHIEVEMENT_RARITIES).optional().catch(undefined),
   state: z.enum(ACHIEVEMENT_STATES).optional().catch(undefined),
 });
 
-export type HallFilters = z.infer<typeof hallSearchSchema>;
+export type HallSearch = z.infer<typeof hallSearchSchema>;
+export type HallFilters = Omit<HallSearch, "tab">;
 
-export function filterCards(
-  cards: readonly AchievementCard[],
-  filters: HallFilters,
-): readonly AchievementCard[] {
-  return cards.filter((card) => {
-    if (filters.origin !== undefined && card.origin !== filters.origin) return false;
-    // Uma carta oculta não tem raridade, então nenhum filtro de raridade a pega.
-    if (filters.rarity !== undefined && card.rarity !== filters.rarity) return false;
-    if (filters.state !== undefined && card.state !== filters.state) return false;
-    return true;
+/**
+ * Os filtros da URL como a query da API os espera.
+ *
+ * Chave ausente não entra: mandar `origin=` vazio filtraria por origem vazia
+ * em vez de não filtrar. `tab` fica de fora porque é navegação, não filtro —
+ * trocar de aba não pode refazer a consulta das Conquistas.
+ */
+export function toAchievementQuery(filters: HallFilters): {
+  origin?: AchievementOrigin;
+  rarity?: AchievementRarity;
+  state?: AchievementState;
+} {
+  return {
+    ...(filters.origin === undefined ? {} : { origin: filters.origin }),
+    ...(filters.rarity === undefined ? {} : { rarity: filters.rarity }),
+    ...(filters.state === undefined ? {} : { state: filters.state }),
+  };
+}
+
+export const achievementKeys = {
+  all: ["achievements"] as const,
+  list: (filters: HallFilters) => ["achievements", "list", filters] as const,
+  unlocks: ["achievements", "unlocks"] as const,
+  unlockPage: (page: number) => ["achievements", "unlocks", page] as const,
+};
+
+export const heroKeys = { stats: ["heroes", "stats"] as const };
+
+export interface Hall {
+  readonly cards: readonly AchievementCard[];
+  readonly counts: AchievementCounts;
+}
+
+const EMPTY_COUNTS: AchievementCounts = {
+  total: 0,
+  unlocked: 0,
+  inProgress: 0,
+  locked: 0,
+  hidden: 0,
+};
+
+export function useAchievements(filters: HallFilters): UseQueryResult<AchievementListResponse> {
+  return useQuery({
+    queryKey: achievementKeys.list(filters),
+    queryFn: async () => {
+      const { data, error, response } = await api.GET("/api/v1/achievements", {
+        params: { query: toAchievementQuery(filters) },
+      });
+      if (data === undefined) fail(error, response.status, "Não foi possível ler a lista");
+      return data;
+    },
+    // Trocar de filtro não deve piscar a grade inteira enquanto a nova volta.
+    placeholderData: (previous) => previous,
   });
+}
+
+/** A grade e o medidor. `counts` ignora os filtros: é o total, ao lado deles. */
+export function useHall(filters: HallFilters): {
+  query: UseQueryResult<AchievementListResponse>;
+  hall: Hall;
+} {
+  const query = useAchievements(filters);
+  const data = query.data;
+
+  const hall = useMemo<Hall>(
+    () =>
+      data === undefined
+        ? { cards: [], counts: EMPTY_COUNTS }
+        : { cards: data.items.map(toCard), counts: data.counts },
+    [data],
+  );
+
+  return { query, hall };
+}
+
+/* ------------------------------------------------------------- crônica */
+
+export interface UnlockPageParams {
+  readonly page: number;
+  readonly pageSize?: number;
+}
+
+export function useUnlocks(params: UnlockPageParams): UseQueryResult<AchievementUnlockPage> {
+  const { page, pageSize } = params;
+
+  return useQuery({
+    queryKey: achievementKeys.unlockPage(page),
+    queryFn: async () => {
+      const { data, error, response } = await api.GET("/api/v1/achievements/unlocks", {
+        params: {
+          query: {
+            page: String(page),
+            ...(pageSize === undefined ? {} : { pageSize: String(pageSize) }),
+          },
+        },
+      });
+      if (data === undefined) fail(error, response.status, "Não foi possível ler o histórico");
+      return data;
+    },
+    placeholderData: (previous) => previous,
+  });
+}
+
+/**
+ * Marca como visto o que o usuário acabou de olhar.
+ *
+ * O destaque de "ainda não visto" existe para o desbloqueio que chegou por
+ * toast enquanto o usuário estava em outra tela. Abrir o Hall é a prova de que
+ * ele viu, então é ali que a marcação acontece — e não no toast, que pode
+ * passar despercebido.
+ *
+ * A chamada é idempotente do lado da API: marcar de novo devolve o mesmo
+ * `seenAt`. Aqui o `ref` só evita repetir a mesma escrita a cada render.
+ */
+export function useMarkUnlocksSeen(unlocks: readonly AchievementUnlockRecord[] | undefined): void {
+  const queryClient = useQueryClient();
+  const marked = useRef(new Set<string>());
+
+  const { mutate } = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error, response } = await api.POST("/api/v1/achievements/unlocks/{id}/seen", {
+        params: { path: { id } },
+      });
+      if (data === undefined) fail(error, response.status, "Não foi possível marcar como visto");
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: achievementKeys.unlocks });
+    },
+  });
+
+  useEffect(() => {
+    if (unlocks === undefined) return;
+
+    for (const unlock of unlocks) {
+      if (unlock.seenAt !== null) continue;
+      if (marked.current.has(unlock.id)) continue;
+      marked.current.add(unlock.id);
+      mutate(unlock.id);
+    }
+  }, [mutate, unlocks]);
 }

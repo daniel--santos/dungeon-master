@@ -233,10 +233,14 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
           />
           <ModeOption
             checked={mode === "DOCKER"}
-            description="Isolada, com custo extra para subir o container. Ainda não disponível."
+            description={
+              dockerProfile === undefined
+                ? "Isolada, com custo extra para subir o container. Nenhum perfil de execução em container está habilitado."
+                : "Isolada, com custo extra para subir o container. O agente trabalha dentro dele e não alcança o resto da máquina."
+            }
             disabled={dockerProfile === undefined}
             mode="DOCKER"
-            note="Fase 2C"
+            {...(dockerProfile === undefined ? { note: "sem perfil" } : {})}
             onSelect={() => {
               setMode("DOCKER");
             }}
