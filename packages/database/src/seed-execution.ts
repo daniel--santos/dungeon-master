@@ -105,12 +105,20 @@ const HARNESS_SEEDS: readonly HarnessSeed[] = [
     },
   },
   {
-    // Desligado: o Antigravity tem fase própria (planejamento v0.4, Fase 3), com
-    // spike técnico, autenticação particular e Docker por decidir. Aparecer na
-    // lista ligado prometeria uma execução que ainda não existe.
+    // Ligado na Fase 3: o adapter de `packages/runtime-antigravity` passa os
+    // onze casos da suíte de contrato com a CLI 1.1.27 de verdade.
+    //
+    // Três campos mudaram em relação ao que a semente prometia antes do spike,
+    // e os três para menos. `nativePermissions` virou `false` porque a CLI não
+    // consulta allow-list de comando em modo headless — ela tem a lista, mas
+    // com `-p` nega todo comando de qualquer jeito, e o único interruptor que
+    // funciona libera tudo. `agentSelection` virou `false` porque `--agent`
+    // existe mas não houve agente para exercitá-lo. `dockerExecution` continua
+    // `false`: a credencial do `agy` vem do chaveiro do sistema, e levá-la para
+    // dentro de um container é decisão da Fase 3D.
     key: "ANTIGRAVITY",
     name: "Antigravity CLI",
-    enabled: false,
+    enabled: true,
     capabilities: {
       streaming: true,
       structuredOutput: true,
@@ -119,8 +127,8 @@ const HARNESS_SEEDS: readonly HarnessSeed[] = [
       toolEvents: true,
       tokenUsage: true,
       modelSelection: true,
-      agentSelection: true,
-      nativePermissions: true,
+      agentSelection: false,
+      nativePermissions: false,
       hostExecution: true,
       dockerExecution: false,
     },

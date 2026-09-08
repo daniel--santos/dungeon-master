@@ -36,6 +36,19 @@ export interface StructuredOutputSpec<T = unknown> {
   readonly schema: StandardSchemaLike<T>;
   /** Nome da tag XML. Padrão: `result`. */
   readonly tag?: string;
+  /**
+   * O mesmo schema em JSON Schema, para os harnesses com structured output
+   * nativo (o `--json-schema` do Antigravity, documento técnico, seção 30).
+   *
+   * É opcional e **não** substitui `schema`: quem valida continua sendo o
+   * Standard Schema, aqui, depois que o texto volta. Um schema nativo só muda
+   * de quem é o trabalho de fazer o modelo acertar o formato na primeira vez.
+   *
+   * Fica a cargo de quem chama porque não há como derivar JSON Schema de um
+   * Standard Schema qualquer: só o Zod 4 tem `z.toJSONSchema`, e o runtime não
+   * conhece a implementação por trás da interface.
+   */
+  readonly jsonSchema?: unknown;
   /** Tentativas extras depois da primeira. Padrão: 1. */
   readonly maxRetries?: number;
   /**

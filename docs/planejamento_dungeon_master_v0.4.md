@@ -756,6 +756,22 @@ Pendências de API deixadas pela web (rodada curta de backend a fazer):
 
 **Fase 3 em andamento** (dois agentes, branches `feat/fase3-antigravity` e `feat/fase3-docker-gate`): adapter direto do Antigravity no host em `packages/runtime-antigravity` com spike de contrato da CLI 1.1.27, suíte de contrato real e falsa, registro no Worker e seed; e o gate 3D com ADR `0002-antigravity-em-docker` e a imagem 0.2.0 com o `agy`. A fiação do adapter em Docker vem depois que o de host existir.
 
+## Fechamento da Fase 3 (08/09/2026)
+
+**Fase 3 completa.** O Antigravity é o quarto harness no host, com o mesmo contrato dos outros três, e o gate 3D respondeu com um ADR em vez de uma suposição.
+
+- **3A/3B/3C/3E (host)**: `packages/runtime-antigravity` com o contrato medido da CLI `agy` 1.1.27 no README do pacote; prompt por stdin em `stream-json` (o `-p` toma o prompt como valor de flag e o argv do Windows tem teto de 32767 caracteres); `--add-dir` sempre, senão o agente escreve na scratch da CLI; `--json-schema` nativo com `structured_output`; resume por `conversation_id`; saída 0 mesmo negando tudo, convertida em diagnóstico e falha. Suíte de contrato 11/11 com o `agy` real e, no CI, com um `agy` falso que fala o dialeto real. Registro no Worker, harness habilitado (migração `0009`). Capabilities `true`: streaming, structuredOutput, resume, toolEvents, tokenUsage, modelSelection, hostExecution; `false`: forkSession, multiTurnProcess, agentSelection, nativePermissions, dockerExecution.
+- **O degrau do meio não existe nesta CLI**: a allow-list de comando do `settings.json` não é consultada em modo headless; o único interruptor sem interface é o bypass total. `CONFIGURED` não vira flag nenhuma (mais restritivo que o pedido, nunca menos) e o Worker escreve no diário um aviso próprio deste harness. "Campo aberto" com "crie um arquivo e faça commit" termina `FAILED` com `PERMISSION_DENIED`; com `allowUnsafeBypass` no perfil termina `SUCCEEDED` com o commit coletado.
+- **3D (Docker)**: ADR `docs/adr/0002-antigravity-em-docker.md`, veredito **experimental**. O `agy` guarda a credencial no cofre do sistema operacional, não em arquivo; não há `login`, `auth` nem `setup-token`; `GEMINI_API_KEY`/`GOOGLE_API_KEY` não são consumidas. O único caminho não interativo é `AGY_ADC_AUTH=1` com Application Default Credentials por arquivo montado somente leitura, comprovado até a rejeição do Google com credencial sintética e não provado com credencial real (emiti-la é decisão do usuário). Imagem `dungeon-master-agent:0.2.0` (1,49 GB, build 91 s) com o `agy` por objeto versionado e SHA-512 conferido antes de extrair; `fixedEnv` no docker run para configuração não secreta, com erro se o mesmo nome aparecer também em `envKeys`. Não há fiação do adapter Antigravity em Docker.
+
+Pendências que ficam registradas:
+
+- Mostrar na tela de Equipamento o aviso de que o Antigravity só executa comandos com o bypass ligado.
+- `AGY_ADC_AUTH` no ambiente do host quebra o host autenticado; `agy models` serve de preflight; sem credencial a CLI leva 60 s fixos que `--print-timeout` não controla.
+- Sessão contínua por stdin e `--agent` ficam para quando houver necessidade.
+
+**Fase 4 iniciada** em três ondas: 4A fundação (contratos Zod do Workflow, domínio puro, tabelas e migração, captura congelada, gate por CAS, seed "Expedição guiada", API e cliente); depois, em paralelo, 4B motor (`packages/workflow`, executores por tipo, integração no Worker, pausa em gate que sobrevive a restart) e 4C web (Rituais, Selo da Guilda com diálogo de confirmação, cockpit por passos, e2e).
+
 ## Andamento anterior da Fase 2 (histórico)
 
 Mergeadas e verdes no CI: 2A (modelo, banco, API), 2B (runtime e adapters de host; ADR em `packages/runtime-sandcastle/README.md`: os adapters não dependem do Sandcastle em runtime), o Worker (laço, reconciliação, cancelamento confirmado, shutdown gracioso, `resumeFromRunId`, marca d'água do poller) e as telas (cadastros, Nova Expedição com aceite do modo host, Expedições, Cristal de Visão com diário ao vivo e AlertDialog de cancelamento).
@@ -975,12 +991,16 @@ Fase própria por causa de: ciclo de releases rápido, autenticação particular
 
 Executado **nos dois sistemas operacionais**.
 
-- [ ] Instalar e pinar versão do `agy`
-- [ ] Validar `--version`, `-p`, `--output-format json` e `stream-json`, `--input-format stream-json`, `--json-schema`, `--conversation`, `--continue`, `--model`, `--agent`, `--effort`
-- [ ] Validar códigos de saída
-- [ ] Validar cancelamento por kill de árvore (não apenas sinal)
-- [ ] Validar timeout
-- [ ] Documentar os tipos de eventos NDJSON
+- [x] Instalar e pinar versão do `agy` — 1.1.27
+- [x] Validar `--version`, `-p`, `--output-format json` e `stream-json`, `--input-format stream-json`, `--json-schema`, `--conversation`, `--continue`, `--model`, `--agent`, `--effort`
+- [x] Validar códigos de saída
+- [x] Validar cancelamento por kill de árvore (não apenas sinal)
+- [x] Validar timeout
+- [x] Documentar os tipos de eventos NDJSON
+
+Feito no Windows; o macOS fica com o CI. O contrato medido, com comandos e
+saídas reais, está em [`packages/runtime-antigravity/README.md`](../packages/runtime-antigravity/README.md),
+seção "Contrato da CLI 1.1.27".
 
 ### Matriz mínima de testes
 
@@ -1006,17 +1026,17 @@ Executado **nos dois sistemas operacionais**.
 
 ## 3C — Antigravity HOST
 
-- [ ] Implementar `AntigravityHarnessAdapter`
-- [ ] Spawn sem shell, via `packages/platform`
-- [ ] Parser incremental NDJSON
-- [ ] Mapear eventos Antigravity -> `ExecutionEvent`
-- [ ] Mapear `conversation_id` -> `harnessSessionId`
-- [ ] Resume, structured output, model, agent, effort
-- [ ] Cancelamento por kill de árvore e timeout
-- [ ] Preflight e health
-- [ ] Ausência de autenticação não trava o worker
-- [ ] Diagnostics e stderr separados
-- [ ] Permissões headless testadas
+- [x] Implementar `AntigravityHarnessAdapter` — `packages/runtime-antigravity`
+- [x] Spawn sem shell, via `packages/platform`
+- [x] Parser incremental NDJSON
+- [x] Mapear eventos Antigravity -> `ExecutionEvent`
+- [x] Mapear `conversation_id` -> `harnessSessionId`
+- [x] Resume, structured output, model, effort — `agent` não: ver abaixo
+- [x] Cancelamento por kill de árvore e timeout
+- [x] Preflight e health
+- [x] Ausência de autenticação não trava o worker
+- [x] Diagnostics e stderr separados
+- [x] Permissões headless testadas — e o resultado mudou o desenho
 
 ### Permissão
 
@@ -1025,6 +1045,15 @@ type AgentPermissionMode = "default" | "configured" | "bypass";
 ```
 
 `bypass` é visível e opt-in. Nunca default.
+
+**O degrau do meio não existe nesta CLI.** O `agy` 1.1.27 tem allow-list de
+comando em `settings.json`, e não a consulta em modo headless: com `-p`, todo
+`run_command` é negado nos quatro valores de `toolPermission`, com as regras
+carregadas. O único interruptor que funciona sem interface é
+`--dangerously-skip-permissions`, que libera tudo. `configured` portanto **não
+vira flag nenhuma** — o resultado é mais restritivo que o pedido, nunca menos —,
+`nativePermissions` sai `false` e o Worker escreve no diário do Run um aviso com
+texto próprio para este harness.
 
 ---
 
@@ -1052,6 +1081,69 @@ HarnessContractSuite
 ```
 
 Roda para Claude, Codex, Pi e Antigravity, na matriz Windows + macOS.
+
+## Andamento da Fase 3 — 3A, 3B, 3C e 3E (08/09/2026)
+
+O Antigravity é o **quarto harness**, ligado, no host, nos mesmos lugares que os
+outros três: `packages/runtime-antigravity`, registrado em `hostAdapters` do
+Worker, semeado com `enabled = true` (migração de dados `0009`). Os onze casos
+da suíte de contrato passam com a CLI 1.1.27 de verdade neste Windows, e no CI
+com um `agy` falso que emite o NDJSON documentado e é traduzido pelo parser de
+produção. Todo o contrato medido está em
+[`packages/runtime-antigravity/README.md`](../packages/runtime-antigravity/README.md).
+
+Três achados do spike mudaram o desenho:
+
+1. **O prompt não cabe no argv e o stdin de texto não funciona.** `-p` toma o
+   prompt como *valor da flag*, e um prompt com contexto de projeto passa do teto
+   de 32767 caracteres da linha de comando do Windows. A saída é
+   `--input-format stream-json`, que lê uma mensagem NDJSON do stdin; o formato
+   (`{"event":"user","message":{"role":"user","content":[…]}}`) foi descoberto
+   por eliminação e está documentado. Com ele o prompt viaja pelo stdin como nos
+   outros três.
+2. **`--add-dir <cwd>` não é opcional.** Sem ele o agente não trata o diretório
+   de trabalho como workspace e escreve na scratch da própria CLI, mesmo com o
+   `init` relatando o `cwd` certo. O primeiro Run do spike criou o arquivo no
+   lugar errado.
+3. **Não há allow-list de comando em modo headless** (detalhe na seção 3C acima).
+   É a diferença que separa este harness do Pi: lá a lista é frouxa, aqui ela é
+   ignorada. `enforcement` sai `ADVISORY` nos dois, mas o aviso é outro.
+
+Matriz de capabilities, com o que foi exercitado: `streaming`,
+`structuredOutput` (nativo, `--json-schema` validado de ponta a ponta),
+`resume`, `toolEvents`, `tokenUsage`, `modelSelection` e `hostExecution` em
+`true`; `forkSession` (não há `--fork-session`), `multiTurnProcess` (possível,
+não implementado), `agentSelection` (a flag existe, mas `agy agents` não lista
+agente nenhum), `nativePermissions` e `dockerExecution` em `false`.
+
+Verificado à mão, com API e Worker no ar sobre um banco separado
+(`dungeon_master_fase3`), num repositório de teste:
+
+- **"Campo aberto" + "crie OLA.md e faça commit" termina `FAILED`**, e está
+  certo: o arquivo é criado (`Artifact OLA.md`), o `git status` é negado, e o
+  Run sai com `PERMISSION_DENIED`, `agentStatus: blocked` e o worktree
+  preservado. O aviso do Worker sobre a allow-list aparece antes do `RunStarted`.
+- **Com `allowUnsafeBypass` no perfil, o mesmo Run termina `SUCCEEDED`** com
+  `result.commits` trazendo o sha e o assunto, artefato e sessão capturada.
+- **Cancelamento**: `CANCELLED` com `processTreeTerminated: true` e método
+  `taskkill`; `agy.exe` vivo durante o Run e ausente depois. Contagem de
+  processos `agy` igual antes e depois de tudo: zero.
+- **Retomada por `resumeFromRunId`** reusa o mesmo `conversation_id` e o agente
+  responde a partir do contexto do Run anterior.
+
+Pendências da Fase 3:
+
+- **3D (Docker) é de outra rodada.** A credencial do `agy` vem do chaveiro do
+  sistema — uma `HOME` vazia continua autenticada —, então não há arquivo para
+  montar somente-leitura nem variável de ambiente, que são os dois caminhos do
+  ADR 0001. `dockerExecution` fica `false` até aquele gate.
+- **Um Loadout de Antigravity com um perfil de allow-list não executa comando
+  nenhum.** Quem quiser que ele commite precisa ligar `allowUnsafeBypass`, que é
+  barulhento de propósito. Vale considerar mostrar isso na tela de Equipamento.
+- **Sessão contínua** (`--input-format stream-json` com várias linhas) e
+  **`--agent`** ficam para quando houver necessidade e agente para exercitar.
+- **`--mode accept-edits`/`plan`** não entra: o binário carrega a mensagem
+  "`--mode` is not supported headless".
 
 ### Critério de conclusão da Fase 3
 

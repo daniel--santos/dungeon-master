@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import type {
   CommandAccess,
+  HarnessKey,
   Run,
   RunEvent,
   RunStatus,
@@ -113,6 +114,8 @@ export async function montarCenario(
     workspaceStrategy?: WorkspaceStrategy;
     allowUnsafeBypass?: boolean;
     commandExecution?: CommandAccess;
+    /** Harness do Loadout. Padrão: `CLAUDE_CODE`, que é o do harness falso. */
+    harnessKey?: HarnessKey;
   },
 ): Promise<Cenario> {
   const project = await createProject(db, { userId: USER, title: `Project ${input.nome}` });
@@ -127,9 +130,10 @@ export async function montarCenario(
     `a criação da Task ${input.nome}`,
   );
 
+  const harnessKey = input.harnessKey ?? "CLAUDE_CODE";
   const harnesses = await listHarnesses(db, { userId: USER });
-  const harness = harnesses.find((item) => item.key === "CLAUDE_CODE");
-  if (harness === undefined) throw new Error("O Harness CLAUDE_CODE não foi semeado.");
+  const harness = harnesses.find((item) => item.key === harnessKey);
+  if (harness === undefined) throw new Error(`O Harness ${harnessKey} não foi semeado.`);
 
   const perfis = await listExecutionProfiles(db, { userId: USER });
   const perfil = perfis.find((item) => item.enabled);

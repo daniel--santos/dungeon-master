@@ -37,7 +37,7 @@ const PLATFORM_BOUNDARY_MESSAGE =
   "Fronteira: packages/platform importa somente builtins do Node (node:*) e módulos do próprio pacote.";
 
 const RUNTIME_BOUNDARY_MESSAGE =
-  "Fronteira: packages/runtime e runtime-sandcastle não importam banco, ORM, HTTP nem logger; o store entra por injeção de contrato.";
+  "Fronteira: os pacotes de runtime não importam banco, ORM, HTTP nem logger; o store entra por injeção de contrato.";
 
 export default tseslint.config(
   {
@@ -220,7 +220,7 @@ export default tseslint.config(
     },
   },
 
-  // ---------------------------------- packages/runtime e runtime-sandcastle
+  // ------------------------------- packages/runtime, sandcastle e antigravity
   //
   // O runtime executa e garante término; ele não persiste nada. O store, o
   // writer de evento e o relógio entram por injeção de contrato (planejamento
@@ -231,7 +231,11 @@ export default tseslint.config(
   // `regex` e não `group`: a sintaxe de `group` é a do gitignore, onde `**`
   // casa o caminho relativo inteiro e as negações não o devolvem.
   {
-    files: ["packages/runtime/src/**/*.ts", "packages/runtime-sandcastle/src/**/*.ts"],
+    files: [
+      "packages/runtime/src/**/*.ts",
+      "packages/runtime-sandcastle/src/**/*.ts",
+      "packages/runtime-antigravity/src/**/*.ts",
+    ],
     rules: {
       "@typescript-eslint/no-restricted-imports": [
         "error",
