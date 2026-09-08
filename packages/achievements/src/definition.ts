@@ -21,18 +21,36 @@ export const LocalizedTextSchema = z.strictObject({
 
 export type LocalizedText = z.infer<typeof LocalizedTextSchema>;
 
-/** Quem definiu a Conquista. */
-export const AchievementOriginSchema = z.enum(["CATALOG", "TEMPLATE", "FORGED"]);
+/**
+ * Quem definiu a Conquista.
+ *
+ * O array vem antes do schema, como em `TASK_STATUS_VALUES`: o `z.enum` daqui e
+ * o `pgEnum` de `@dungeon-master/database` precisam concordar, e usar o mesmo
+ * array nos dois é a única forma de garantir isso sem disciplina.
+ */
+export const ACHIEVEMENT_ORIGIN_VALUES = ["CATALOG", "TEMPLATE", "FORGED"] as const;
+
+export const AchievementOriginSchema = z.enum(ACHIEVEMENT_ORIGIN_VALUES);
 
 export type AchievementOrigin = z.infer<typeof AchievementOriginSchema>;
 
 /** A que a Conquista está presa. `GLOBAL` não tem `scopeId`. */
-export const AchievementScopeSchema = z.enum(["GLOBAL", "PROJECT", "HARNESS", "AGENT", "TASK"]);
+export const ACHIEVEMENT_SCOPE_VALUES = [
+  "GLOBAL",
+  "PROJECT",
+  "HARNESS",
+  "AGENT",
+  "TASK",
+] as const;
+
+export const AchievementScopeSchema = z.enum(ACHIEVEMENT_SCOPE_VALUES);
 
 export type AchievementScope = z.infer<typeof AchievementScopeSchema>;
 
 /** Raridade, só cosmética. */
-export const AchievementRaritySchema = z.enum(["COMMON", "RARE", "EPIC", "LEGENDARY"]);
+export const ACHIEVEMENT_RARITY_VALUES = ["COMMON", "RARE", "EPIC", "LEGENDARY"] as const;
+
+export const AchievementRaritySchema = z.enum(ACHIEVEMENT_RARITY_VALUES);
 
 export type AchievementRarity = z.infer<typeof AchievementRaritySchema>;
 
