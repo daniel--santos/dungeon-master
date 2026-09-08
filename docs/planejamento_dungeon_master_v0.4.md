@@ -570,7 +570,7 @@ Fica pendente para as rodadas seguintes da Fase 2:
 - [x] Codex via host
 - [x] Pi via host
 - [x] Preflight de CLIs instaladas e descoberta de versão, por SO — no boot do Worker, gravando `installed_version`, `checked_at` e `capabilities`
-- [ ] Verificação de autenticação quando possível
+- [x] Verificação de autenticação quando possível
 - [x] Working directory explícito
 - [x] **Git worktree por Run como default**, com trava por (repositório, caminho) no PostgreSQL antes de subir qualquer processo — a trava é adquirida, a posse é confirmada com `getActiveRunByPath` imediatamente antes do processo, e o worktree é criado pelo Worker
 - [x] Teto de capacidade de runs concorrentes, com a trava por chave do Archon (seção 13.2) — `packages/runs/src/capacity-lock.ts`
@@ -584,16 +584,16 @@ Fica pendente para as rodadas seguintes da Fase 2:
 - [x] Sanitização de credenciais em todo payload de evento, com o sanitizador do Archon (seção 13.2) — aplicada em `insertRunEvent`
 - [x] Streaming SSE para a interface via NOTIFY + drain — `GET /api/v1/runs/{id}/events/stream`, um poller por Run olhado, canal `dm_run_event` sem payload
 - [x] Marca d'água no poller de eventos: o cursor só avança até a primeira lacuna de `sequence`, com prazo curto para desistir de uma lacuna que um `ROLLBACK` queimou
-- [ ] Tela de execução ao vivo (Run Cockpit, "Cristal de Visão" no tema)
-- [ ] Canal de dashboard no SSE para eventos fora de um Run (desbloqueio de Conquista, stats de herói), no padrão do canal de dashboard do Archon
+- [x] Tela de execução ao vivo (Run Cockpit, "Cristal de Visão" no tema)
+- [x] Canal de dashboard no SSE para eventos fora de um Run (desbloqueio de Conquista, stats de herói), no padrão do canal de dashboard do Archon
 - [x] Testes de contrato de harness rodando na matriz Windows + macOS — sempre com o harness falso, e com as CLIs reais onde elas existem
 
 ### Segurança obrigatória no modo HOST
 
-- [ ] Indicador visual `UNISOLATED`
-- [ ] Aceite explícito para execução host
-- [ ] Working directory restrito ao esperado
-- [ ] Nunca assumir que o agente está restrito ao diretório
+- [x] Indicador visual `UNISOLATED`
+- [x] Aceite explícito para execução host
+- [x] Working directory restrito ao esperado
+- [x] Nunca assumir que o agente está restrito ao diretório
 - [x] Não expor segredos desnecessários — allow-list própria, nunca `{ ...process.env }`
 - [x] Registrar comandos e tool calls quando o harness disponibilizar — `ToolCall`/`ToolResult` em `run_event`
 - [x] Política de permissões por Loadout — traduzida pelo Worker, que é quem decide o que `commandExecution: ALL` significa em cada harness
@@ -726,7 +726,25 @@ Canvas: https://claude.ai/code/artifact/b39beab6-6089-4ca2-8027-0d2c60b1f3c8 (fo
 - **Cancelar uma Expedição abre um diálogo de confirmação** (AlertDialog), e a Expedição só vira Retirada depois de `ProcessTreeTerminated`. Decisão do usuário sobre a proposta de confirmar no segundo toque.
 - **"Retomar a Expedição"** aparece só quando a Guilda declara `resume` nas capabilities e um `harnessSessionId` foi capturado.
 
-## Andamento da Fase 2 (08/09/2026)
+## Fechamento da Fase 2 e da Fase 2.5A/B (08/09/2026)
+
+**Critério de conclusão da Fase 2 cumprido** pela interface e pelo Worker, nos dois sistemas no CI e com o Claude Code real no host e em Docker: criar Missão, escolher Equipamento, escolher Campo aberto ou Masmorra selada, executar, acompanhar o Diário ao vivo com reconexão, cancelar com a árvore confirmada morta (host) ou o container confirmado removido (Docker), consultar resultado estruturado, sessão e histórico, e dois Runs concorrentes no mesmo repositório sem colisão.
+
+O que entrou nesta última rodada (retomada após uma queda de energia, com os agentes recriados sobre os próprios worktrees):
+
+- **Permissões**: comandos confiáveis como **subcomandos** (`git add`, `git commit`, `git status`, `git diff`, `git log`), nunca `git` inteiro; "crie um arquivo e faça commit" termina sem negação e `git reset --hard` é negado. Migração de dados `0007` reescreve a allow-list antiga nos bancos já instalados. Correção do `500` em JSON malformado (status de `HTTPException`).
+- **Identidade git no agente**: o ambiente por allow-list não levava `HOME` no Windows e o `git commit` do agente falhava em silêncio no CI; agora `AGENT_GIT_ENV_KEYS` vai a todo harness, sem chaves de credencial de remoto, e a falha de coleta do worktree vira `Diagnostic`. O cenário de teste usa `user.useConfigOnly`, porque no macOS e no Linux o git inventa identidade.
+- **Docker (2C)**: ADR `docs/adr/0001-autenticacao-em-docker.md` — Claude Code **suportado** (`CLAUDE_CODE_OAUTH_TOKEN` ou o `.credentials.json` do host montado somente leitura), Pi **suportado** (`GEMINI_API_KEY`), Codex **experimental**. Imagem `dungeon-master-agent:0.1.0` (1,28 GB, build 75 s, partida 0,7–1,1 s), backend de container com segredo pelo ambiente do cliente (nunca no argv), bind mount do worktree com `safe.directory` (no Windows o mount aparece como root), kill por `docker rm -f` confirmado. Suíte de contrato 11/11 com `claude-code@docker`; Run real commitou dentro do container e o commit apareceu no host. Perfil "Masmorra selada" habilitado (migração `0008`).
+- **Projetor de Conquistas (2.5B)**: tabelas, projetor por cursor (posição viaja como texto para não perder microssegundos), instanciação de templates, desbloqueios idempotentes, `hero_stats`, `pnpm dm achievements rebuild` reproduzindo, API `GET /achievements`, `/achievements/unlocks`, `POST .../seen`, `GET /heroes/stats`.
+- **Fechamento da web**: workspace da Campanha, Retomar a Expedição, filtro por Guilda e título da Missão em `GET /runs`, e2e do fluxo completo.
+
+Pendências que ficam registradas:
+
+- `pi@docker` não verificável nesta máquina (cota zerada da chave do provedor; agora falha visivelmente em vez de virar sucesso vazio). `resume` entre Runs não provado em Docker (a sessão morre com `--rm`). Allow-list de rede não é imponível sem proxy. Commits só coletados em `GIT_WORKTREE`; `COPY` recusado. `ApprovalRequested` não é emitido por nenhuma CLI (Fase 4).
+- Um comando composto do agente (`git add X; git commit`) é negado pela CLI mesmo com os prefixos liberados; custa um turno ao agente.
+- **2.5D (web)**: Hall com progresso real, toast de desbloqueio, Heróis, Bestiário e Crônica com dados — próxima rodada.
+
+## Andamento anterior da Fase 2 (histórico)
 
 Mergeadas e verdes no CI: 2A (modelo, banco, API), 2B (runtime e adapters de host; ADR em `packages/runtime-sandcastle/README.md`: os adapters não dependem do Sandcastle em runtime), o Worker (laço, reconciliação, cancelamento confirmado, shutdown gracioso, `resumeFromRunId`, marca d'água do poller) e as telas (cadastros, Nova Expedição com aceite do modo host, Expedições, Cristal de Visão com diário ao vivo e AlertDialog de cancelamento).
 

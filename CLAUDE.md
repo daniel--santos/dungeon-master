@@ -96,6 +96,14 @@ pnpm db:check               # falha se schema e migrações divergirem
 Regras:
 
 - **Migração aplicada e commitada nunca é editada.** Corrija com uma migração nova.
+- **Nunca aplique a migração da sua branch no banco de desenvolvimento compartilhado** antes
+  do merge: o migrador do Drizzle só aplica entradas com carimbo maior que o último
+  registrado, e uma linha de branch deixada para trás faz a migração de outra branch ser
+  pulada para sempre. Verifique num banco separado (`createdb` no mesmo servidor) ou no
+  embutido dos testes.
+- **Migração de dados escrita à mão** (o gerador só emite diff de schema) recebe o próximo
+  número do journal e um `when` maior que o da última entrada; ao mesclar a `main`, renumere
+  se outra chegou antes.
 - Os arquivos em `packages/database/drizzle/`, inclusive `meta/`, são commitados.
 - `pnpm db:check` roda no CI. Ele gera uma migração de sondagem e falha se o gerador
   produzir qualquer arquivo, o que significa schema sem migração correspondente.
@@ -189,6 +197,8 @@ Windows 11 e macOS são de primeira classe; o CI roda nos dois em todo commit.
   pacote instala um `async-exit-hook` global que intercepta `process.exit` e devolve código 0
   mesmo com teste falhando, o que deixou o CI verde com suíte vermelha. Ele fica em
   devDependencies só para instalar os binários; o helper chama `initdb` e `pg_ctl` direto.
+- **Segredo nunca vai no argv.** `docker run -e NOME` sem `=valor`, com o valor no ambiente do
+  cliente; qualquer processo da máquina lê a linha de comando dos outros.
 - **Prove que o vermelho é vermelho.** Ao mexer em infraestrutura de teste, crie um teste que
   falha de propósito, rode o pacote e confira `exit 1`; depois apague o teste.
 
