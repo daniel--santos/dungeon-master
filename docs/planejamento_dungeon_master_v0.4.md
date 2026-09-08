@@ -811,6 +811,25 @@ Pendências que ficam registradas:
 
 **Fase 6 iniciada** (Knowledge + Distillation): `packages/knowledge` com prompts e helpers adaptados do TencentDB, Distiller assíncrono sob advisory lock por Campanha, itens do Grimório com proveniência e revisão humana ligada por padrão, Project Summary, telas Grimório e Decisões, e as Conquistas forjadas da parte 2.5C passando pela fila de revisão.
 
+## Fechamento da Fase 6 (08/09/2026)
+
+**Critério de conclusão da Fase 6 cumprido**: o sistema acumula aprendizado em vez de só histórico. Provado com Claude Code real: uma Expedição gravou três candidatos no desfecho, inclusive a decisão; o Escriba promoveu os três numa chamada; a revisão aprovou dois, recusou um e recebeu 409 na segunda decisão; a segunda Expedição, com o mesmo aprendizado reescrito, terminou fundida ao item existente com o motivo registrado; o Resumo da Campanha foi gerado a partir dos itens ativos; e uma Conquista forjada nasceu em revisão, invisível no Hall.
+
+O que entrou:
+
+- **6A, backend**: `packages/knowledge` puro com portas (prompts de extração, julgamento de duplicata e resumo adaptados do TencentDB Agent Memory com atribuição, filtro de ruído L0, funil de deduplicação em duas fases com fail-open sobre recall FTS, gatilho do resumo com cinco condições, agendador por lote, ociosidade e timer, sanitização por `escapeXmlTags`, critério de resultado notável e forja); migração `0012` com `knowledge_item` (tsvector gerado e índice GIN), `distillation_run`, decisão e proveniência em `knowledge_candidate`, revisão e proveniência das forjadas em `achievement_definition`, e trigger `NOTIFY` na chegada de candidato; `decisions` do resultado viram candidatos na mesma transação do desfecho; Distiller como laço próprio do Worker sob `pg_advisory_xact_lock` por Campanha, com o Escriba do Grimório rodando pelo `AgentRuntime` num workspace temporário sem comandos, uma chamada por lote, saída por JSON Schema e sem chave de API à parte; revisão humana ligada por padrão; treze rotas novas e as configurações `knowledge.humanReview`, `knowledge.loadoutId`, `knowledge.distillEveryMinutes` e `achievements.forgeEveryNRuns`; CLI `pnpm dm knowledge distill` e `status`; convenção de post-mortem em comentário no `CLAUDE.md`, com o `#1` numa correção real (gravar `null` em configuração JSON).
+- **6B, web**: Grimório da Campanha em `/projects/:id/knowledge` com o Resumo em destaque, fila do Selo do Escriba (selar, corrigir antes de selar, recusar com nota), lista com filtros e busca na URL, gaveta de detalhe com proveniência e candidatos fundidos, abas de Decretos e de Lotes; `/knowledge` global por Campanha; vereditos do Escriba nos candidatos do cockpit; bloco Grimório em Settings; seção "Na forja" no Hall com pendurar, reescrever e descartar; toasts e contador na navegação; 17 testes de ponta a ponta.
+
+Pendências que ficam registradas:
+
+- O Loadout do Escriba aparece no seletor de Equipamento da Nova Expedição e é pré-selecionado por ordem alfabética; falta um marcador de finalidade no Loadout.
+- API: soma da fila de revisão de todas as Campanhas; leitura de candidato por id; nome do Loadout no lote de destilação; `GET /achievements/forged` filtra só por estado de revisão.
+- O primeiro lote de uma Campanha sempre forja a "primeira vitória da Guilda"; o nêmesis fica inerte até "reabrir Missão" existir.
+- Ambiente: um processo da API morreu em silêncio uma vez durante a prova, sem defeito encontrado; mesmo padrão do Vite e do vitest nesta máquina.
+- CI: os jobs do GitHub Actions estão bloqueados por cobrança da conta; até liberar, o gate é a verificação local completa.
+
+**Fase 7 iniciada** (Context Engine): `packages/context` com o montador de contexto estável ao longo do Run (Resumo da Campanha, decretos e itens relevantes, contexto da Missão mãe e das dependências, artefatos, orçamento de tokens com o estimador rápido), sanitização anti-injeção antes de reinjetar texto escrito por modelo, ferramentas somente leitura de busca no Grimório expostas ao agente, e registro do que foi recuperado por Expedição.
+
 ## Andamento anterior da Fase 2 (histórico)
 
 Mergeadas e verdes no CI: 2A (modelo, banco, API), 2B (runtime e adapters de host; ADR em `packages/runtime-sandcastle/README.md`: os adapters não dependem do Sandcastle em runtime), o Worker (laço, reconciliação, cancelamento confirmado, shutdown gracioso, `resumeFromRunId`, marca d'água do poller) e as telas (cadastros, Nova Expedição com aceite do modo host, Expedições, Cristal de Visão com diário ao vivo e AlertDialog de cancelamento).
