@@ -81,6 +81,9 @@ importers:
         specifier: 4.5.4
         version: 4.5.4
     devDependencies:
+      '@dungeon-master/knowledge':
+        specifier: workspace:*
+        version: link:../../packages/knowledge
       '@types/node':
         specifier: 26.5.0
         version: 26.5.0

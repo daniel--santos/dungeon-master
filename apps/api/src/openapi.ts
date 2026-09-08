@@ -43,9 +43,15 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       },
       {
         name: "knowledge",
-        description: "KnowledgeCandidates: o que os Runs aprenderam, à espera da destilação.",
+        description:
+          "O Grimório: candidatos, itens de conhecimento com revisão humana, o resumo e as " +
+          "decisões do Project, e os lotes do Distiller.",
       },
-      { name: "achievements", description: "O catálogo versionado de Conquistas." },
+      {
+        name: "achievements",
+        description:
+          "O catálogo versionado de Conquistas, a projeção de progresso e as forjadas em revisão.",
+      },
     ],
   }) as unknown as Record<string, unknown>;
 }

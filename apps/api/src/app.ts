@@ -14,6 +14,7 @@ import { requestId } from "hono/request-id";
 import { API_BASE_PATH, API_VERSION } from "./config.js";
 import { registerAchievementRoutes } from "./handlers/achievements.js";
 import { registerInboxRoutes } from "./handlers/inbox.js";
+import { registerKnowledgeRoutes } from "./handlers/knowledge.js";
 import { registerPreflightRoutes } from "./handlers/preflight.js";
 import { registerProjectRoutes } from "./handlers/projects.js";
 import {
@@ -306,6 +307,10 @@ export function createApp(options: CreateAppOptions) {
   registerProposedTaskRoutes(app, options.work.proposedTasks);
   registerKnowledgeCandidateRoutes(app, options.work.knowledgeCandidates);
 
+  // ------------------------------------------------------- Grimório (Fase 6)
+
+  registerKnowledgeRoutes(app, options.work.knowledge);
+
   // ------------------------------------------------------------- execução
 
   registerHarnessRoutes(app, options.execution.harnesses);
@@ -357,11 +362,14 @@ export function createApp(options: CreateAppOptions) {
       },
       {
         name: "knowledge",
-        description: "KnowledgeCandidates: o que os Runs aprenderam, à espera da destilação.",
+        description:
+          "O Grimório: candidatos, itens de conhecimento com revisão humana, o resumo e as " +
+          "decisões do Project, e os lotes do Distiller.",
       },
       {
         name: "achievements",
-        description: "O catálogo versionado de Conquistas e a projeção de progresso.",
+        description:
+          "O catálogo versionado de Conquistas, a projeção de progresso e as forjadas em revisão.",
       },
       { name: "heroes", description: "Estatísticas de Herói e de Equipamento. Projeção." },
     ],

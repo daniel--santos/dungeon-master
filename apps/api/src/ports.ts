@@ -1,4 +1,5 @@
 import type {
+  AchievementReviewStatus,
   Activity,
   Agent,
   ApprovalDecision,
@@ -6,12 +7,18 @@ import type {
   ApprovalGateListItem,
   DashboardEvent,
   DashboardEventType,
+  DistillationRun,
   DockerPreflight,
   ExecutionProfile,
+  ForgedAchievement,
   Harness,
   JsonValue,
   KnowledgeCandidate,
+  KnowledgeItem,
+  KnowledgeItemStatus,
+  KnowledgeItemType,
   Loadout,
+  ProjectSummary,
   Model,
   Project,
   ProjectDetail,
@@ -50,8 +57,12 @@ import type {
   CreateExecutionProfileInput,
   CreateLoadoutInput,
   DependencyWriteFailure,
+  DistillationRunFilters,
+  ForgedAchievementWriteFailure,
   InboxFailure,
   KnowledgeCandidateFilters,
+  KnowledgeItemFilters,
+  KnowledgeItemWriteFailure,
   PageResult,
   ProposedTaskFilters,
   ProposedTaskWriteFailure,
@@ -250,11 +261,63 @@ export interface ProposedTasksPort {
   ): Promise<Result<ProposedTask, ProposedTaskWriteFailure> | null>;
 }
 
-/** Os candidatos a conhecimento. Só leitura até a Fase 6. */
+/** Os candidatos a conhecimento. Só leitura: quem os decide é o Distiller. */
 export interface KnowledgeCandidatesPort {
   list(
     input: PageRequest & { filters: KnowledgeCandidateFilters },
   ): Promise<PageResult<KnowledgeCandidate>>;
+}
+
+/** O que `PATCH /knowledge-items/{id}` aceita, já validado. */
+export interface UpdateKnowledgeItemRequest {
+  title?: string;
+  content?: string;
+  type?: Exclude<KnowledgeItemType, "SUMMARY">;
+  archived?: boolean;
+}
+
+/**
+ * O Grimório (Fase 6): leitura por Project, revisão por item, o resumo
+ * corrente, as decisões, o pedido de lote e os lotes.
+ *
+ * Nada aqui chama um modelo. `distill` só acorda o Worker pelo canal do banco
+ * e devolve quantos candidatos esperam; `null` é o Project que não existe.
+ */
+export interface KnowledgePort {
+  /** `null` quando o Project não existe: o Grimório de um Project inexistente é 404. */
+  listItems(
+    projectId: string,
+    input: PageRequest & { filters: Omit<KnowledgeItemFilters, "projectId"> },
+  ): Promise<PageResult<KnowledgeItem> | null>;
+  getItem(knowledgeItemId: string): Promise<KnowledgeItem | null>;
+  updateItem(
+    knowledgeItemId: string,
+    patch: UpdateKnowledgeItemRequest,
+  ): Promise<Result<KnowledgeItem, KnowledgeItemWriteFailure> | null>;
+  approveItem(
+    knowledgeItemId: string,
+    input: { note?: string },
+  ): Promise<Result<KnowledgeItem, KnowledgeItemWriteFailure> | null>;
+  rejectItem(
+    knowledgeItemId: string,
+    input: { note?: string },
+  ): Promise<Result<KnowledgeItem, KnowledgeItemWriteFailure> | null>;
+  summary(projectId: string): Promise<ProjectSummary | null>;
+  decisions(
+    projectId: string,
+    input: PageRequest & { status?: KnowledgeItemStatus | undefined },
+  ): Promise<PageResult<KnowledgeItem> | null>;
+  distill(projectId: string): Promise<{ pendingCandidates: number } | null>;
+  distillationRuns(
+    input: PageRequest & { filters: DistillationRunFilters },
+  ): Promise<PageResult<DistillationRun>>;
+}
+
+/** O texto que o usuário reescreve numa forjada. */
+export interface RenameForgedRequest {
+  name?: string;
+  description?: string;
+  flavor?: string;
 }
 
 // --------------------------------------------------------------------------
@@ -420,15 +483,29 @@ export interface AchievementsPort {
   /** `null` quando não existe desbloqueio com este id: é o 404. */
   markSeen(unlockId: string): Promise<AchievementUnlockView | null>;
   heroStats(): Promise<HeroStatsResponse>;
+  /** As forjadas (Fase 2.5C). Sem filtro, as em revisão. */
+  listForged(reviewStatus?: AchievementReviewStatus | undefined): Promise<ForgedAchievement[]>;
+  approveForged(
+    definitionId: string,
+    patch: RenameForgedRequest,
+  ): Promise<Result<ForgedAchievement, ForgedAchievementWriteFailure> | null>;
+  renameForged(
+    definitionId: string,
+    patch: RenameForgedRequest,
+  ): Promise<Result<ForgedAchievement, ForgedAchievementWriteFailure> | null>;
+  discardForged(
+    definitionId: string,
+  ): Promise<Result<ForgedAchievement, ForgedAchievementWriteFailure> | null>;
 }
 
-/** As portas de trabalho juntas, para `createApp` receber uma dependência em vez de cinco. */
+/** As portas de trabalho juntas, para `createApp` receber uma dependência em vez de seis. */
 export interface WorkPort {
   readonly projects: ProjectsPort;
   readonly tasks: TasksPort;
   readonly inbox: InboxPort;
   readonly proposedTasks: ProposedTasksPort;
   readonly knowledgeCandidates: KnowledgeCandidatesPort;
+  readonly knowledge: KnowledgePort;
 }
 
 /**
@@ -508,6 +585,17 @@ export function createSpecPorts(): {
       knowledgeCandidates: {
         list: inerte("a listagem de KnowledgeCandidates"),
       },
+      knowledge: {
+        listItems: inerte("o Grimório do Project"),
+        getItem: inerte("a leitura de KnowledgeItem"),
+        updateItem: inerte("a edição de KnowledgeItem"),
+        approveItem: inerte("a aprovação de KnowledgeItem"),
+        rejectItem: inerte("a recusa de KnowledgeItem"),
+        summary: inerte("o resumo do Project"),
+        decisions: inerte("as decisões do Project"),
+        distill: inerte("o pedido de lote do Distiller"),
+        distillationRuns: inerte("a listagem de DistillationRuns"),
+      },
     },
     execution: {
       dockerPreflight: { check: inerte("o preflight do Docker") },
@@ -575,6 +663,10 @@ export function createSpecPorts(): {
       unlocks: inerte("a crônica de desbloqueios"),
       markSeen: inerte("a marcação de desbloqueio visto"),
       heroStats: inerte("as estatísticas de Herói"),
+      listForged: inerte("a listagem de Conquistas forjadas"),
+      approveForged: inerte("a aprovação de Conquista forjada"),
+      renameForged: inerte("a renomeação de Conquista forjada"),
+      discardForged: inerte("o descarte de Conquista forjada"),
     },
   };
 }
