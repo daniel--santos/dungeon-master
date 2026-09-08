@@ -29,9 +29,11 @@ import type {
   AgentRuntime,
   CommitRef,
   ExecutionRequest,
+  WorkspaceChange,
   WorkspaceManager,
   WorktreeHandle,
 } from "@dungeon-master/runtime";
+import { PERMISSION_DENIED_DIAGNOSTIC_CODE } from "@dungeon-master/runtime";
 
 import type { Logger } from "./logger.js";
 import { resolveRunPolicies } from "./policy.js";
@@ -106,6 +108,24 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
   let sessionId: string | null = run.harnessSessionId;
   let harnessVersion: string | null = run.harnessVersion;
   let usage: UsageSummary | undefined;
+  /**
+   * Caminhos que o harness já anunciou como `Artifact` no stream.
+   *
+   * Só o Codex os emite hoje. O que o diff do worktree encontrar e já estiver
+   * aqui não vira evento de novo: dois espólios do mesmo arquivo na timeline
+   * seriam ruído, e o do harness costuma trazer mais contexto que o nosso.
+   */
+  const artefatosDoHarness = new Set<string>();
+  /**
+   * Ferramentas que o harness recusou durante o Run.
+   *
+   * Uma negação sozinha não reprova nada: medido contra a CLI real, o agente
+   * tenta `PowerShell`, é negado, refaz com `Bash` e termina a tarefa. O que
+   * decide é o **conjunto**: negação mais trabalho inacabado é falta de
+   * permissão, e a interface precisa dizer isso em vez de mostrar um Run
+   * bem-sucedido com a Task bloqueada.
+   */
+  const ferramentasNegadas = new Set<string>();
 
   const append = async (event: ExecutionEvent): Promise<void> => {
     await appendRunEvent(db, {
@@ -438,6 +458,18 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
           await append(event);
           break;
 
+        case "Artifact":
+          artefatosDoHarness.add(normalizeArtifactPath(event.path));
+          await append(event);
+          break;
+
+        case "Diagnostic":
+          if (event.code === PERMISSION_DENIED_DIAGNOSTIC_CODE) {
+            ferramentasNegadas.add(describeDeniedTool(event.message));
+          }
+          await append(event);
+          break;
+
         case "RunCompleted":
         case "RunFailed":
         case "RunTimedOut":
@@ -499,12 +531,27 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
     const worktree = preparation?.worktree;
 
     let commits: readonly CommitRef[] = [];
+    let changes: readonly WorkspaceChange[] = [];
     if (worktree !== undefined) {
       try {
         commits = await deps.workspace.collectCommits(worktree.path, worktree.baseCommit);
       } catch (error) {
         logger?.warn({ err: error, runId: run.id }, "não consegui coletar os commits do worktree");
       }
+      try {
+        changes = await deps.workspace.collectChanges(worktree.path, worktree.baseCommit);
+      } catch (error) {
+        logger?.warn({ err: error, runId: run.id }, "não consegui ler o diff do worktree");
+      }
+    }
+
+    // Os espólios saem **antes** do evento terminal, porque depois dele nada
+    // mais é emitido (contrato do `ExecutionEvent`). Só o Codex anuncia
+    // artefatos sozinho; sem esta passagem, a mesma tarefa deixaria rastro
+    // diferente conforme a Guilda escolhida.
+    for (const mudanca of changes) {
+      if (artefatosDoHarness.has(normalizeArtifactPath(mudanca.path))) continue;
+      await append(toArtifactEvent(harness, mudanca));
     }
 
     // O worktree é removido só num sucesso limpo. Falha, timeout, cancelamento
@@ -551,6 +598,31 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
         );
       }
 
+      // Negação de permissão mais trabalho inacabado é falta de permissão, e
+      // não um Run bem-sucedido cuja Task ficou bloqueada. O primeiro Run desta
+      // fase terminou assim: `SUCCEEDED` na tela, Task `BLOCKED`, e o motivo —
+      // a CLI recusou `git add` — só aparecia se alguém lesse a prosa do
+      // agente. `FAILED` com o que faltou na allow-list é acionável e
+      // retentável; a correção é uma edição no perfil.
+      if (estruturado.status !== "completed" && ferramentasNegadas.size > 0) {
+        const negadas = [...ferramentasNegadas].sort().join(", ");
+        await writeTerminal({
+          status: "FAILED",
+          error: {
+            code: "PERMISSION_DENIED",
+            message:
+              `O agente não concluiu a tarefa e teve permissão negada para: ${negadas}. ` +
+              (estruturado.summary ?? "Sem resumo do agente."),
+            retryable: true,
+            deniedTools: [...ferramentasNegadas].sort(),
+            agentStatus: estruturado.status,
+            ...comumDoDesfecho(preservedPath, commits),
+          },
+          events: [toRunEventInput(event)],
+        });
+        return;
+      }
+
       const result: RunResult = {
         ...estruturado,
         ...(usage === undefined ? {} : { usage }),
@@ -562,10 +634,7 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
       return;
     }
 
-    const comum = {
-      ...(preservedPath === undefined ? {} : { preservedWorktreePath: preservedPath }),
-      ...(commits.length === 0 ? {} : { commits }),
-    };
+    const comum = comumDoDesfecho(preservedPath, commits);
 
     if (event.type === "RunFailed") {
       await writeTerminal({
@@ -625,6 +694,66 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
       events: [toRunEventInput(event)],
     });
   }
+}
+
+/** Os campos que todo desfecho carrega, tenha ele resultado ou erro. */
+function comumDoDesfecho(
+  preservedWorktreePath: string | undefined,
+  commits: readonly CommitRef[],
+): Record<string, unknown> {
+  return {
+    ...(preservedWorktreePath === undefined ? {} : { preservedWorktreePath }),
+    ...(commits.length === 0 ? {} : { commits }),
+  };
+}
+
+/**
+ * O nome da ferramenta dentro da mensagem de negação.
+ *
+ * A mensagem é montada pelo adapter e começa com "Permissão negada para X:".
+ * Ler o nome dali é feio, e a alternativa — mais um campo no evento só para
+ * isto — seria pior: o `code` já diz o que aconteceu, e o nome é detalhe de
+ * apresentação. Quando o formato não casa, o texto inteiro vale como nome.
+ */
+export function describeDeniedTool(message: string): string {
+  return /^Permissão negada para (.+?):/u.exec(message)?.[1] ?? message;
+}
+
+/**
+ * Um caminho comparável entre o que o harness anunciou e o que o diff achou.
+ *
+ * O git fala em `/` e caminho relativo; um harness pode mandar `.\OLA.md` ou o
+ * caminho absoluto do worktree. Sem normalizar, o mesmo arquivo entraria duas
+ * vezes na timeline.
+ */
+export function normalizeArtifactPath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "").toLowerCase();
+}
+
+/**
+ * Uma mudança do worktree virando espólio.
+ *
+ * `kind` carrega **o que aconteceu com o arquivo**, e não a palavra "file": o
+ * campo é classificação livre no contrato, e "criado" ou "apagado" é o que quem
+ * lê a timeline precisa saber. O tamanho vai junto quando o arquivo ainda
+ * existe, porque um caminho sem tamanho não parece um arquivo.
+ */
+export function toArtifactEvent(harness: HarnessKey, change: WorkspaceChange): ExecutionEvent {
+  const kind = {
+    ADDED: "created",
+    MODIFIED: "modified",
+    DELETED: "deleted",
+    RENAMED: "renamed",
+  }[change.change];
+
+  return {
+    type: "Artifact",
+    timestamp: new Date().toISOString(),
+    harness,
+    path: change.path,
+    kind,
+    ...(change.bytes === undefined ? {} : { bytes: change.bytes }),
+  };
 }
 
 /**
