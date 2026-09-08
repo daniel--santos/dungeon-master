@@ -20,19 +20,39 @@ import { cn } from "@/lib/utils";
  * medalhão na cor da raridade, medalhão em silhueta enquanto bloqueada, nome em
  * serif com versalete quando o tema está ligado.
  *
- * Uma carta oculta não vaza a raridade: moldura e medalhão ficam neutros, a
- * pílula some, e o nome vira "???" — senão o Hall entregaria pelo contorno o
- * que a Conquista existe para esconder.
+ * Os quatro estados, e o que cada um muda:
+ *
+ * - **Bloqueada**: moldura a 30% e sem brilho, ícone em silhueta a 60%.
+ * - **Oculta**: não vaza a raridade — moldura e medalhão neutros, a pílula some
+ *   e o nome vira "???". Senão o Hall entregaria pelo contorno o que a
+ *   Conquista existe para esconder.
+ * - **Em progresso**: a bloqueada, mais a barra na cor da raridade e o
+ *   "{feito} de {alvo}". A barra só aparece aqui: numa carta sem nenhum
+ *   progresso ela seria uma linha vazia repetida quinze vezes, e numa
+ *   desbloqueada seria uma barra cheia dizendo o óbvio.
+ * - **Desbloqueada**: moldura a 55%, brilho externo e o sinal de confirmação.
+ *
+ * O grau (`tier`) só aparece quando a Conquista tem mais de um, e o numeral só
+ * depois do primeiro desbloqueio — antes dele a API manda `label` nulo de
+ * propósito, porque "Grau I" numa carta bloqueada prometeria um degrau que
+ * ainda não foi vencido.
  */
 
 const tint = (color: string, percent: number) =>
   `color-mix(in oklab, ${color} ${String(percent)}%, transparent)`;
 
-export function AchievementCard({ card }: { card: Card }) {
+export interface AchievementCardProps {
+  readonly card: Card;
+  /** Desbloqueio que o usuário ainda não viu: ganha um pontinho de destaque. */
+  readonly unseen?: boolean;
+}
+
+export function AchievementCard({ card, unseen = false }: AchievementCardProps) {
   const { t, theme, format } = useGlossary();
 
   const hidden = card.state === "HIDDEN";
   const unlocked = card.state === "UNLOCKED";
+  const inProgress = card.state === "IN_PROGRESS";
   const color = card.rarity === null ? NEUTRAL_COLOR : RARITY_COLOR[card.rarity];
   const Icon = hidden ? HIDDEN_ICON : achievementIcon(card.icon);
 
@@ -47,10 +67,14 @@ export function AchievementCard({ card }: { card: Card }) {
   // escondido por opacidade, ele não é renderizado.
   const flavor = theme === "dnd" && !hidden ? card.flavor : undefined;
 
+  const tierLabel = card.tier.label;
+  const showTier = !hidden && card.tier.total > 1 && tierLabel !== null;
+
   return (
     <article
       className="bg-card flex h-full flex-col gap-3 rounded-[14px] p-4"
       data-achievement={card.key}
+      data-state={card.state}
       style={{
         border: `1px solid ${tint(color, unlocked ? 55 : 30)}`,
         boxShadow: unlocked
@@ -71,18 +95,29 @@ export function AchievementCard({ card }: { card: Card }) {
           <Icon aria-hidden className="size-5" />
         </span>
 
-        {card.rarity !== null && (
-          <span
-            className="inline-flex h-5 w-fit items-center rounded-full px-2 text-[10px] font-semibold tracking-[0.08em] uppercase"
-            style={{
-              border: `1px solid ${tint(color, 45)}`,
-              background: tint(color, 12),
-              color,
-            }}
-          >
-            {t(RARITY_LABEL[card.rarity])}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {unseen && (
+            <span
+              aria-label={t("hall.unseen")}
+              className="size-1.75 rounded-full"
+              data-achievement-unseen
+              style={{ background: color }}
+              title={t("hall.unseen")}
+            />
+          )}
+          {card.rarity !== null && (
+            <span
+              className="inline-flex h-5 w-fit items-center rounded-full px-2 text-[10px] font-semibold tracking-[0.08em] uppercase"
+              style={{
+                border: `1px solid ${tint(color, 45)}`,
+                background: tint(color, 12),
+                color,
+              }}
+            >
+              {t(RARITY_LABEL[card.rarity])}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-1.5">
@@ -93,7 +128,7 @@ export function AchievementCard({ card }: { card: Card }) {
             hidden && "text-muted-foreground",
           )}
         >
-          {name}
+          {showTier ? `${name} ${tierLabel}` : name}
         </h3>
         <p className="text-muted-foreground text-xs leading-4.5">{description}</p>
         {flavor !== undefined && (
@@ -102,6 +137,23 @@ export function AchievementCard({ card }: { card: Card }) {
           </p>
         )}
       </div>
+
+      {inProgress && (
+        <div className="flex flex-col gap-1.25" data-achievement-progress={card.progress.current}>
+          <div className="bg-muted h-1.25 w-full overflow-hidden rounded-full">
+            <div
+              className="h-full rounded-full"
+              style={{ background: color, width: `${String(card.progress.percent)}%` }}
+            />
+          </div>
+          <span className="text-muted-foreground text-[11px]">
+            {format(t("hall.progressOf"), {
+              current: card.progress.current,
+              target: card.progress.target,
+            })}
+          </span>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-2 pt-0.5">
         <span className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
@@ -113,22 +165,7 @@ export function AchievementCard({ card }: { card: Card }) {
           <span>{t(STATE_LABEL[card.state])}</span>
         </span>
 
-        {card.tierRarities !== undefined && card.tierRarities.length > 0 && !hidden ? (
-          <span className="flex items-center gap-1">
-            {card.tierRarities.map((rarity, index) => (
-              <span
-                key={`${rarity}-${String(index)}`}
-                className="size-1.25 rounded-full"
-                style={{ background: RARITY_COLOR[rarity] }}
-              />
-            ))}
-            <span className="text-muted-foreground ml-0.5 text-[11px]">
-              {card.tierRarities.length} tiers
-            </span>
-          </span>
-        ) : (
-          <span className="text-muted-foreground text-[11px]">{t(ORIGIN_LABEL[card.origin])}</span>
-        )}
+        <span className="text-muted-foreground text-[11px]">{t(ORIGIN_LABEL[card.origin])}</span>
       </div>
     </article>
   );
