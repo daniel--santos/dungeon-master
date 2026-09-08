@@ -1,5 +1,9 @@
 import type { ExecutionProfileSnapshot, PermissionPolicy } from "@dungeon-master/contracts";
-import { allowedToolsFor, deniedToolsFor } from "@dungeon-master/runtime-sandcastle";
+import {
+  allowedToolsFor,
+  buildClaudeCodeArgs,
+  deniedToolsFor,
+} from "@dungeon-master/runtime-sandcastle";
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_TRUSTED_COMMANDS, resolveRunPolicies } from "./policy.js";
@@ -179,5 +183,74 @@ describe("a concessão chegando ao argv do Claude Code", () => {
     });
 
     expect(allowedToolsFor(resolvido.permission.grant)).toEqual([]);
+  });
+});
+
+describe("a concessão chegando ao argv de verdade", () => {
+  /** O pedido que o `AgentRuntime` entrega ao adapter, já resolvido. */
+  function pedido(profile: ExecutionProfileSnapshot) {
+    const resolvido = resolveRunPolicies({
+      profile,
+      harnessKey: "CLAUDE_CODE",
+      capabilities: COM_PERMISSAO_NATIVA,
+    });
+    return buildClaudeCodeArgs({
+      executionId: "run-argv",
+      cwd: "/tmp/worktree",
+      prompt: "faça a tarefa",
+      env: {},
+      permission: {
+        mode: resolvido.permission.mode,
+        ...(resolvido.permission.grant === undefined
+          ? {}
+          : { grant: resolvido.permission.grant }),
+        enforcement: "HARNESS_NATIVE",
+      },
+    });
+  }
+
+  it("o argv carrega a allow-list derivada da política", () => {
+    const { args } = pedido(
+      perfil({ commandExecution: "ALL", allowedCommands: ["pnpm test"] }),
+    );
+
+    expect(args).toContain("--permission-mode");
+    expect(args[args.indexOf("--permission-mode") + 1]).toBe("acceptEdits");
+
+    const allowed = args[args.indexOf("--allowedTools") + 1] ?? "";
+    // Os cinco subcomandos padrão mais o que o perfil declarou, nas duas
+    // ferramentas de shell.
+    for (const comando of [...DEFAULT_TRUSTED_COMMANDS, "pnpm test"]) {
+      expect(allowed).toContain(`Bash(${comando}:*)`);
+      expect(allowed).toContain(`PowerShell(${comando}:*)`);
+    }
+    expect(allowed).toContain("Write");
+    // `git push` não está na lista de trabalho: a concessão é por subcomando.
+    expect(allowed).not.toContain("git push");
+
+    // Sem ninguém para aprovar, o que fosse perguntar é negado na hora.
+    expect(args).toContain("--permission-prompts");
+    expect(args[args.indexOf("--permission-prompts") + 1]).toBe("none");
+    expect(args).not.toContain("--dangerously-skip-permissions");
+  });
+
+  it("o argv de um bypass não leva allow-list nenhuma", () => {
+    const { args } = pedido(
+      perfil({ commandExecution: "ALL", allowUnsafeBypass: true }),
+    );
+
+    expect(args).toContain("--dangerously-skip-permissions");
+    expect(args).not.toContain("--allowedTools");
+    expect(args).not.toContain("--permission-prompts");
+  });
+
+  it("comandos negados chegam como disallowedTools", () => {
+    const { args } = pedido(
+      perfil({ commandExecution: "ALL", deniedCommands: ["git push"] }),
+    );
+
+    const negados = args[args.indexOf("--disallowedTools") + 1] ?? "";
+    expect(negados).toContain("Bash(git push:*)");
+    expect(negados).toContain("PowerShell(git push:*)");
   });
 });
