@@ -756,6 +756,22 @@ Pendências de API deixadas pela web (rodada curta de backend a fazer):
 
 **Fase 3 em andamento** (dois agentes, branches `feat/fase3-antigravity` e `feat/fase3-docker-gate`): adapter direto do Antigravity no host em `packages/runtime-antigravity` com spike de contrato da CLI 1.1.27, suíte de contrato real e falsa, registro no Worker e seed; e o gate 3D com ADR `0002-antigravity-em-docker` e a imagem 0.2.0 com o `agy`. A fiação do adapter em Docker vem depois que o de host existir.
 
+## Fechamento da Fase 3 (08/09/2026)
+
+**Fase 3 completa.** O Antigravity é o quarto harness no host, com o mesmo contrato dos outros três, e o gate 3D respondeu com um ADR em vez de uma suposição.
+
+- **3A/3B/3C/3E (host)**: `packages/runtime-antigravity` com o contrato medido da CLI `agy` 1.1.27 no README do pacote; prompt por stdin em `stream-json` (o `-p` toma o prompt como valor de flag e o argv do Windows tem teto de 32767 caracteres); `--add-dir` sempre, senão o agente escreve na scratch da CLI; `--json-schema` nativo com `structured_output`; resume por `conversation_id`; saída 0 mesmo negando tudo, convertida em diagnóstico e falha. Suíte de contrato 11/11 com o `agy` real e, no CI, com um `agy` falso que fala o dialeto real. Registro no Worker, harness habilitado (migração `0009`). Capabilities `true`: streaming, structuredOutput, resume, toolEvents, tokenUsage, modelSelection, hostExecution; `false`: forkSession, multiTurnProcess, agentSelection, nativePermissions, dockerExecution.
+- **O degrau do meio não existe nesta CLI**: a allow-list de comando do `settings.json` não é consultada em modo headless; o único interruptor sem interface é o bypass total. `CONFIGURED` não vira flag nenhuma (mais restritivo que o pedido, nunca menos) e o Worker escreve no diário um aviso próprio deste harness. "Campo aberto" com "crie um arquivo e faça commit" termina `FAILED` com `PERMISSION_DENIED`; com `allowUnsafeBypass` no perfil termina `SUCCEEDED` com o commit coletado.
+- **3D (Docker)**: ADR `docs/adr/0002-antigravity-em-docker.md`, veredito **experimental**. O `agy` guarda a credencial no cofre do sistema operacional, não em arquivo; não há `login`, `auth` nem `setup-token`; `GEMINI_API_KEY`/`GOOGLE_API_KEY` não são consumidas. O único caminho não interativo é `AGY_ADC_AUTH=1` com Application Default Credentials por arquivo montado somente leitura, comprovado até a rejeição do Google com credencial sintética e não provado com credencial real (emiti-la é decisão do usuário). Imagem `dungeon-master-agent:0.2.0` (1,49 GB, build 91 s) com o `agy` por objeto versionado e SHA-512 conferido antes de extrair; `fixedEnv` no docker run para configuração não secreta, com erro se o mesmo nome aparecer também em `envKeys`. Não há fiação do adapter Antigravity em Docker.
+
+Pendências que ficam registradas:
+
+- Mostrar na tela de Equipamento o aviso de que o Antigravity só executa comandos com o bypass ligado.
+- `AGY_ADC_AUTH` no ambiente do host quebra o host autenticado; `agy models` serve de preflight; sem credencial a CLI leva 60 s fixos que `--print-timeout` não controla.
+- Sessão contínua por stdin e `--agent` ficam para quando houver necessidade.
+
+**Fase 4 iniciada** em três ondas: 4A fundação (contratos Zod do Workflow, domínio puro, tabelas e migração, captura congelada, gate por CAS, seed "Expedição guiada", API e cliente); depois, em paralelo, 4B motor (`packages/workflow`, executores por tipo, integração no Worker, pausa em gate que sobrevive a restart) e 4C web (Rituais, Selo da Guilda com diálogo de confirmação, cockpit por passos, e2e).
+
 ## Andamento anterior da Fase 2 (histórico)
 
 Mergeadas e verdes no CI: 2A (modelo, banco, API), 2B (runtime e adapters de host; ADR em `packages/runtime-sandcastle/README.md`: os adapters não dependem do Sandcastle em runtime), o Worker (laço, reconciliação, cancelamento confirmado, shutdown gracioso, `resumeFromRunId`, marca d'água do poller) e as telas (cadastros, Nova Expedição com aceite do modo host, Expedições, Cristal de Visão com diário ao vivo e AlertDialog de cancelamento).
