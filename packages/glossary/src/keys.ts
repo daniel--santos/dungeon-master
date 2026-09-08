@@ -218,6 +218,8 @@ export const GLOSSARY_KEYS = [
   "proposal.toast.one",
   "proposal.toast.many",
   "proposal.knowledge.summary",
+  "proposal.knowledge.one",
+  "proposal.knowledge.many",
 
   // ------------------------------------------------------------------ graph
   // O grafo de Tasks do Project (Fase 5B): o título vem de `entity.taskGraph`;

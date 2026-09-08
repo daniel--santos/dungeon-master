@@ -200,6 +200,8 @@ export const dnd: Record<GlossaryKey, string> = {
   "proposal.toast.one": "A Expedição trouxe uma Pista",
   "proposal.toast.many": "A Expedição trouxe {n} Pistas",
   "proposal.knowledge.summary": "Candidatos ao Grimório",
+  "proposal.knowledge.one": "{n} candidato ao Grimório",
+  "proposal.knowledge.many": "{n} candidatos ao Grimório",
 
   // ------------------------------------------------------------------ graph
   "graph.legend.dependency": "Dependência: a da esquerda termina antes",

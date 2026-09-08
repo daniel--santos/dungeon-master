@@ -99,11 +99,10 @@ export function RunOutcomePanel({ run }: { run: RunRecord }) {
         >
           <BookOpen aria-hidden className="size-3.5" />
           <span>
-            {format("{n} {label}. A destilação para o {knowledge} chega na Fase 6.", {
-              n: learned,
-              label: t("proposal.knowledge.summary").toLowerCase(),
-              knowledge: t("entity.knowledge"),
-            })}
+            {format(
+              `${learned === 1 ? t("proposal.knowledge.one") : t("proposal.knowledge.many")}. A destilação para o {knowledge} chega na Fase 6.`,
+              { n: learned, knowledge: t("entity.knowledge") },
+            )}
           </span>
         </div>
       )}

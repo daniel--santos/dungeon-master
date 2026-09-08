@@ -202,6 +202,8 @@ export const plain: Record<GlossaryKey, string> = {
   "proposal.toast.one": "A execução propôs uma tarefa",
   "proposal.toast.many": "A execução propôs {n} tarefas",
   "proposal.knowledge.summary": "Candidatos a conhecimento",
+  "proposal.knowledge.one": "{n} candidato a conhecimento",
+  "proposal.knowledge.many": "{n} candidatos a conhecimento",
 
   // ------------------------------------------------------------------ graph
   "graph.legend.dependency": "Dependência: a da esquerda termina antes",
