@@ -302,6 +302,9 @@ importers:
 
   packages/database:
     dependencies:
+      '@dungeon-master/achievements':
+        specifier: workspace:*
+        version: link:../achievements
       '@dungeon-master/contracts':
         specifier: workspace:*
         version: link:../contracts
