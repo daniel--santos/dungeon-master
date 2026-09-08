@@ -44,8 +44,17 @@ import {
  * token vem do chaveiro do sistema —, mas sem a home a CLI perde o histórico de
  * conversa, e sem histórico não há resume.
  *
- * As `GOOGLE_*`/`GEMINI_*` entram porque são o outro caminho de credencial, e
- * `AGY_ADC_AUTH` porque é o interruptor de Application Default Credentials.
+ * As `GOOGLE_*`/`GEMINI_*` entram por precaução: o ADR 0002 mediu que o `agy`
+ * 1.1.27 **não** as consome, mas elas são inertes quando ignoradas e evitam um
+ * diagnóstico difícil se uma versão futura passar a lê-las.
+ *
+ * **`AGY_ADC_AUTH` fica de fora, e isso é deliberado.** É o interruptor de
+ * Application Default Credentials, o único caminho não interativo que o ADR 0002
+ * encontrou — e ele **quebra o host autenticado**: com ele ligado a CLI para de
+ * usar o token do cofre do sistema operacional e passa a exigir um arquivo de
+ * credencial que no host não existe. Repassá-lo da allow-list transformaria uma
+ * variável deixada no ambiente para um experimento de container em falha de
+ * autenticação em todo Run de host, sem nada no log ligando as duas coisas.
  */
 const ANTIGRAVITY_ENV_KEYS = [
   "HOME",
@@ -56,7 +65,6 @@ const ANTIGRAVITY_ENV_KEYS = [
   "LOCALAPPDATA",
   "XDG_CONFIG_HOME",
   "SHELL",
-  "AGY_ADC_AUTH",
   "GOOGLE_API_KEY",
   "GEMINI_API_KEY",
   "GOOGLE_APPLICATION_CREDENTIALS",

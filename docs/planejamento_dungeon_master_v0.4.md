@@ -1133,10 +1133,15 @@ Verificado à mão, com API e Worker no ar sobre um banco separado
 
 Pendências da Fase 3:
 
-- **3D (Docker) é de outra rodada.** A credencial do `agy` vem do chaveiro do
-  sistema — uma `HOME` vazia continua autenticada —, então não há arquivo para
-  montar somente-leitura nem variável de ambiente, que são os dois caminhos do
-  ADR 0001. `dockerExecution` fica `false` até aquele gate.
+- **3D (Docker) fechou como experimental**, no ADR 0002, e nada dele é fiado
+  aqui: `dockerExecution` fica `false` e não há adapter de container. A
+  credencial do `agy` vem do cofre do sistema operacional — uma `HOME` vazia
+  continua autenticada —, então não há arquivo para montar somente-leitura nem
+  variável de ambiente consumida, que são os dois caminhos do ADR 0001. O único
+  caminho não interativo é `AGY_ADC_AUTH=1` com Application Default Credentials
+  por arquivo, não provado com credencial real. **`AGY_ADC_AUTH` fica fora da
+  allow-list de ambiente do adapter de host**: ligá-lo desliga o token do cofre e
+  quebraria todo Run de host.
 - **Um Loadout de Antigravity com um perfil de allow-list não executa comando
   nenhum.** Quem quiser que ele commite precisa ligar `allowUnsafeBypass`, que é
   barulhento de propósito. Vale considerar mostrar isso na tela de Equipamento.

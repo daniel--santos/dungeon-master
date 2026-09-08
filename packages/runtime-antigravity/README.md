@@ -317,15 +317,31 @@ $ HOME=/tmp/vazio USERPROFILE=/tmp/vazio agy --output-format stream-json -p="Res
 {"event":"result","result":{…,"status":"SUCCESS","response":"OK\n",…}}
 ```
 
-O token vem do chaveiro do sistema (`keyringAuth`, nas strings do binário). Isso
-é ótimo no host — não há nada a montar — e é exatamente o que torna o modo
-`DOCKER` um gate próprio (**Fase 3D**): não existe arquivo de credencial para
-montar somente-leitura, como no Claude Code, nem variável de ambiente, como no
-Pi. `dockerExecution` fica `false` até aquele ADR decidir.
+O token vem do cofre do sistema operacional (`keyringAuth`, nas strings do
+binário; Gerenciador de Credenciais no Windows). Isso é ótimo no host — não há
+nada a montar — e é exatamente o que fez o modo `DOCKER` precisar de gate
+próprio. O veredito veio no
+[ADR 0002](../../docs/adr/0002-antigravity-em-docker.md): **experimental**. Não
+existe arquivo de credencial para montar somente-leitura, como no Claude Code,
+nem variável de ambiente consumida, como no Pi — o ADR mediu que o `agy` 1.1.27
+**não** usa `GEMINI_API_KEY` nem `GOOGLE_API_KEY` —, e não há `agy login`,
+`agy auth` nem equivalente de `setup-token`. O único caminho não interativo é
+`AGY_ADC_AUTH=1` com Application Default Credentials por arquivo montado, e ele
+não foi provado com credencial real. `dockerExecution` fica `false`.
+
+**`AGY_ADC_AUTH` não entra na allow-list de ambiente deste adapter.** Ligá-lo
+faz a CLI parar de usar o token do cofre e passar a exigir o arquivo de ADC, que
+no host não existe: uma variável deixada no ambiente para um experimento de
+container derrubaria todo Run de host, sem nada no log ligando as duas coisas.
+Há teste para isso em `args.test.ts`.
 
 Não há checagem barata de autenticação: o preflight roda `--version`, que
 responde sem falar com a rede, e deixa `authenticated` indefinido — um `false`
-sem prova travaria execuções que funcionariam.
+sem prova travaria execuções que funcionariam. `agy models` **detecta**
+credencial, e é o que o ADR 0002 usa como preflight dentro do container, mas não
+serve aqui: ele fala com a rede e, sem credencial, gasta 60 s fixos que
+`--print-timeout` não controla. Sessenta segundos por Run é caro demais para
+saber o que a primeira chamada diria de graça.
 
 ### O que existe e não foi usado
 

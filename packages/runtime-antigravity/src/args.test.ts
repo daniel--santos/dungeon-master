@@ -9,7 +9,7 @@
 import type { HarnessExecutionRequest } from "@dungeon-master/runtime";
 import { describe, expect, it } from "vitest";
 
-import { buildAntigravityArgs } from "./antigravity.js";
+import { antigravity, buildAntigravityArgs } from "./antigravity.js";
 
 function pedido(overrides: Partial<HarnessExecutionRequest> = {}): HarnessExecutionRequest {
   return {
@@ -138,5 +138,24 @@ describe("buildAntigravityArgs", () => {
       extraArgs: ["--do-adapter"],
     });
     expect(args.indexOf("--do-adapter")).toBeLessThan(args.indexOf("--do-loadout"));
+  });
+});
+
+describe("ambiente do adapter", () => {
+  it("leva a home, que é onde moram as conversas", () => {
+    // Sem `HOME`/`USERPROFILE` a CLI perde o histórico de conversa, e sem
+    // histórico não há `--conversation` — ou seja, não há resume.
+    const chaves = antigravity().environmentKeys ?? [];
+    expect(chaves).toContain("HOME");
+    expect(chaves).toContain("USERPROFILE");
+  });
+
+  it("não leva AGY_ADC_AUTH, que quebraria o host autenticado", () => {
+    // ADR 0002: `AGY_ADC_AUTH=1` desliga o token do cofre do sistema e passa a
+    // exigir um arquivo de Application Default Credentials, que no host não
+    // existe. Repassá-lo da allow-list faria uma variável deixada no ambiente
+    // para um experimento de container derrubar todo Run de host, sem nada no
+    // log ligando as duas coisas.
+    expect(antigravity().environmentKeys ?? []).not.toContain("AGY_ADC_AUTH");
   });
 });
