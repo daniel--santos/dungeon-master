@@ -667,6 +667,15 @@ describe("ApprovalGate", () => {
     expect(pendentes.total).toBe(1);
     expect(pendentes.items[0]).toMatchObject({ id: gateId, taskId, taskTitle: "Missão guiada" });
 
+    // O Workflow vem junto, pelo caminho Run → versão congelada → Workflow.
+    const run = await getRun(handle.db, { userId: USER, runId });
+    expect(pendentes.items[0]).toMatchObject({
+      workflowId: id,
+      workflowVersionId: run?.workflowVersionId,
+      workflowName: GUIDED_EXPEDITION_WORKFLOW.name,
+      workflowVersion: 1,
+    });
+
     exigirOk(
       await resolveApprovalGate(handle.db, { userId: USER, gateId, decision: "approve" }),
       "ok",

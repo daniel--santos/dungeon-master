@@ -253,6 +253,13 @@ export const plain: Record<GlossaryKey, string> = {
   "hall.bestiary.nemesis": "Reincidente",
   "hall.chronicle.loadMore": "Carregar mais",
 
+  // --------------------------------------------------------------- loadout
+  "loadout.noNativePermissions.title": "Este harness não impõe permissão por comando",
+  "loadout.noNativePermissions.body":
+    "A CLI deste {harness} não consulta a lista de comandos do {profile}: a permissão é só pedida, nunca aplicada, e o enforcement da execução sai como ADVISORY.",
+  "loadout.noNativePermissions.antigravity":
+    "No Antigravity é o oposto: sem interface, a CLI não consulta lista nenhuma e nega todo comando. Em {host} ({hostWarning}), uma {run} que precise executar comandos termina em PERMISSION_DENIED; só `allowUnsafeBypass` no {profile} libera — e libera tudo.",
+
   // -------------------------------------------------------------- settings
   "settings.theme.toggle": "Tema Dungeon Master",
   "settings.theme.description":

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { UsageSummarySchema } from "./execution-event.js";
 import { PageQuerySchema, paginatedSchema } from "./pagination.js";
-import { RUN_PROMPT_MAX_LENGTH, RunErrorSchema, RunResultStatusSchema } from "./run.js";
+import { RUN_PROMPT_MAX_LENGTH, RunResultStatusSchema } from "./run.js";
 import {
   DiscoveredTaskSchema,
   KnowledgeCandidateInputSchema,
@@ -804,42 +804,6 @@ export const RunStepResultSchema = z
 
 export type RunStepResult = z.infer<typeof RunStepResultSchema>;
 
-export const RunStepSchema = z
-  .object({
-    id: z.uuid().describe("UUIDv7 do RunStep."),
-    runId: z.uuid(),
-    workflowStepId: z
-      .uuid()
-      .describe("O WorkflowStep da versão congelada que este RunStep executa."),
-    key: WorkflowKeySchema,
-    name: z.string(),
-    type: WorkflowStepTypeSchema,
-    position: z.number().int().nonnegative().describe("Ordem topológica da captura."),
-    status: RunStepStatusSchema,
-    attempt: z
-      .number()
-      .int()
-      .nonnegative()
-      .describe("Quantas vezes o step já rodou. Zero enquanto `PENDING`."),
-    startedAt: z.iso.datetime().nullable().describe("Primeira entrada em `RUNNING`, em UTC."),
-    finishedAt: z.iso.datetime().nullable().describe("Entrada em estado terminal, em UTC."),
-    result: RunStepResultSchema.nullable(),
-    error: RunErrorSchema.nullable(),
-    createdAt: z.iso.datetime(),
-    updatedAt: z.iso.datetime(),
-  })
-  .meta({ id: "RunStep", description: "Um step de um Run, com estado próprio." });
-
-export type RunStep = z.infer<typeof RunStepSchema>;
-
-export const RunStepListSchema = z
-  .object({
-    items: z.array(RunStepSchema).describe("Os steps do Run, na ordem topológica."),
-  })
-  .meta({ id: "RunStepList", description: "Os RunSteps de um Run." });
-
-export type RunStepList = z.infer<typeof RunStepListSchema>;
-
 /**
  * Por que um step foi pulado. Gravado no evento `StepSkipped` e no RunStep.
  *
@@ -863,6 +827,63 @@ export const StepSkipReasonSchema = z
   .meta({ id: "StepSkipReason", description: "Por que um RunStep ficou `SKIPPED`." });
 
 export type StepSkipReason = z.infer<typeof StepSkipReasonSchema>;
+
+/**
+ * O erro de um RunStep: o de `RunError`, com o motivo de pulo **tipado**.
+ *
+ * Um step `SKIPPED` carrega em `details` o `StepSkipReason` que o motor
+ * gravou; nos demais desfechos `details` fica ausente. Separado de
+ * `RunError` porque o erro do Run continua aberto (`details: unknown`), e é
+ * o RunStep quem tem um motivo com forma conhecida. Aberto (`looseObject`)
+ * pelo mesmo motivo do `RunError`: `retryable` e afins viajam no corpo.
+ */
+export const RunStepErrorSchema = z
+  .looseObject({
+    code: z.string().optional().describe("Código estável do erro, quando houver um."),
+    message: z.string().describe("Mensagem já sanitizada de credenciais."),
+    details: StepSkipReasonSchema.optional().describe(
+      "Só num step `SKIPPED`: por que ele não rodou. Ausente nos demais erros.",
+    ),
+  })
+  .meta({ id: "RunStepError", description: "Por que um RunStep terminou em erro ou foi pulado." });
+
+export type RunStepError = z.infer<typeof RunStepErrorSchema>;
+
+export const RunStepSchema = z
+  .object({
+    id: z.uuid().describe("UUIDv7 do RunStep."),
+    runId: z.uuid(),
+    workflowStepId: z
+      .uuid()
+      .describe("O WorkflowStep da versão congelada que este RunStep executa."),
+    key: WorkflowKeySchema,
+    name: z.string(),
+    type: WorkflowStepTypeSchema,
+    position: z.number().int().nonnegative().describe("Ordem topológica da captura."),
+    status: RunStepStatusSchema,
+    attempt: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe("Quantas vezes o step já rodou. Zero enquanto `PENDING`."),
+    startedAt: z.iso.datetime().nullable().describe("Primeira entrada em `RUNNING`, em UTC."),
+    finishedAt: z.iso.datetime().nullable().describe("Entrada em estado terminal, em UTC."),
+    result: RunStepResultSchema.nullable(),
+    error: RunStepErrorSchema.nullable(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({ id: "RunStep", description: "Um step de um Run, com estado próprio." });
+
+export type RunStep = z.infer<typeof RunStepSchema>;
+
+export const RunStepListSchema = z
+  .object({
+    items: z.array(RunStepSchema).describe("Os steps do Run, na ordem topológica."),
+  })
+  .meta({ id: "RunStepList", description: "Os RunSteps de um Run." });
+
+export type RunStepList = z.infer<typeof RunStepListSchema>;
 
 // --------------------------------------------------------------------------
 // ApprovalGate
@@ -901,10 +922,32 @@ export const ApprovalGateSchema = z
 
 export type ApprovalGate = z.infer<typeof ApprovalGateSchema>;
 
+/**
+ * Um gate na listagem, com a Task e o Workflow por junção.
+ *
+ * O Workflow vem pelo caminho Run → versão congelada → Workflow, resolvido na
+ * leitura: a caixa de entrada mostra "qual Ritual pediu" em toda linha, e sem
+ * ele a interface fazia duas leituras por gate para descobrir. Os quatro
+ * campos são anuláveis juntos, para o caso de um Run sem Workflow — que hoje
+ * não abre gate, mas o contrato não depende disso.
+ */
 export const ApprovalGateListItemSchema = ApprovalGateSchema.extend({
   taskId: z.uuid().describe("Task do Run. Vem por junção."),
   taskTitle: z.string().describe("Título da Task no momento da leitura. Vem por junção."),
-}).meta({ id: "ApprovalGateListItem", description: "Um gate na listagem, com a Task junto." });
+  workflowId: z.uuid().nullable().describe("Workflow do Run. Vem por junção."),
+  workflowVersionId: z
+    .uuid()
+    .nullable()
+    .describe("A versão congelada que o Run executa. Vem por junção."),
+  workflowName: z
+    .string()
+    .nullable()
+    .describe("Nome atual do Workflow, como o título da Task: acompanha uma renomeação."),
+  workflowVersion: z.number().int().positive().nullable().describe("Número da versão congelada."),
+}).meta({
+  id: "ApprovalGateListItem",
+  description: "Um gate na listagem, com a Task e o Workflow junto.",
+});
 
 export type ApprovalGateListItem = z.infer<typeof ApprovalGateListItemSchema>;
 

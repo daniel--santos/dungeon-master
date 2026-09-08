@@ -289,6 +289,13 @@ export function inboxFailureProblem(failure: InboxFailure): HttpProblem {
         title: "Project arquivado",
         detail: `O Project ${failure.projectId} está arquivado e não aceita Tasks novas.`,
       });
+    case "WORKFLOW_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Workflow não encontrado",
+        detail: `Não existe Workflow com o id ${failure.workflowId}.`,
+      });
   }
 }
 

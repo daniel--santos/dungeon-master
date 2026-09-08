@@ -599,6 +599,11 @@ describe("predicados e validação", () => {
     expect(outcome.status).toBe("SUCCEEDED");
     expect(h.store.step("second").status).toBe("SKIPPED");
     expect(h.store.step("second").error?.message).toContain("Predicado desconhecido");
+    // O motivo tipado vai em `details`, que é o que a interface lê.
+    expect(h.store.step("second").error?.details).toMatchObject({
+      code: "PREDICATE_FALSE",
+      predicate: { kind: "sempreVerdadeiro" },
+    });
     expect(h.commands.requests.map((request) => request.argv[0])).toEqual(["x"]);
   });
 

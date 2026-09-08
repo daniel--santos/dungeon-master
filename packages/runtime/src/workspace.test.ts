@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -58,6 +58,28 @@ describe("createWorkspaceManager", () => {
     expect(handle.baseCommit).toHaveLength(40);
 
     await manager.remove(handle.path, { keepIfDirty: false });
+  });
+
+  it("reabre o worktree mesmo quando o caminho chega por um nome que o git canonicaliza", async () => {
+    // No macOS o temporário é `/var/...` e o git responde `/private/var/...`;
+    // no runner do Windows o TEMP chega como `RUNNER~1` e o git responde
+    // `runneradmin`. Um symlink (junction no Windows) reproduz a diferença sem
+    // depender do ambiente.
+    const raizReal = join(sandbox, "worktrees");
+    const atalho = join(sandbox, "atalho");
+    await mkdir(raizReal, { recursive: true });
+    await symlink(raizReal, atalho, process.platform === "win32" ? "junction" : "dir");
+
+    const criador = createWorkspaceManager({ worktreesRoot: raizReal });
+    const criado = await criador.create({ repoPath: repo, runId: "run-reopen" });
+
+    const reabridor = createWorkspaceManager({ worktreesRoot: atalho });
+    const reaberto = await reabridor.reopen({ repoPath: repo, runId: "run-reopen" });
+
+    expect(reaberto?.branch).toBe(criado.branch);
+    expect(reaberto?.baseCommit).toBe(criado.baseCommit);
+
+    await criador.remove(criado.path, { keepIfDirty: false });
   });
 
   it("dois Runs no mesmo repositório não colidem", async () => {

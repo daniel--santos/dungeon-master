@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/datetime";
 import { useGlossary } from "@/lib/glossary";
+import { useTaskReopenings } from "@/lib/heroes";
 import { useProjects } from "@/lib/projects";
 import { useRuns } from "@/lib/runs";
 import { useTasks } from "@/lib/tasks";
@@ -29,11 +30,10 @@ import { useTasks } from "@/lib/tasks";
  * devolve `taskId`, então uma página de Runs vitoriosos vira o índice de quem
  * derrotou o quê. Uma chamada por Monstro seria N+1 numa tela de leitura.
  *
- * **Pendência registrada:** o destaque de nêmesis — o Monstro reaberto e
- * vencido de vez — não é possível hoje. Nem `Task` nem a lista expõem contagem
- * de reaberturas, e o template `nemesis` do catálogo é instanciado pelo
- * projetor sem que essa contagem chegue à API. A coluna existe e fica vazia em
- * vez de a tela inventar um critério que o dado não sustenta.
+ * A coluna de nêmesis lê `GET /task-reopenings`: quantas vezes cada Monstro
+ * saiu de `COMPLETED`, contado no diário com a mesma definição que instancia a
+ * Conquista de nêmesis. A lista é esparsa, e um Monstro fora dela nunca foi
+ * reaberto — a célula mostra o traço em vez de um zero.
  */
 
 const DEFEATED_PAGE_SIZE = 100;
@@ -52,6 +52,7 @@ export function BestiaryTab() {
   // Vitoriosos, do mais recente para o mais antigo: é o que a lista já ordena.
   const runs = useRuns({ status: ["SUCCEEDED"], pageSize: DEFEATED_PAGE_SIZE });
   const projects = useProjects({ pageSize: DEFEATED_PAGE_SIZE });
+  const reopenings = useTaskReopenings("BUG");
 
   /** O primeiro Run vitorioso de cada Task, que é o que a derrotou. */
   const slayer = useMemo(() => {
@@ -67,6 +68,12 @@ export function BestiaryTab() {
     for (const project of projects.data?.items ?? []) byId.set(project.id, project.title);
     return byId;
   }, [projects.data]);
+
+  const reopenCount = useMemo(() => {
+    const byTask = new Map<string, number>();
+    for (const item of reopenings.data?.items ?? []) byTask.set(item.taskId, item.count);
+    return byTask;
+  }, [reopenings.data]);
 
   const items = tasks.data?.items ?? [];
 
@@ -108,6 +115,7 @@ export function BestiaryTab() {
           {items.map((task) => {
             const runId = slayer.get(task.id);
             const at = task.completedAt ?? task.updatedAt;
+            const reopened = reopenCount.get(task.id);
 
             return (
               <TableRow key={task.id} data-bestiary-task={task.id}>
@@ -143,7 +151,16 @@ export function BestiaryTab() {
                   )}
                 </TableCell>
 
-                <TableCell className="text-muted-foreground w-28 px-4 text-[12.5px]">—</TableCell>
+                <TableCell
+                  className="text-muted-foreground w-28 px-4 text-[12.5px]"
+                  data-bestiary-reopened={reopened ?? 0}
+                >
+                  {reopened === undefined
+                    ? "—"
+                    : format(reopened === 1 ? "{n} reabertura" : "{n} reaberturas", {
+                        n: reopened,
+                      })}
+                </TableCell>
               </TableRow>
             );
           })}

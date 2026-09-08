@@ -23,6 +23,8 @@ export type UpdateAgentBody = components["schemas"]["UpdateAgent"];
 
 export type HarnessRecord = components["schemas"]["Harness"];
 export type HarnessKeyRecord = components["schemas"]["HarnessKey"];
+export type DockerPreflightRecord = components["schemas"]["DockerPreflight"];
+export type DockerHarnessPreflightRecord = components["schemas"]["DockerHarnessPreflight"];
 
 export type ModelRecord = components["schemas"]["Model"];
 export type CreateModelBody = components["schemas"]["CreateModel"];

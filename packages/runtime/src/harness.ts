@@ -13,7 +13,12 @@
  * dependente de cada CLI.
  */
 
-import type { ExecutionEventOf, HarnessKey, UsageSummary } from "@dungeon-master/contracts";
+import type {
+  ExecutionEventOf,
+  HarnessKey,
+  PreflightProblemCode,
+  UsageSummary,
+} from "@dungeon-master/contracts";
 
 import type { HarnessCapabilities } from "./capabilities.js";
 import type {
@@ -193,14 +198,14 @@ export interface HarnessCancelResult {
   readonly notRunning?: boolean;
 }
 
-/** Um problema encontrado no preflight. */
+/**
+ * Um problema encontrado no preflight.
+ *
+ * O código vem do enum de `@dungeon-master/contracts`, que é o que a API expõe
+ * no preflight do Docker: uma lista só, e não duas para divergirem.
+ */
 export interface PreflightProblem {
-  readonly code:
-    | "NOT_INSTALLED"
-    | "VERSION_UNREADABLE"
-    | "NOT_AUTHENTICATED"
-    | "UNSUPPORTED_MODE"
-    | "UNSUPPORTED_PLATFORM";
+  readonly code: PreflightProblemCode;
   readonly message: string;
   /** Um problema fatal impede a execução; os demais viram `Diagnostic`. */
   readonly fatal: boolean;

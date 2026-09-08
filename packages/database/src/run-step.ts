@@ -1,4 +1,9 @@
-import type { RunError, RunStep, RunStepResult, RunStepStatus } from "@dungeon-master/contracts";
+import type {
+  RunStep,
+  RunStepError,
+  RunStepResult,
+  RunStepStatus,
+} from "@dungeon-master/contracts";
 import {
   checkRunStepTransition,
   isTerminalRunStepStatus,
@@ -111,7 +116,7 @@ export async function findRunStepRowById(
 
 export interface RunStepPatch {
   result?: RunStepResult | null;
-  error?: RunError | null;
+  error?: RunStepError | null;
 }
 
 export interface ApplyRunStepTransitionInput {
@@ -167,7 +172,7 @@ export async function applyRunStepTransition(
         : { result: patch.result === null ? null : (sanitizeJson(patch.result) as RunStepResult) }),
       ...(patch.error === undefined
         ? {}
-        : { error: patch.error === null ? null : (sanitizeJson(patch.error) as RunError) }),
+        : { error: patch.error === null ? null : (sanitizeJson(patch.error) as RunStepError) }),
     })
     .where(
       and(

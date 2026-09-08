@@ -7,6 +7,7 @@ import type {
   CreateAgentBody,
   CreateLoadoutBody,
   CreateModelBody,
+  DockerPreflightRecord,
   ExecutionProfileRecord,
   HarnessRecord,
   LoadoutRecord,
@@ -33,7 +34,30 @@ export const executionKeys = {
   models: ["models"] as const,
   profiles: ["execution-profiles"] as const,
   loadouts: ["loadouts"] as const,
+  dockerPreflight: ["docker-preflight"] as const,
 };
+
+/**
+ * O preflight do backend Docker, sob demanda.
+ *
+ * Desligado até alguém chamar `refetch`: a API mede na hora, subindo um
+ * container por harness, e isso não é coisa de acontecer só porque Settings
+ * abriu. O resultado não envelhece sozinho — é a foto do instante em que o
+ * usuário pediu, e a data vai junto.
+ */
+export function useDockerPreflight(): UseQueryResult<DockerPreflightRecord> {
+  return useQuery({
+    queryKey: executionKeys.dockerPreflight,
+    queryFn: async () => {
+      const { data, error, response } = await api.GET("/api/v1/preflights/docker");
+      if (data === undefined) fail(error, response.status, "Não foi possível medir o preflight");
+      return data;
+    },
+    enabled: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
+  });
+}
 
 /** Tudo que um Loadout referencia muda o que a tela de Equipamentos mostra. */
 function invalidateExecution(queryClient: ReturnType<typeof useQueryClient>): void {

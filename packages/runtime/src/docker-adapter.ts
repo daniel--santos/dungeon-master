@@ -247,7 +247,9 @@ export function createDockerAdapter(
           definition.binary,
           ...definition.authCheck.args,
         ],
-        { timeoutMs: VERSION_TIMEOUT_MS, env },
+        // O mesmo teto do `--version`: quem chama com pressa (o preflight sob
+        // demanda da API) precisa que a checagem de credencial o respeite também.
+        { timeoutMs: context.timeoutMs ?? VERSION_TIMEOUT_MS, env },
       );
       authenticated = definition.authCheck.interpret(check);
       if (authenticated === false) {
