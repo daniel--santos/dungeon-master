@@ -130,7 +130,7 @@ describe("diálogo Nova Expedição", () => {
     });
   });
 
-  it("a masmorra selada fica desabilitada enquanto nenhum perfil Docker está ligado", async () => {
+  it("a masmorra selada fica desabilitada enquanto nenhum perfil dela está ligado", async () => {
     await abrir();
 
     const docker = document.querySelector('[data-mode-option="DOCKER"] input');
@@ -141,6 +141,37 @@ describe("diálogo Nova Expedição", () => {
     const option = document.querySelector('[data-mode-option="DOCKER"]');
     expect(option?.textContent).toContain(dnd["env.docker"]);
     expect(option?.textContent).toContain(dnd["env.docker.canonical"]);
-    expect(option?.textContent).toContain("Fase 2C");
+    // O motivo é dito, em vez de a opção só ficar apagada sem explicação.
+    expect(option?.textContent).toContain("sem perfil");
+  });
+
+  it("com o perfil ligado, a masmorra selada pode ser escolhida", async () => {
+    client.GET.mockImplementation(((path: string) =>
+      Promise.resolve(
+        ok(
+          path === "/api/v1/execution-profiles"
+            ? { items: [HOST_PROFILE, { ...DOCKER_PROFILE, enabled: true }] }
+            : (RESPONSES[path] ?? {}),
+        ),
+      )) as never);
+
+    renderInRouter(<NewRunDialog onOpenChange={vi.fn()} open task={TASK} />);
+    await screen.findAllByText(LOADOUT.name);
+
+    const docker = await waitFor(() => {
+      const input = document.querySelector('[data-mode-option="DOCKER"] input');
+      expect((input as HTMLInputElement | null)?.disabled).toBe(false);
+      return input as HTMLInputElement;
+    });
+
+    fireEvent.click(docker);
+
+    // Escolher a masmorra selada dispensa o aceite: o aceite é do modo host.
+    await waitFor(() => {
+      expect(document.querySelector("[data-host-acknowledgement]")).toBeNull();
+    });
+    expect(document.querySelector('[data-mode-option="DOCKER"]')?.textContent).not.toContain(
+      "sem perfil",
+    );
   });
 });
