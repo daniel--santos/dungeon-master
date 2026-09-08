@@ -121,6 +121,7 @@ export const TASK: TaskDetailRecord = {
   children: [],
   dependencies: [],
   dependents: [],
+  openProposalCount: 0,
 };
 
 export const RUN: RunRecord = {
