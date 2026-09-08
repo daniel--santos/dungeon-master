@@ -400,6 +400,7 @@ export const dnd: Record<GlossaryKey, string> = {
   "context.budget.usage": "{used} de {total} tokens",
   "context.budget.frame": "{n} da moldura",
   "context.items": "{n} itens",
+  "context.items.one": "{n} item",
   "context.tokens": "{n} tokens",
   "context.score": "relevância {score}",
   "context.truncated": "cortado",

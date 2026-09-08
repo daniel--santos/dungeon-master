@@ -50,6 +50,15 @@ function tint(color: string, percent: number): string {
   return `color-mix(in oklch, ${color} ${String(percent)}%, transparent)`;
 }
 
+/** "1 item" ou "{n} itens", pelo glossário. */
+function useItemsLabel(): (count: number) => string {
+  const { t, format } = useGlossary();
+  return (count) =>
+    format(count === 1 ? t("context.items.one") : t("context.items"), {
+      n: NUMBER.format(count),
+    });
+}
+
 /** O chip de estado das provisões, no mesmo desenho do chip de Run. */
 export function ContextStatusChip({
   status,
@@ -107,6 +116,7 @@ export interface RunContextPanelProps {
  */
 export function RunContextPanel({ run }: RunContextPanelProps) {
   const { t, format } = useGlossary();
+  const itemsLabel = useItemsLabel();
   const queryClient = useQueryClient();
   const live = isLiveRunStatus(run.status);
   const context = useRunContext(run.id, live);
@@ -149,7 +159,7 @@ export function RunContextPanel({ run }: RunContextPanelProps) {
               total: NUMBER.format(data.budget.totalTokens),
             })}
             <span aria-hidden> · </span>
-            {format(t("context.items"), { n: NUMBER.format(data.usage.itemCount) })}
+            {itemsLabel(data.usage.itemCount)}
           </span>
         )}
 
@@ -382,6 +392,7 @@ function SectionBlock({
   projectId: string;
 }) {
   const { t, format } = useGlossary();
+  const itemsLabel = useItemsLabel();
   const { label, icon: Icon } = CONTEXT_SECTION[section.kind];
 
   return (
@@ -393,7 +404,7 @@ function SectionBlock({
         <Icon aria-hidden className="size-3.5" style={{ color: CONTEXT_COLOR }} />
         <span className="text-[12.5px] font-medium">{t(label)}</span>
         <span className="text-muted-foreground text-[11px]">
-          {format(t("context.items"), { n: NUMBER.format(section.items.length) })}
+          {itemsLabel(section.items.length)}
           <span aria-hidden> · </span>
           {format(t("context.tokens"), { n: NUMBER.format(section.tokens) })}
         </span>

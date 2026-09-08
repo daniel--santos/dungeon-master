@@ -64,7 +64,11 @@ const SCANNED_PREFIXES = [
  */
 // `context.items` é "{n} itens" nos dois temas: o mesmo contador que o Quadro
 // de Missões já escreve à mão para o que não é entidade.
-const SKIPPED_KEYS = new Set<string>(["knowledge.filter.type", "context.items"]);
+const SKIPPED_KEYS = new Set<string>([
+  "knowledge.filter.type",
+  "context.items",
+  "context.items.one",
+]);
 
 const EXEMPT_FILES = new Set(["lib/glossary.ts", "lib/api-types.ts", "routeTree.gen.ts"]);
 

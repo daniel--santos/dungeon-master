@@ -405,6 +405,7 @@ export const GLOSSARY_KEYS = [
   "context.budget.usage",
   "context.budget.frame",
   "context.items",
+  "context.items.one",
   "context.tokens",
   "context.score",
   "context.truncated",
