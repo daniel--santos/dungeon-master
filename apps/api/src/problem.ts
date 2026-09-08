@@ -49,6 +49,34 @@ export class HttpProblem extends Error {
   }
 }
 
+/**
+ * O tipo de problema que combina com um código de status.
+ *
+ * Existe para o erro que chega **de fora** do nosso código — uma `HTTPException`
+ * do Hono, lançada pelo parser de corpo antes de qualquer handler nosso rodar.
+ * Ele já sabe o status; o que falta é o URI estável que o RFC 9457 pede, e
+ * escolhê-lo por status é a única tradução possível sem inventar informação.
+ */
+export function problemTypeForStatus(status: number): string {
+  if (status === 404) return ProblemType.notFound;
+  if (status === 409) return ProblemType.conflict;
+  if (status >= 500) return ProblemType.internal;
+  // 400, 413, 415, 422 e o resto da família 4xx: o corpo da requisição é que
+  // precisa mudar, que é o que `validation-error` diz.
+  if (status >= 400) return ProblemType.validation;
+  return "about:blank";
+}
+
+/** Título curto para um status sem título próprio. */
+export function problemTitleForStatus(status: number): string {
+  if (status === 404) return "Não encontrado";
+  if (status === 409) return "Conflito";
+  if (status === 413) return "Corpo grande demais";
+  if (status === 415) return "Tipo de mídia não suportado";
+  if (status >= 500) return "Erro interno";
+  return "Requisição inválida";
+}
+
 /** Converte os issues do Zod na lista `errors[]` do problem details. */
 export function toValidationIssues(error: ZodError): ValidationIssue[] {
   return error.issues.map((issue) => ({

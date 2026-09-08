@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildExecutionEnv, buildGitEnv, GIT_ENV_KEYS } from "./env.js";
+import { AGENT_GIT_ENV_KEYS, buildExecutionEnv, buildGitEnv, GIT_ENV_KEYS } from "./env.js";
 
 const SOURCE: NodeJS.ProcessEnv = {
   PATH: "/usr/bin",
@@ -86,5 +86,33 @@ describe("buildGitEnv", () => {
 
   it("a lista de chaves de git inclui o isolamento usado nos testes", () => {
     expect(GIT_ENV_KEYS).toContain("GIT_CONFIG_GLOBAL");
+  });
+});
+
+describe("AGENT_GIT_ENV_KEYS", () => {
+  it("leva ao agente como achar o gitconfig, no Windows inclusive", () => {
+    const env = buildExecutionEnv({
+      adapterKeys: [...AGENT_GIT_ENV_KEYS],
+      source: {
+        PATH: "C:\\bin",
+        USERPROFILE: "C:\\Users\\dm",
+        GIT_CONFIG_GLOBAL: "C:\\tmp\\.gitconfig",
+      },
+      platform: "win32",
+    });
+
+    // No Windows o piso do SO não tem `HOME`, e sem uma destas o `git commit`
+    // do agente falha com "Author identity unknown".
+    expect(env["USERPROFILE"]).toBe("C:\\Users\\dm");
+    expect(env["GIT_CONFIG_GLOBAL"]).toBe("C:\\tmp\\.gitconfig");
+  });
+
+  it("não leva junto a credencial de acesso a remoto", () => {
+    // A lista de comandos confiáveis não inclui `git push`. Entregar a chave
+    // do agente SSH pelo ambiente concederia por outra porta o que a política
+    // nega por comando.
+    for (const chave of ["SSH_AUTH_SOCK", "GIT_ASKPASS", "GIT_SSH_COMMAND", "GIT_SSH"]) {
+      expect(AGENT_GIT_ENV_KEYS).not.toContain(chave);
+    }
   });
 });

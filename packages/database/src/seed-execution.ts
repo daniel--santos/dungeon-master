@@ -1,4 +1,9 @@
-import type { HarnessCapabilities, HarnessKey, PermissionPolicy } from "@dungeon-master/contracts";
+import {
+  DEFAULT_TRUSTED_COMMANDS,
+  type HarnessCapabilities,
+  type HarnessKey,
+  type PermissionPolicy,
+} from "@dungeon-master/contracts";
 import { and, eq } from "drizzle-orm";
 
 import type { Database } from "./client.js";
@@ -131,18 +136,12 @@ interface ExecutionProfileSeed {
 /**
  * A allow-list de comandos com que "Campo aberto" nasce.
  *
- * Ela existe porque um perfil sem comando nenhum não termina uma tarefa de
- * código: o agente cria o arquivo, não consegue commitar e reporta `blocked`.
- * Foi o que aconteceu no primeiro Run desta fase, e a correção não é afrouxar
- * tudo — é dizer, na cara, quais comandos um Run pode executar.
- *
- * Cada prefixo aqui é uma porta aberta em toda execução do sistema, então a
- * lista é o mínimo que faz uma tarefa de código funcionar de ponta a ponta:
- * inspecionar e versionar o próprio worktree. Instalar dependência, publicar
- * pacote ou apagar arquivo por comando **não** estão aqui de propósito; quem
- * precisa acrescenta no perfil, e a escolha fica visível na tela.
+ * É a lista compartilhada de `DEFAULT_TRUSTED_COMMANDS`, e não uma cópia: o que
+ * o perfil semeado concede e o que `commandExecution: ALL` concede precisam ser
+ * a mesma coisa, senão o padrão da tela e o padrão do código divergem no
+ * primeiro ajuste. Quem precisa de mais acrescenta no perfil.
  */
-export const OPEN_FIELD_ALLOWED_COMMANDS: readonly string[] = ["git", "ls", "cat", "node"];
+export const OPEN_FIELD_ALLOWED_COMMANDS: readonly string[] = DEFAULT_TRUSTED_COMMANDS;
 
 /**
  * Os dois perfis de partida, com os nomes do glossário `dnd` na coluna `name`.

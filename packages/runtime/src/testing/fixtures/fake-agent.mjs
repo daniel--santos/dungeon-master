@@ -189,12 +189,28 @@ async function run(prompt, sessionFromArgv) {
       case "delete":
         rmSync(resolve(process.cwd(), directive.arg), { force: true });
         break;
-      case "git":
-        spawnSync("git", directive.arg.split(" ").filter(Boolean), {
+      case "git": {
+        // `stdio: "ignore"` engolia o erro do git, e um `git commit` que falha
+        // por falta de identidade virava um Run bem-sucedido sem commit
+        // nenhum — foi assim que o CI do Windows quebrou sem deixar pista. Um
+        // agente de verdade também reporta quando um comando falha, então
+        // reportar aqui é mais fiel, e não só mais fácil de depurar.
+        const r = spawnSync("git", directive.arg.split(" ").filter(Boolean), {
           cwd: process.cwd(),
-          stdio: "ignore",
+          encoding: "utf8",
         });
+        if (r.status !== 0) {
+          const detalhe = `${r.stderr ?? ""}${r.stdout ?? ""}`.trim() || String(r.error ?? "");
+          process.stderr.write(`git ${directive.arg} falhou (${String(r.status)}): ${detalhe}\n`);
+          emit({
+            type: "tool_result",
+            name: "git",
+            ok: false,
+            output: `git ${directive.arg} falhou (${String(r.status)}): ${detalhe}`,
+          });
+        }
         break;
+      }
       case "sleep":
         await delay(Number(directive.arg) || 0);
         break;

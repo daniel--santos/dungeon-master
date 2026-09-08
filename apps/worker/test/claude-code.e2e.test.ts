@@ -71,10 +71,13 @@ describe.skipIf(!ligado)("fim a fim com o Claude Code real", () => {
     const cenario = await montarCenario(db, {
       nome: "claude-real",
       workspacePath: repositorio.repo,
-      // `ALL` sem opt-in de bypass é o caminho que o Worker traduz para o
-      // modo de auto-aprovação nativo da CLI. É a configuração que a Fase 2
-      // entrega como padrão seguro, e é ela que precisa funcionar.
-      commandExecution: "ALL",
+      // Sem sobrescrever nada: vale o "Campo aberto" como a semente o cria —
+      // `ALLOWLIST` com os cinco subcomandos de `DEFAULT_TRUSTED_COMMANDS` e
+      // sem opt-in de bypass. É o perfil que o usuário recebe de fábrica, e é
+      // ele que precisa terminar uma tarefa de código. Desde que a lista
+      // passou a ser compartilhada, `commandExecution: ALL` concede
+      // exatamente os mesmos cinco prefixos, então o caso de antes virou o
+      // mesmo teste com um caminho a menos.
     });
 
     worker = createWorker({
@@ -128,8 +131,12 @@ describe.skipIf(!ligado)("fim a fim com o Claude Code real", () => {
     }
 
     const tipos = (await eventosDoRun(db, criado.id)).map((evento) => evento.type);
-    expect(tipos[0]).toBe("RunStarted");
-    expect(tipos).toContain("ToolCall");
+    // Os diagnósticos de política vêm **antes** de `RunStarted`: eles descrevem
+    // o que foi concedido, e a concessão é decidida antes de o processo subir.
+    // A asserção antiga pedia `RunStarted` na primeira posição e só não pegava
+    // isso porque este arquivo fica desligado por padrão.
+    expect(tipos).toContain("RunStarted");
+    expect(tipos.indexOf("RunStarted")).toBeLessThan(tipos.indexOf("ToolCall"));
     expect(tipos.at(-1)).toBe("RunCompleted");
   }, 600_000);
 });
