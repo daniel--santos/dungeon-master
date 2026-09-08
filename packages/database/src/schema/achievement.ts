@@ -6,6 +6,7 @@ import {
   type Condition,
   type Provenance,
 } from "@dungeon-master/achievements";
+import { HERO_SCOPE_VALUES, type HeroScope } from "@dungeon-master/contracts";
 import {
   bigint,
   boolean,
@@ -51,11 +52,9 @@ export const achievementSource = pgEnum("achievement_source", ACHIEVEMENT_SOURCE
 export type AchievementSource = (typeof ACHIEVEMENT_SOURCE_VALUES)[number];
 
 /** Herói e Equipamento acumulam a mesma coisa; o que muda é a quem ela pertence. */
-export const HERO_SCOPE_VALUES = ["AGENT", "LOADOUT"] as const;
-
 export const heroScope = pgEnum("hero_scope", HERO_SCOPE_VALUES);
 
-export type HeroScope = (typeof HERO_SCOPE_VALUES)[number];
+export type { HeroScope };
 
 /**
  * A Conquista concreta de um usuário: do catálogo, instanciada ou forjada.
