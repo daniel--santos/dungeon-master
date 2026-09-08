@@ -49,14 +49,15 @@ const HARNESS_DEFAULT = "__default__";
 
 /**
  * O que um Loadout novo pede do Grimório e da Missão: tudo, com o teto de
- * Páginas que o `db:seed` usa. São os mesmos valores com que a API preenche um
- * `POST /loadouts` sem política; repetidos aqui para o formulário mostrar o
- * que vai ser gravado em vez de campos vazios.
+ * Páginas em 20. São os mesmos valores com que a API preenche um
+ * `POST /loadouts` sem política (`DEFAULT_KNOWLEDGE_POLICY` e
+ * `DEFAULT_CONTEXT_POLICY` em `packages/database`); repetidos aqui para o
+ * formulário mostrar o que vai ser gravado em vez de campos vazios.
  */
 const DEFAULT_KNOWLEDGE_POLICY: KnowledgePolicyRecord = {
   includeProjectSummary: true,
   includeDecisions: true,
-  maxItems: 10,
+  maxItems: 20,
 };
 const DEFAULT_CONTEXT_POLICY: ContextPolicyRecord = {
   includeParentContext: true,
