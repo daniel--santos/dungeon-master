@@ -23,10 +23,16 @@ export function useLiveQueries(): void {
     return addListener((event) => {
       if (event.type.startsWith("task.")) {
         // Uma Task mexe na sua própria lista, na Inbox (que são Tasks em
-        // `INBOX`) e nas contagens por estado que a tela de Project mostra.
+        // `INBOX`), nas contagens por estado que a tela de Project mostra e
+        // no grafo do Project (Fase 5B): criar, mudar de estado, ligar ou
+        // desligar uma dependência muda o desenho. `task.proposed` e
+        // `task.proposal.resolved` também começam por `task.`, e a caixa de
+        // propostas relê junto.
         void queryClient.invalidateQueries({ queryKey: ["tasks"] });
         void queryClient.invalidateQueries({ queryKey: ["inbox"] });
         void queryClient.invalidateQueries({ queryKey: ["projects"] });
+        void queryClient.invalidateQueries({ queryKey: ["task-graph"] });
+        void queryClient.invalidateQueries({ queryKey: ["proposed-tasks"] });
         return;
       }
 

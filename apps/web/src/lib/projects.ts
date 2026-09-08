@@ -72,28 +72,28 @@ export function useProject(id: string | null): UseQueryResult<ProjectDetail> {
 }
 
 /**
- * As contagens por estado de vários Projects de uma vez.
+ * O detalhe de vários Projects de uma vez: as contagens por estado e as
+ * propostas abertas.
  *
  * `GET /projects` devolve o Project sem as contagens, e só `GET /projects/{id}`
  * as traz. Enquanto a API não expuser as contagens na listagem, a tela pede uma
  * leitura por linha — a query é a mesma da tela de detalhe, então o cache é
  * reaproveitado e abrir um Project depois não custa outra ida ao servidor.
- * Pendência registrada no relatório da Fase 1.
+ * Pendência registrada no relatório da Fase 1; a Fase 5B soma
+ * `openProposalCount` à mesma leitura em vez de abrir uma segunda.
  */
-export function useProjectCounts(
-  ids: readonly string[],
-): ReadonlyMap<string, ProjectDetail["taskCounts"]> {
+export function useProjectDetails(ids: readonly string[]): ReadonlyMap<string, ProjectDetail> {
   return useQueries({
     queries: ids.map((id) => ({
       queryKey: projectKeys.detail(id),
       queryFn: () => fetchProject(id),
     })),
     combine: (results) => {
-      const counts = new Map<string, ProjectDetail["taskCounts"]>();
+      const details = new Map<string, ProjectDetail>();
       for (const result of results) {
-        if (result.data !== undefined) counts.set(result.data.id, result.data.taskCounts);
+        if (result.data !== undefined) details.set(result.data.id, result.data);
       }
-      return counts;
+      return details;
     },
   });
 }

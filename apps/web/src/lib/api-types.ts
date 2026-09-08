@@ -70,3 +70,18 @@ export type ApprovalGateListRecord = components["schemas"]["ApprovalGateList"];
 export type ApprovalGateListItemRecord = components["schemas"]["ApprovalGateListItem"];
 export type ApprovalGatePageRecord = components["schemas"]["ApprovalGatePage"];
 export type ResolveApprovalGateBody = components["schemas"]["ResolveApprovalGate"];
+
+export type TaskSummaryRecord = components["schemas"]["TaskSummary"];
+
+export type ProposedTaskRecord = components["schemas"]["ProposedTask"];
+export type ProposedTaskListItemRecord = components["schemas"]["ProposedTaskListItem"];
+export type ProposedTaskPageRecord = components["schemas"]["ProposedTaskPage"];
+export type ApproveProposedTaskBody = components["schemas"]["ApproveProposedTask"];
+export type RejectProposedTaskBody = components["schemas"]["RejectProposedTask"];
+
+export type TaskGraphRecord = components["schemas"]["TaskGraph"];
+export type TaskGraphNodeRecord = components["schemas"]["TaskGraphNode"];
+export type TaskGraphEdgeRecord = components["schemas"]["TaskGraphEdge"];
+
+export type KnowledgeCandidateRecord = components["schemas"]["KnowledgeCandidate"];
+export type KnowledgeCandidatePageRecord = components["schemas"]["KnowledgeCandidatePage"];

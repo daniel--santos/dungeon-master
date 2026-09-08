@@ -95,3 +95,15 @@ export const projectDetailSearchSchema = z.object({
 });
 
 export type ProjectDetailSearch = z.infer<typeof projectDetailSearchSchema>;
+
+/**
+ * O filtro do Mapa da Campanha (Fase 5B): só o estado, na URL.
+ *
+ * Os valores são os enums canônicos, como na lista de Tasks; um link do Mapa
+ * filtrado por `READY` continua o mesmo com o tema desligado.
+ */
+export const taskGraphSearchSchema = z.object({
+  status: z.array(z.enum(TASK_STATUS_VALUES)).nonempty().optional().catch(undefined),
+});
+
+export type TaskGraphSearch = z.infer<typeof taskGraphSearchSchema>;
