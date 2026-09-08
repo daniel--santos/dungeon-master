@@ -85,3 +85,18 @@ export type TaskGraphEdgeRecord = components["schemas"]["TaskGraphEdge"];
 
 export type KnowledgeCandidateRecord = components["schemas"]["KnowledgeCandidate"];
 export type KnowledgeCandidatePageRecord = components["schemas"]["KnowledgeCandidatePage"];
+
+export type KnowledgeItemRecord = components["schemas"]["KnowledgeItem"];
+export type KnowledgeItemPageRecord = components["schemas"]["KnowledgeItemPage"];
+export type KnowledgeItemProvenanceRecord = components["schemas"]["KnowledgeItemProvenance"];
+export type UpdateKnowledgeItemBody = components["schemas"]["UpdateKnowledgeItem"];
+export type ReviewKnowledgeItemBody = components["schemas"]["ReviewKnowledgeItem"];
+export type ProjectSummaryRecord = components["schemas"]["ProjectSummary"];
+export type DecisionPageRecord = components["schemas"]["DecisionPage"];
+export type DistillationRunRecord = components["schemas"]["DistillationRun"];
+export type DistillationRunPageRecord = components["schemas"]["DistillationRunPage"];
+export type DistillationRequestedRecord = components["schemas"]["DistillationRequested"];
+
+export type ForgedAchievementRecord = components["schemas"]["ForgedAchievement"];
+export type ForgedAchievementListRecord = components["schemas"]["ForgedAchievementList"];
+export type RenameForgedAchievementBody = components["schemas"]["RenameForgedAchievement"];

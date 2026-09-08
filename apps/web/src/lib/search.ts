@@ -107,3 +107,38 @@ export const taskGraphSearchSchema = z.object({
 });
 
 export type TaskGraphSearch = z.infer<typeof taskGraphSearchSchema>;
+
+const KNOWLEDGE_TYPE_VALUES = [
+  "FACT",
+  "DECISION",
+  "DISCOVERY",
+  "CONSTRAINT",
+  "PROCEDURE",
+  "SUMMARY",
+] as const;
+const KNOWLEDGE_STATUS_VALUES = ["PENDING_REVIEW", "ACTIVE", "REJECTED", "ARCHIVED"] as const;
+const KNOWLEDGE_REVIEW_VALUES = ["pending", "reviewed"] as const;
+
+export const KNOWLEDGE_TABS = ["items", "decisions", "batches"] as const;
+export type KnowledgeTab = (typeof KNOWLEDGE_TABS)[number];
+
+/**
+ * O Grimório da Campanha (Fase 6B): aba, filtros, busca, página e o item
+ * aberto na gaveta, tudo na URL.
+ *
+ * `item` está aqui porque a gaveta de detalhe precisa de link: o cockpit
+ * aponta um candidato promovido para a Página que ele virou, e o link tem
+ * de abrir a gaveta certa. Os valores são os enums canônicos: a URL não
+ * muda com o interruptor de tema.
+ */
+export const knowledgeSearchSchema = z.object({
+  tab: z.enum(KNOWLEDGE_TABS).default("items").catch("items"),
+  type: z.enum(KNOWLEDGE_TYPE_VALUES).optional().catch(undefined),
+  status: z.enum(KNOWLEDGE_STATUS_VALUES).optional().catch(undefined),
+  review: z.enum(KNOWLEDGE_REVIEW_VALUES).optional().catch(undefined),
+  q: z.string().trim().min(1).max(200).optional().catch(undefined),
+  page: z.coerce.number().int().min(1).default(1).catch(1),
+  item: z.uuid().optional().catch(undefined),
+});
+
+export type KnowledgeSearch = z.infer<typeof knowledgeSearchSchema>;

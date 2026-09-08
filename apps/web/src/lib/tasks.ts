@@ -71,12 +71,14 @@ export function useTasks(params: TaskListParams): UseQueryResult<TaskPage> {
   });
 }
 
-export function useTask(id: string): UseQueryResult<TaskDetail> {
+/** `null` desliga a consulta: um item do Grimório sem Task de origem não tem o que ler. */
+export function useTask(id: string | null): UseQueryResult<TaskDetail> {
   return useQuery({
-    queryKey: taskKeys.detail(id),
+    queryKey: taskKeys.detail(id ?? ""),
+    enabled: id !== null,
     queryFn: async () => {
       const { data, error, response } = await api.GET("/api/v1/tasks/{id}", {
-        params: { path: { id } },
+        params: { path: { id: id ?? "" } },
       });
       if (data === undefined) fail(error, response.status, "Não foi possível ler o registro");
       return data;
