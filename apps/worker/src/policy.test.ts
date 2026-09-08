@@ -201,18 +201,14 @@ describe("a concessão chegando ao argv de verdade", () => {
       env: {},
       permission: {
         mode: resolvido.permission.mode,
-        ...(resolvido.permission.grant === undefined
-          ? {}
-          : { grant: resolvido.permission.grant }),
+        ...(resolvido.permission.grant === undefined ? {} : { grant: resolvido.permission.grant }),
         enforcement: "HARNESS_NATIVE",
       },
     });
   }
 
   it("o argv carrega a allow-list derivada da política", () => {
-    const { args } = pedido(
-      perfil({ commandExecution: "ALL", allowedCommands: ["pnpm test"] }),
-    );
+    const { args } = pedido(perfil({ commandExecution: "ALL", allowedCommands: ["pnpm test"] }));
 
     expect(args).toContain("--permission-mode");
     expect(args[args.indexOf("--permission-mode") + 1]).toBe("acceptEdits");
@@ -235,9 +231,7 @@ describe("a concessão chegando ao argv de verdade", () => {
   });
 
   it("o argv de um bypass não leva allow-list nenhuma", () => {
-    const { args } = pedido(
-      perfil({ commandExecution: "ALL", allowUnsafeBypass: true }),
-    );
+    const { args } = pedido(perfil({ commandExecution: "ALL", allowUnsafeBypass: true }));
 
     expect(args).toContain("--dangerously-skip-permissions");
     expect(args).not.toContain("--allowedTools");
@@ -245,9 +239,7 @@ describe("a concessão chegando ao argv de verdade", () => {
   });
 
   it("comandos negados chegam como disallowedTools", () => {
-    const { args } = pedido(
-      perfil({ commandExecution: "ALL", deniedCommands: ["git push"] }),
-    );
+    const { args } = pedido(perfil({ commandExecution: "ALL", deniedCommands: ["git push"] }));
 
     const negados = args[args.indexOf("--disallowedTools") + 1] ?? "";
     expect(negados).toContain("Bash(git push:*)");
