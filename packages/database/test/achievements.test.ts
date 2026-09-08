@@ -305,6 +305,12 @@ describe("desbloqueio", () => {
       theme: "Primeira Expedição",
       plain: "Primeira execução",
     });
+    // A descrição nas duas versões: é o que o toast mostra com o tema desligado.
+    expect(primeiro?.["description"]).toEqual({
+      theme:
+        "Vencer a primeira Expedição. Uma. A plateia chegou cedo esperando um desastre e saiu decepcionada.",
+      plain: "Concluir a primeira execução com sucesso.",
+    });
 
     const stats = await eventosDeDashboard("hero_stats.updated");
     expect(stats.length).toBeGreaterThanOrEqual(2);

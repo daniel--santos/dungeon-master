@@ -279,6 +279,16 @@ export const GLOSSARY_KEYS = [
   "hall.bestiary.nemesis",
   "hall.chronicle.loadMore",
 
+  // --------------------------------------------------------------- loadout
+  // O aviso da tela de Equipamento para um Harness sem permissão nativa por
+  // comando (Fase 3, pendência). As frases inteiras moram aqui porque citam
+  // as entidades no tema; os nomes canônicos de código (`PERMISSION_DENIED`,
+  // `allowUnsafeBypass`, `ADVISORY`) ficam iguais nos dois, porque segurança
+  // nunca é tematizada a ponto de sumir.
+  "loadout.noNativePermissions.title",
+  "loadout.noNativePermissions.body",
+  "loadout.noNativePermissions.antigravity",
+
   // -------------------------------------------------------------- settings
   "settings.theme.toggle",
   "settings.theme.description",

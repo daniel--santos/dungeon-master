@@ -35,6 +35,7 @@ export function registerInboxRoutes(app: OpenAPIHono, inbox: InboxPort): void {
     if (body.title !== undefined) input.title = body.title;
     if (body.kind !== undefined) input.kind = body.kind;
     if (body.priority !== undefined) input.priority = body.priority;
+    if (body.workflowId !== undefined) input.workflowId = body.workflowId;
 
     const promoted = await inbox.promote(id, input);
     if (promoted === null) throw notFoundProblem("Task", id);

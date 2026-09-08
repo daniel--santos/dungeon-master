@@ -6,6 +6,7 @@ import type {
   ApprovalGateListItem,
   DashboardEvent,
   DashboardEventType,
+  DockerPreflight,
   ExecutionProfile,
   Harness,
   JsonValue,
@@ -23,6 +24,7 @@ import type {
   TaskDetail,
   TaskKind,
   TaskPriority,
+  TaskReopening,
   TaskSort,
   TaskStatus,
   HeroStatsResponse,
@@ -184,6 +186,8 @@ export interface TasksPort {
     dependsOnTaskId: string,
   ): Promise<Result<TaskDetail, DependencyWriteFailure> | null>;
   removeDependency(taskId: string, dependsOnTaskId: string): Promise<TaskDetail | null>;
+  /** Só as Tasks já reabertas, com a contagem. Vazio enquanto reabrir não existir. */
+  reopenings(filters: { kind?: TaskKind | undefined }): Promise<TaskReopening[]>;
 }
 
 export interface PromoteInboxRequest {
@@ -191,6 +195,7 @@ export interface PromoteInboxRequest {
   title?: string;
   kind?: TaskKind;
   priority?: TaskPriority;
+  workflowId?: string;
 }
 
 export interface InboxPort {
@@ -327,8 +332,19 @@ export interface ApprovalGatesPort {
   ): Promise<Result<ApprovalGate, ApprovalGateWriteFailure> | null>;
 }
 
-/** As portas de execução juntas, para `createApp` receber uma em vez de oito. */
+/**
+ * O preflight do backend Docker, medido na chamada.
+ *
+ * Nunca roda no boot: quem quer saber se o daemon está no ar pede, e recebe o
+ * resultado inteiro — daemon, imagem e cada harness de container.
+ */
+export interface DockerPreflightPort {
+  check(): Promise<DockerPreflight>;
+}
+
+/** As portas de execução juntas, para `createApp` receber uma em vez de nove. */
 export interface ExecutionPort {
+  readonly dockerPreflight: DockerPreflightPort;
   readonly harnesses: HarnessesPort;
   readonly models: ModelsPort;
   readonly agents: AgentsPort;
@@ -419,6 +435,7 @@ export function createSpecPorts(): {
         changeStatus: inerte("a transição de status"),
         addDependency: inerte("a criação de dependência"),
         removeDependency: inerte("a remoção de dependência"),
+        reopenings: inerte("a contagem de reaberturas"),
       },
       inbox: {
         capture: inerte("a captura da Inbox"),
@@ -428,6 +445,7 @@ export function createSpecPorts(): {
       },
     },
     execution: {
+      dockerPreflight: { check: inerte("o preflight do Docker") },
       harnesses: {
         list: inerte("a listagem de Harnesses"),
         setEnabled: inerte("o interruptor de Harness"),

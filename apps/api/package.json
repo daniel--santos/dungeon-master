@@ -20,6 +20,8 @@
     "@dungeon-master/database": "workspace:*",
     "@dungeon-master/events": "workspace:*",
     "@dungeon-master/platform": "workspace:*",
+    "@dungeon-master/runtime": "workspace:*",
+    "@dungeon-master/runtime-sandcastle": "workspace:*",
     "@hono/node-server": "2.1.1",
     "@hono/swagger-ui": "0.6.1",
     "@hono/zod-openapi": "1.6.3",

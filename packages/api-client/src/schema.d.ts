@@ -736,6 +736,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/task-reopenings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * As Tasks já reabertas, com a contagem
+         * @description Conta no diário as transições `task.status_changed` que saem de `COMPLETED` — a mesma definição que instancia a Conquista de nêmesis. Só as Tasks com pelo menos uma reabertura aparecem, da mais recente para a mais antiga. A máquina de estados de hoje não tem aresta saindo de `COMPLETED`, então a lista fica vazia até que reabrir seja possível.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Só as Tasks deste tipo. */
+                    kind?: "BUG" | "FEATURE" | "RESEARCH" | "CHORE";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description As reaberturas por Task. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskReopeningList"];
+                    };
+                };
+                /** @description Filtro inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tasks/{id}": {
         parameters: {
             query?: never;
@@ -1113,7 +1164,7 @@ export interface paths {
         put?: never;
         /**
          * Promove a captura a trabalho
-         * @description Atribui o Project e leva para `READY`, opcionalmente ajustando título, tipo e prioridade. `projectId` é obrigatório porque `READY` sem Project é um estado que o banco recusa.
+         * @description Atribui o Project e leva para `READY`, opcionalmente ajustando título, tipo, prioridade e Workflow. `projectId` é obrigatório porque `READY` sem Project é um estado que o banco recusa; um `workflowId` que não existe vira `404`.
          */
         post: {
             parameters: {
@@ -2234,6 +2285,45 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/v1/preflights/docker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * O preflight do backend Docker
+         * @description Mede na hora: daemon acessível e versão, imagem de referência presente e seu `USER`, e, por harness que sabe rodar em container, a versão da CLI e a checagem de credencial dentro de um container descartável. Teto curto por comando e por harness; um harness que não responde sai com `timedOut`. Sem daemon ou sem imagem os harnesses não são verificados. Um resultado aprovado de um harness pode ser reaproveitado pelo adapter por alguns minutos; o daemon e a imagem são medidos em toda chamada.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O resultado do preflight, mesmo com problemas: eles vêm no corpo. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DockerPreflight"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/tasks/{id}/runs": {
@@ -3773,6 +3863,23 @@ export interface components {
          * @enum {string}
          */
         TaskPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+        /** @description As Tasks que já foram reabertas, com a contagem. */
+        TaskReopeningList: {
+            /** @description Uma entrada por Task reaberta, da reabertura mais recente para a mais antiga. */
+            items: components["schemas"]["TaskReopening"][];
+        };
+        /** @description As reaberturas de uma Task, contadas no diário. Só Tasks com pelo menos uma. */
+        TaskReopening: {
+            /** Format: uuid */
+            taskId: string;
+            /** @description Quantas vezes a Task saiu de `COMPLETED`. */
+            count: number;
+            /**
+             * Format: date-time
+             * @description Instante da última reabertura, em UTC.
+             */
+            lastReopenedAt: string;
+        };
         /** @description Corpo de `POST /api/v1/tasks`. Nasce em `READY`. */
         CreateTask: {
             /**
@@ -3932,6 +4039,11 @@ export interface components {
              * @enum {string}
              */
             priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+            /**
+             * Format: uuid
+             * @description Workflow que a Task passa a seguir. Ausente deixa a Task sem Workflow.
+             */
+            workflowId?: string;
         };
         /** @description O cadastro fechado de Harnesses. */
         HarnessList: {
@@ -4329,6 +4441,66 @@ export interface components {
             contextPolicy?: components["schemas"]["ContextPolicy"];
             isDefault?: boolean;
         };
+        /** @description O preflight do backend Docker, medido na chamada. */
+        DockerPreflight: {
+            /**
+             * Format: date-time
+             * @description Instante em que a checagem começou, em UTC.
+             */
+            checkedAt: string;
+            /** @description Quanto a checagem inteira levou. */
+            durationMs: number;
+            /** @description Teto por comando do cliente Docker e por harness. Fixo e curto. */
+            timeoutMs: number;
+            /** @description O daemon do Docker. */
+            daemon: {
+                /** @description O daemon respondeu ao cliente. */
+                reachable: boolean;
+                /** @description Versão do servidor. Nula sem daemon. */
+                serverVersion: string | null;
+            };
+            /** @description A imagem do agente. */
+            image: {
+                /** @description A imagem de referência que os Runs em container usam. */
+                name: string;
+                /** @description A imagem existe nesta máquina. */
+                present: boolean;
+                /** @description `USER` da imagem, que precisa bater com o worker. */
+                user: string | null;
+            };
+            /** @description Problemas de daemon e de imagem. Os de cada harness ficam no harness. */
+            problems: components["schemas"]["PreflightProblem"][];
+            /** @description Um por adapter de container registrado. Sem daemon ou sem imagem, nenhum é verificado e todos saem com `installed: false`. */
+            harnesses: components["schemas"]["DockerHarnessPreflight"][];
+        };
+        /** @description Um problema encontrado no preflight. */
+        PreflightProblem: {
+            code: components["schemas"]["PreflightProblemCode"];
+            /** @description O que falta e como resolver, em português. */
+            message: string;
+            /** @description Um problema fatal impede a execução; os demais viram aviso. */
+            fatal: boolean;
+        };
+        /**
+         * @description Código estável de um problema encontrado no preflight.
+         * @enum {string}
+         */
+        PreflightProblemCode: "NOT_INSTALLED" | "VERSION_UNREADABLE" | "NOT_AUTHENTICATED" | "UNSUPPORTED_MODE" | "UNSUPPORTED_PLATFORM";
+        /** @description O preflight de um harness dentro do container: versão e credencial. */
+        DockerHarnessPreflight: {
+            harnessKey: components["schemas"]["HarnessKey"];
+            /** @description Identificador do adapter, com o ambiente: `claude-code@docker`. */
+            adapterId: string;
+            /** @description A CLI respondeu dentro da imagem. */
+            installed: boolean;
+            /** @description Versão lida dentro do container. Nula quando ilegível. */
+            version: string | null;
+            /** @description Resultado da checagem de credencial. Nulo quando ela não é barata ou não existe. */
+            authenticated: boolean | null;
+            /** @description O adapter não respondeu dentro do teto; `installed` e `version` não valem. */
+            timedOut: boolean;
+            problems: components["schemas"]["PreflightProblem"][];
+        };
         /** @description Uma tentativa concreta de realizar uma Task. */
         Run: {
             /**
@@ -4674,7 +4846,7 @@ export interface components {
              */
             finishedAt: string | null;
             result: components["schemas"]["RunStepResult"];
-            error: components["schemas"]["RunError"];
+            error: components["schemas"]["RunStepError"];
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -4784,6 +4956,64 @@ export interface components {
          * @enum {string}
          */
         ApprovalDecision: "approve" | "reject";
+        /** @description Por que um RunStep terminou em erro ou foi pulado. */
+        RunStepError: ({
+            /** @description Código estável do erro, quando houver um. */
+            code?: string;
+            /** @description Mensagem já sanitizada de credenciais. */
+            message: string;
+            /** @description Só num step `SKIPPED`: por que ele não rodou. Ausente nos demais erros. */
+            details?: {
+                /** @enum {string} */
+                code: "PREDICATE_FALSE";
+                predicate: components["schemas"]["Predicate"];
+                /** @description Por que o predicado avaliou falso. */
+                detail: string;
+            } | {
+                /** @enum {string} */
+                code: "DEPENDENCY_NOT_SUCCEEDED";
+                dependency: string;
+                /**
+                 * @description Estado terminal em que a dependência ficou.
+                 * @enum {string}
+                 */
+                status: "PENDING" | "RUNNING" | "WAITING_APPROVAL" | "SUCCEEDED" | "FAILED" | "SKIPPED" | "TIMED_OUT" | "CANCELLED";
+            };
+        } & {
+            [key: string]: unknown;
+        }) | null;
+        /** @description Uma condição do conjunto fechado de `when`. */
+        Predicate: {
+            /** @enum {string} */
+            kind: "stepSucceeded";
+            /** @description Chave de um step que é dependência deste. */
+            step: string;
+        } | {
+            /** @enum {string} */
+            kind: "stepFailed";
+            /** @description Chave de um step que é dependência deste. */
+            step: string;
+        } | {
+            /** @enum {string} */
+            kind: "outputStatusIs";
+            /** @description Chave de um step de agente que é dependência deste. */
+            step: string;
+            /**
+             * @description O veredito que o agente reportou.
+             * @enum {string}
+             */
+            status: "completed" | "blocked" | "failed";
+        } | {
+            /** @enum {string} */
+            kind: "validationPassed";
+            /** @description Chave de um step de validação que é dependência deste. */
+            step: string;
+        } | {
+            /** @enum {string} */
+            kind: "artifactExists";
+            /** @description Caminho relativo ao workspace do Run. */
+            path: string;
+        };
         /** @description Os ApprovalGates de um Run. */
         ApprovalGateList: {
             /** @description Os gates do Run, do mais antigo ao mais novo. */
@@ -4893,38 +5123,6 @@ export interface components {
             prompt: string;
             /** @description Steps cujo resumo de resultado o motor anexa ao prompt. Precisam ser dependências deste step, diretas ou indiretas. */
             includeOutputsOf?: string[];
-        };
-        /** @description Uma condição do conjunto fechado de `when`. */
-        Predicate: {
-            /** @enum {string} */
-            kind: "stepSucceeded";
-            /** @description Chave de um step que é dependência deste. */
-            step: string;
-        } | {
-            /** @enum {string} */
-            kind: "stepFailed";
-            /** @description Chave de um step que é dependência deste. */
-            step: string;
-        } | {
-            /** @enum {string} */
-            kind: "outputStatusIs";
-            /** @description Chave de um step de agente que é dependência deste. */
-            step: string;
-            /**
-             * @description O veredito que o agente reportou.
-             * @enum {string}
-             */
-            status: "completed" | "blocked" | "failed";
-        } | {
-            /** @enum {string} */
-            kind: "validationPassed";
-            /** @description Chave de um step de validação que é dependência deste. */
-            step: string;
-        } | {
-            /** @enum {string} */
-            kind: "artifactExists";
-            /** @description Caminho relativo ao workspace do Run. */
-            path: string;
         };
         /** @description Um processo rodado sem shell. Código de saída diferente de 0 é `FAILED`. */
         CommandStepDefinition: {
@@ -5144,7 +5342,7 @@ export interface components {
             /** @description Total de itens que casam com o filtro. */
             total: number;
         };
-        /** @description Um gate na listagem, com a Task junto. */
+        /** @description Um gate na listagem, com a Task e o Workflow junto. */
         ApprovalGateListItem: {
             /**
              * Format: uuid
@@ -5182,6 +5380,20 @@ export interface components {
             taskId: string;
             /** @description Título da Task no momento da leitura. Vem por junção. */
             taskTitle: string;
+            /**
+             * Format: uuid
+             * @description Workflow do Run. Vem por junção.
+             */
+            workflowId: string | null;
+            /**
+             * Format: uuid
+             * @description A versão congelada que o Run executa. Vem por junção.
+             */
+            workflowVersionId: string | null;
+            /** @description Nome atual do Workflow, como o título da Task: acompanha uma renomeação. */
+            workflowName: string | null;
+            /** @description Número da versão congelada. */
+            workflowVersion: number | null;
         };
         /** @description Corpo de `POST /api/v1/approval-gates/{id}/resolve`. */
         ResolveApprovalGate: {

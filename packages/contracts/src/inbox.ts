@@ -30,6 +30,9 @@ export type CaptureInbox = z.infer<typeof CaptureInboxSchema>;
  *
  * `projectId` é obrigatório porque `READY` sem Project é um estado que o banco
  * recusa: o `CHECK` da tabela só admite `project_id` nulo em `INBOX`.
+ * `workflowId` é opcional pelo mesmo motivo de `CreateTask`: a Task nasce
+ * numa Expedição simples e escolhe o Workflow quando faz sentido; uma
+ * captura nunca tem um, então ausente é "sem Workflow", e não "mantém".
  */
 export const PromoteInboxSchema = z
   .object({
@@ -43,6 +46,10 @@ export const PromoteInboxSchema = z
       .describe("Substitui o texto capturado. Ausente mantém o título atual."),
     kind: TaskKindSchema.optional().describe("Ausente mantém o `kind` atual."),
     priority: TaskPrioritySchema.optional().describe("Ausente mantém a prioridade atual."),
+    workflowId: z
+      .uuid()
+      .optional()
+      .describe("Workflow que a Task passa a seguir. Ausente deixa a Task sem Workflow."),
   })
   .meta({ id: "PromoteInbox", description: "Corpo de `POST /api/v1/inbox/{id}/promote`." });
 

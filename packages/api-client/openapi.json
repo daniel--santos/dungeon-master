@@ -817,6 +817,47 @@
         ],
         "description": "Prioridade de uma Task."
       },
+      "TaskReopeningList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskReopening"
+            },
+            "description": "Uma entrada por Task reaberta, da reabertura mais recente para a mais antiga."
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "As Tasks que já foram reabertas, com a contagem."
+      },
+      "TaskReopening": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "count": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Quantas vezes a Task saiu de `COMPLETED`."
+          },
+          "lastReopenedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante da última reabertura, em UTC."
+          }
+        },
+        "required": [
+          "taskId",
+          "count",
+          "lastReopenedAt"
+        ],
+        "description": "As reaberturas de uma Task, contadas no diário. Só Tasks com pelo menos uma."
+      },
       "CreateTask": {
         "type": "object",
         "properties": {
@@ -1181,6 +1222,11 @@
               "URGENT"
             ],
             "description": "Ausente mantém a prioridade atual."
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Workflow que a Task passa a seguir. Ausente deixa a Task sem Workflow."
           }
         },
         "required": [
@@ -2250,6 +2296,180 @@
         },
         "description": "Corpo de `PATCH /api/v1/loadouts/{id}`. Toda edição que muda algo incrementa `version`."
       },
+      "DockerPreflight": {
+        "type": "object",
+        "properties": {
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante em que a checagem começou, em UTC."
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Quanto a checagem inteira levou."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Teto por comando do cliente Docker e por harness. Fixo e curto."
+          },
+          "daemon": {
+            "type": "object",
+            "properties": {
+              "reachable": {
+                "type": "boolean",
+                "description": "O daemon respondeu ao cliente."
+              },
+              "serverVersion": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Versão do servidor. Nula sem daemon."
+              }
+            },
+            "required": [
+              "reachable",
+              "serverVersion"
+            ],
+            "description": "O daemon do Docker."
+          },
+          "image": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "A imagem de referência que os Runs em container usam."
+              },
+              "present": {
+                "type": "boolean",
+                "description": "A imagem existe nesta máquina."
+              },
+              "user": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "`USER` da imagem, que precisa bater com o worker."
+              }
+            },
+            "required": [
+              "name",
+              "present",
+              "user"
+            ],
+            "description": "A imagem do agente."
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreflightProblem"
+            },
+            "description": "Problemas de daemon e de imagem. Os de cada harness ficam no harness."
+          },
+          "harnesses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DockerHarnessPreflight"
+            },
+            "description": "Um por adapter de container registrado. Sem daemon ou sem imagem, nenhum é verificado e todos saem com `installed: false`."
+          }
+        },
+        "required": [
+          "checkedAt",
+          "durationMs",
+          "timeoutMs",
+          "daemon",
+          "image",
+          "problems",
+          "harnesses"
+        ],
+        "description": "O preflight do backend Docker, medido na chamada."
+      },
+      "PreflightProblem": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/PreflightProblemCode"
+          },
+          "message": {
+            "type": "string",
+            "description": "O que falta e como resolver, em português."
+          },
+          "fatal": {
+            "type": "boolean",
+            "description": "Um problema fatal impede a execução; os demais viram aviso."
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "fatal"
+        ],
+        "description": "Um problema encontrado no preflight."
+      },
+      "PreflightProblemCode": {
+        "type": "string",
+        "enum": [
+          "NOT_INSTALLED",
+          "VERSION_UNREADABLE",
+          "NOT_AUTHENTICATED",
+          "UNSUPPORTED_MODE",
+          "UNSUPPORTED_PLATFORM"
+        ],
+        "description": "Código estável de um problema encontrado no preflight."
+      },
+      "DockerHarnessPreflight": {
+        "type": "object",
+        "properties": {
+          "harnessKey": {
+            "$ref": "#/components/schemas/HarnessKey"
+          },
+          "adapterId": {
+            "type": "string",
+            "description": "Identificador do adapter, com o ambiente: `claude-code@docker`."
+          },
+          "installed": {
+            "type": "boolean",
+            "description": "A CLI respondeu dentro da imagem."
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Versão lida dentro do container. Nula quando ilegível."
+          },
+          "authenticated": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Resultado da checagem de credencial. Nulo quando ela não é barata ou não existe."
+          },
+          "timedOut": {
+            "type": "boolean",
+            "description": "O adapter não respondeu dentro do teto; `installed` e `version` não valem."
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreflightProblem"
+            }
+          }
+        },
+        "required": [
+          "harnessKey",
+          "adapterId",
+          "installed",
+          "version",
+          "authenticated",
+          "timedOut",
+          "problems"
+        ],
+        "description": "O preflight de um harness dentro do container: versão e credencial."
+      },
       "Run": {
         "type": "object",
         "properties": {
@@ -3082,7 +3302,7 @@
             "$ref": "#/components/schemas/RunStepResult"
           },
           "error": {
-            "$ref": "#/components/schemas/RunError"
+            "$ref": "#/components/schemas/RunStepError"
           },
           "createdAt": {
             "type": "string",
@@ -3425,6 +3645,210 @@
         ],
         "description": "O que o humano decidiu no gate."
       },
+      "RunStepError": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Código estável do erro, quando houver um."
+          },
+          "message": {
+            "type": "string",
+            "description": "Mensagem já sanitizada de credenciais."
+          },
+          "details": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "PREDICATE_FALSE"
+                    ]
+                  },
+                  "predicate": {
+                    "$ref": "#/components/schemas/Predicate"
+                  },
+                  "detail": {
+                    "type": "string",
+                    "description": "Por que o predicado avaliou falso."
+                  }
+                },
+                "required": [
+                  "code",
+                  "predicate",
+                  "detail"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "DEPENDENCY_NOT_SUCCEEDED"
+                    ]
+                  },
+                  "dependency": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{1,40}$"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "PENDING",
+                      "RUNNING",
+                      "WAITING_APPROVAL",
+                      "SUCCEEDED",
+                      "FAILED",
+                      "SKIPPED",
+                      "TIMED_OUT",
+                      "CANCELLED"
+                    ],
+                    "description": "Estado terminal em que a dependência ficou."
+                  }
+                },
+                "required": [
+                  "code",
+                  "dependency",
+                  "status"
+                ]
+              }
+            ],
+            "description": "Só num step `SKIPPED`: por que ele não rodou. Ausente nos demais erros."
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "additionalProperties": {},
+        "description": "Por que um RunStep terminou em erro ou foi pulado."
+      },
+      "Predicate": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "stepSucceeded"
+                ]
+              },
+              "step": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,40}$",
+                "description": "Chave de um step que é dependência deste."
+              }
+            },
+            "required": [
+              "kind",
+              "step"
+            ],
+            "description": "O step terminou em `SUCCEEDED`."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "stepFailed"
+                ]
+              },
+              "step": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,40}$",
+                "description": "Chave de um step que é dependência deste."
+              }
+            },
+            "required": [
+              "kind",
+              "step"
+            ],
+            "description": "O step terminou em `FAILED` ou `TIMED_OUT`."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "outputStatusIs"
+                ]
+              },
+              "step": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,40}$",
+                "description": "Chave de um step de agente que é dependência deste."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "completed",
+                  "blocked",
+                  "failed"
+                ],
+                "description": "O veredito que o agente reportou."
+              }
+            },
+            "required": [
+              "kind",
+              "step",
+              "status"
+            ],
+            "description": "O resultado estruturado do step de agente tem este `status`."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "validationPassed"
+                ]
+              },
+              "step": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,40}$",
+                "description": "Chave de um step de validação que é dependência deste."
+              }
+            },
+            "required": [
+              "kind",
+              "step"
+            ],
+            "description": "O step de validação saiu com código 0."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "artifactExists"
+                ]
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "description": "Caminho relativo ao workspace do Run."
+              }
+            },
+            "required": [
+              "kind",
+              "path"
+            ],
+            "description": "O arquivo existe no workspace quando o step é avaliado."
+          }
+        ],
+        "description": "Uma condição do conjunto fechado de `when`."
+      },
       "ApprovalGateList": {
         "type": "object",
         "properties": {
@@ -3741,127 +4165,6 @@
           "prompt"
         ],
         "description": "Um step executado por um agente."
-      },
-      "Predicate": {
-        "oneOf": [
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "stepSucceeded"
-                ]
-              },
-              "step": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9-]{1,40}$",
-                "description": "Chave de um step que é dependência deste."
-              }
-            },
-            "required": [
-              "kind",
-              "step"
-            ],
-            "description": "O step terminou em `SUCCEEDED`."
-          },
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "stepFailed"
-                ]
-              },
-              "step": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9-]{1,40}$",
-                "description": "Chave de um step que é dependência deste."
-              }
-            },
-            "required": [
-              "kind",
-              "step"
-            ],
-            "description": "O step terminou em `FAILED` ou `TIMED_OUT`."
-          },
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "outputStatusIs"
-                ]
-              },
-              "step": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9-]{1,40}$",
-                "description": "Chave de um step de agente que é dependência deste."
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "completed",
-                  "blocked",
-                  "failed"
-                ],
-                "description": "O veredito que o agente reportou."
-              }
-            },
-            "required": [
-              "kind",
-              "step",
-              "status"
-            ],
-            "description": "O resultado estruturado do step de agente tem este `status`."
-          },
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "validationPassed"
-                ]
-              },
-              "step": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9-]{1,40}$",
-                "description": "Chave de um step de validação que é dependência deste."
-              }
-            },
-            "required": [
-              "kind",
-              "step"
-            ],
-            "description": "O step de validação saiu com código 0."
-          },
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "artifactExists"
-                ]
-              },
-              "path": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 500,
-                "description": "Caminho relativo ao workspace do Run."
-              }
-            },
-            "required": [
-              "kind",
-              "path"
-            ],
-            "description": "O arquivo existe no workspace quando o step é avaliado."
-          }
-        ],
-        "description": "Uma condição do conjunto fechado de `when`."
       },
       "CommandStepDefinition": {
         "type": "object",
@@ -4525,6 +4828,37 @@
           "taskTitle": {
             "type": "string",
             "description": "Título da Task no momento da leitura. Vem por junção."
+          },
+          "workflowId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Workflow do Run. Vem por junção."
+          },
+          "workflowVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "A versão congelada que o Run executa. Vem por junção."
+          },
+          "workflowName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nome atual do Workflow, como o título da Task: acompanha uma renomeação."
+          },
+          "workflowVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "description": "Número da versão congelada."
           }
         },
         "required": [
@@ -4539,9 +4873,13 @@
           "resolvedAt",
           "note",
           "taskId",
-          "taskTitle"
+          "taskTitle",
+          "workflowId",
+          "workflowVersionId",
+          "workflowName",
+          "workflowVersion"
         ],
-        "description": "Um gate na listagem, com a Task junto."
+        "description": "Um gate na listagem, com a Task e o Workflow junto."
       },
       "ResolveApprovalGate": {
         "type": "object",
@@ -7486,6 +7824,55 @@
         }
       }
     },
+    "/api/v1/task-reopenings": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "As Tasks já reabertas, com a contagem",
+        "description": "Conta no diário as transições `task.status_changed` que saem de `COMPLETED` — a mesma definição que instancia a Conquista de nêmesis. Só as Tasks com pelo menos uma reabertura aparecem, da mais recente para a mais antiga. A máquina de estados de hoje não tem aresta saindo de `COMPLETED`, então a lista fica vazia até que reabrir seja possível.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "BUG",
+                "FEATURE",
+                "RESEARCH",
+                "CHORE"
+              ],
+              "description": "Só as Tasks deste tipo."
+            },
+            "required": false,
+            "description": "Só as Tasks deste tipo.",
+            "name": "kind",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "As reaberturas por Task.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskReopeningList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tasks/{id}": {
       "get": {
         "tags": [
@@ -7893,7 +8280,7 @@
           "inbox"
         ],
         "summary": "Promove a captura a trabalho",
-        "description": "Atribui o Project e leva para `READY`, opcionalmente ajustando título, tipo e prioridade. `projectId` é obrigatório porque `READY` sem Project é um estado que o banco recusa.",
+        "description": "Atribui o Project e leva para `READY`, opcionalmente ajustando título, tipo, prioridade e Workflow. `projectId` é obrigatório porque `READY` sem Project é um estado que o banco recusa; um `workflowId` que não existe vira `404`.",
         "parameters": [
           {
             "schema": {
@@ -9007,6 +9394,27 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/preflights/docker": {
+      "get": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "O preflight do backend Docker",
+        "description": "Mede na hora: daemon acessível e versão, imagem de referência presente e seu `USER`, e, por harness que sabe rodar em container, a versão da CLI e a checagem de credencial dentro de um container descartável. Teto curto por comando e por harness; um harness que não responde sai com `timedOut`. Sem daemon ou sem imagem os harnesses não são verificados. Um resultado aprovado de um harness pode ser reaproveitado pelo adapter por alguns minutos; o daemon e a imagem são medidos em toda chamada.",
+        "responses": {
+          "200": {
+            "description": "O resultado do preflight, mesmo com problemas: eles vêm no corpo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DockerPreflight"
                 }
               }
             }

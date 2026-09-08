@@ -71,8 +71,9 @@ export const inboxPromoteRoute = createRoute({
   summary: "Promove a captura a trabalho",
   description:
     "Atribui o Project e leva para `READY`, opcionalmente ajustando título, " +
-    "tipo e prioridade. `projectId` é obrigatório porque `READY` sem Project é " +
-    "um estado que o banco recusa.",
+    "tipo, prioridade e Workflow. `projectId` é obrigatório porque `READY` sem " +
+    "Project é um estado que o banco recusa; um `workflowId` que não existe " +
+    "vira `404`.",
   request: {
     params: InboxIdParamSchema,
     body: { required: true, content: { "application/json": { schema: PromoteInboxSchema } } },

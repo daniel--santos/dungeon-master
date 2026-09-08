@@ -1,5 +1,5 @@
 import type { McpTransport } from "@dungeon-master/contracts";
-import { Gem, Plus, WandSparkles, Wrench, X } from "lucide-react";
+import { Gem, Plus, ShieldAlert, WandSparkles, Wrench, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -58,6 +58,15 @@ export interface LoadoutFormProps {
  * O resumo do perfil fica visível o tempo todo, e não escondido atrás do
  * seletor, porque é ali que mora a diferença entre rodar isolado e rodar na
  * máquina de quem clicou.
+ *
+ * O aviso de permissão aparece assim que o Harness escolhido declara
+ * `nativePermissions: false`, e vem da matriz que a API expõe, não de uma
+ * lista de nomes aqui: é a capability que diz que a allow-list do perfil não
+ * vira barreira. O Antigravity ganha um parágrafo a mais porque erra para o
+ * lado oposto dos demais — nega tudo em vez de deixar tudo passar — e só o
+ * bypass do perfil libera (planejamento v0.4, fechamento da Fase 3). Nada
+ * aqui muda a execução: é o mesmo aviso que o Worker escreve no diário,
+ * antecipado para a hora da escolha.
  */
 export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
   const { t, format } = useGlossary();
@@ -120,6 +129,8 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
 
   const profile = enabledProfiles.find((item) => item.id === executionProfileId);
   const agent = (agents.data?.items ?? []).find((item) => item.id === agentId);
+  const harness = enabledHarnesses.find((item) => item.id === harnessId);
+  const withoutNativePermissions = harness !== undefined && !harness.capabilities.nativePermissions;
 
   const pending = create.isPending || update.isPending;
   const valid =
@@ -243,6 +254,43 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
             </SelectContent>
           </Select>
         </div>
+
+        {withoutNativePermissions && (
+          <div
+            className="flex items-start gap-2.5 rounded-[10px] border border-[oklch(0.72_0.13_75)]/40 bg-[oklch(0.72_0.13_75)]/8 px-3 py-2.5 sm:col-span-2"
+            data-loadout-permission-warning={harness.key}
+            role="note"
+          >
+            <ShieldAlert
+              aria-hidden
+              className="mt-0.5 size-3.5 flex-none text-[oklch(0.72_0.13_75)]"
+            />
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="text-[12.5px] font-medium">
+                {t("loadout.noNativePermissions.title")}
+              </span>
+              <span className="text-muted-foreground text-[11.5px] leading-4.5">
+                {format(t("loadout.noNativePermissions.body"), {
+                  harness: t("entity.harness"),
+                  profile: t("entity.executionProfile"),
+                })}
+              </span>
+              {harness.key === "ANTIGRAVITY" && (
+                <span
+                  className="text-muted-foreground text-[11.5px] leading-4.5"
+                  data-loadout-permission-bypass
+                >
+                  {format(t("loadout.noNativePermissions.antigravity"), {
+                    host: t("env.host"),
+                    hostWarning: t("env.host.warning"),
+                    run: t("entity.run"),
+                    profile: t("entity.executionProfile"),
+                  })}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col gap-1.5 sm:col-span-2">
           <Label htmlFor="loadout-profile">{t("entity.executionProfile")}</Label>

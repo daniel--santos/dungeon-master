@@ -52,6 +52,7 @@ import {
   listRunEventsSince,
   listRuns,
   listRunSteps,
+  listTaskReopenings,
   listTasks,
   listWorkflows,
   listWorkflowVersions,
@@ -79,6 +80,7 @@ import { DashboardEventPoller, PgNotifyListener, SseTransport } from "@dungeon-m
 import type { Logger } from "./logger.js";
 import type {
   AchievementsPort,
+  DockerPreflightPort,
   DashboardEventsPort,
   ExecutionPort,
   RunStreamHandle,
@@ -390,6 +392,11 @@ export function createRunEventsRuntime(options: RunEventsRuntimeOptions): RunEve
 }
 
 export interface ExecutionPortOptions {
+  /**
+   * O preflight do Docker. Opcional porque os testes com banco embutido não
+   * têm Docker: sem ele, a rota responde que o preflight não está disponível.
+   */
+  readonly dockerPreflight?: DockerPreflightPort;
   db: Database;
   userId: string;
   runEvents: RunEventsRuntime;
@@ -405,6 +412,10 @@ export function createExecutionPort(options: ExecutionPortOptions): ExecutionPor
   const { db, userId, runEvents } = options;
 
   return {
+    dockerPreflight: options.dockerPreflight ?? {
+      check: () =>
+        Promise.reject(new Error("O preflight do Docker não está disponível nesta instância.")),
+    },
     harnesses: {
       list: () => listHarnesses(db, { userId }),
       setEnabled: (harnessId, enabled) => setHarnessEnabled(db, { userId, harnessId, enabled }),
@@ -552,6 +563,7 @@ export function createWorkPort(options: WorkPortOptions): WorkPort {
         addTaskDependency(db, { userId, taskId, dependsOnTaskId }),
       removeDependency: (taskId, dependsOnTaskId) =>
         removeTaskDependency(db, { userId, taskId, dependsOnTaskId }),
+      reopenings: (filters) => listTaskReopenings(db, { userId, kind: filters.kind }),
     },
     inbox: {
       capture: (text) => captureInboxTask(db, { userId, text }),

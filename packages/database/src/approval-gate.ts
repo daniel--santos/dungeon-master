@@ -27,6 +27,7 @@ import { applyRunStatus, lockRunRow, type RunWriteFailure } from "./run.js";
 import { type ApprovalGateRow, approvalGates } from "./schema/run-step.js";
 import { runs } from "./schema/run.js";
 import { tasks } from "./schema/task.js";
+import { workflows, workflowVersions } from "./schema/workflow.js";
 
 /**
  * ApprovalGate: a pausa humana de um Run (documento técnico, seção 26).
@@ -142,7 +143,10 @@ export interface ListApprovalGatesInput extends PageInput {
  *
  * `GET /approval-gates?status=PENDING` é a caixa de entrada de aprovações da
  * interface. A Task vem por junção, como em `listRuns`: a lista mostra o
- * título em toda linha, e sem ele seria uma leitura por gate.
+ * título em toda linha, e sem ele seria uma leitura por gate. O Workflow vem
+ * pelo mesmo motivo, por `run.workflow_version_id`, com junção externa: um
+ * Run sem Workflow não abre gate hoje, mas a listagem não some se um dia
+ * abrir.
  */
 export async function listApprovalGates(
   db: DatabaseExecutor,
@@ -156,10 +160,20 @@ export async function listApprovalGates(
   const where = and(...conditions);
 
   const rows = await db
-    .select({ gate: approvalGates, taskId: tasks.id, taskTitle: tasks.title })
+    .select({
+      gate: approvalGates,
+      taskId: tasks.id,
+      taskTitle: tasks.title,
+      workflowId: workflows.id,
+      workflowVersionId: workflowVersions.id,
+      workflowName: workflows.name,
+      workflowVersion: workflowVersions.version,
+    })
     .from(approvalGates)
     .innerJoin(runs, eq(runs.id, approvalGates.runId))
     .innerJoin(tasks, eq(tasks.id, runs.taskId))
+    .leftJoin(workflowVersions, eq(workflowVersions.id, runs.workflowVersionId))
+    .leftJoin(workflows, eq(workflows.id, workflowVersions.workflowId))
     .where(where)
     .orderBy(desc(approvalGates.requestedAt), desc(approvalGates.id))
     .limit(input.pageSize)
@@ -177,6 +191,10 @@ export async function listApprovalGates(
       ...toApprovalGate(row.gate),
       taskId: row.taskId,
       taskTitle: row.taskTitle,
+      workflowId: row.workflowId,
+      workflowVersionId: row.workflowVersionId,
+      workflowName: row.workflowName,
+      workflowVersion: row.workflowVersion,
     })),
     total: counted?.total ?? 0,
   };

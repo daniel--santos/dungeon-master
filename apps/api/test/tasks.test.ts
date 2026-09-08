@@ -5,9 +5,10 @@ import {
   type Task,
   TaskDetailSchema,
   TaskPageSchema,
+  TaskReopeningListSchema,
   TaskSchema,
 } from "@dungeon-master/contracts";
-import { createDatabase, type DatabaseHandle } from "@dungeon-master/database";
+import { createDatabase, type DatabaseHandle, LOCAL_USER_ID } from "@dungeon-master/database";
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
 import type { App } from "../src/app.js";
@@ -641,5 +642,89 @@ describe(`GET ${API_BASE_PATH}/tasks`, () => {
 
     expect(response.status).toBe(200);
     expect(body.pageSize).toBe(100);
+  });
+});
+
+describe(`GET ${API_BASE_PATH}/task-reopenings`, () => {
+  /**
+   * Grava no diário a transição que hoje a máquina de estados não produz.
+   *
+   * A regra da mesa de teste é usar as funções da aplicação, e aqui ela não
+   * se aplica por um motivo declarado: `COMPLETED` é terminal, então nenhuma
+   * rota consegue reabrir uma Task. A linha é a mesma que `recordDomainEvent`
+   * escreveria no dia em que a aresta existir — é isso que a contagem lê.
+   */
+  async function reabrir(task: Task, at: string): Promise<void> {
+    await handle.pool.query(
+      `insert into activity (id, user_id, project_id, task_id, type, payload, created_at)
+       values ($1, $2, $3, $4, 'task.status_changed', $5, $6)`,
+      [
+        crypto.randomUUID(),
+        LOCAL_USER_ID,
+        task.projectId,
+        task.id,
+        JSON.stringify({
+          taskId: task.id,
+          projectId: task.projectId,
+          from: "COMPLETED",
+          to: "READY",
+        }),
+        at,
+      ],
+    );
+  }
+
+  async function concluir(taskId: string): Promise<void> {
+    await ateRunning(taskId);
+    expect((await mover(taskId, "COMPLETED")).status).toBe(200);
+  }
+
+  it("vazia enquanto nenhuma Task saiu de COMPLETED", async () => {
+    const bug = await criarTask({ title: "vazamento", kind: "BUG" });
+    await concluir(bug.id);
+
+    const response = await pedir({ app, method: "GET", path: `${API_BASE_PATH}/task-reopenings` });
+    expect(response.status).toBe(200);
+    expect(TaskReopeningListSchema.parse(await response.json()).items).toEqual([]);
+  });
+
+  it("conta só as transições que saem de COMPLETED, por Task, e filtra por kind", async () => {
+    const bug = await criarTask({ title: "vazamento", kind: "BUG" });
+    const feature = await criarTask({ title: "atalho", kind: "FEATURE" });
+    const intacto = await criarTask({ title: "nunca reaberto", kind: "BUG" });
+    await concluir(bug.id);
+    await concluir(feature.id);
+    await concluir(intacto.id);
+
+    await reabrir(bug, "2026-09-01T10:00:00.000Z");
+    await reabrir(bug, "2026-09-03T10:00:00.000Z");
+    await reabrir(feature, "2026-09-02T10:00:00.000Z");
+
+    const tudo = TaskReopeningListSchema.parse(
+      await (await pedir({ app, method: "GET", path: `${API_BASE_PATH}/task-reopenings` })).json(),
+    );
+    expect(tudo.items).toEqual([
+      { taskId: bug.id, count: 2, lastReopenedAt: "2026-09-03T10:00:00.000Z" },
+      { taskId: feature.id, count: 1, lastReopenedAt: "2026-09-02T10:00:00.000Z" },
+    ]);
+
+    const soBugs = TaskReopeningListSchema.parse(
+      await (
+        await pedir({ app, method: "GET", path: `${API_BASE_PATH}/task-reopenings?kind=BUG` })
+      ).json(),
+    );
+    // As outras transições do diário (RUNNING → COMPLETED etc.) não contam.
+    expect(soBugs.items).toEqual([
+      { taskId: bug.id, count: 2, lastReopenedAt: "2026-09-03T10:00:00.000Z" },
+    ]);
+  });
+
+  it("um kind desconhecido vira 400", async () => {
+    const response = await pedir({
+      app,
+      method: "GET",
+      path: `${API_BASE_PATH}/task-reopenings?kind=DRAGAO`,
+    });
+    expect(response.status).toBe(400);
   });
 });

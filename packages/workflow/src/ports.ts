@@ -23,7 +23,7 @@ import type {
   ExecutionEvent,
   ExecutionMode,
   HarnessKey,
-  RunError,
+  RunStepError,
   RunEventPayload,
   RunStep,
   RunStepResult,
@@ -59,7 +59,7 @@ export interface WorkflowRunContext {
 
 export interface RunStepPatch {
   readonly result?: RunStepResult | null;
-  readonly error?: RunError | null;
+  readonly error?: RunStepError | null;
 }
 
 export interface TransitionRunStepInput {

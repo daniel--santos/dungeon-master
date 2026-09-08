@@ -10,7 +10,7 @@
 
 import type {
   ApprovalGate,
-  RunError,
+  RunStepError,
   RunEventPayload,
   RunStep,
   RunStepResult,
@@ -36,13 +36,13 @@ export type StepAttemptOutcome =
   | {
       readonly kind: "failed";
       readonly result?: RunStepResult | undefined;
-      readonly error: RunError;
+      readonly error: RunStepError;
       readonly summary: string;
     }
   | {
       readonly kind: "timed_out";
       readonly result?: RunStepResult | undefined;
-      readonly error: RunError;
+      readonly error: RunStepError;
       readonly summary: string;
     }
   | {

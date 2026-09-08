@@ -9,6 +9,7 @@ import { findProjectRow } from "./project.js";
 import { failed, ok, type PageInput, type PageResult, type Result } from "./result.js";
 import { tasks } from "./schema/task.js";
 import { findTaskRow, toTask } from "./task.js";
+import { findWorkflowRow } from "./workflow.js";
 
 /**
  * A Inbox são as Tasks em `INBOX` (documento técnico, seção 38).
@@ -21,7 +22,8 @@ import { findTaskRow, toTask } from "./task.js";
 export type InboxFailure =
   | { readonly code: "NOT_IN_INBOX"; readonly status: Task["status"] }
   | { readonly code: "PROJECT_NOT_FOUND"; readonly projectId: string }
-  | { readonly code: "PROJECT_ARCHIVED"; readonly projectId: string };
+  | { readonly code: "PROJECT_ARCHIVED"; readonly projectId: string }
+  | { readonly code: "WORKFLOW_NOT_FOUND"; readonly workflowId: string };
 
 export interface CaptureInboxInput {
   userId: string;
@@ -94,6 +96,8 @@ export interface PromoteInboxInput {
   title?: string;
   kind?: TaskKind;
   priority?: TaskPriority;
+  /** Ausente deixa a Task sem Workflow: uma captura nunca tem um para manter. */
+  workflowId?: string;
 }
 
 /**
@@ -123,12 +127,21 @@ export async function promoteInboxTask(
       return failed<InboxFailure>({ code: "PROJECT_ARCHIVED", projectId: input.projectId });
     }
 
+    const workflowId = input.workflowId ?? null;
+    if (workflowId !== null) {
+      const workflow = await findWorkflowRow(tx, { userId: input.userId, workflowId });
+      if (workflow === null) {
+        return failed<InboxFailure>({ code: "WORKFLOW_NOT_FOUND", workflowId });
+      }
+    }
+
     const changed = ["projectId"];
     if (input.title !== undefined && input.title !== current.title) changed.push("title");
     if (input.kind !== undefined && input.kind !== current.kind) changed.push("kind");
     if (input.priority !== undefined && input.priority !== current.priority) {
       changed.push("priority");
     }
+    if (workflowId !== null) changed.push("workflowId");
 
     const [row] = await tx
       .update(tasks)
@@ -138,6 +151,7 @@ export async function promoteInboxTask(
         ...(input.title === undefined ? {} : { title: input.title }),
         ...(input.kind === undefined ? {} : { kind: input.kind }),
         ...(input.priority === undefined ? {} : { priority: input.priority }),
+        ...(workflowId === null ? {} : { workflowId }),
       })
       .where(and(eq(tasks.id, input.taskId), eq(tasks.userId, input.userId)))
       .returning();

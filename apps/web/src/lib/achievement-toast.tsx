@@ -24,9 +24,10 @@ import { useGlossary, type UseGlossary } from "@/lib/glossary";
  *
  * O texto de sabor é a fala de anúncio, e é só do tema. Com o interruptor
  * desligado ele não é escondido por opacidade: ele não é renderizado, e o que
- * sobra é o nome `plain` com a raridade e o grau. O payload do evento **não
- * traz a descrição** — só nome, sabor, raridade e tier —, então o modo sóbrio
- * mostra o estado e o grau no lugar dela, em vez de a tela inventar um texto.
+ * sobra é o nome `plain` com a descrição `plain`, a raridade e o grau. A
+ * descrição chega no próprio payload, nas duas versões, então o modo sóbrio
+ * tem o que dizer sem uma segunda leitura; uma Conquista do tema sem fala de
+ * anúncio cai na descrição temática pelo mesmo motivo.
  */
 
 /**
@@ -40,6 +41,9 @@ const UnlockPayloadSchema = z.object({
   unlockId: z.string(),
   definitionId: z.string(),
   name: z.object({ theme: z.string(), plain: z.string() }),
+  // Opcional na borda: um quadro reenviado de antes de a descrição entrar no
+  // payload ainda vira toast, só que sem ela.
+  description: z.object({ theme: z.string(), plain: z.string() }).optional(),
   icon: z.string(),
   rarity: z.enum(["COMMON", "RARE", "EPIC", "LEGENDARY"]),
   flavor: z.string().nullable().optional(),
@@ -58,8 +62,11 @@ export interface UnlockToastContent {
   readonly rarity: AchievementRarity;
   readonly rarityLabel: string;
   readonly color: string;
-  /** A fala de anúncio. Ausente com o tema desligado. */
-  readonly flavor: string | undefined;
+  /**
+   * O texto sob o nome: a fala de anúncio no tema, a descrição sóbria sem ele.
+   * Ausente só quando o payload não trouxe nenhum dos dois.
+   */
+  readonly body: string | undefined;
   /** O rodapé sóbrio: o estado, e o grau quando a Conquista tem mais de um. */
   readonly footer: string;
 }
@@ -77,7 +84,9 @@ export function unlockToastContent(
     rarity: payload.rarity,
     rarityLabel: t(RARITY_LABEL[payload.rarity]),
     color: RARITY_COLOR[payload.rarity],
-    flavor: themed ? (payload.flavor ?? undefined) : undefined,
+    body: themed
+      ? (payload.flavor ?? payload.description?.theme ?? undefined)
+      : payload.description?.plain,
     footer:
       label === null
         ? t(STATE_LABEL.UNLOCKED)
@@ -137,8 +146,16 @@ function UnlockToast({ payload }: { payload: UnlockPayload }) {
           </span>
         </div>
 
-        {content.flavor !== undefined && (
-          <p className="text-muted-foreground text-xs leading-4.5 italic">{content.flavor}</p>
+        {content.body !== undefined && (
+          <p
+            className={
+              glossary.theme === "dnd"
+                ? "text-muted-foreground text-xs leading-4.5 italic"
+                : "text-muted-foreground text-xs leading-4.5"
+            }
+          >
+            {content.body}
+          </p>
         )}
 
         <span className="text-muted-foreground text-[11px]">{content.footer}</span>
