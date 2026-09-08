@@ -504,10 +504,12 @@ describe("a identidade do git dentro do agente", () => {
   let vazio: string;
   let configComIdentidade: string;
   let configSemIdentidade: string;
+  let raiz: string;
 
   /** Um repositório com um commit inicial, e uma pasta que serve de `HOME` sem nada dentro. */
   beforeAll(async () => {
     const base = await mkdtemp(join(tmpdir(), "dm-git-ident-"));
+    raiz = base;
     repo = join(base, "repositorio");
     vazio = join(base, "home-vazio");
     await mkdir(repo, { recursive: true });
@@ -528,6 +530,14 @@ describe("a identidade do git dentro do agente", () => {
     await writeFile(join(repo, "README.md"), "# base\n");
     await git("add", ".");
     await git("commit", "-q", "-m", "base");
+  });
+
+  afterAll(async () => {
+    // Mesma ressalva do `workdir` acima: no Windows o git segura o handle do
+    // diretório por alguns instantes depois de sair.
+    await rm(raiz, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 }).catch(
+      () => undefined,
+    );
   });
 
   /** Roda o agente falso com um `GIT_CONFIG_GLOBAL` escolhido e devolve o que ele emitiu. */
