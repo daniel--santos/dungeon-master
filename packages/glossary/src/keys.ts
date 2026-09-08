@@ -186,6 +186,58 @@ export const GLOSSARY_KEYS = [
   "approval.pending.empty",
   "approval.toast.title",
 
+  // --------------------------------------------------------------- proposal
+  // A proposta de trabalho (Fase 5B): o que uma Expedição encontrou pelo
+  // caminho e não fez. No tema é a Pista; sem tema, a tarefa proposta. Os três
+  // estados, as duas decisões, os diálogos, o aviso de decisão perdida (CAS),
+  // a caixa de abertas e o toast. As frases inteiras moram aqui porque citam
+  // as entidades no tema.
+  "entity.proposedTask",
+  "entity.proposedTask.plural",
+  "proposal.status.proposed",
+  "proposal.status.approved",
+  "proposal.status.rejected",
+  "proposal.decision.approve",
+  "proposal.decision.reject",
+  "proposal.open.title",
+  "proposal.open.empty",
+  "proposal.origin.run",
+  "proposal.rationale",
+  "proposal.approve.title",
+  "proposal.approve.body",
+  "proposal.approve.parent",
+  "proposal.approve.parent.origin",
+  "proposal.approve.parent.none",
+  "proposal.approve.dependsOn",
+  "proposal.approve.dependsOn.hint",
+  "proposal.approve.dependsOn.parent",
+  "proposal.approve.done",
+  "proposal.reject.title",
+  "proposal.reject.body",
+  "proposal.conflict",
+  "proposal.toast.one",
+  "proposal.toast.many",
+  "proposal.toast.body",
+  "proposal.toast.open",
+  "proposal.decideIn",
+  "proposal.knowledge.summary",
+  "proposal.knowledge.one",
+  "proposal.knowledge.many",
+
+  // ------------------------------------------------------------------ graph
+  // O grafo de Tasks do Project (Fase 5B): o título vem de `entity.taskGraph`;
+  // aqui ficam a legenda, o estado vazio, a dica de ligação, o diálogo de
+  // desfazer uma aresta e o motivo de recusa por ciclo.
+  "graph.legend.dependency",
+  "graph.legend.parent",
+  "graph.empty.title",
+  "graph.empty.body",
+  "graph.connect.hint",
+  "graph.removeEdge.title",
+  "graph.removeEdge.body",
+  "graph.cycle",
+  "graph.openProposals",
+
   // ------------------------------------------------------------------- env
   "env.host",
   "env.host.warning",

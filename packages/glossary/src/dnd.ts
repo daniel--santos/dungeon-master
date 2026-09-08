@@ -27,7 +27,7 @@ export const dnd: Record<GlossaryKey, string> = {
   "entity.task.kind.chore.plural": "Manutenções",
   "entity.subtask": "Etapa da missão",
   "entity.subtask.plural": "Etapas da missão",
-  "entity.taskGraph": "Mapa da masmorra",
+  "entity.taskGraph": "Mapa da Campanha",
   "entity.inbox": "Quadro de Missões",
   "entity.run": "Expedição",
   "entity.run.plural": "Expedições",
@@ -166,6 +166,59 @@ export const dnd: Record<GlossaryKey, string> = {
   "approval.pending.empty":
     "Nenhum Selo pendente. Quando um Ritual parar num passo de aprovação, o pedido aparece aqui.",
   "approval.toast.title": "A Guilda pede o Selo",
+
+  // --------------------------------------------------------------- proposal
+  "entity.proposedTask": "Pista",
+  "entity.proposedTask.plural": "Pistas",
+  "proposal.status.proposed": "Em aberto",
+  "proposal.status.approved": "Seguida",
+  "proposal.status.rejected": "Descartada",
+  "proposal.decision.approve": "Seguir a Pista",
+  "proposal.decision.reject": "Descartar a Pista",
+  "proposal.open.title": "Pistas em aberto",
+  "proposal.open.empty":
+    "Nenhuma Pista em aberto. Quando uma Expedição encontrar trabalho novo pelo caminho, ele aparece aqui para você decidir.",
+  "proposal.origin.run": "Encontrada na Expedição",
+  "proposal.rationale": "Por que seguir",
+  "proposal.approve.title": "Seguir a Pista?",
+  "proposal.approve.body":
+    "Uma Missão nova nasce na Campanha, pronta, com a mãe e as dependências que você escolher aqui. Nada é inferido.",
+  "proposal.approve.parent": "Missão mãe",
+  "proposal.approve.parent.origin": "Filha da Missão de origem",
+  "proposal.approve.parent.none": "Sem mãe",
+  "proposal.approve.dependsOn": "Precisa terminar antes",
+  "proposal.approve.dependsOn.hint":
+    "Missões da Campanha que precisam terminar antes desta poder partir. A de origem vem marcada quando não é a mãe: a Pista foi encontrada nela e costuma depender do que ela deixar pronto.",
+  "proposal.approve.dependsOn.parent":
+    "Uma filha não espera a mãe: a mãe só conclui depois das filhas, e a ligação travaria as duas.",
+  "proposal.approve.done": "A Pista virou Missão.",
+  "proposal.reject.title": "Descartar a Pista?",
+  "proposal.reject.body":
+    "A Pista fica registrada como descartada, com a sua nota, e nenhuma Missão é criada. A decisão não pode ser desfeita.",
+  "proposal.conflict":
+    "Outra mão decidiu antes da sua. Nada foi sobrescrito: a Pista está {status}.",
+  "proposal.toast.one": "A Expedição trouxe uma Pista",
+  "proposal.toast.many": "A Expedição trouxe {n} Pistas",
+  "proposal.toast.body": "Decida na Campanha: cada uma pode virar Missão.",
+  "proposal.toast.open": "Abrir a Campanha",
+  "proposal.decideIn": "Decidir na Campanha",
+  "proposal.knowledge.summary": "Candidatos ao Grimório",
+  "proposal.knowledge.one": "{n} candidato ao Grimório",
+  "proposal.knowledge.many": "{n} candidatos ao Grimório",
+
+  // ------------------------------------------------------------------ graph
+  "graph.legend.dependency": "Dependência: a da esquerda termina antes",
+  "graph.legend.parent": "Mãe e filha",
+  "graph.empty.title": "O Mapa está em branco",
+  "graph.empty.body":
+    "Crie a primeira Missão e a Campanha começa a ser desenhada aqui, com as dependências entre elas.",
+  "graph.connect.hint":
+    "Arraste da borda direita de uma Missão até outra para dizer que a primeira termina antes. Clique numa Missão para abri-la.",
+  "graph.removeEdge.title": "Desfazer a ligação?",
+  "graph.removeEdge.body":
+    "{to} deixa de esperar por {from} e pode partir antes de ela terminar. Refazer a ligação depois é um arrasto.",
+  "graph.cycle": "Essa ligação fecharia um ciclo no Mapa: {path}. A aresta foi desfeita.",
+  "graph.openProposals": "Tem Pistas em aberto",
 
   // ------------------------------------------------------------------- env
   "env.host": "Campo aberto",

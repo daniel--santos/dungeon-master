@@ -169,6 +169,59 @@ export const plain: Record<GlossaryKey, string> = {
     "Nenhuma aprovação pendente. Quando um workflow parar numa etapa de aprovação, o pedido aparece aqui.",
   "approval.toast.title": "Aprovação pedida",
 
+  // --------------------------------------------------------------- proposal
+  "entity.proposedTask": "Tarefa proposta",
+  "entity.proposedTask.plural": "Tarefas propostas",
+  "proposal.status.proposed": "Em aberto",
+  "proposal.status.approved": "Aprovada",
+  "proposal.status.rejected": "Recusada",
+  "proposal.decision.approve": "Aprovar",
+  "proposal.decision.reject": "Recusar",
+  "proposal.open.title": "Propostas em aberto",
+  "proposal.open.empty":
+    "Nenhuma proposta em aberto. Quando uma execução encontrar trabalho novo pelo caminho, ele aparece aqui para você decidir.",
+  "proposal.origin.run": "Proposta pela execução",
+  "proposal.rationale": "Motivo da proposta",
+  "proposal.approve.title": "Aprovar a proposta?",
+  "proposal.approve.body":
+    "Uma tarefa nova nasce no projeto, pronta, com a tarefa mãe e as dependências que você escolher aqui. Nada é inferido.",
+  "proposal.approve.parent": "Tarefa mãe",
+  "proposal.approve.parent.origin": "Subtarefa da tarefa de origem",
+  "proposal.approve.parent.none": "Sem tarefa mãe",
+  "proposal.approve.dependsOn": "Precisa terminar antes",
+  "proposal.approve.dependsOn.hint":
+    "Tarefas do projeto que precisam terminar antes desta poder ser executada. A de origem vem marcada quando não é a mãe: a proposta nasceu nela e costuma depender do que ela deixar pronto.",
+  "proposal.approve.dependsOn.parent":
+    "Uma subtarefa não espera a tarefa mãe: a mãe só conclui depois das subtarefas, e a ligação travaria as duas.",
+  "proposal.approve.done": "A proposta virou tarefa.",
+  "proposal.reject.title": "Recusar a proposta?",
+  "proposal.reject.body":
+    "A proposta fica registrada como recusada, com a sua nota, e nenhuma tarefa é criada. A decisão não pode ser desfeita.",
+  "proposal.conflict":
+    "Outra decisão chegou antes. Nada foi sobrescrito: a proposta está {status}.",
+  "proposal.toast.one": "A execução propôs uma tarefa",
+  "proposal.toast.many": "A execução propôs {n} tarefas",
+  "proposal.toast.body": "Decida no projeto: cada uma pode virar tarefa.",
+  "proposal.toast.open": "Abrir o projeto",
+  "proposal.decideIn": "Decidir no projeto",
+  "proposal.knowledge.summary": "Candidatos a conhecimento",
+  "proposal.knowledge.one": "{n} candidato a conhecimento",
+  "proposal.knowledge.many": "{n} candidatos a conhecimento",
+
+  // ------------------------------------------------------------------ graph
+  "graph.legend.dependency": "Dependência: a da esquerda termina antes",
+  "graph.legend.parent": "Tarefa mãe e subtarefa",
+  "graph.empty.title": "O grafo está vazio",
+  "graph.empty.body":
+    "Crie a primeira tarefa e o grafo do projeto começa a ser desenhado aqui, com as dependências entre elas.",
+  "graph.connect.hint":
+    "Arraste da borda direita de uma tarefa até outra para dizer que a primeira termina antes. Clique numa tarefa para abri-la.",
+  "graph.removeEdge.title": "Remover a dependência?",
+  "graph.removeEdge.body":
+    "{to} deixa de esperar por {from} e pode ser executada antes de ela terminar. Refazer a ligação depois é um arrasto.",
+  "graph.cycle": "Essa dependência fecharia um ciclo no grafo: {path}. A aresta foi desfeita.",
+  "graph.openProposals": "Tem propostas em aberto",
+
   // ------------------------------------------------------------------- env
   "env.host": "Host",
   "env.host.warning": "sem isolamento",

@@ -5,7 +5,11 @@ import { BrandMark } from "@/components/app-shell/brand-mark";
 import { NAV_ITEMS } from "@/components/app-shell/navigation";
 import { usePendingGates } from "@/lib/approvals";
 import { useGlossary } from "@/lib/glossary";
+import { PROPOSAL_COLOR } from "@/lib/proposal-domain";
+import { useOpenProposalCount } from "@/lib/proposals";
 import { WEB_VERSION } from "@/lib/version";
+
+const AMBER = "oklch(0.72 0.13 75)";
 
 /**
  * A barra lateral do design da Fase 1: marca, onze destinos em três grupos e
@@ -13,14 +17,18 @@ import { WEB_VERSION } from "@/lib/version";
  *
  * Ícone, rota e ordem são iguais nos dois temas; só o texto do item muda.
  *
- * O item de Expedições carrega o contador de Selos pendentes: é a única
- * pergunta do sistema que espera uma resposta humana, e ela precisa estar à
- * vista em qualquer tela.
+ * Dois itens carregam contadores, e os dois são perguntas que esperam uma
+ * resposta humana: o de Expedições, com os Selos pendentes; e o de Campanhas,
+ * com as propostas de trabalho em aberto (Fase 5B). A proposta é decidida na
+ * Campanha, onde a mãe e as dependências fazem sentido, e é por isso que o
+ * contador mora ali e não em Missões.
  */
 export function Sidebar() {
   const { t } = useGlossary();
   const pending = usePendingGates();
   const pendingCount = pending.data?.total ?? 0;
+  const proposals = useOpenProposalCount();
+  const proposalCount = proposals.data ?? 0;
 
   return (
     <aside className="bg-card border-border flex w-62 flex-none flex-col border-r">
@@ -48,12 +56,26 @@ export function Sidebar() {
                   className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full border px-1.25 font-mono text-[10.5px] leading-none"
                   data-pending-gates-count={pendingCount}
                   style={{
-                    borderColor: "color-mix(in oklch, oklch(0.72 0.13 75) 45%, transparent)",
-                    backgroundColor: "color-mix(in oklch, oklch(0.72 0.13 75) 14%, transparent)",
-                    color: "oklch(0.72 0.13 75)",
+                    borderColor: `color-mix(in oklch, ${AMBER} 45%, transparent)`,
+                    backgroundColor: `color-mix(in oklch, ${AMBER} 14%, transparent)`,
+                    color: AMBER,
                   }}
                 >
                   {pendingCount}
+                </span>
+              )}
+              {item.to === "/projects" && proposalCount > 0 && (
+                <span
+                  aria-label={t("proposal.open.title")}
+                  className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full border px-1.25 font-mono text-[10.5px] leading-none"
+                  data-open-proposals-count={proposalCount}
+                  style={{
+                    borderColor: `color-mix(in oklch, ${PROPOSAL_COLOR} 45%, transparent)`,
+                    backgroundColor: `color-mix(in oklch, ${PROPOSAL_COLOR} 14%, transparent)`,
+                    color: PROPOSAL_COLOR,
+                  }}
+                >
+                  {proposalCount}
                 </span>
               )}
             </Link>

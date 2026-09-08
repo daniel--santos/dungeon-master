@@ -1,6 +1,6 @@
 import type { components } from "@dungeon-master/api-client";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Archive, ArchiveRestore, Folder, Pencil, Plus } from "lucide-react";
+import { Archive, ArchiveRestore, Folder, Footprints, Pencil, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -37,7 +37,8 @@ import {
 } from "@/components/ui/table";
 import { relativeTime } from "@/lib/datetime";
 import { useGlossary } from "@/lib/glossary";
-import { useProjectCounts, useProjects, useSetProjectArchived } from "@/lib/projects";
+import { PROPOSAL_COLOR } from "@/lib/proposal-domain";
+import { useProjectDetails, useProjects, useSetProjectArchived } from "@/lib/projects";
 import { projectSearchSchema } from "@/lib/search";
 
 type Project = components["schemas"]["Project"];
@@ -60,7 +61,7 @@ function ProjectsPage() {
 
   const projects = useProjects({ status: search.status });
   const items = useMemo(() => projects.data?.items ?? [], [projects.data]);
-  const counts = useProjectCounts(items.map((project) => project.id));
+  const details = useProjectDetails(items.map((project) => project.id));
   const archive = useSetProjectArchived();
 
   function confirmArchive() {
@@ -167,24 +168,44 @@ function ProjectsPage() {
                 {items.map((project) => (
                   <TableRow key={project.id}>
                     <TableCell className="px-4">
-                      <Link
-                        className="underline-offset-2 hover:underline"
-                        params={{ id: project.id }}
-                        to="/projects/$id"
-                      >
-                        {project.title}
-                      </Link>
+                      <span className="flex items-center gap-2">
+                        <Link
+                          className="underline-offset-2 hover:underline"
+                          params={{ id: project.id }}
+                          to="/projects/$id"
+                        >
+                          {project.title}
+                        </Link>
+                        {(() => {
+                          const open = details.get(project.id)?.openProposalCount ?? 0;
+                          return open > 0 ? (
+                            <span
+                              className="flex h-4.5 min-w-4.5 items-center gap-1 rounded-full border px-1.25 font-mono text-[10.5px] leading-none"
+                              data-project-open-proposals={open}
+                              style={{
+                                borderColor: `color-mix(in oklch, ${PROPOSAL_COLOR} 45%, transparent)`,
+                                backgroundColor: `color-mix(in oklch, ${PROPOSAL_COLOR} 14%, transparent)`,
+                                color: PROPOSAL_COLOR,
+                              }}
+                              title={t("proposal.open.title")}
+                            >
+                              <Footprints aria-hidden className="size-2.75" />
+                              <span>{open}</span>
+                            </span>
+                          ) : null;
+                        })()}
+                      </span>
                     </TableCell>
                     <TableCell className="text-muted-foreground px-4 text-xs">
                       {project.status === "ACTIVE" ? "Em atividade" : "No arquivo"}
                     </TableCell>
                     <TableCell className="px-4 whitespace-normal">
                       {(() => {
-                        const found = counts.get(project.id);
+                        const found = details.get(project.id);
                         return found === undefined ? (
                           <span className="text-muted-foreground text-xs">…</span>
                         ) : (
-                          <TaskCounts compact counts={found} />
+                          <TaskCounts compact counts={found.taskCounts} />
                         );
                       })()}
                     </TableCell>

@@ -37,6 +37,10 @@ const SCANNED_PREFIXES = [
   // aparecem como rótulo de campo em telas que nada têm a ver com Workflow.
   "runStep.status.",
   "approval.",
+  // Fase 5B: o vocabulário da proposta de trabalho e do Mapa da Campanha —
+  // estados, decisões, títulos e textos dos diálogos, legenda e motivos.
+  "proposal.",
+  "graph.",
 ] as const;
 
 const EXEMPT_FILES = new Set(["lib/glossary.ts", "lib/api-types.ts", "routeTree.gen.ts"]);
@@ -181,7 +185,7 @@ describe("nenhum label de entidade escrito à mão", () => {
     expect(mentions(stripComments("<span>Item</span>"), "Item")).toBe(true);
   });
 
-  it("cobre os nove grupos de chaves que a regra exige", () => {
+  it("cobre os onze grupos de chaves que a regra exige", () => {
     for (const prefix of SCANNED_PREFIXES) {
       expect(
         SCANNED_KEYS.some((key) => key.startsWith(prefix)),
@@ -199,6 +203,10 @@ describe("nenhum label de entidade escrito à mão", () => {
       "Conceder o Selo",
       "Aprovar",
       "Pulado",
+      "Pistas",
+      "Tarefas propostas",
+      "Seguir a Pista",
+      "Mãe e filha",
     ]) {
       expect(FORBIDDEN, label).toContain(label);
     }

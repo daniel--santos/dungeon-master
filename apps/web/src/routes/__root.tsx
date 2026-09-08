@@ -11,6 +11,7 @@ import { useApprovalToasts } from "@/lib/approval-toast";
 import { useEventsStore } from "@/lib/events";
 import { useThemeSetting } from "@/lib/glossary";
 import { useLiveQueries } from "@/lib/live";
+import { useProposalToasts } from "@/lib/proposal-toast";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -39,6 +40,10 @@ function RootLayout() {
   // O pedido de Selo chega enquanto o usuário está em qualquer tela, pelo
   // mesmo motivo; o toast leva ao cockpit, onde a decisão acontece.
   useApprovalToasts();
+
+  // As propostas de trabalho chegam no desfecho de uma Expedição, que também
+  // acontece enquanto o usuário está em qualquer tela; o toast leva à Campanha.
+  useProposalToasts();
 
   // Uma conexão SSE por aba, aberta no layout raiz e viva enquanto a aba
   // estiver. `connect` é idempotente, o que importa porque o StrictMode monta o
