@@ -18,6 +18,7 @@ import type { UsageSummary } from "@dungeon-master/contracts";
 
 import { capabilities, type HarnessCapabilities } from "../capabilities.js";
 import type { HarnessAdapter, HarnessContext, PreflightResult } from "../harness.js";
+import { PERMISSION_DENIED_DIAGNOSTIC_CODE } from "../harness.js";
 import { createHostAdapter, type HarnessSignal, type HostCommand } from "../host-adapter.js";
 
 /** Marcador que o runtime põe no prompt da retentativa de resultado estruturado. */
@@ -155,6 +156,21 @@ export function parseFakeLine(line: string): readonly HarnessSignal[] {
         cacheCreationInputTokens: numberOr(obj["cacheCreationInputTokens"], 0),
       };
       return [{ kind: "usage", usage }];
+    }
+    case "permission_denied": {
+      // A mesma forma que os adapters reais produzem: diagnóstico com código
+      // estável, e nada de erro. Quem decide se a negação foi fatal é o Worker,
+      // no fim, olhando se o agente entregou o trabalho.
+      const tool = typeof obj["tool"] === "string" ? obj["tool"] : "uma ferramenta";
+      return [
+        {
+          kind: "diagnostic",
+          level: "WARN",
+          code: PERMISSION_DENIED_DIAGNOSTIC_CODE,
+          message: `Permissão negada para ${tool}: não há quem aprove nesta sessão`,
+          detail: "Libere a ferramenta no ExecutionProfile ou ligue `allowUnsafeBypass`.",
+        },
+      ];
     }
     case "error":
       return typeof obj["message"] === "string"
