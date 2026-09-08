@@ -1,6 +1,6 @@
 import type { ExecutionMode } from "@dungeon-master/contracts";
 import { useNavigate } from "@tanstack/react-router";
-import { Ban, GitBranch, Package, Swords } from "lucide-react";
+import { Ban, GitBranch, Package, Swords, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -38,6 +38,7 @@ import { useGlossary } from "@/lib/glossary";
 import { useCreateRun } from "@/lib/runs";
 import { useHostAcknowledgement } from "@/lib/settings";
 import { cn } from "@/lib/utils";
+import { useWorkflows } from "@/lib/workflows";
 
 export interface NewRunDialogProps {
   readonly task: TaskDetailRecord;
@@ -70,6 +71,11 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
   const profiles = useExecutionProfiles();
   const host = useHostAcknowledgement();
   const create = useCreateRun();
+  const workflows = useWorkflows();
+  const workflow =
+    task.workflowId === null
+      ? null
+      : (workflows.data?.items.find((item) => item.id === task.workflowId) ?? null);
 
   const [loadoutId, setLoadoutId] = useState("");
   const [mode, setMode] = useState<ExecutionMode>("HOST");
@@ -219,6 +225,32 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
             </span>
           )}
         </div>
+
+        {task.workflowId !== null && (
+          <div
+            className="border-border flex items-start gap-3 rounded-[10px] border bg-white/[0.035] px-3 py-2.5"
+            data-run-workflow={task.workflowId}
+          >
+            <span className="border-border flex size-8.5 flex-none items-center justify-center rounded-[9px] border bg-[oklch(0.72_0.13_75)]/12">
+              <WandSparkles aria-hidden className="size-4.25 text-[oklch(0.72_0.13_75)]" />
+            </span>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="text-muted-foreground text-[11px] tracking-[0.04em] uppercase">
+                {t("entity.workflow")}
+              </span>
+              <span className="truncate text-[13.5px] font-medium">{workflow?.name ?? "…"}</span>
+              <span className="text-muted-foreground text-[11px] leading-4">
+                {workflow === null
+                  ? t("workflow.captureNote")
+                  : format("{n} {steps}. {note}", {
+                      n: workflow.definition.steps.length,
+                      steps: t("entity.workflowStep.plural").toLowerCase(),
+                      note: t("workflow.captureNote"),
+                    })}
+              </span>
+            </div>
+          </div>
+        )}
 
         <fieldset className="flex flex-col gap-1.5">
           <legend className="pb-1.5 text-[12.5px] font-medium">Ambiente</legend>
