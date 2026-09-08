@@ -1,4 +1,5 @@
 import { loadCatalog, loadTemplates } from "@dungeon-master/achievements";
+import { buildFtsQuery } from "@dungeon-master/context";
 import type { RunResult } from "@dungeon-master/contracts";
 import { distillProject, type DistillSettings } from "@dungeon-master/knowledge";
 import { createScriptedKnowledgeRuntime } from "@dungeon-master/knowledge/testing";
@@ -23,7 +24,6 @@ import {
 } from "../src/forged-achievement.js";
 import { listKnowledgeCandidates } from "../src/knowledge-candidate.js";
 import {
-  buildFtsQuery,
   createDatabaseKnowledgeStore,
   readNotableFacts,
   recallSimilarKnowledgeItems,

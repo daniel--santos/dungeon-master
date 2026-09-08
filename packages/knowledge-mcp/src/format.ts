@@ -1,4 +1,4 @@
-import { escapeXmlTags } from "@dungeon-master/knowledge";
+import { escapeXmlTags } from "@dungeon-master/context";
 
 import type {
   KnowledgeToolItem,

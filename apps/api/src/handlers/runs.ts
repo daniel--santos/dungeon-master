@@ -13,6 +13,7 @@ import { resolvePage } from "../pagination.js";
 import type { RunsPort } from "../ports.js";
 import {
   runsCancelRoute,
+  runsContextRoute,
   runsCreateRoute,
   runsEventsRoute,
   runsEventStreamRoute,
@@ -101,6 +102,20 @@ export function registerRunRoutes(
     if (run === null) throw notFoundProblem("Run", id);
 
     return c.json(run, 200);
+  });
+
+  app.openapi(runsContextRoute, async (c) => {
+    const { id } = c.req.valid("param");
+
+    // Dois 404 com detalhes diferentes: o Run que não existe e o Run que ainda
+    // não foi reclamado (ou é anterior ao Context Engine) e não tem registro.
+    const run = await runs.get(id);
+    if (run === null) throw notFoundProblem("Run", id);
+
+    const context = await runs.context(id);
+    if (context === null) throw notFoundProblem("RunContext", id);
+
+    return c.json(context, 200);
   });
 
   app.openapi(runsCancelRoute, async (c) => {

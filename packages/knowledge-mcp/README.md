@@ -38,8 +38,9 @@ Regras que valem para todas, provadas em `src/tools.test.ts` e `test/stdio.test.
 - **Só `ACTIVE`.** O que está em revisão ainda não é conhecimento; o resumo tem
   porta própria e não aparece na busca nem na leitura por id.
 - **Sanitização na saída.** Todo texto devolvido passa por `escapeXmlTags` de
-  `@dungeon-master/knowledge`, inclusive título e descrição de Task, que são
-  texto do usuário.
+  `@dungeon-master/context`, a mesma função que o montador de contexto aplica
+  antes de reinjetar texto no prompt, inclusive título e descrição de Task,
+  que são texto do usuário.
 - **Respostas compactas.** A busca traz trecho e id; a página inteira é pedida
   por id. Os tetos estão em `src/format.ts`.
 - **Anotações de leitura.** Toda ferramenta publica `readOnlyHint: true` e

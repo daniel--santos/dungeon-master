@@ -130,6 +130,11 @@ export interface StepAgentRuntimeInput {
    * agente: o Grimório é o mesmo do primeiro ao último passo.
    */
   readonly mcpServers?: readonly McpServerSpec[];
+  /**
+   * O bloco de contexto do Run (Fase 7), o mesmo em todo passo de agente.
+   * Vazio quando o Run segue sem contexto.
+   */
+  readonly contextText: string;
 }
 
 /**
@@ -175,7 +180,11 @@ export function createStepAgentRuntime(input: StepAgentRuntimeInput): StepAgentR
           permissionPolicy: policies.permission,
           environmentPolicy: policies.environment,
         },
-        prompt: buildPrompt(run.loadoutSnapshot.agent.instructions, request.prompt),
+        prompt: buildPrompt(
+          run.loadoutSnapshot.agent.instructions,
+          request.prompt,
+          input.contextText,
+        ),
         ...(querSchema
           ? {
               outputSchema: {

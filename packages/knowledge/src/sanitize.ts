@@ -1,52 +1,15 @@
-// Adapted from TencentDB Agent Memory — MemoryCore/src/utils/sanitize.ts@3efcd31 (`escapeXmlTags`)
-// Copyright (c) 2026 Tencent. Licensed under the MIT License.
-// Changes: a lista de tags escapadas deixou de ser a das seções de memória
-// pessoal (`user-persona`, `relevant-memories`, ...) e passou a ser a das
-// fronteiras que este projeto usa em prompt — `system`, `assistant`, `user`,
-// `result`, `candidate`, `knowledge`, `project-summary`, `run-log`,
-// `instructions` — e o resto do arquivo de origem (limpeza de metadados de
-// gateway, filtros L0/L1, detecção de injeção) não veio: o que este pacote
-// precisa é só a anti-injeção sobre texto escrito por modelo. Entrou
-// `sanitizeLlmText`, que é nosso, por cima da função copiada.
+import { escapeXmlTags } from "@dungeon-master/context";
 
 /**
- * As tags cujo fechamento um texto escrito por modelo não pode conter.
+ * A sanitização do que o Distiller persiste.
  *
- * Quando um item do Grimório for reinjetado num prompt (Fase 7), ele vai
- * dentro de uma seção delimitada por XML; um `</knowledge>` no meio do texto
- * fecharia a seção antes da hora e o resto viraria instrução. As tags aqui
- * são as fronteiras que os nossos prompts usam, mais as clássicas `system`,
- * `assistant` e `user`, que todo harness trata como especiais.
+ * `escapeXmlTags`, a função copiada do TencentDB Agent Memory, mora em
+ * `@dungeon-master/context` (planejamento v0.4, seção 13.3): é lá que o texto
+ * escrito por modelo volta a um prompt, e a lista de fronteiras que ela
+ * escapa é a das seções do bloco de contexto. Este pacote a aplica na
+ * entrada — todo item do Grimório já nasce escapado — e o montador a aplica
+ * de novo na saída; uma fonte só, dois momentos.
  */
-const BOUNDARY_TAGS = [
-  "system",
-  "assistant",
-  "user",
-  "result",
-  "candidate",
-  "candidates",
-  "knowledge",
-  "knowledge-item",
-  "project-summary",
-  "run-log",
-  "instructions",
-  "context",
-] as const;
-
-const BOUNDARY_TAG_PATTERN = new RegExp(`<\\/?(?:${BOUNDARY_TAGS.join("|")})(?:\\s[^>]*)?>`, "gi");
-
-/**
- * Escapa as tags XML que coincidem com as fronteiras dos nossos prompts.
- *
- * Só `<` e `>` das tags conhecidas viram `&lt;` e `&gt;`; o resto do texto
- * fica intacto, inclusive código com generics ou comparações. É deliberado:
- * escapar todo `<` deixaria ilegível um item que fala de `Array<string>`.
- */
-export function escapeXmlTags(text: string): string {
-  return text.replace(BOUNDARY_TAG_PATTERN, (match) =>
-    match.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
-  );
-}
 
 export interface SanitizeOptions {
   /** Teto de caracteres. O excedente é cortado, e o corte é marcado com `…`. */

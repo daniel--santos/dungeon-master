@@ -289,6 +289,7 @@ describe("os passos de agente do Ritual recebem a mesma lista", () => {
       onHarnessVersion: () => undefined,
       knownArtifacts: new Set(),
       mcpServers: servers,
+      contextText: "",
     });
 
     for await (const event of agent.execute({

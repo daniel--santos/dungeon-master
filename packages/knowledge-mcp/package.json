@@ -25,9 +25,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@dungeon-master/context": "workspace:*",
     "@dungeon-master/contracts": "workspace:*",
     "@dungeon-master/database": "workspace:*",
-    "@dungeon-master/knowledge": "workspace:*",
     "@modelcontextprotocol/sdk": "1.30.0",
     "drizzle-orm": "0.45.2",
     "zod": "4.5.4"

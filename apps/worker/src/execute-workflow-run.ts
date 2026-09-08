@@ -25,6 +25,7 @@ import {
 import type { ExecuteRunDeps } from "./execute-run.js";
 import { buildRunMcpServers } from "./mcp-servers.js";
 import { prepareRun, type PreparedRun } from "./prepare-run.js";
+import { resolveRunContext } from "./run-context.js";
 import { toRunEventInput, workerDiagnostic } from "./run-events.js";
 import { createRunOutcomeWriter } from "./run-writers.js";
 import { createDatabaseWorkflowStore, createStepAgentRuntime } from "./workflow-ports.js";
@@ -109,6 +110,11 @@ export async function executeWorkflowRun(deps: ExecuteRunDeps, claimed: ClaimedR
       return;
     }
 
+    // O contexto, montado uma vez e gravado antes do primeiro passo de agente
+    // (Fase 7). Numa retomada, o registro é relido: todo passo recebe o mesmo
+    // texto, antes e depois do gate. Vazio quando o Run segue sem ele.
+    const contextText = await resolveRunContext({ db, userId, claimed, writer, logger });
+
     // ------------------------------------------------------------- portas
     const store = createDatabaseWorkflowStore({
       db,
@@ -144,6 +150,7 @@ export async function executeWorkflowRun(deps: ExecuteRunDeps, claimed: ClaimedR
       },
       knownArtifacts: artefatosDoHarness,
       mcpServers: mcp.servers,
+      contextText,
     });
 
     const commands = commandExecutorFor(run.executionMode, policies);

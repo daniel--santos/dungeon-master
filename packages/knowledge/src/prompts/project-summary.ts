@@ -13,9 +13,9 @@
 // regras sobre o que o resumo não pode fazer ao consolidar páginas. Prompt
 // reescrito em português.
 
+import { escapeXmlTags } from "@dungeon-master/context";
 import { z } from "zod";
 
-import { escapeXmlTags } from "../sanitize.js";
 import type { ExistingKnowledgeItem, ProjectContext } from "../types.js";
 import { itemKey } from "./dedup-judge.js";
 

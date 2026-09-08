@@ -1,6 +1,7 @@
 import {
   CreateRunSchema,
   ProblemDetailsSchema,
+  RunContextSchema,
   RunEventListQuerySchema,
   RunEventListSchema,
   RunListQuerySchema,
@@ -92,6 +93,28 @@ export const runsGetRoute = createRoute({
       content: { "application/json": { schema: RunSchema } },
     },
     404: problem("Não existe Run com este id."),
+  },
+});
+
+export const runsContextRoute = createRoute({
+  method: "get",
+  path: `${API_BASE_PATH}/runs/{id}/context`,
+  tags: ["runs"],
+  summary: "O contexto montado para a execução",
+  description:
+    "O registro do Context Engine (Fase 7): o bloco de texto que foi ao prompt, " +
+    "as seções, cada item incluído com motivo, score e tokens, os excluídos por " +
+    "orçamento, o orçamento e o uso, e a política aplicada com a origem dela. " +
+    "Montado uma vez, quando o Worker reclama o Run; o mesmo texto vale para " +
+    "todos os passos e para qualquer retomada. `404` enquanto o Run não foi " +
+    "reclamado, e para Runs anteriores ao Context Engine.",
+  request: { params: RunIdParamSchema },
+  responses: {
+    200: {
+      description: "O contexto do Run.",
+      content: { "application/json": { schema: RunContextSchema } },
+    },
+    404: problem("Não existe Run com este id, ou ele ainda não tem contexto montado."),
   },
 });
 

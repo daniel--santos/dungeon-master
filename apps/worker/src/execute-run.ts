@@ -24,6 +24,7 @@ import { executeWorkflowRun } from "./execute-workflow-run.js";
 import type { Logger } from "./logger.js";
 import { buildRunMcpServers } from "./mcp-servers.js";
 import { prepareRun, type PreparedRun } from "./prepare-run.js";
+import { resolveRunContext } from "./run-context.js";
 import { toRunEventInput } from "./run-events.js";
 import { createRunOutcomeWriter } from "./run-writers.js";
 import {
@@ -154,6 +155,10 @@ async function executeSimpleRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Prom
       resume = { harnessSessionId: sessaoOrigem };
     }
 
+    // (f) O contexto, montado uma vez e gravado antes da primeira chamada ao
+    // agente (Fase 7). Vazio quando o Run segue sem ele.
+    const contextText = await resolveRunContext({ db, userId, claimed, writer, logger });
+
     const model = run.loadoutSnapshot.model;
 
     // Os servidores MCP: o Grimório deste Project e os do Loadout. A lista vai
@@ -204,7 +209,7 @@ async function executeSimpleRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Prom
         permissionPolicy: policies.permission,
         environmentPolicy: policies.environment,
       },
-      prompt: buildPrompt(run.loadoutSnapshot.agent.instructions, run.prompt),
+      prompt: buildPrompt(run.loadoutSnapshot.agent.instructions, run.prompt, contextText),
       ...(querSchema
         ? {
             outputSchema: {
@@ -475,13 +480,18 @@ export function describeDeniedTool(message: string): string {
 }
 
 /**
- * O prompt que chega ao agente.
+ * O prompt que chega ao agente: instruções do Agent, bloco de contexto, pedido.
  *
  * As instruções do Agent vão na frente do pedido da Task, e não em
  * `systemPromptAppend` sozinhas: nem toda CLI aceita acrescentar ao prompt de
  * sistema, e o papel do agente não pode depender de uma capability opcional.
+ *
+ * O bloco de contexto (Fase 7) entra entre os dois, e é o mesmo texto em todo
+ * passo do Run: instruções mais contexto formam o prefixo estável que o cache
+ * de prompt do provedor reaproveita; o que muda por passo vem depois. Num
+ * Run com Workflow o pedido começa em "# Tarefa", e o bloco fica antes dele.
  */
-export function buildPrompt(instructions: string, prompt: string): string {
-  const papel = instructions.trim();
-  return papel.length === 0 ? prompt : `${papel}\n\n---\n\n${prompt}`;
+export function buildPrompt(instructions: string, prompt: string, context = ""): string {
+  const prefixo = [instructions.trim(), context.trim()].filter((parte) => parte.length > 0);
+  return prefixo.length === 0 ? prompt : `${prefixo.join("\n\n---\n\n")}\n\n---\n\n${prompt}`;
 }

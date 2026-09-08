@@ -139,6 +139,46 @@ export const ForgeEveryNRunsSchema = z.number().int().min(1).max(10_000).meta({
   description: "Quantas Expedições precisam terminar entre duas Conquistas forjadas.",
 });
 
+// --------------------------------------------------------------------------
+// Context Engine (Fase 7)
+// --------------------------------------------------------------------------
+
+/**
+ * Liga o montador de contexto. Desligado, todo Run nasce com um `RunContext`
+ * `DISABLED` e o prompt vai como antes: só instruções do Agent e pedido da Task.
+ */
+export const ContextEnabledSchema = z.boolean().meta({
+  id: "ContextEnabled",
+  description: "O Context Engine monta o bloco de contexto dos Runs?",
+});
+
+/**
+ * O orçamento total do bloco, em tokens estimados. É o teto global: o
+ * `maxTokens` da política de contexto de um Loadout só aperta, nunca passa.
+ */
+export const ContextBudgetTokensSchema = z.number().int().min(500).max(200_000).meta({
+  id: "ContextBudgetTokens",
+  description: "Orçamento de tokens do bloco de contexto de cada Run.",
+});
+
+/** Teto de páginas do Grimório por Run. O `maxItems` do Loadout só reduz. */
+export const ContextMaxKnowledgeItemsSchema = z.number().int().min(0).max(50).meta({
+  id: "ContextMaxKnowledgeItems",
+  description: "Quantas páginas relevantes do Grimório entram no contexto, no máximo.",
+});
+
+/** Quantas decisões recentes entram. `0` desliga a seção. */
+export const ContextMaxDecisionsSchema = z.number().int().min(0).max(50).meta({
+  id: "ContextMaxDecisions",
+  description: "Quantas decisões mais recentes entram no contexto, no máximo.",
+});
+
+/** Quantos artefatos de Runs anteriores entram. `0` desliga a seção. */
+export const ContextMaxArtifactsSchema = z.number().int().min(0).max(100).meta({
+  id: "ContextMaxArtifacts",
+  description: "Quantos artefatos de Runs anteriores entram no contexto, no máximo.",
+});
+
 /**
  * O objeto completo de configurações do usuário, com todas as chaves conhecidas
  * sempre presentes.
@@ -154,6 +194,11 @@ export const UserSettingsSchema = z
     "knowledge.loadoutId": KnowledgeLoadoutIdSchema,
     "knowledge.distillEveryMinutes": KnowledgeDistillEveryMinutesSchema,
     "achievements.forgeEveryNRuns": ForgeEveryNRunsSchema,
+    "context.enabled": ContextEnabledSchema,
+    "context.budgetTokens": ContextBudgetTokensSchema,
+    "context.maxKnowledgeItems": ContextMaxKnowledgeItemsSchema,
+    "context.maxDecisions": ContextMaxDecisionsSchema,
+    "context.maxArtifacts": ContextMaxArtifactsSchema,
   })
   .meta({
     id: "UserSettings",
@@ -172,6 +217,12 @@ export const DEFAULT_USER_SETTINGS: UserSettings = Object.freeze({
   "knowledge.loadoutId": null,
   "knowledge.distillEveryMinutes": 10,
   "achievements.forgeEveryNRuns": 20,
+  // O montador nasce ligado: sem ele o Grimório é só histórico.
+  "context.enabled": true,
+  "context.budgetTokens": 6000,
+  "context.maxKnowledgeItems": 8,
+  "context.maxDecisions": 5,
+  "context.maxArtifacts": 10,
 });
 
 /**
@@ -188,6 +239,11 @@ export const USER_SETTING_VALUE_SCHEMAS = {
   "knowledge.loadoutId": KnowledgeLoadoutIdSchema,
   "knowledge.distillEveryMinutes": KnowledgeDistillEveryMinutesSchema,
   "achievements.forgeEveryNRuns": ForgeEveryNRunsSchema,
+  "context.enabled": ContextEnabledSchema,
+  "context.budgetTokens": ContextBudgetTokensSchema,
+  "context.maxKnowledgeItems": ContextMaxKnowledgeItemsSchema,
+  "context.maxDecisions": ContextMaxDecisionsSchema,
+  "context.maxArtifacts": ContextMaxArtifactsSchema,
 } as const satisfies Record<keyof UserSettings, z.ZodType>;
 
 /** As chaves conhecidas, na ordem em que aparecem no objeto. */

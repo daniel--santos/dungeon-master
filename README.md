@@ -195,6 +195,8 @@ packages/
   events/       ExecutionEvent, writers e cursor (esqueleto)
   glossary/     canônico → tema; labels da UI (esqueleto)
   achievements/ catálogo, templates e vocabulário de condições de Conquistas
+  knowledge/    Distiller do Grimório: prompts, dedup, resumo e forja, por portas
+  context/      Context Engine: o bloco de contexto estável por Run, com orçamento, por portas
 docs/         planejamento, fundamentos e as análises das referências
 ```
 
@@ -203,8 +205,10 @@ docs/         planejamento, fundamentos e as análises das referências
 - `apps/web` importa somente `@dungeon-master/api-client` e **tipos** de
   `@dungeon-master/contracts`. Nenhum pacote interno de backend.
 - `packages/domain` não importa banco, ORM, HTTP, logger, runtime nem builtins do Node.
+- `packages/knowledge` e `packages/context` são puros: banco, runtime e relógio entram
+  pelas portas de `ports.ts`, e o Worker faz a fiação.
 
-Quebrar qualquer uma das duas falha em `pnpm lint`.
+Quebrar qualquer uma delas falha em `pnpm lint`.
 
 ### Artefatos gerados e commitados
 

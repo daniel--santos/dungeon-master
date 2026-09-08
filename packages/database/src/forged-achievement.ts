@@ -4,8 +4,9 @@ import type {
   ForgedAchievement,
   ForgedAchievementProvenance,
 } from "@dungeon-master/contracts";
+import { escapeXmlTags } from "@dungeon-master/context";
 import { sanitizeCredentials } from "@dungeon-master/events";
-import { escapeXmlTags, type ForgedAchievementInput } from "@dungeon-master/knowledge";
+import type { ForgedAchievementInput } from "@dungeon-master/knowledge";
 import { and, desc, eq } from "drizzle-orm";
 
 import { achievementNaturalKey } from "./achievement.js";
