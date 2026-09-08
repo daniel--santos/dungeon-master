@@ -91,7 +91,9 @@ describe("createDockerAdapter", () => {
 
   it("o preflight pergunta daemon, imagem, versão e autenticação", async () => {
     const { cli, calls } = fakeDocker(roteiroFeliz);
-    const adapter = createDockerAdapter(definicao, { docker: cli, image: "img:1" });
+    // `hostUid: 1000` casa com o UID que o roteiro feliz devolve para a imagem;
+    // sem isso o teste dependeria do usuário da máquina (501 no runner do macOS).
+    const adapter = createDockerAdapter(definicao, { docker: cli, image: "img:1", hostUid: 1000 });
 
     const r = await adapter.preflight({ mode: "DOCKER", env: { GEMINI_API_KEY: "k" } });
 
@@ -105,6 +107,19 @@ describe("createDockerAdapter", () => {
     // Run vai usar, e não a que por acaso está no PATH do host.
     expect(calls[2]).toContain("img:1");
     expect(calls[2]).toContain("--version");
+  });
+
+  it("o preflight avisa quando o UID do worker não é o da imagem", async () => {
+    const { cli } = fakeDocker(roteiroFeliz);
+    const adapter = createDockerAdapter(definicao, { docker: cli, image: "img:1", hostUid: 501 });
+
+    const r = await adapter.preflight({ mode: "DOCKER", env: { GEMINI_API_KEY: "k" } });
+
+    // Não é fatal: o Run ainda sobe, mas os arquivos sairiam com o dono errado.
+    expect(r.installed).toBe(true);
+    expect(r.problems.map((p) => p.code)).toEqual(["UNSUPPORTED_MODE"]);
+    expect(r.problems[0]?.fatal).toBe(false);
+    expect(r.problems[0]?.message).toContain("501");
   });
 
   it("o preflight também não põe segredo no argv", async () => {

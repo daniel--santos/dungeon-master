@@ -118,6 +118,13 @@ export interface DockerAdapterOptions {
   readonly workspaceDir?: string;
   /** Teto do `docker rm -f` até desistir de confirmar. Padrão: 10 s. */
   readonly cancelConfirmMs?: number;
+  /**
+   * UID do processo do worker, comparado com o UID da imagem no preflight.
+   * Padrão: `process.getuid()` no POSIX; ausente no Windows, onde não há UID.
+   * Injetável para que o teste não dependa do usuário da máquina: o runner do
+   * macOS roda como 501 e a imagem de referência é construída para 1000.
+   */
+  readonly hostUid?: number;
 }
 
 /** Traduz a política de rede resolvida no valor de `--network`. */
@@ -182,7 +189,7 @@ export function createDockerAdapter(
   const preflight = async (context: HarnessContext): Promise<PreflightResult> => {
     if (cached !== undefined && Date.now() - cached.at < PREFLIGHT_TTL_MS) return cached.result;
 
-    const uid = process.getuid?.();
+    const uid = options.hostUid ?? process.getuid?.();
     const ambiente = await dockerPreflight({
       docker,
       image,
