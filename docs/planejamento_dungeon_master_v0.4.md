@@ -772,6 +772,25 @@ Pendências que ficam registradas:
 
 **Fase 4 iniciada** em três ondas: 4A fundação (contratos Zod do Workflow, domínio puro, tabelas e migração, captura congelada, gate por CAS, seed "Expedição guiada", API e cliente); depois, em paralelo, 4B motor (`packages/workflow`, executores por tipo, integração no Worker, pausa em gate que sobrevive a restart) e 4C web (Rituais, Selo da Guilda com diálogo de confirmação, cockpit por passos, e2e).
 
+## Fechamento da Fase 4 (08/09/2026)
+
+**Critério de conclusão da Fase 4 cumprido**: uma Missão escolhe um Ritual; a Expedição acompanha cada passo, sua saída e seus Selos; uma Expedição parada no Selo sobrevive a restart do Worker e a edição do Ritual. Provado com Claude Code real no host: `analyze` e `plan` rodaram, o Selo abriu, o Worker foi derrubado e subido, a aprovação pela API devolveu o Run à fila, `execute` criou um arquivo e commitou, `validate` rodou `git status --porcelain` e o Run fechou `SUCCEEDED` com os cinco passos assentados; um segundo Run com o Selo negado terminou `FAILED`, com `execute` pulado por predicado e `validate` por dependência, e a segunda decisão no mesmo Selo recebeu 409.
+
+O que entrou, em três ondas:
+
+- **4A, fundação**: definição de Workflow como dados validados por Zod com `superRefine` fail-closed (chave e `gateKey` repetidos, dependência inexistente, ciclo com o caminho, predicado só sobre dependência transitiva); domínio puro com ordem topológica, prontidão, predicados fail-closed e máquina de estados do RunStep; tabelas `workflow`, `workflow_version`, `workflow_step`, `run_step`, `approval_gate` (migração `0010`), captura congelada na criação do Run com os `run_step` nascendo `PENDING` na mesma transação, gate resolvido por CAS com auditoria na mesma transação e 409 com o gate atual quando outra decisão chegou antes; seed "Expedição guiada"; oito rotas novas e `workflowId` na Task. Eventos do motor numa união própria (`WorkflowEvent`) ao lado dos eventos de harness.
+- **4B, motor e Worker**: `packages/workflow` com runner determinístico, um passo por vez, um executor por tipo em módulo próprio e persistência por portas (não importa banco nem eventos; regra de ESLint); retomada só pelos `run_step` persistidos, gate reencontrado pela chave; retry com snapshot de checkout numa ref git (`refs/dm/snapshots/<runId>/<stepKey>`) restaurada só em `GIT_WORKTREE`; timeout por passo; cancelamento entre e durante passos por `AbortSignal`, e em `WAITING_APPROVAL` pelo laço ocioso do Worker; reconciliação assenta passos órfãos (`WORKER_LOST`); a Task do Run vai na frente de todo passo de agente.
+- **4C, web**: Rituais com editor por texto JSON/YAML (conversão no cliente) e grafo somente leitura em React Flow com dagre; Ritual na Missão e na Nova Expedição; passos do ritual e Carta do Selo no cockpit, com as duas decisões atrás de diálogo de confirmação e o 409 mostrando o Selo como ficou; Selos pendentes na lista de Expedições, contador na navegação e toast em qualquer tela; Diário renderiza os eventos do motor; 12 testes de ponta a ponta, com uma fixture por SQL no banco embutido que deixa uma Expedição esperando o Selo.
+
+Pendências que ficam registradas:
+
+- Steps `command` e `validation` em modo `DOCKER` são fail-closed (`COMMAND_STEP_DOCKER_UNSUPPORTED`); o container efêmero fica para depois.
+- Passos em paralelo, sessão contínua entre passos de agente e autoaprovação ficam fora da Fase 4.
+- API: `ApprovalGateListItem` sem nome e versão do Ritual; `RunStep.error.details` sem tipo para o motivo de pulo; promoção da Inbox sem `workflowId`.
+- Processo: um agente derrubou por padrão de linha de comando e levou junto uma API alheia; a regra de derrubar só o que se subiu, pelo PID, entra no `CLAUDE.md`.
+
+**Fase 5 iniciada** (Task Decomposition + Task Graph): propostas de trabalho a partir do resultado das Expedições, Tasks filhas com dependências, grafo editável; em paralelo, uma rodada curta com as pendências de API acumuladas.
+
 ## Andamento anterior da Fase 2 (histórico)
 
 Mergeadas e verdes no CI: 2A (modelo, banco, API), 2B (runtime e adapters de host; ADR em `packages/runtime-sandcastle/README.md`: os adapters não dependem do Sandcastle em runtime), o Worker (laço, reconciliação, cancelamento confirmado, shutdown gracioso, `resumeFromRunId`, marca d'água do poller) e as telas (cadastros, Nova Expedição com aceite do modo host, Expedições, Cristal de Visão com diário ao vivo e AlertDialog de cancelamento).

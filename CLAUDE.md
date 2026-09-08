@@ -171,6 +171,13 @@ nome (`@dungeon-master/<pacote>`): no CI o `typecheck` roda sem o `dist` do pró
 Nunca declare algo pronto sem ter rodado o comando. Se um passo falhou, relate a falha
 com a saída, em vez de descrevê-lo como pendente.
 
+**Derrube somente os processos que você mesmo subiu, pelo PID guardado ao iniciá-los** (ou
+pela árvore desse PID). Nunca mate por nome de imagem nem por padrão de linha de comando
+(`taskkill /IM node.exe`, filtros por `tsx watch`, `pkill -f`): outras sessões rodam API,
+Worker, Vite e e2e nesta mesma máquina ao mesmo tempo, e um kill por padrão já derrubou a
+API de outra pessoa. Os e2e usam portas fixas (`3399` e `5273`) e só uma suíte pode rodar por
+vez na máquina: se outra sessão estiver rodando o e2e, espere.
+
 ## 7. Dependências
 
 - **Versões exatas.** Nada de `^` ou `~` em `package.json`. Fixe a versão estável atual.
