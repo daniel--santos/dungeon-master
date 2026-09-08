@@ -2,6 +2,7 @@ import type { FormatParams, GlossaryKey } from "@dungeon-master/glossary";
 
 import type { EventFilterId } from "@/lib/execution-domain";
 import { eventPresentation } from "@/lib/execution-domain";
+import { knowledgeToolSequences, knowledgeToolShortName } from "@/lib/knowledge-tools";
 import type { RunEvent } from "@/lib/run-events";
 import {
   APPROVAL_GATE_STATUS,
@@ -50,6 +51,8 @@ export interface TimelineRow {
   /** A chamada ainda não recebeu resposta: o marcador pulsa. */
   readonly running: boolean;
   readonly group: EventFilterId;
+  /** Uma consulta ao Grimório, ou a resposta dela (Fase 7C): a linha ganha destaque. */
+  readonly knowledge: boolean;
 }
 
 const TIME = new Intl.DateTimeFormat("pt-BR", {
@@ -115,7 +118,9 @@ function describe(event: RunEvent, labels: TimelineLabels): Described {
 
     case "ToolCall":
       return {
-        title: text(payload, "name") ?? event.type,
+        // A ferramenta do Grimório aparece pelo nome curto: o prefixo do
+        // servidor MCP é o mesmo em todas, e o destaque da linha já o diz.
+        title: knowledgeToolShortName(text(payload, "name") ?? event.type),
         detail: oneLine(text(payload, "arguments") ?? ""),
         code: true,
       };
@@ -358,6 +363,11 @@ export function buildTimeline(
       ? events
       : events.filter((event) => eventPresentation(event.type).group === filter);
 
+  // As consultas ao Grimório são reconhecidas sobre o log inteiro, e não
+  // sobre a vista filtrada: uma resposta sem nome é ligada à chamada pela
+  // ordem, e o filtro não pode mudar quem responde a quem.
+  const knowledge = knowledgeToolSequences(events);
+
   const rows: TimelineRow[] = [];
   let index = 0;
 
@@ -394,6 +404,7 @@ export function buildTimeline(
         groupSize: block.length,
         running: false,
         group: "text",
+        knowledge: false,
       });
 
       index = next;
@@ -412,6 +423,7 @@ export function buildTimeline(
       groupSize: 1,
       running: false,
       group: eventPresentation(event.type).group,
+      knowledge: knowledge.has(event.sequence),
     });
 
     index += 1;

@@ -99,6 +99,40 @@ describe("leitura do payload", () => {
     expect(rows[0]?.code).toBe(true);
   });
 
+  it("uma consulta ao Grimório aparece pelo nome curto e marcada, com a resposta dela", () => {
+    const rows = buildTimeline(
+      [
+        event(1, "ToolCall", {
+          toolCallId: "c1",
+          name: "mcp__knowledge__search_knowledge",
+          arguments: '{"query":"portão"}',
+        }),
+        event(2, "ToolResult", { toolCallId: "c1", ok: true, output: "2 páginas" }),
+        event(3, "ToolCall", { name: "Bash", arguments: "pnpm test" }),
+      ],
+      { labels },
+    );
+
+    expect(rows[0]?.title).toBe("search_knowledge");
+    expect(rows[0]?.knowledge).toBe(true);
+    expect(rows[1]?.knowledge).toBe(true);
+    expect(rows[2]?.title).toBe("Bash");
+    expect(rows[2]?.knowledge).toBe(false);
+  });
+
+  it("o filtro não muda quem responde a quem: a resposta sem id continua do Grimório", () => {
+    const rows = buildTimeline(
+      [
+        event(1, "ToolCall", { name: "mcp__knowledge__list_decisions", arguments: "{}" }),
+        delta(2, "lendo"),
+        event(3, "ToolResult", { ok: true, output: "3 decisões" }),
+      ],
+      { labels, filter: "tools" },
+    );
+
+    expect(rows.map((row) => row.knowledge)).toEqual([true, true]);
+  });
+
   it("a última chamada sem resposta fica marcada como pendente", () => {
     const pendente = buildTimeline(
       [event(1, "ToolCall", { name: "Bash", arguments: "pnpm test" })],

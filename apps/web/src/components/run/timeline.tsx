@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ScrollText, SlidersHorizontal } from "lucide-react";
+import { BookOpen, ScrollText, SlidersHorizontal } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Panel } from "@/components/panel";
@@ -11,6 +11,7 @@ import {
   type EventFilterId,
 } from "@/lib/execution-domain";
 import { useGlossary } from "@/lib/glossary";
+import { KNOWLEDGE_COLOR } from "@/lib/knowledge-domain";
 import type { RunEventsState } from "@/lib/run-events";
 import { buildTimeline, countByFilter, type TimelineRow } from "@/lib/run-timeline";
 import { cn } from "@/lib/utils";
@@ -245,12 +246,29 @@ function connectionText(state: RunEventsState, live: boolean): string {
  * comando, vem em monoespaçada porque é texto para copiar, não para ler.
  */
 function TimelineItem({ row }: { row: TimelineRow }) {
-  const { format } = useGlossary();
-  const { icon: Icon, color, dim } = eventPresentation(row.type);
+  const { t, format } = useGlossary();
+  const presentation = eventPresentation(row.type);
+  const { icon: Icon, dim } = presentation;
+  // Uma consulta ao Grimório (Fase 7C) leva a cor do Grimório no marcador e
+  // um fundo próprio: é a única linha do Diário em que o agente foi buscar o
+  // que a Campanha já sabia, e ela precisa ser achada num log de mil linhas.
+  const color = row.knowledge ? KNOWLEDGE_COLOR : presentation.color;
   const small = dim;
 
   return (
-    <div className="relative flex items-start gap-2.5 py-1.5" data-event-type={row.type}>
+    <div
+      className={cn(
+        "relative flex items-start gap-2.5 py-1.5",
+        row.knowledge && "-mx-2 rounded-lg px-2",
+      )}
+      data-event-type={row.type}
+      data-knowledge-tool={row.knowledge ? "" : undefined}
+      style={
+        row.knowledge
+          ? { backgroundColor: `color-mix(in oklch, ${KNOWLEDGE_COLOR} 8%, transparent)` }
+          : undefined
+      }
+    >
       <span className="text-muted-foreground w-11.5 flex-none pt-1 text-right font-mono text-[10.5px]">
         {row.time}
       </span>
@@ -284,6 +302,20 @@ function TimelineItem({ row }: { row: TimelineRow }) {
           >
             {row.title}
           </span>
+
+          {row.knowledge && (
+            <span
+              className="flex h-4 flex-none items-center gap-1 rounded-full border px-1.5 text-[10px]"
+              data-knowledge-tool-badge
+              style={{
+                borderColor: `color-mix(in oklch, ${KNOWLEDGE_COLOR} 45%, transparent)`,
+                color: KNOWLEDGE_COLOR,
+              }}
+            >
+              <BookOpen aria-hidden className="size-2.5" />
+              <span>{t("context.toolCall.badge")}</span>
+            </span>
+          )}
 
           {row.groupSize > 1 && (
             <span className="border-border text-muted-foreground flex h-4 flex-none items-center rounded-full border px-1.5 text-[10px]">

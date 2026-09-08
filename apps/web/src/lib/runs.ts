@@ -28,6 +28,7 @@ export const runKeys = {
   events: (id: string) => ["runs", "events", id] as const,
   steps: (id: string) => ["runs", "steps", id] as const,
   gates: (id: string) => ["runs", "gates", id] as const,
+  context: (id: string) => ["runs", "context", id] as const,
 };
 
 function toQuery(params: RunListParams) {

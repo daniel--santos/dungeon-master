@@ -46,6 +46,12 @@ const SCANNED_PREFIXES = [
   "knowledge.",
   "forged.",
   "settings.knowledge.",
+  // Fase 7C: as provisões da Expedição (estados, seções, motivos, orçamento,
+  // texto, links de origem, o destaque das consultas ao Grimório), a política
+  // de contexto do Loadout e o bloco das provisões em Settings.
+  "context.",
+  "loadout.policy.",
+  "settings.context.",
 ] as const;
 
 /**
@@ -56,7 +62,13 @@ const SCANNED_PREFIXES = [
  * qualquer contexto de Grimório — o mesmo motivo que deixa `workflowStep.type.`
  * de fora. As outras chaves de filtro continuam varridas.
  */
-const SKIPPED_KEYS = new Set<string>(["knowledge.filter.type"]);
+// `context.items` é "{n} itens" nos dois temas: o mesmo contador que o Quadro
+// de Missões já escreve à mão para o que não é entidade.
+const SKIPPED_KEYS = new Set<string>([
+  "knowledge.filter.type",
+  "context.items",
+  "context.items.one",
+]);
 
 const EXEMPT_FILES = new Set(["lib/glossary.ts", "lib/api-types.ts", "routeTree.gen.ts"]);
 
@@ -200,7 +212,7 @@ describe("nenhum label de entidade escrito à mão", () => {
     expect(mentions(stripComments("<span>Item</span>"), "Item")).toBe(true);
   });
 
-  it("cobre os catorze grupos de chaves que a regra exige", () => {
+  it("cobre os dezessete grupos de chaves que a regra exige", () => {
     for (const prefix of SCANNED_PREFIXES) {
       expect(
         SCANNED_KEYS.some((key) => key.startsWith(prefix)),
@@ -227,6 +239,12 @@ describe("nenhum label de entidade escrito à mão", () => {
       "Na forja",
       "Pendurar no Hall",
       "Equipamento do Escriba",
+      "Provisões da Expedição",
+      "Contexto entregue",
+      "Ainda não arrumadas",
+      "Ficou de fora",
+      "Levar os Decretos",
+      "Arrumar as provisões",
     ]) {
       expect(FORBIDDEN, label).toContain(label);
     }

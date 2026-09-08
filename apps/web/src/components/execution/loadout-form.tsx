@@ -1,10 +1,15 @@
 import type { McpTransport } from "@dungeon-master/contracts";
-import { Gem, Plus, ShieldAlert, WandSparkles, Wrench, X } from "lucide-react";
+import { Backpack, Gem, Plus, ShieldAlert, WandSparkles, Wrench, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { ChipInput } from "@/components/execution/chip-input";
-import type { LoadoutRecord, McpServerRecord } from "@/lib/api-types";
+import type {
+  ContextPolicyRecord,
+  KnowledgePolicyRecord,
+  LoadoutRecord,
+  McpServerRecord,
+} from "@/lib/api-types";
 import { EnforcementText } from "@/components/execution/chips";
 import { EnvBadge } from "@/components/execution/env-badge";
 import { Panel } from "@/components/panel";
@@ -18,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -26,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CONTEXT_COLOR } from "@/lib/context";
 import { AGENT_ROLE, WORKSPACE_STRATEGY } from "@/lib/execution-domain";
 import {
   useAgents,
@@ -39,6 +46,29 @@ import { useGlossary } from "@/lib/glossary";
 
 /** O Radix recusa `value=""`, então "usar o padrão" precisa de um valor próprio. */
 const HARNESS_DEFAULT = "__default__";
+
+/**
+ * O que um Loadout novo pede do Grimório e da Missão: tudo, com o teto de
+ * Páginas em 20. São os mesmos valores com que a API preenche um
+ * `POST /loadouts` sem política (`DEFAULT_KNOWLEDGE_POLICY` e
+ * `DEFAULT_CONTEXT_POLICY` em `packages/database`); repetidos aqui para o
+ * formulário mostrar o que vai ser gravado em vez de campos vazios.
+ */
+const DEFAULT_KNOWLEDGE_POLICY: KnowledgePolicyRecord = {
+  includeProjectSummary: true,
+  includeDecisions: true,
+  maxItems: 20,
+};
+const DEFAULT_CONTEXT_POLICY: ContextPolicyRecord = {
+  includeParentContext: true,
+  includeDependencyContext: true,
+  maxTokens: 0,
+};
+
+/** Um inteiro não negativo digitado, ou `null` quando o texto não é um. */
+function parseNonNegative(text: string): number | null {
+  return /^\d+$/.test(text.trim()) ? Number(text.trim()) : null;
+}
 
 export interface LoadoutFormProps {
   /** `null` monta um Loadout novo; um Loadout edita aquele. */
@@ -88,6 +118,12 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
   const [tools, setTools] = useState<readonly string[]>([]);
   const [mcpServers, setMcpServers] = useState<readonly McpServerRecord[]>([]);
   const [addingServer, setAddingServer] = useState(false);
+  const [knowledgePolicy, setKnowledgePolicy] =
+    useState<KnowledgePolicyRecord>(DEFAULT_KNOWLEDGE_POLICY);
+  const [contextPolicy, setContextPolicy] = useState<ContextPolicyRecord>(DEFAULT_CONTEXT_POLICY);
+  // Os dois números ficam como texto até o envio, como nos blocos de Settings.
+  const [maxItemsText, setMaxItemsText] = useState(String(DEFAULT_KNOWLEDGE_POLICY.maxItems));
+  const [maxTokensText, setMaxTokensText] = useState(String(DEFAULT_CONTEXT_POLICY.maxTokens));
 
   const enabledHarnesses = (harnesses.data?.items ?? []).filter((harness) => harness.enabled);
   const enabledProfiles = (profiles.data?.items ?? []).filter((profile) => profile.enabled);
@@ -101,6 +137,10 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
     setSkills(loadout?.skills ?? []);
     setTools(loadout?.tools ?? []);
     setMcpServers(loadout?.mcpServers ?? []);
+    setKnowledgePolicy(loadout?.knowledgePolicy ?? DEFAULT_KNOWLEDGE_POLICY);
+    setContextPolicy(loadout?.contextPolicy ?? DEFAULT_CONTEXT_POLICY);
+    setMaxItemsText(String((loadout?.knowledgePolicy ?? DEFAULT_KNOWLEDGE_POLICY).maxItems));
+    setMaxTokensText(String((loadout?.contextPolicy ?? DEFAULT_CONTEXT_POLICY).maxTokens));
   }, [loadout]);
 
   // Um Loadout novo já abre com a escolha óbvia: o primeiro Harness ligado e o
@@ -132,11 +172,20 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
   const harness = enabledHarnesses.find((item) => item.id === harnessId);
   const withoutNativePermissions = harness !== undefined && !harness.capabilities.nativePermissions;
 
+  const maxItems = parseNonNegative(maxItemsText);
+  const maxTokens = parseNonNegative(maxTokensText);
+
   const pending = create.isPending || update.isPending;
   const valid =
-    name.trim() !== "" && agentId !== "" && harnessId !== "" && executionProfileId !== "";
+    name.trim() !== "" &&
+    agentId !== "" &&
+    harnessId !== "" &&
+    executionProfileId !== "" &&
+    maxItems !== null &&
+    maxTokens !== null;
 
   function save() {
+    if (maxItems === null || maxTokens === null) return;
     const body = {
       name: name.trim(),
       agentId,
@@ -146,6 +195,8 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
       skills: [...skills],
       tools: [...tools],
       mcpServers: [...mcpServers],
+      knowledgePolicy: { ...knowledgePolicy, maxItems },
+      contextPolicy: { ...contextPolicy, maxTokens },
     };
 
     const done = {
@@ -381,6 +432,80 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
         </div>
       </div>
 
+      <div
+        className="border-border flex flex-col gap-3 rounded-[10px] border px-3.5 py-3"
+        data-loadout-policy
+      >
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-2 text-[13px] font-medium">
+            <Backpack aria-hidden className="size-3.5" style={{ color: CONTEXT_COLOR }} />
+            <span>{t("loadout.policy.title")}</span>
+          </span>
+          <span className="text-muted-foreground text-[11.5px] leading-4.5">
+            {t("loadout.policy.description")}
+          </span>
+        </div>
+
+        <div className="grid gap-x-5 gap-y-2.5 sm:grid-cols-2">
+          <PolicySwitch
+            checked={knowledgePolicy.includeProjectSummary}
+            id="loadout-policy-summary"
+            label={t("loadout.policy.includeProjectSummary")}
+            name="includeProjectSummary"
+            onChange={(checked) => {
+              setKnowledgePolicy({ ...knowledgePolicy, includeProjectSummary: checked });
+            }}
+          />
+          <PolicySwitch
+            checked={knowledgePolicy.includeDecisions}
+            id="loadout-policy-decisions"
+            label={t("loadout.policy.includeDecisions")}
+            name="includeDecisions"
+            onChange={(checked) => {
+              setKnowledgePolicy({ ...knowledgePolicy, includeDecisions: checked });
+            }}
+          />
+          <PolicySwitch
+            checked={contextPolicy.includeParentContext}
+            id="loadout-policy-parent"
+            label={t("loadout.policy.includeParentContext")}
+            name="includeParentContext"
+            onChange={(checked) => {
+              setContextPolicy({ ...contextPolicy, includeParentContext: checked });
+            }}
+          />
+          <PolicySwitch
+            checked={contextPolicy.includeDependencyContext}
+            id="loadout-policy-dependencies"
+            label={t("loadout.policy.includeDependencyContext")}
+            name="includeDependencyContext"
+            onChange={(checked) => {
+              setContextPolicy({ ...contextPolicy, includeDependencyContext: checked });
+            }}
+          />
+
+          <PolicyNumber
+            description={t("loadout.policy.maxItems.description")}
+            id="loadout-policy-max-items"
+            invalid={maxItems === null}
+            label={t("loadout.policy.maxItems")}
+            name="maxItems"
+            onChange={setMaxItemsText}
+            value={maxItemsText}
+          />
+          <PolicyNumber
+            description={t("loadout.policy.maxTokens.description")}
+            id="loadout-policy-max-tokens"
+            invalid={maxTokens === null}
+            label={t("loadout.policy.maxTokens")}
+            name="maxTokens"
+            onChange={setMaxTokensText}
+            suffix="tokens"
+            value={maxTokensText}
+          />
+        </div>
+      </div>
+
       <McpServerDialog
         onAdd={(server) => {
           setMcpServers([...mcpServers.filter((item) => item.name !== server.name), server]);
@@ -390,6 +515,86 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
         open={addingServer}
       />
     </Panel>
+  );
+}
+
+function PolicySwitch({
+  id,
+  label,
+  name,
+  checked,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  name: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <Label className="text-[12.5px]" htmlFor={id}>
+        {label}
+      </Label>
+      <Switch
+        checked={checked}
+        data-loadout-policy-switch={name}
+        id={id}
+        onCheckedChange={onChange}
+        size="sm"
+      />
+    </div>
+  );
+}
+
+function PolicyNumber({
+  id,
+  label,
+  description,
+  name,
+  value,
+  onChange,
+  invalid,
+  suffix,
+}: {
+  id: string;
+  label: string;
+  description: string;
+  name: string;
+  value: string;
+  onChange: (next: string) => void;
+  invalid: boolean;
+  suffix?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label className="text-[12.5px]" htmlFor={id}>
+        {label}
+      </Label>
+      <div className="flex items-center gap-2">
+        <Input
+          aria-invalid={invalid}
+          className="w-28 font-mono"
+          data-loadout-policy-field={name}
+          id={id}
+          inputMode="numeric"
+          min={0}
+          onChange={(event) => {
+            onChange(event.target.value);
+          }}
+          type="number"
+          value={value}
+        />
+        {suffix !== undefined && (
+          <span className="text-muted-foreground text-[12px]">{suffix}</span>
+        )}
+      </div>
+      <span
+        className={invalid ? "text-destructive text-[11px]" : "text-muted-foreground text-[11px]"}
+      >
+        {invalid ? "Um inteiro a partir de 0." : description}
+      </span>
+    </div>
   );
 }
 
