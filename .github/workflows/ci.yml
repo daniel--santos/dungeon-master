@@ -84,6 +84,17 @@ jobs:
       - name: Testes de ponta a ponta da web
         run: pnpm run e2e
 
+      # Só quando o e2e falha: a captura de tela, o contexto de erro e o trace
+      # do Playwright são a única forma de ver o que o runner viu.
+      - name: Guardar as evidências do e2e
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.os }}
+          path: apps/web/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Cliente OpenAPI está atualizado
         run: pnpm run gen:check
 

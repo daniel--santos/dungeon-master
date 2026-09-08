@@ -221,7 +221,10 @@ test("o fluxo inteiro pela interface: campanha com workspace, missão, partida e
 
   const repositorio = criarRepositorio();
   const nomeDaCampanha = `Forja temporária ${String(Date.now())}`;
-  const nomeDaMissao = "Confirmar o encerramento da árvore de processos";
+  // Único por tentativa: com `retries` no CI, a segunda tentativa reencontra a
+  // Missão da primeira na listagem, e um nome fixo faz o filtro por linha
+  // casar duas vezes (violação de modo estrito).
+  const nomeDaMissao = `Confirmar o encerramento da árvore de processos ${String(Date.now())}`;
 
   try {
     await criarHeroi(page, "Ferreiro do fluxo");
