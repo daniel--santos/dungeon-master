@@ -1,11 +1,18 @@
 import "dotenv/config";
 
 import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/database";
+import {
+  createAgentRuntime,
+  createHarnessRegistry,
+  createWorkspaceManager,
+  createWorkspaceResolver,
+} from "@dungeon-master/runtime";
 import { antigravityHostAdapters } from "@dungeon-master/runtime-antigravity";
 import { dockerAdapters, hostAdapters } from "@dungeon-master/runtime-sandcastle";
 
 import { createAchievementProjector } from "./achievements.js";
 import { loadConfig } from "./config.js";
+import { createKnowledgeDistiller, createScribeRuntime } from "./distiller.js";
 import { createLogger } from "./logger.js";
 import { createWorker } from "./worker.js";
 
@@ -94,6 +101,51 @@ worker.start();
 
 logger.info({ workerId: config.workerId }, "Worker no ar; consumindo a fila de Runs");
 
+// O Distiller (Fase 6): um laço próprio, ao lado do laço de Runs. O Escriba
+// entra pelo mesmo tipo de runtime das Expedições, com os adapters de host —
+// o lote roda nesta máquina, num diretório temporário, e não num container.
+const distiller = config.distiller.enabled
+  ? createKnowledgeDistiller({
+      db: database.db,
+      pool: database.pool,
+      userId: LOCAL_USER_ID,
+      logger,
+      config: config.distiller,
+      runtime: createScribeRuntime({
+        db: database.db,
+        userId: LOCAL_USER_ID,
+        logger,
+        timeouts: {
+          idleMs: config.distiller.llmIdleTimeoutMs,
+          completionMs: config.distiller.llmCompletionTimeoutMs,
+        },
+        runtime: createAgentRuntime({
+          registry: createHarnessRegistry([...hostAdapters(), ...antigravityHostAdapters()]),
+          workspace: createWorkspaceResolver({ manager: createWorkspaceManager() }),
+        }),
+      }),
+    })
+  : undefined;
+
+if (distiller === undefined) {
+  logger.warn(
+    "laço do Distiller desligado (WORKER_DISTILLER_ENABLED=false); candidatos ficam PENDING",
+  );
+} else {
+  const partida = await distiller.boot();
+  distiller.start();
+  logger.info(
+    {
+      idleMs: config.distiller.idleMs,
+      tickIntervalMs: config.distiller.tickIntervalMs,
+      batchSize: config.distiller.batchSize,
+      pendingProjects: partida.pendingProjects,
+      reconciled: partida.reconciled.length,
+    },
+    "laço do Distiller no ar; destilando candidatos por ociosidade, timer e NOTIFY",
+  );
+}
+
 let shuttingDown = false;
 
 async function shutdown(signal: string): Promise<void> {
@@ -118,6 +170,8 @@ async function shutdown(signal: string): Promise<void> {
   timeout.unref();
 
   try {
+    // O Distiller primeiro: um lote em andamento termina antes de o pool fechar.
+    await distiller?.stop();
     await worker.stop(signal);
     await database.close();
     clearTimeout(timeout);

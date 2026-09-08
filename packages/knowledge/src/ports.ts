@@ -88,8 +88,14 @@ export interface KnowledgeAgentRequest<T> {
   /** Para o log e para o Worker escolher timeouts: `distill`, `summary` ou `forge`. */
   readonly purpose: "distill" | "summary" | "forge";
   readonly prompt: string;
-  /** O schema da resposta. O Worker o entrega ao runtime como Standard Schema e como JSON Schema. */
+  /** O schema da resposta, para o runtime validar o bloco. */
   readonly schema: z.ZodType<T>;
+  /**
+   * O mesmo schema em JSON Schema, para os harnesses com structured output
+   * nativo. Derivado aqui, e não no Worker, para que só este pacote precise
+   * conhecer o Zod.
+   */
+  readonly jsonSchema: unknown;
 }
 
 export type KnowledgeAgentResult<T> =

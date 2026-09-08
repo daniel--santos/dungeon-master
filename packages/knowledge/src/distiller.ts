@@ -1,4 +1,5 @@
 import type { DistillationTrigger, UsageSummary } from "@dungeon-master/contracts";
+import { z } from "zod";
 
 import { applyRuleFilter, recallPools, resolveDecisions } from "./dedup.js";
 import {
@@ -218,6 +219,7 @@ export async function distillProject(
           purpose: "distill",
           prompt: prompt.prompt,
           schema: DistillOutputSchema,
+          jsonSchema: z.toJSONSchema(DistillOutputSchema),
         });
         anotarProvenance(result.provenance);
 
@@ -413,6 +415,7 @@ async function regenerarResumo(
     purpose: "summary",
     prompt: prompt.prompt,
     schema: ProjectSummaryOutputSchema,
+    jsonSchema: z.toJSONSchema(ProjectSummaryOutputSchema),
   });
   anotarProvenance(result.provenance);
   if (!result.ok) throw new Error(`modelo (resumo): ${result.error}`);
@@ -472,6 +475,7 @@ async function forjar(
     purpose: "forge",
     prompt: buildForgePrompt(notable, facts),
     schema: ForgeOutputSchema,
+    jsonSchema: z.toJSONSchema(ForgeOutputSchema),
   });
   anotarProvenance(result.provenance);
   if (!result.ok) throw new Error(`modelo (forja): ${result.error}`);

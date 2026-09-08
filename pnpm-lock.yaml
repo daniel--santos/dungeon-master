@@ -226,6 +226,9 @@ importers:
       '@dungeon-master/events':
         specifier: workspace:*
         version: link:../../packages/events
+      '@dungeon-master/knowledge':
+        specifier: workspace:*
+        version: link:../../packages/knowledge
       '@dungeon-master/platform':
         specifier: workspace:*
         version: link:../../packages/platform
