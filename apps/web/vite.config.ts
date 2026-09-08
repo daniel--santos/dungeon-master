@@ -43,6 +43,19 @@ export default defineConfig({
       },
     },
   },
+  // O e2e serve a build de produção por `vite preview`, com o mesmo proxy: o
+  // servidor de desenvolvimento reotimiza dependências no meio da suíte e o
+  // empacotador nativo do Vite 8 morria com 0xC0000409 nesta máquina.
+  preview: {
+    host: "127.0.0.1",
+    strictPort: true,
+    proxy: {
+      "/api": {
+        target: API_TARGET,
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     outDir: "dist",
     sourcemap: true,

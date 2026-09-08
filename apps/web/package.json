@@ -11,7 +11,7 @@
     "test": "vitest run",
     "dev": "vite",
     "preview": "vite preview",
-    "e2e": "turbo run build --filter=@dungeon-master/api... && node ./e2e/run-e2e.mjs"
+    "e2e": "turbo run build --filter=@dungeon-master/api... --filter=@dungeon-master/web... && node ./e2e/run-e2e.mjs"
   },
   "dependencies": {
     "@dagrejs/dagre": "3.1.1",

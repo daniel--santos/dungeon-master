@@ -60,7 +60,9 @@ export default defineConfig({
       stderr: "pipe",
     },
     {
-      command: `pnpm exec vite --port ${WEB_PORT} --strictPort`,
+      // `vite preview` da build feita pelo script `e2e`: sem otimizador de
+      // dependências nem watcher, o servidor não morre no meio da suíte.
+      command: `pnpm exec vite preview --port ${WEB_PORT} --strictPort`,
       cwd: import.meta.dirname,
       url: WEB_URL,
       env: { VITE_API_PROXY_TARGET: `http://127.0.0.1:${API_PORT}` },
