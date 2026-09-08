@@ -35,13 +35,7 @@ export const AchievementOriginSchema = z.enum(ACHIEVEMENT_ORIGIN_VALUES);
 export type AchievementOrigin = z.infer<typeof AchievementOriginSchema>;
 
 /** A que a Conquista está presa. `GLOBAL` não tem `scopeId`. */
-export const ACHIEVEMENT_SCOPE_VALUES = [
-  "GLOBAL",
-  "PROJECT",
-  "HARNESS",
-  "AGENT",
-  "TASK",
-] as const;
+export const ACHIEVEMENT_SCOPE_VALUES = ["GLOBAL", "PROJECT", "HARNESS", "AGENT", "TASK"] as const;
 
 export const AchievementScopeSchema = z.enum(ACHIEVEMENT_SCOPE_VALUES);
 

@@ -260,10 +260,7 @@ async function readCursor(
     .select()
     .from(achievementCursors)
     .where(
-      and(
-        eq(achievementCursors.userId, input.userId),
-        eq(achievementCursors.source, input.source),
-      ),
+      and(eq(achievementCursors.userId, input.userId), eq(achievementCursors.source, input.source)),
     );
 
   return row ?? null;
@@ -799,7 +796,8 @@ async function applyBatch(
           rarity: escala?.[record.tier - 1] ?? definicao.rarity,
           flavor: definicao.flavor,
           tier: record.tier,
-          tierLabel: rotulos === null || rotulos.length <= 1 ? null : (rotulos[record.tier - 1] ?? null),
+          tierLabel:
+            rotulos === null || rotulos.length <= 1 ? null : (rotulos[record.tier - 1] ?? null),
           runId: record.runId,
           taskId: record.taskId,
           unlockedAt: record.at.toISOString(),
@@ -904,6 +902,20 @@ export interface ProjectAchievementsOptions {
   batchSize?: number;
   logger?: EventsLogger;
   now?: () => Date;
+  /**
+   * Quando sincronizar o catálogo e instanciar os templates.
+   *
+   * `always` faz a sincronização de saída, antes de olhar as fontes: é o que o
+   * boot do Worker e o `rebuild` querem, porque os dois precisam das definições
+   * existindo mesmo que não haja um único fato para processar.
+   *
+   * `lazy` adia a sincronização para o primeiro lote **com fatos**, dentro da
+   * transação dele. É o que o laço quer: um Worker parado bate em três consultas
+   * indexadas por tique e não escreve nada, em vez de reescrever as quinze
+   * linhas do catálogo a cada segundo. A entidade que instancia um template já
+   * está gravada quando o fato dela aparece na fila, então adiar não perde nada.
+   */
+  sync?: "always" | "lazy";
 }
 
 export interface AchievementProjectionReport {
@@ -947,19 +959,33 @@ export async function projectAchievements(
   let processed = 0;
   let unlocked = 0;
 
-  try {
-    await db.transaction(async (tx) => {
-      await syncCatalogDefinitions(tx, {
-        userId: options.userId,
-        definitions: options.definitions,
-        ...(options.catalogVersion === undefined ? {} : { catalogVersion: options.catalogVersion }),
-      });
-      await syncTemplateInstances(tx, {
-        userId: options.userId,
-        templates: options.templates,
-        ...(logger === undefined ? {} : { logger }),
-      });
+  // A sincronização acontece no máximo uma vez por passe. Com `lazy` ela é
+  // adiada para dentro da transação do primeiro lote com fatos; se essa
+  // transação falhar, o passe inteiro aborta e o passe seguinte sincroniza de
+  // novo, então a marca nunca sobrevive a um rollback.
+  let sincronizado = false;
+
+  const sincronizar = async (tx: DatabaseExecutor): Promise<void> => {
+    if (sincronizado) return;
+
+    await syncCatalogDefinitions(tx, {
+      userId: options.userId,
+      definitions: options.definitions,
+      ...(options.catalogVersion === undefined ? {} : { catalogVersion: options.catalogVersion }),
     });
+    await syncTemplateInstances(tx, {
+      userId: options.userId,
+      templates: options.templates,
+      ...(logger === undefined ? {} : { logger }),
+    });
+
+    sincronizado = true;
+  };
+
+  try {
+    if ((options.sync ?? "always") === "always") {
+      await db.transaction(sincronizar);
+    }
 
     const ctx: DrainContext = {
       userId: options.userId,
@@ -976,6 +1002,10 @@ export async function projectAchievements(
         const resultado = await db.transaction(async (tx) => {
           const batch = await drenar(tx, ctx);
           if (batch.rows === 0 || batch.cursor === null) return { rows: 0, unlocked: 0 };
+
+          // Antes de aplicar, e não antes de drenar: o que instancia um template
+          // é o estado atual, e o fato que a entidade produziu já está no lote.
+          await sincronizar(tx);
 
           const aplicado = await applyBatch(tx, {
             userId: options.userId,
@@ -1042,7 +1072,10 @@ export async function rebuildAchievements(
     return { ok: false, processed: 0, unlocked: 0, error: message };
   }
 
-  return await projectAchievements(db, { ...options, lagMs: options.lagMs ?? 0 });
+  // `always` mesmo que o chamador peça `lazy`: uma reconstrução apagou o
+  // progresso e precisa das definições de volta ainda que não exista um único
+  // fato para reprocessar.
+  return await projectAchievements(db, { ...options, lagMs: options.lagMs ?? 0, sync: "always" });
 }
 
 /** Quantas definições existem hoje. Usada pelo comando de reconstrução no log. */

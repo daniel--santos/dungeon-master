@@ -42,13 +42,21 @@ const catalogo = loadCatalog();
 const templates = loadTemplates();
 
 /** Sem atraso de segurança: o teste escreve e projeta na mesma linha do tempo. */
-function projetar() {
+function projetar(options: { sync?: "always" | "lazy" } = {}) {
   return projectAchievements(handle.db, {
     userId: USER,
     definitions: catalogo.valid,
     templates: templates.valid,
     lagMs: 0,
+    ...(options.sync === undefined ? {} : { sync: options.sync }),
   });
+}
+
+/** Apaga as três fontes, para provar um passe que não tem nada a processar. */
+async function esvaziarFontes(): Promise<void> {
+  for (const tabela of ["activity", "run_event", "dashboard_event"]) {
+    await handle.pool.query(`delete from ${tabela} where user_id = $1`, [USER]);
+  }
 }
 
 async function limparConquistas(): Promise<void> {
@@ -202,6 +210,45 @@ describe("carga do catálogo e instanciação de templates", () => {
     const segunda = await listAchievementViews(handle.db, { userId: USER });
 
     expect(segunda.counts.total).toBe(primeira.counts.total);
+  });
+});
+
+describe("quando o catálogo é sincronizado", () => {
+  it("`lazy` não escreve nada enquanto não houver fato novo", async () => {
+    // O laço do Worker dispara um passe por tique. Sincronizar em todos eles
+    // reescreveria as quinze linhas do catálogo por segundo, para sempre.
+    await esvaziarFontes();
+    const relatorio = await projetar({ sync: "lazy" });
+
+    expect(relatorio.ok).toBe(true);
+    expect(relatorio.processed).toBe(0);
+    expect((await listAchievementViews(handle.db, { userId: USER })).counts.total).toBe(0);
+  });
+
+  it("`lazy` sincroniza no primeiro lote com fato, e o Project entra junto", async () => {
+    // O `project.created` do `beforeEach` é o fato: ele basta para a
+    // sincronização acontecer, e a instância do template nasce com ele.
+    const relatorio = await projetar({ sync: "lazy" });
+
+    expect(relatorio.ok).toBe(true);
+    expect(relatorio.processed).toBeGreaterThan(0);
+
+    const { items, counts } = await listAchievementViews(handle.db, { userId: USER });
+    expect(counts.total).toBeGreaterThanOrEqual(catalogo.valid.length);
+    expect(porChave(items, "campaign_guardian").state).toBe("HIDDEN");
+  });
+
+  it("`always` sincroniza mesmo sem nenhum fato: é o que o boot precisa", async () => {
+    await esvaziarFontes();
+    const relatorio = await projetar({ sync: "always" });
+
+    expect(relatorio.ok).toBe(true);
+    expect(relatorio.processed).toBe(0);
+
+    const { items, counts } = await listAchievementViews(handle.db, { userId: USER });
+    // O catálogo inteiro, mais os dois templates do Project que já existe.
+    expect(counts.total).toBeGreaterThanOrEqual(catalogo.valid.length);
+    expect(porChave(items, "first_expedition").state).toBe("LOCKED");
   });
 });
 

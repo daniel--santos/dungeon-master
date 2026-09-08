@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  XP_BONUS_FIRST_DOCKER,
-  XP_BONUS_MONSTER,
-  XP_PER_VICTORY,
-  levelForXp,
-} from "../xp.js";
+import { XP_BONUS_FIRST_DOCKER, XP_BONUS_MONSTER, XP_PER_VICTORY, levelForXp } from "../xp.js";
 
 import {
   applyRunOutcome,

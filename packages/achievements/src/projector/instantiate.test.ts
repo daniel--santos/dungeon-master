@@ -3,10 +3,7 @@ import { describe, expect, it } from "vitest";
 import { loadTemplates } from "../load.js";
 
 import { formatTemplateText, instantiateTemplate, placeholderForScope } from "./instantiate.js";
-import {
-  applyEvent,
-  EMPTY_PROGRESS,
-} from "./progress.js";
+import { applyEvent, EMPTY_PROGRESS } from "./progress.js";
 
 const templates = loadTemplates().valid;
 

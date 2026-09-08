@@ -1,10 +1,5 @@
 import type { ExecutionMode } from "../condition.js";
-import {
-  levelForXp,
-  XP_BONUS_FIRST_DOCKER,
-  XP_BONUS_MONSTER,
-  XP_PER_VICTORY,
-} from "../xp.js";
+import { levelForXp, XP_BONUS_FIRST_DOCKER, XP_BONUS_MONSTER, XP_PER_VICTORY } from "../xp.js";
 
 /**
  * As estatísticas de Herói, como fold puro (planejamento v0.4, Fase 2.5A).

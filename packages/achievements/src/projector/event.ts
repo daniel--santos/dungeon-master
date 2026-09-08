@@ -119,10 +119,7 @@ function hourMatches(range: { from: number; to: number }, hour: number | undefin
  * carregador do catálogo, e é o que impede uma condição escopada a um Project
  * de contar um fato que não tem Project nenhum.
  */
-export function matchesFilter(
-  filter: ConditionFilter | undefined,
-  fields: EventFields,
-): boolean {
+export function matchesFilter(filter: ConditionFilter | undefined, fields: EventFields): boolean {
   if (filter === undefined) return true;
 
   for (const [key, expected] of Object.entries(filter)) {

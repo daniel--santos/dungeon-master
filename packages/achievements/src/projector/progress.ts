@@ -85,10 +85,7 @@ export function achievementTargets(condition: Condition): readonly number[] {
  * Para `record` é 0 ou 1: uma marca ou existe ou não existe, e "quanto falta
  * para o recorde" não é uma pergunta com resposta.
  */
-export function achievementValue(
-  condition: Condition,
-  progress: AchievementProgress,
-): number {
+export function achievementValue(condition: Condition, progress: AchievementProgress): number {
   switch (condition.predicate) {
     case "count":
       return progress.counter;
