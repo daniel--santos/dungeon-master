@@ -4462,7 +4462,7 @@ export interface components {
             current: number;
             /** @description Quantos tiers a condição tem. `1` é o comum. */
             total: number;
-            /** @description Rótulo do tier corrente (`I`, `II`, `III`). Nulo quando há um tier só. */
+            /** @description Rótulo do tier corrente (`I`, `II`, `III`). Nulo quando a Conquista tem um tier só, e também quando `current` é `0`: o numeral aparece junto com o desbloqueio, não antes dele. */
             label: string | null;
         };
         /** @description Progresso de uma Conquista, para a barra. */

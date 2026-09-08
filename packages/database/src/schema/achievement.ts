@@ -222,9 +222,7 @@ export const achievementCursors = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [
-    primaryKey({ columns: [table.source, table.userId], name: "achievement_cursor_pk" }),
-  ],
+  (table) => [primaryKey({ columns: [table.source, table.userId], name: "achievement_cursor_pk" })],
 );
 
 /**
