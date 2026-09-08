@@ -7,6 +7,7 @@ import { Header } from "@/components/app-shell/header";
 import { Sidebar } from "@/components/app-shell/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { useAchievementToasts } from "@/lib/achievement-toast";
+import { useApprovalToasts } from "@/lib/approval-toast";
 import { useEventsStore } from "@/lib/events";
 import { useThemeSetting } from "@/lib/glossary";
 import { useLiveQueries } from "@/lib/live";
@@ -34,6 +35,10 @@ function RootLayout() {
   // O desbloqueio acontece enquanto o usuário está em qualquer tela, então o
   // anúncio mora no layout raiz e não no Hall.
   useAchievementToasts();
+
+  // O pedido de Selo chega enquanto o usuário está em qualquer tela, pelo
+  // mesmo motivo; o toast leva ao cockpit, onde a decisão acontece.
+  useApprovalToasts();
 
   // Uma conexão SSE por aba, aberta no layout raiz e viva enquanto a aba
   // estiver. `connect` é idempotente, o que importa porque o StrictMode monta o
