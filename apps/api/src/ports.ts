@@ -194,6 +194,7 @@ export interface PromoteInboxRequest {
   title?: string;
   kind?: TaskKind;
   priority?: TaskPriority;
+  workflowId?: string;
 }
 
 export interface InboxPort {

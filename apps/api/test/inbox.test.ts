@@ -6,13 +6,25 @@ import {
   type Task,
   TaskSchema,
 } from "@dungeon-master/contracts";
-import { createDatabase, type DatabaseHandle, LOCAL_USER_ID } from "@dungeon-master/database";
+import {
+  createDatabase,
+  type DatabaseHandle,
+  GUIDED_EXPEDITION_WORKFLOW,
+  LOCAL_USER_ID,
+} from "@dungeon-master/database";
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
 import type { App } from "../src/app.js";
 import { API_BASE_PATH } from "../src/config.js";
 import { PROBLEM_CONTENT_TYPE } from "../src/problem.js";
-import { criarApp, limparTudo, pedir, tiposDeActivity, tiposDeEvento } from "./support.js";
+import {
+  criarApp,
+  limparTudo,
+  linhasDeActivity,
+  pedir,
+  tiposDeActivity,
+  tiposDeEvento,
+} from "./support.js";
 
 let handle: DatabaseHandle;
 let app: App;
@@ -160,6 +172,55 @@ describe(`POST ${API_BASE_PATH}/inbox/{id}/promote`, () => {
     );
     expect(depois.rows[0]?.status).toBe("INBOX");
     expect(depois.rows[0]?.project_id).toBeNull();
+  });
+
+  it("com workflowId, a Task sai da Inbox já seguindo o Workflow", async () => {
+    const captura = await capturar("promover com ritual");
+    const criado = await pedir({
+      app,
+      method: "POST",
+      path: `${API_BASE_PATH}/workflows`,
+      body: GUIDED_EXPEDITION_WORKFLOW,
+    });
+    expect(criado.status).toBe(201);
+    const workflowId = ((await criado.json()) as { id: string }).id;
+
+    const response = await pedir({
+      app,
+      method: "POST",
+      path: `${API_BASE_PATH}/inbox/${captura.id}/promote`,
+      body: { projectId: project.id, workflowId },
+    });
+    expect(response.status).toBe(200);
+
+    const task = TaskSchema.parse(await response.json());
+    expect(task.status).toBe("READY");
+    expect(task.workflowId).toBe(workflowId);
+
+    const atualizada = (await linhasDeActivity(handle)).find(
+      (linha) => linha.type === "task.updated",
+    );
+    expect(atualizada?.payload?.["changed"]).toEqual(["projectId", "workflowId"]);
+  });
+
+  it("um workflowId que não existe vira 404 e a captura fica onde estava", async () => {
+    const captura = await capturar("ritual inexistente");
+
+    const response = await pedir({
+      app,
+      method: "POST",
+      path: `${API_BASE_PATH}/inbox/${captura.id}/promote`,
+      body: { projectId: project.id, workflowId: ID_INEXISTENTE },
+    });
+    expect(response.status).toBe(404);
+    expect(ProblemDetailsSchema.parse(await response.json()).title).toBe("Workflow não encontrado");
+
+    const depois = await handle.pool.query<{ status: string; workflow_id: string | null }>(
+      "select status, workflow_id from task where id = $1",
+      [captura.id],
+    );
+    expect(depois.rows[0]?.status).toBe("INBOX");
+    expect(depois.rows[0]?.workflow_id).toBeNull();
   });
 
   it("um Project que não existe vira 404 e um arquivado vira 409", async () => {

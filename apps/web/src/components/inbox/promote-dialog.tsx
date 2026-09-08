@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { WorkflowSelect } from "@/components/workflow/workflow-select";
 import {
   Select,
   SelectContent,
@@ -36,10 +37,13 @@ export interface PromoteDialogProps {
 }
 
 /**
- * A triagem de uma captura: onde ela mora, o que ela é, e quanto corre.
+ * A triagem de uma captura: onde ela mora, o que ela é, quanto corre e por
+ * qual Ritual segue.
  *
  * O projeto é obrigatório porque `READY` sem projeto é um estado que o banco
- * recusa — a captura só existe sem dono enquanto está na Inbox.
+ * recusa — a captura só existe sem dono enquanto está na Inbox. O Ritual é
+ * opcional e só entra no corpo quando escolhido: ausente é a Expedição
+ * simples, como na criação de uma Missão.
  */
 export function PromoteDialog({ capture, onOpenChange }: PromoteDialogProps) {
   const { t, format } = useGlossary();
@@ -50,6 +54,7 @@ export function PromoteDialog({ capture, onOpenChange }: PromoteDialogProps) {
   const [projectId, setProjectId] = useState<string>("");
   const [kind, setKind] = useState<TaskKind>("FEATURE");
   const [priority, setPriority] = useState<TaskPriority>("MEDIUM");
+  const [workflowId, setWorkflowId] = useState<string | null>(null);
 
   // Reabrir o diálogo com outra captura recomeça o formulário; sem isto o
   // título da captura anterior ficaria no campo.
@@ -59,6 +64,7 @@ export function PromoteDialog({ capture, onOpenChange }: PromoteDialogProps) {
     setKind(capture.kind);
     setPriority(capture.priority);
     setProjectId("");
+    setWorkflowId(capture.workflowId);
   }, [capture]);
 
   const options = projects.data?.items ?? [];
@@ -69,7 +75,14 @@ export function PromoteDialog({ capture, onOpenChange }: PromoteDialogProps) {
     if (capture === null || !canSubmit || promote.isPending) return;
 
     promote.mutate(
-      { id: capture.id, projectId, title: title.trim(), kind, priority },
+      {
+        id: capture.id,
+        projectId,
+        title: title.trim(),
+        kind,
+        priority,
+        ...(workflowId === null ? {} : { workflowId }),
+      },
       {
         onSuccess: () => {
           onOpenChange(false);
@@ -173,6 +186,14 @@ export function PromoteDialog({ capture, onOpenChange }: PromoteDialogProps) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="promote-workflow">{t("entity.workflow")}</Label>
+            <WorkflowSelect id="promote-workflow" onChange={setWorkflowId} value={workflowId} />
+            <span className="text-muted-foreground text-[11px] leading-4">
+              {t("workflow.captureNote")}
+            </span>
           </div>
         </form>
 

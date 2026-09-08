@@ -1164,7 +1164,7 @@ export interface paths {
         put?: never;
         /**
          * Promove a captura a trabalho
-         * @description Atribui o Project e leva para `READY`, opcionalmente ajustando título, tipo e prioridade. `projectId` é obrigatório porque `READY` sem Project é um estado que o banco recusa.
+         * @description Atribui o Project e leva para `READY`, opcionalmente ajustando título, tipo, prioridade e Workflow. `projectId` é obrigatório porque `READY` sem Project é um estado que o banco recusa; um `workflowId` que não existe vira `404`.
          */
         post: {
             parameters: {
@@ -4000,6 +4000,11 @@ export interface components {
              * @enum {string}
              */
             priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+            /**
+             * Format: uuid
+             * @description Workflow que a Task passa a seguir. Ausente deixa a Task sem Workflow.
+             */
+            workflowId?: string;
         };
         /** @description O cadastro fechado de Harnesses. */
         HarnessList: {
