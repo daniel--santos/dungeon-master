@@ -135,6 +135,26 @@ export interface DockerRunOptions {
    */
   readonly envKeys: readonly string[];
   /**
+   * Variáveis com valor **fixo**, definidas pela definição do harness e não
+   * lidas do ambiente do worker.
+   *
+   * Estas viram `-e NOME=VALOR` e portanto **entram no argv**, que é legível por
+   * qualquer processo da máquina. Por isso valem uma regra sem exceção:
+   *
+   * > **Nada aqui pode ser segredo.** Um segredo vai por {@link envKeys}, que
+   * > manda só o nome, ou por arquivo montado read-only.
+   *
+   * Existem porque algumas CLIs precisam ser **configuradas** para dentro do
+   * container com um valor que só faz sentido lá: um interruptor de modo de
+   * autenticação, ou um caminho do sistema de arquivos do container. O caso que
+   * criou este campo é o Antigravity (`docs/adr/0002-antigravity-em-docker.md`):
+   * ele quer `AGY_ADC_AUTH=1`, que é um interruptor, e
+   * `GOOGLE_APPLICATION_CREDENTIALS` apontando para o **caminho de montagem**
+   * do arquivo dentro do container. Nenhum dos dois é o segredo: o segredo é o
+   * conteúdo do arquivo, que chega pelo mount e nunca pelo argv.
+   */
+  readonly fixedEnv?: Readonly<Record<string, string>>;
+  /**
    * Valor de `--network`. `none` é uma masmorra selada de verdade, e também um
    * container que não consegue falar com a API do modelo: quem escolhe é a
    * `networkPolicy` do perfil.
@@ -187,8 +207,26 @@ export function buildDockerRunArgs(
   // Ordenado para o argv ser estável entre execuções, o que torna o teste
   // unitário legível e o log comparável. `-e NOME` sem `=`: o valor fica no
   // ambiente do cliente e não no argv. Veja `DockerRunOptions.envKeys`.
-  for (const key of [...new Set(options.envKeys)].sort()) {
+  const nomesDoAmbiente = [...new Set(options.envKeys)].sort();
+  const nomesFixos = Object.keys(options.fixedEnv ?? {}).sort();
+
+  // O mesmo nome nos dois lugares é ambiguidade, e a resolução silenciosa seria
+  // a pior possível: quem vence é o último `-e` do argv, ou seja o valor fixo
+  // sobrescreveria a credencial vinda do ambiente do cliente sem nada dizer.
+  const colisao = nomesFixos.find((nome) => nomesDoAmbiente.includes(nome));
+  if (colisao !== undefined) {
+    throw new Error(
+      `A variável ${colisao} foi declarada em envKeys e em fixedEnv ao mesmo tempo. ` +
+        "Uma manda só o nome e resolve o valor no ambiente do cliente; a outra escreve o " +
+        "valor no argv. Escolha uma.",
+    );
+  }
+
+  for (const key of nomesDoAmbiente) {
     args.push("-e", key);
+  }
+  for (const key of nomesFixos) {
+    args.push("-e", `${key}=${options.fixedEnv?.[key] ?? ""}`);
   }
 
   args.push("-w", options.workdir);

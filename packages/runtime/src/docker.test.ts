@@ -87,6 +87,41 @@ describe("buildDockerRunArgs", () => {
     expect(nomes).toEqual(["A_VAR", "B_VAR"]);
   });
 
+  // `fixedEnv` nasceu no gate do Antigravity (ADR 0002): a CLI precisa de
+  // `AGY_ADC_AUTH=1`, que é um interruptor, e de `GOOGLE_APPLICATION_CREDENTIALS`
+  // apontando para o **caminho de montagem dentro do container** — um valor que
+  // o ambiente do worker não tem e não poderia ter, porque no host ele seria um
+  // caminho do Windows.
+  it("escreve o valor de uma variável fixa, que é configuração e não segredo", () => {
+    const args = buildDockerRunArgs(
+      {
+        ...base,
+        envKeys: ["CLAUDE_CODE_OAUTH_TOKEN"],
+        fixedEnv: {
+          GOOGLE_APPLICATION_CREDENTIALS: "/home/agent/.config/gcloud/adc.json",
+          AGY_ADC_AUTH: "1",
+        },
+      },
+      ["agy"],
+    );
+    const nomes = args.filter((_, i) => args[i - 1] === "-e");
+
+    // O segredo continua sem valor no argv; só as fixas levam `=`.
+    expect(nomes).toEqual([
+      "CLAUDE_CODE_OAUTH_TOKEN",
+      "AGY_ADC_AUTH=1",
+      "GOOGLE_APPLICATION_CREDENTIALS=/home/agent/.config/gcloud/adc.json",
+    ]);
+  });
+
+  it("recusa o mesmo nome em envKeys e em fixedEnv", () => {
+    // Sem isto o último `-e` do argv venceria, e um valor de configuração
+    // sobrescreveria a credencial do Run em silêncio.
+    expect(() =>
+      buildDockerRunArgs({ ...base, envKeys: ["X_TOKEN"], fixedEnv: { X_TOKEN: "1" } }, ["agy"]),
+    ).toThrow(/X_TOKEN/);
+  });
+
   it("traduz mounts, com `:ro` só onde foi pedido", () => {
     const args = buildDockerRunArgs(
       {
