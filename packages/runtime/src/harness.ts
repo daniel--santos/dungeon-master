@@ -22,6 +22,7 @@ import type {
   ModelRef,
   PermissionGrant,
   PermissionMode,
+  RuntimeResourceLimits,
 } from "./types.js";
 
 /**
@@ -105,6 +106,20 @@ export interface ResolvedPermission {
   readonly enforcement: EnforcementLevel;
 }
 
+/**
+ * Política de rede já resolvida pelo runtime, pronta para virar `--network`.
+ *
+ * `enforced` é a distinção que o projeto faz em todo lugar entre pedir e impor:
+ * `false` no host sempre, e no Docker quando o pedido é `ALLOWLIST` — o Docker
+ * liga ou desliga a rede do container, e não filtra por host sem um proxy no
+ * meio. Um pedido não imponível vira `Diagnostic`, nunca promessa silenciosa.
+ */
+export interface ResolvedNetwork {
+  readonly access: "NONE" | "ALLOWLIST" | "ALL";
+  readonly allowedHosts: readonly string[];
+  readonly enforced: boolean;
+}
+
 /** Pedido de retomada de sessão. */
 export interface ResumeRequest {
   readonly harnessSessionId: string;
@@ -129,6 +144,13 @@ export interface HarnessExecutionRequest {
   readonly permission: ResolvedPermission;
   /** Argumentos extras do Loadout, já em forma de array. */
   readonly extraArgs?: readonly string[];
+  /**
+   * Política de rede resolvida. Um adapter de host a ignora, porque no host não
+   * há como impor; o backend de container a traduz para `--network`.
+   */
+  readonly network?: ResolvedNetwork;
+  /** Limites de recurso do perfil. Só o backend de container os aplica. */
+  readonly resourceLimits?: RuntimeResourceLimits;
 }
 
 /**
@@ -197,6 +219,16 @@ export interface HarnessAdapter {
   /** Identificador estável do adapter, com o ambiente: `claude-code@host`. */
   readonly id: string;
   readonly key: HarnessKey;
+  /**
+   * Em que modo de execução este adapter roda. Padrão: `HOST`.
+   *
+   * O par `(key, executionMode)` é a chave do registry, e não `key` sozinha:
+   * `CLAUDE_CODE` tem dois adapters — um que sobe a CLI no host e outro que a
+   * sobe dentro de um container — e escolher entre eles é justamente o que o
+   * `ExecutionProfile.mode` decide. Deixar o campo opcional mantém os adapters
+   * e os dublês de teste que existiam antes da Fase 2C válidos sem mudança.
+   */
+  readonly executionMode?: ExecutionMode;
   readonly capabilities: HarnessCapabilities;
   /**
    * Chaves do ambiente do worker que a CLI precisa enxergar.

@@ -67,9 +67,17 @@ export const CODEX_CAPABILITIES = capabilities({
   dockerExecution: false,
 });
 
-/** Adapter do Codex CLI rodando no host. */
-export function codex(options: CodexOptions = {}) {
-  const definition: CliHarnessDefinition = {
+/**
+ * A definição do Codex CLI: argv, parser e capabilities.
+ *
+ * Mora separada do adapter porque os dois modos de execução a compartilham: no
+ * host ela vira `createCliHarnessAdapter`; no Docker, o mesmo `buildArgs` e o
+ * mesmo `parseLine` entram num `createDockerAdapter`. É o que garante que um
+ * `ToolCall` chega à interface igual nos dois modos — a exigência da seção 17 do
+ * documento técnico.
+ */
+export function codexDefinition(options: CodexOptions = {}): CliHarnessDefinition {
+  return {
     id: "codex@host",
     key: "CODEX",
     capabilities: CODEX_CAPABILITIES,
@@ -129,8 +137,11 @@ export function codex(options: CodexOptions = {}) {
       };
     },
   };
+}
 
-  return createCliHarnessAdapter(definition);
+/** Adapter do Codex CLI rodando no host. */
+export function codex(options: CodexOptions = {}) {
+  return createCliHarnessAdapter(codexDefinition(options));
 }
 
 /** Traduz uma linha do `codex exec --json`. */

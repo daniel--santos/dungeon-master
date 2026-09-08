@@ -84,9 +84,17 @@ export const CLAUDE_CODE_CAPABILITIES = capabilities({
   dockerExecution: false,
 });
 
-/** Adapter do Claude Code rodando no host. */
-export function claudeCode(options: ClaudeCodeOptions = {}) {
-  const definition: CliHarnessDefinition = {
+/**
+ * A definição do Claude Code: argv, parser e capabilities.
+ *
+ * Mora separada do adapter porque os dois modos de execução a compartilham: no
+ * host ela vira `createCliHarnessAdapter`; no Docker, o mesmo `buildArgs` e o
+ * mesmo `parseLine` entram num `createDockerAdapter`. É o que garante que um
+ * `ToolCall` chega à interface igual nos dois modos — a exigência da seção 17 do
+ * documento técnico.
+ */
+export function claudeCodeDefinition(options: ClaudeCodeOptions = {}): CliHarnessDefinition {
+  return {
     id: "claude-code@host",
     key: "CLAUDE_CODE",
     capabilities: CLAUDE_CODE_CAPABILITIES,
@@ -153,8 +161,11 @@ export function claudeCode(options: ClaudeCodeOptions = {}) {
       };
     },
   };
+}
 
-  return createCliHarnessAdapter(definition);
+/** Adapter do Claude Code rodando no host. */
+export function claudeCode(options: ClaudeCodeOptions = {}) {
+  return createCliHarnessAdapter(claudeCodeDefinition(options));
 }
 
 /**
