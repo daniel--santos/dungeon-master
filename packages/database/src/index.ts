@@ -38,3 +38,7 @@ export * from "./workflow.js";
 export * from "./seed-workflow.js";
 export * from "./seed-execution.js";
 export * from "./workspace-lock.js";
+export * from "./proposed-task.js";
+export * from "./knowledge-candidate.js";
+export * from "./run-result-outputs.js";
+export * from "./task-graph.js";

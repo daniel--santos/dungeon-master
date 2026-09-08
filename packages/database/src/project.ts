@@ -13,6 +13,7 @@ import { newId } from "./ids.js";
 import { recordDomainEvent } from "./activity.js";
 import { type PageInput, type PageResult } from "./result.js";
 import { projects, type ProjectRow } from "./schema/project.js";
+import { proposedTasks } from "./schema/proposed-task.js";
 import { tasks } from "./schema/task.js";
 
 export function toProject(row: ProjectRow): Project {
@@ -82,18 +83,48 @@ export async function listProjects(
 
   const [counted] = await db.select({ total: count() }).from(projects).where(where);
 
-  const contagens = await countTasksByStatusForProjects(db, {
-    userId: input.userId,
-    projectIds: rows.map((row) => row.id),
-  });
+  const projectIds = rows.map((row) => row.id);
+  const contagens = await countTasksByStatusForProjects(db, { userId: input.userId, projectIds });
+  const propostas = await countOpenProposalsForProjects(db, { userId: input.userId, projectIds });
 
   return {
     items: rows.map((row) => ({
       ...toProject(row),
       taskCounts: contagens.get(row.id) ?? zeroedTaskCounts(),
+      openProposalCount: propostas.get(row.id) ?? 0,
     })),
     total: counted?.total ?? 0,
   };
+}
+
+/**
+ * Quantas propostas abertas cada Project da página tem (Fase 5).
+ *
+ * Mesma forma da contagem de Tasks: um `GROUP BY` restrito aos ids da página,
+ * uma consulta para a página inteira. Project sem proposta não aparece, e
+ * quem chama completa com zero.
+ */
+export async function countOpenProposalsForProjects(
+  db: DatabaseExecutor,
+  input: { userId: string; projectIds: readonly string[] },
+): Promise<Map<string, number>> {
+  const contagens = new Map<string, number>();
+  if (input.projectIds.length === 0) return contagens;
+
+  const rows = await db
+    .select({ projectId: proposedTasks.projectId, total: count() })
+    .from(proposedTasks)
+    .where(
+      and(
+        eq(proposedTasks.userId, input.userId),
+        eq(proposedTasks.status, "PROPOSED"),
+        inArray(proposedTasks.projectId, [...input.projectIds]),
+      ),
+    )
+    .groupBy(proposedTasks.projectId);
+
+  for (const row of rows) contagens.set(row.projectId, row.total);
+  return contagens;
 }
 
 /**
@@ -161,7 +192,17 @@ export async function getProject(
   const row = await findProjectRow(db, input);
   if (row === null) return null;
 
-  return { ...toProject(row), taskCounts: await countProjectTasksByStatus(db, input) };
+  const taskCounts = await countProjectTasksByStatus(db, input);
+  const propostas = await countOpenProposalsForProjects(db, {
+    userId: input.userId,
+    projectIds: [input.projectId],
+  });
+
+  return {
+    ...toProject(row),
+    taskCounts,
+    openProposalCount: propostas.get(input.projectId) ?? 0,
+  };
 }
 
 export interface CreateProjectInput {
