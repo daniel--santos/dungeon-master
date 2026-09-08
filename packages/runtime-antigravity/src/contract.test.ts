@@ -87,40 +87,49 @@ describe.skipIf(!disponivel)("antigravity@host: --json-schema de ponta a ponta",
     );
   });
 
-  it("valida o resultado que a própria CLI já validou", async () => {
-    const runtime = createAgentRuntime({
-      registry: createHarnessRegistry([adapter]),
-      workspace: createWorkspaceResolver({ manager: createWorkspaceManager() }),
-    });
+  // `retry`: este caso fala com o modelo de verdade, e às vezes ele ignora o
+  // "sem usar nenhuma ferramenta", explora o diretório, esbarra na negação de
+  // comando e o Run termina em falha. Isso é comportamento do modelo, não do
+  // contrato da CLI, que é o que o caso prova; por isso ele ganha até duas
+  // novas tentativas antes de ser contado como vermelho.
+  it(
+    "valida o resultado que a própria CLI já validou",
+    { retry: 2, timeout: 180_000 },
+    async () => {
+      const runtime = createAgentRuntime({
+        registry: createHarnessRegistry([adapter]),
+        workspace: createWorkspaceResolver({ manager: createWorkspaceManager() }),
+      });
 
-    const events: ExecutionEvent[] = [];
-    for await (const event of runtime.execute({
-      runId: "contract-agy-schema-1",
-      taskId: "contract-task",
-      workspace: { repoPath: workdir },
-      harness: { key: "ANTIGRAVITY" },
-      loadout: { harness: { key: "ANTIGRAVITY" } },
-      executionProfile: {
-        mode: "HOST",
-        workspaceStrategy: "CURRENT",
-        permissionPolicy: { mode: "DEFAULT" },
-      },
-      // "Sem usar nenhuma ferramenta" não é enfeite: com `--json-schema` e um
-      // diretório vazio, o agente sai explorando o workspace antes de
-      // responder, esbarra na negação de comando e o Run termina em falha.
-      prompt: 'Sem usar nenhuma ferramenta, responda com o campo answer valendo exatamente "ok".',
-      outputSchema: {
-        schema: Schema,
-        maxRetries: 1,
-        jsonSchema: z.toJSONSchema(Schema),
-      },
-      timeouts: { completionMs: 150_000, idleMs: 120_000 },
-    })) {
-      events.push(event);
-    }
+      const events: ExecutionEvent[] = [];
+      for await (const event of runtime.execute({
+        runId: "contract-agy-schema-1",
+        taskId: "contract-task",
+        workspace: { repoPath: workdir },
+        harness: { key: "ANTIGRAVITY" },
+        loadout: { harness: { key: "ANTIGRAVITY" } },
+        executionProfile: {
+          mode: "HOST",
+          workspaceStrategy: "CURRENT",
+          permissionPolicy: { mode: "DEFAULT" },
+        },
+        // "Sem usar nenhuma ferramenta" não é enfeite: com `--json-schema` e um
+        // diretório vazio, o agente sai explorando o workspace antes de
+        // responder, esbarra na negação de comando e o Run termina em falha.
+        prompt: 'Sem usar nenhuma ferramenta, responda com o campo answer valendo exatamente "ok".',
+        outputSchema: {
+          schema: Schema,
+          maxRetries: 1,
+          jsonSchema: z.toJSONSchema(Schema),
+        },
+        timeouts: { completionMs: 150_000, idleMs: 120_000 },
+      })) {
+        events.push(event);
+      }
 
-    const completed = events.find((event) => event.type === "RunCompleted");
-    expect(completed, events.map((event) => event.type).join(" → ")).toBeDefined();
-    expect(Schema.safeParse(completed?.output).success).toBe(true);
-  }, 180_000);
+      const completed = events.find((event) => event.type === "RunCompleted");
+      expect(completed, events.map((event) => event.type).join(" → ")).toBeDefined();
+      expect(Schema.safeParse(completed?.output).success).toBe(true);
+    },
+  );
 });
