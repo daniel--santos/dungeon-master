@@ -1,4 +1,6 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,6 +33,7 @@ export interface CatalogDefinition {
   readonly rarity: string;
   readonly hidden: boolean;
   readonly name: { readonly theme: string; readonly plain: string };
+  readonly flavor: string;
 }
 
 const CATALOG_DIR = resolve(
@@ -55,4 +58,30 @@ export function definitions(): readonly CatalogDefinition[] {
 /** Os templates, que na tela viram uma única carta oculta. */
 export function templates(): readonly { readonly key: string }[] {
   return read<{ key: string }[]>("templates.json");
+}
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const DM_SCRIPT = resolve(ROOT, "apps/worker/scripts/dm.ts");
+const TSX_CLI = createRequire(resolve(ROOT, "apps/worker/package.json")).resolve("tsx/cli");
+
+/**
+ * Roda um passe do projetor de Conquistas contra o banco do e2e.
+ *
+ * O projetor mora no Worker, e a configuração do Playwright não sobe Worker de
+ * propósito: um Worker no ar tentaria executar os Runs que `runs.spec` deixa em
+ * `QUEUED`, e aquele arquivo prova exatamente que eles ficam lá. O que este
+ * helper faz é o mesmo que `pnpm dm achievements rebuild` faria à mão — o
+ * comando de operador que a Fase 2.5B entregou —, com o mesmo carregador de
+ * catálogo e a mesma função de projeção.
+ *
+ * O `tsx` é resolvido pelo caminho, e não invocado por `pnpm`: chamar o
+ * gerenciador daqui exigiria `shell: true` no Windows.
+ */
+export function projectAchievements(): void {
+  execFileSync(process.execPath, [TSX_CLI, DM_SCRIPT, "achievements", "rebuild"], {
+    cwd: ROOT,
+    env: process.env,
+    stdio: "pipe",
+    windowsHide: true,
+  });
 }

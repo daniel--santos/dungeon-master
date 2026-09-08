@@ -77,12 +77,14 @@ function HallPage() {
   const unlocks = useUnlocks({ page: 1, pageSize: RECENT_UNLOCKS });
   useMarkUnlocksSeen(unlocks.data?.items);
 
+  // Por `definitionId`, e não por `key`: um template vira uma definição por
+  // entidade, e duas Campanhas têm duas cartas com a mesma chave.
   const unseen = useMemo(() => {
-    const keys = new Set<string>();
+    const ids = new Set<string>();
     for (const unlock of unlocks.data?.items ?? []) {
-      if (unlock.seenAt === null && unlock.key !== null) keys.add(unlock.key);
+      if (unlock.seenAt === null) ids.add(unlock.definitionId);
     }
-    return keys;
+    return ids;
   }, [unlocks.data]);
 
   const { cards, counts } = hall;
@@ -212,7 +214,7 @@ function HallPage() {
           {cards.length > 0 && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {cards.map((card) => (
-                <AchievementCard key={card.key} card={card} unseen={unseen.has(card.key)} />
+                <AchievementCard key={card.id} card={card} unseen={unseen.has(card.id)} />
               ))}
             </div>
           )}

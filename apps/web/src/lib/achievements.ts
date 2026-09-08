@@ -137,6 +137,15 @@ export const HIDDEN_ICON = CircleQuestionMark;
  * lugar só, em vez de espalhar `state === "HIDDEN" ? … : …` pela carta.
  */
 export interface AchievementCard {
+  /**
+   * Identidade da carta na grade.
+   *
+   * É o `id` da definição gravada, e não a chave do catálogo, porque um
+   * template vira **uma definição por entidade**: dois Projects produzem dois
+   * "Guardião de {campanha}" com a mesma `key` e ids diferentes.
+   */
+  readonly id: string;
+  /** A chave do catálogo ou do template. Vazia numa forjada, que não tem uma. */
   readonly key: string;
   readonly origin: AchievementOrigin;
   /** Nula na carta oculta, que não revela a raridade. */
@@ -164,8 +173,7 @@ export function toCard(item: AchievementListItem): AchievementCard {
   const hidden = item.state === "HIDDEN";
 
   return {
-    // `key` é nula numa Conquista forjada; o `id` é o que sempre existe e é o
-    // que a grade usa como identidade de React.
+    id: item.id,
     key: item.key ?? item.id,
     origin: item.origin,
     rarity: hidden ? null : item.rarity,
