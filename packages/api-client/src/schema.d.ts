@@ -4704,8 +4704,23 @@ export interface components {
             /** @description Structured output validado, quando houver. */
             output?: unknown;
             harnessSessionId?: string;
+            /** @description Arquivos que o agente declarou ter produzido neste step. */
+            artifacts?: components["schemas"]["TaskExecutionArtifact"][];
             /** @description O que o agente aprendeu. O step `knowledge` consolida isto. */
             knowledgeCandidates?: components["schemas"]["KnowledgeCandidateInput"][];
+            /** @description Consumo de tokens do step. */
+            usage?: {
+                /** @description Tokens de entrada não cacheados. */
+                inputTokens: number;
+                /** @description Tokens gerados. */
+                outputTokens: number;
+                /** @description Tokens de entrada servidos do cache. */
+                cacheReadInputTokens: number;
+                /** @description Tokens de entrada gravados no cache. */
+                cacheCreationInputTokens: number;
+                /** @description Custo informado pelo harness, quando existir. */
+                costUsd?: number;
+            };
         } | {
             /** @enum {string} */
             kind: "command";
@@ -4741,6 +4756,15 @@ export interface components {
             kind: "knowledge";
             candidates: components["schemas"]["KnowledgeCandidateInput"][];
         } | null;
+        /** @description Um arquivo que a execução produziu. */
+        TaskExecutionArtifact: {
+            /** @description Caminho relativo ao workspace do Run. */
+            path: string;
+            /** @description Classificação livre: `file`, `patch`, `report`. */
+            kind?: string;
+            /** @description O que este arquivo é, em uma linha. */
+            summary?: string;
+        };
         /** @description Candidato a item do Grimório do Project. Destilado na Fase 6. */
         KnowledgeCandidateInput: {
             /** @description Título do que foi aprendido. */
