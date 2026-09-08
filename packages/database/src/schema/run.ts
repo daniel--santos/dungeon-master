@@ -24,6 +24,7 @@ import {
 import { executionMode, harnessKey, loadouts } from "./execution.js";
 import { tasks } from "./task.js";
 import { users } from "./user.js";
+import { workflowVersions } from "./workflow.js";
 
 export const runStatus = pgEnum("run_status", RUN_STATUS_VALUES);
 
@@ -62,9 +63,16 @@ export const runs = pgTable(
     modelKey: text("model_key"),
     executionMode: executionMode("execution_mode").notNull(),
     workspacePath: text("workspace_path"),
-    // Sem referência à tabela de workflow, que só existe na Fase 4. Uma coluna
-    // anulável agora evita uma migração de tabela grande depois.
-    workflowVersionId: uuid("workflow_version_id"),
+    /**
+     * A captura congelada do Workflow da Task no instante da criação.
+     *
+     * `restrict`, e não `set null`: um Run que perdesse a versão perderia a
+     * explicação de por que os RunSteps dele existem. Apagar um Workflow com
+     * Run é recusado pela API com `409`, e este `restrict` é a rede por baixo.
+     */
+    workflowVersionId: uuid("workflow_version_id").references(() => workflowVersions.id, {
+      onDelete: "restrict",
+    }),
     /**
      * Identidade do processo de Worker que reclamou este Run.
      *
