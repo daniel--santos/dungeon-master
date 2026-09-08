@@ -41,12 +41,27 @@ const SCANNED_PREFIXES = [
   // estados, decisões, títulos e textos dos diálogos, legenda e motivos.
   "proposal.",
   "graph.",
+  // Fase 6B: o Grimório (tipos, estados, fila, decisões, resumo, lotes,
+  // candidatos, proveniência), a forja e o bloco do Grimório em Settings.
+  "knowledge.",
+  "forged.",
+  "settings.knowledge.",
 ] as const;
+
+/**
+ * Chaves fora da varredura mesmo dentro de um prefixo varrido.
+ *
+ * `knowledge.filter.type` é "Tipo" nos dois temas: uma palavra comum que já é
+ * rótulo de campo nos diálogos de Task, de Project e de proposta, fora de
+ * qualquer contexto de Grimório — o mesmo motivo que deixa `workflowStep.type.`
+ * de fora. As outras chaves de filtro continuam varridas.
+ */
+const SKIPPED_KEYS = new Set<string>(["knowledge.filter.type"]);
 
 const EXEMPT_FILES = new Set(["lib/glossary.ts", "lib/api-types.ts", "routeTree.gen.ts"]);
 
-const SCANNED_KEYS = GLOSSARY_KEYS.filter((key) =>
-  SCANNED_PREFIXES.some((prefix) => key.startsWith(prefix)),
+const SCANNED_KEYS = GLOSSARY_KEYS.filter(
+  (key) => !SKIPPED_KEYS.has(key) && SCANNED_PREFIXES.some((prefix) => key.startsWith(prefix)),
 );
 
 /** Todo texto que os dois glossários produzem para essas chaves, sem repetição. */
@@ -185,7 +200,7 @@ describe("nenhum label de entidade escrito à mão", () => {
     expect(mentions(stripComments("<span>Item</span>"), "Item")).toBe(true);
   });
 
-  it("cobre os onze grupos de chaves que a regra exige", () => {
+  it("cobre os catorze grupos de chaves que a regra exige", () => {
     for (const prefix of SCANNED_PREFIXES) {
       expect(
         SCANNED_KEYS.some((key) => key.startsWith(prefix)),
@@ -207,6 +222,11 @@ describe("nenhum label de entidade escrito à mão", () => {
       "Tarefas propostas",
       "Seguir a Pista",
       "Mãe e filha",
+      "Escriba do Grimório",
+      "Selar a Página",
+      "Na forja",
+      "Pendurar no Hall",
+      "Equipamento do Escriba",
     ]) {
       expect(FORBIDDEN, label).toContain(label);
     }
