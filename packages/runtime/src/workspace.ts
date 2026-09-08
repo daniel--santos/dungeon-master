@@ -27,7 +27,7 @@
  * divergiriam.
  */
 
-import { mkdir, rm, stat } from "node:fs/promises";
+import { mkdir, realpath, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
@@ -282,7 +282,16 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions = {}): W
       const toplevel = normalizeAbsolutePath(
         (await git(["rev-parse", "--show-toplevel"], target)).trim(),
       );
-      if (toplevel !== target) {
+      // Os dois lados passam por `realpath` porque o git devolve o caminho
+      // canônico: no macOS o temporário `/var/...` vira `/private/var/...`, e
+      // no runner do Windows o TEMP chega como `RUNNER~1` e o git responde
+      // `runneradmin`. Comparar o que veio do chamador com o que o git devolve,
+      // sem canonicalizar, recusava um worktree perfeitamente válido.
+      const [alvoCanonico, raizCanonica] = await Promise.all([
+        canonicalPath(target),
+        canonicalPath(toplevel),
+      ]);
+      if (raizCanonica !== alvoCanonico) {
         throw new RuntimeRequestError(
           `${target} existe mas não é a raiz de um worktree (git aponta para ${toplevel}).`,
           { code: "WORKTREE_PATH_TAKEN" },
@@ -406,6 +415,19 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions = {}): W
         .filter((commit) => commit.sha.length > 0);
     },
   };
+}
+
+/**
+ * Caminho canônico para comparação: symlinks resolvidos e nomes curtos do
+ * Windows expandidos (`fs.promises.realpath` tem a semântica de
+ * `realpath.native`). Um caminho que não existe volta só normalizado.
+ */
+async function canonicalPath(path: string): Promise<string> {
+  try {
+    return normalizeAbsolutePath(await realpath(path));
+  } catch {
+    return normalizeAbsolutePath(path);
+  }
 }
 
 async function pathExists(path: string): Promise<boolean> {
