@@ -99,6 +99,26 @@ export const ApprovalEventTypeSchema = z.enum(APPROVAL_EVENT_TYPE_VALUES).meta({
 
 export type ApprovalEventType = z.infer<typeof ApprovalEventTypeSchema>;
 
+/**
+ * O que o resultado de um Run e a decisão sobre uma proposta emitem
+ * (planejamento v0.4, Fase 5).
+ *
+ * Ficam fora de `ActivityType` pelo mesmo critério do gate: o diário do
+ * Project já recebe o `run.status_changed` do desfecho e o `task.created` da
+ * aprovação; estes dois existem para a tela de propostas reagir sem repetir o
+ * fato. `task.proposed` sai na **mesma transação** que grava `run.result` e as
+ * linhas de `proposed_task`; `task.proposal.resolved` sai na transação do CAS
+ * da decisão. A tela nunca vê uma proposta que o banco não tem.
+ */
+export const PROPOSAL_EVENT_TYPE_VALUES = ["task.proposed", "task.proposal.resolved"] as const;
+
+export const ProposalEventTypeSchema = z.enum(PROPOSAL_EVENT_TYPE_VALUES).meta({
+  id: "ProposalEventType",
+  description: "Eventos de proposta de trabalho: propostas gravadas e decisão tomada.",
+});
+
+export type ProposalEventType = z.infer<typeof ProposalEventTypeSchema>;
+
 export const DASHBOARD_EVENT_TYPE_VALUES = [
   "system.ping",
   "settings.changed",
@@ -106,6 +126,7 @@ export const DASHBOARD_EVENT_TYPE_VALUES = [
   ...REGISTRY_EVENT_TYPE_VALUES,
   ...ACHIEVEMENT_EVENT_TYPE_VALUES,
   ...APPROVAL_EVENT_TYPE_VALUES,
+  ...PROPOSAL_EVENT_TYPE_VALUES,
 ] as const;
 
 export const DashboardEventTypeSchema = z

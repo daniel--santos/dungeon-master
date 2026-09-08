@@ -4,6 +4,7 @@ import { UsageSummarySchema } from "./execution-event.js";
 import { PageQuerySchema, paginatedSchema } from "./pagination.js";
 import { RUN_PROMPT_MAX_LENGTH, RunErrorSchema, RunResultStatusSchema } from "./run.js";
 import {
+  DiscoveredTaskSchema,
   KnowledgeCandidateInputSchema,
   TaskExecutionArtifactSchema,
 } from "./task-execution-result.js";
@@ -760,6 +761,13 @@ export const RunStepResultSchema = z
           .array(KnowledgeCandidateInputSchema)
           .optional()
           .describe("O que o agente aprendeu. O step `knowledge` consolida isto."),
+        discoveredTasks: z
+          .array(DiscoveredTaskSchema)
+          .optional()
+          .describe(
+            "Trabalho que o agente encontrou e não fez neste step. O resultado agregado do " +
+              "Run junta o de todos os steps, e é dali que as ProposedTasks nascem.",
+          ),
         usage: UsageSummarySchema.optional().describe("Consumo de tokens do step."),
       })
       .describe("Resultado de um step `agent`."),
