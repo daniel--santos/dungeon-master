@@ -2,8 +2,8 @@ import { BookOpen } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
+import { NumberField } from "@/components/settings/number-field";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -245,6 +245,7 @@ export function KnowledgeSection() {
             onChange={(next) => {
               setForm({ ...form, every: next });
             }}
+            prefix="knowledge"
             suffix="min"
             testId="every"
             value={form.every}
@@ -259,6 +260,7 @@ export function KnowledgeSection() {
             onChange={(next) => {
               setForm({ ...form, forgeEvery: next });
             }}
+            prefix="knowledge"
             suffix={t("entity.run.plural")}
             testId="forge-every"
             value={form.forgeEvery}
@@ -279,62 +281,5 @@ export function KnowledgeSection() {
         </div>
       </form>
     </section>
-  );
-}
-
-function NumberField({
-  id,
-  label,
-  description,
-  value,
-  onChange,
-  min,
-  max,
-  invalid,
-  suffix,
-  testId,
-}: {
-  id: string;
-  label: string;
-  description: string;
-  value: string;
-  onChange: (next: string) => void;
-  min: number;
-  max: number;
-  invalid: boolean;
-  suffix: string;
-  testId: string;
-}) {
-  const { format } = useGlossary();
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label className="text-sm font-medium" htmlFor={id}>
-        {label}
-      </Label>
-      <span className="text-muted-foreground text-[13px] leading-5">{description}</span>
-      <div className="flex items-center gap-2">
-        <Input
-          aria-invalid={invalid}
-          className="w-28 font-mono"
-          data-knowledge-field={testId}
-          id={id}
-          inputMode="numeric"
-          max={max}
-          min={min}
-          onChange={(event) => {
-            onChange(event.target.value);
-          }}
-          type="number"
-          value={value}
-        />
-        <span className="text-muted-foreground text-[12.5px]">{suffix}</span>
-      </div>
-      {invalid && (
-        <span className="text-destructive text-[12px]" data-knowledge-field-error={testId}>
-          {format("Um inteiro entre {min} e {max}.", { min, max })}
-        </span>
-      )}
-    </div>
   );
 }
