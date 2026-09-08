@@ -360,6 +360,66 @@ export const dnd: Record<GlossaryKey, string> = {
   "forged.toast.body": "Está na forja, esperando o seu veredito antes de entrar no Hall.",
   "forged.toast.open": "Abrir a forja",
 
+  // ---------------------------------------------------------------- context
+  "context.title": "Provisões da Expedição",
+  "context.description":
+    "Arrumadas uma vez, quando o Worker tira a Expedição da fila, e iguais em todos os passos do ritual. Uma Expedição retomada herda as mesmas provisões, para a conversa continuar com o que já tinha.",
+  "context.status.assembled": "Arrumadas",
+  "context.status.empty": "Nada a levar",
+  "context.status.disabled": "Desligadas",
+  "context.status.failed": "Falharam",
+  "context.status.pending": "Ainda não arrumadas",
+  "context.pending.hint":
+    "As provisões são arrumadas quando o Worker tira a Expedição da fila. Esta tela relê sozinha quando isso acontecer.",
+  "context.empty.hint":
+    "O Grimório desta Campanha ainda não tinha nada relevante para esta Missão, e o Herói partiu só com a Missão.",
+  "context.disabled.hint":
+    "As provisões estavam desligadas nas Configurações quando a Expedição partiu; o Herói partiu só com a Missão.",
+  "context.failed.hint": "A arrumação falhou e a Expedição seguiu sem provisões.",
+  "context.inherited": "Herdadas da Expedição que esta retomou",
+  "context.inherited.open": "Abrir a Expedição de origem",
+  "context.section.summary": "Resumo da Campanha",
+  "context.section.decisions": "Decretos",
+  "context.section.knowledge": "Páginas do Grimório",
+  "context.section.lineage": "Missões relacionadas",
+  "context.section.artifacts": "Espólios de Expedições anteriores",
+  "context.section.skills": "Habilidades",
+  "context.reason.projectSummary": "resumo corrente da Campanha",
+  "context.reason.recentDecision": "Decreto recente",
+  "context.reason.ftsMatch": "casa com a Missão pela busca textual",
+  "context.reason.parentTask": "Missão mãe",
+  "context.reason.dependency": "dependência desta Missão",
+  "context.reason.priorRunArtifact": "Espólio de Expedição anterior desta Missão",
+  "context.reason.parentTaskArtifact": "Espólio de Expedição da Missão mãe",
+  "context.reason.loadoutSkill": "Habilidade do Equipamento",
+  "context.excluded.title": "Ficou de fora",
+  "context.excluded.none": "Nada ficou de fora: tudo o que era relevante coube no orçamento.",
+  "context.excluded.sectionBudget": "estourou o teto da seção",
+  "context.excluded.totalBudget": "cortado para o total caber",
+  "context.budget.title": "Orçamento",
+  "context.budget.usage": "{used} de {total} tokens",
+  "context.budget.frame": "{n} da moldura",
+  "context.items": "{n} itens",
+  "context.tokens": "{n} tokens",
+  "context.score": "relevância {score}",
+  "context.truncated": "cortado",
+  "context.query": "Consulta ao Grimório",
+  "context.text.title": "O texto que foi ao prompt",
+  "context.text.show": "Mostrar o texto",
+  "context.text.hide": "Esconder o texto",
+  "context.text.copy": "Copiar o texto",
+  "context.text.copied": "Copiado",
+  "context.open.knowledge": "Abrir a Página",
+  "context.open.task": "Abrir a Missão",
+  "context.open.run": "Abrir a Expedição",
+  "context.policy.title": "Política aplicada",
+  "context.policy.source": "Equipamento {version} e Configurações",
+  "context.expand": "Mostrar as provisões",
+  "context.collapse": "Recolher as provisões",
+  "context.toolCalls.one": "{n} consulta ao Grimório",
+  "context.toolCalls.many": "{n} consultas ao Grimório",
+  "context.toolCall.badge": "Grimório",
+
   // ------------------------------------------------------------------- env
   "env.host": "Campo aberto",
   "env.host.warning": "sem isolamento",
@@ -450,6 +510,19 @@ export const dnd: Record<GlossaryKey, string> = {
     "A CLI desta {harness} não consulta a lista de comandos do {profile}: a permissão é só pedida, nunca aplicada, e o enforcement da Expedição sai como ADVISORY.",
   "loadout.noNativePermissions.antigravity":
     "No Antigravity é o oposto: sem interface, a CLI não consulta lista nenhuma e nega todo comando. Em {host} ({hostWarning}), uma {run} que precise executar comandos termina em PERMISSION_DENIED; só `allowUnsafeBypass` no {profile} libera — e libera tudo.",
+  "loadout.policy.title": "O que vai nas provisões",
+  "loadout.policy.description":
+    "Quanto do Grimório este Equipamento leva para a Expedição. As Configurações põem os tetos gerais; aqui é o que este Equipamento pede, e o menor dos dois vale.",
+  "loadout.policy.includeProjectSummary": "Levar o Resumo da Campanha",
+  "loadout.policy.includeDecisions": "Levar os Decretos",
+  "loadout.policy.maxItems": "Teto de Páginas",
+  "loadout.policy.maxItems.description":
+    "Quantas Páginas relevantes este Equipamento leva, no máximo. 0 desliga a seção.",
+  "loadout.policy.includeParentContext": "Levar a Missão mãe",
+  "loadout.policy.includeDependencyContext": "Levar as dependências",
+  "loadout.policy.maxTokens": "Orçamento próprio",
+  "loadout.policy.maxTokens.description":
+    "Teto de tokens das provisões deste Equipamento, quando menor que o das Configurações. 0 usa o das Configurações.",
 
   // -------------------------------------------------------------- settings
   "settings.theme.toggle": "Tema Dungeon Master",
@@ -472,4 +545,23 @@ export const dnd: Record<GlossaryKey, string> = {
   "settings.knowledge.forgeEvery.description":
     "Quantas Expedições precisam terminar entre duas Conquistas forjadas, para a forja continuar rara. Entre 1 e 10000.",
   "settings.knowledge.saved": "O Grimório foi configurado.",
+  "settings.context.title": "Provisões",
+  "settings.context.description":
+    "O que o Herói leva do Grimório para cada Expedição, e quanto. Montado uma vez por Expedição, na partida.",
+  "settings.context.enabled": "Arrumar as provisões",
+  "settings.context.enabled.description":
+    "Ligado, toda Expedição parte com o Resumo da Campanha, os Decretos, as Páginas relevantes, as Missões relacionadas e os Espólios anteriores no prompt. Desligado, o Herói parte só com a Missão.",
+  "settings.context.budgetTokens": "Orçamento de tokens",
+  "settings.context.budgetTokens.description":
+    "Teto estimado do bloco inteiro, moldura incluída. O que não cabe fica de fora, e o cockpit mostra o quê. Entre 1000 e 200000.",
+  "settings.context.maxKnowledgeItems": "Teto de Páginas",
+  "settings.context.maxKnowledgeItems.description":
+    "Quantas Páginas relevantes do Grimório entram, no máximo. Entre 0 e 50; 0 desliga a seção.",
+  "settings.context.maxDecisions": "Teto de Decretos",
+  "settings.context.maxDecisions.description":
+    "Quantos Decretos recentes entram, no máximo. Entre 0 e 50; 0 desliga a seção.",
+  "settings.context.maxArtifacts": "Teto de Espólios",
+  "settings.context.maxArtifacts.description":
+    "Quantos Espólios de Expedições anteriores entram, no máximo. Entre 0 e 100; 0 desliga a seção.",
+  "settings.context.saved": "As provisões foram configuradas.",
 };

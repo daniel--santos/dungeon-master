@@ -360,6 +360,66 @@ export const plain: Record<GlossaryKey, string> = {
   "forged.toast.body": "Aprove, reescreva ou descarte antes de ela entrar na lista.",
   "forged.toast.open": "Abrir a revisão",
 
+  // ---------------------------------------------------------------- context
+  "context.title": "Contexto entregue",
+  "context.description":
+    "Montado uma vez, quando o Worker tira a execução da fila, e igual em todas as etapas do workflow. Uma execução retomada herda o mesmo contexto, para a conversa continuar com o que já tinha.",
+  "context.status.assembled": "Montado na partida",
+  "context.status.empty": "Nada relevante",
+  "context.status.disabled": "Desligado",
+  "context.status.failed": "Falhou",
+  "context.status.pending": "Ainda não montado",
+  "context.pending.hint":
+    "O contexto é montado quando o Worker tira a execução da fila. Esta tela relê sozinha quando isso acontecer.",
+  "context.empty.hint":
+    "O conhecimento deste projeto ainda não tinha nada relevante para esta tarefa, e o agente partiu só com a tarefa.",
+  "context.disabled.hint":
+    "O contexto estava desligado nas Configurações quando a execução começou; o agente partiu só com a tarefa.",
+  "context.failed.hint": "A montagem falhou e a execução seguiu sem contexto.",
+  "context.inherited": "Herdado da execução que esta retomou",
+  "context.inherited.open": "Abrir a execução de origem",
+  "context.section.summary": "Resumo do projeto",
+  "context.section.decisions": "Decisões",
+  "context.section.knowledge": "Itens de conhecimento",
+  "context.section.lineage": "Tarefas relacionadas",
+  "context.section.artifacts": "Artefatos de execuções anteriores",
+  "context.section.skills": "Skills",
+  "context.reason.projectSummary": "resumo corrente do projeto",
+  "context.reason.recentDecision": "decisão recente",
+  "context.reason.ftsMatch": "casa com a tarefa pela busca textual",
+  "context.reason.parentTask": "tarefa mãe",
+  "context.reason.dependency": "dependência desta tarefa",
+  "context.reason.priorRunArtifact": "artefato de execução anterior desta tarefa",
+  "context.reason.parentTaskArtifact": "artefato de execução da tarefa mãe",
+  "context.reason.loadoutSkill": "skill do Loadout",
+  "context.excluded.title": "Ficou de fora",
+  "context.excluded.none": "Nada ficou de fora: tudo o que era relevante coube no orçamento.",
+  "context.excluded.sectionBudget": "estourou o teto da seção",
+  "context.excluded.totalBudget": "cortado para o total caber",
+  "context.budget.title": "Orçamento",
+  "context.budget.usage": "{used} de {total} tokens",
+  "context.budget.frame": "{n} da moldura",
+  "context.items": "{n} itens",
+  "context.tokens": "{n} tokens",
+  "context.score": "relevância {score}",
+  "context.truncated": "cortado",
+  "context.query": "Consulta ao conhecimento",
+  "context.text.title": "O texto que foi ao prompt",
+  "context.text.show": "Mostrar o texto",
+  "context.text.hide": "Esconder o texto",
+  "context.text.copy": "Copiar o texto",
+  "context.text.copied": "Copiado",
+  "context.open.knowledge": "Abrir o item",
+  "context.open.task": "Abrir a tarefa",
+  "context.open.run": "Abrir a execução",
+  "context.policy.title": "Política aplicada",
+  "context.policy.source": "Loadout {version} e Configurações",
+  "context.expand": "Mostrar o contexto",
+  "context.collapse": "Recolher o contexto",
+  "context.toolCalls.one": "{n} consulta ao conhecimento",
+  "context.toolCalls.many": "{n} consultas ao conhecimento",
+  "context.toolCall.badge": "Conhecimento",
+
   // ------------------------------------------------------------------- env
   "env.host": "Host",
   "env.host.warning": "sem isolamento",
@@ -450,6 +510,19 @@ export const plain: Record<GlossaryKey, string> = {
     "A CLI deste {harness} não consulta a lista de comandos do {profile}: a permissão é só pedida, nunca aplicada, e o enforcement da execução sai como ADVISORY.",
   "loadout.noNativePermissions.antigravity":
     "No Antigravity é o oposto: sem interface, a CLI não consulta lista nenhuma e nega todo comando. Em {host} ({hostWarning}), uma {run} que precise executar comandos termina em PERMISSION_DENIED; só `allowUnsafeBypass` no {profile} libera — e libera tudo.",
+  "loadout.policy.title": "Política de contexto",
+  "loadout.policy.description":
+    "Quanto do conhecimento este Loadout leva para a execução. As Configurações põem os tetos gerais; aqui é o que este Loadout pede, e o menor dos dois vale.",
+  "loadout.policy.includeProjectSummary": "Incluir o resumo do projeto",
+  "loadout.policy.includeDecisions": "Incluir as decisões",
+  "loadout.policy.maxItems": "Teto de itens",
+  "loadout.policy.maxItems.description":
+    "Quantos itens relevantes este Loadout leva, no máximo. 0 desliga a seção.",
+  "loadout.policy.includeParentContext": "Incluir a tarefa mãe",
+  "loadout.policy.includeDependencyContext": "Incluir as dependências",
+  "loadout.policy.maxTokens": "Orçamento próprio",
+  "loadout.policy.maxTokens.description":
+    "Teto de tokens do contexto deste Loadout, quando menor que o das Configurações. 0 usa o das Configurações.",
 
   // -------------------------------------------------------------- settings
   "settings.theme.toggle": "Tema Dungeon Master",
@@ -473,4 +546,23 @@ export const plain: Record<GlossaryKey, string> = {
   "settings.knowledge.forgeEvery.description":
     "Quantas execuções precisam terminar entre duas Conquistas forjadas, para elas continuarem raras. Entre 1 e 10000.",
   "settings.knowledge.saved": "Configuração de conhecimento salva.",
+  "settings.context.title": "Contexto",
+  "settings.context.description":
+    "O que o agente recebe do conhecimento em cada execução, e quanto. Montado uma vez por execução, na partida.",
+  "settings.context.enabled": "Montar o contexto",
+  "settings.context.enabled.description":
+    "Ligado, toda execução parte com o resumo do projeto, as decisões, os itens relevantes, as tarefas relacionadas e os artefatos anteriores no prompt. Desligado, o agente parte só com a tarefa.",
+  "settings.context.budgetTokens": "Orçamento de tokens",
+  "settings.context.budgetTokens.description":
+    "Teto estimado do bloco inteiro, moldura incluída. O que não cabe fica de fora, e o cockpit mostra o quê. Entre 1000 e 200000.",
+  "settings.context.maxKnowledgeItems": "Teto de itens de conhecimento",
+  "settings.context.maxKnowledgeItems.description":
+    "Quantos itens relevantes do conhecimento entram, no máximo. Entre 0 e 50; 0 desliga a seção.",
+  "settings.context.maxDecisions": "Teto de decisões",
+  "settings.context.maxDecisions.description":
+    "Quantas decisões recentes entram, no máximo. Entre 0 e 50; 0 desliga a seção.",
+  "settings.context.maxArtifacts": "Teto de artefatos",
+  "settings.context.maxArtifacts.description":
+    "Quantos artefatos de execuções anteriores entram, no máximo. Entre 0 e 100; 0 desliga a seção.",
+  "settings.context.saved": "Configuração de contexto salva.",
 };
