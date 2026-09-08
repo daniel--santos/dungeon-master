@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/database";
+import { antigravityHostAdapters } from "@dungeon-master/runtime-antigravity";
 import { dockerAdapters, hostAdapters } from "@dungeon-master/runtime-sandcastle";
 
 import { createAchievementProjector } from "./achievements.js";
@@ -72,7 +73,10 @@ const worker = createWorker({
   // `ExecutionProfile.mode` do Run. Registrar os adapters de container não custa
   // nada quando não há Docker: o preflight deles é que falha, com a mensagem que
   // diz o que instalar ou construir.
-  adapters: [...hostAdapters(), ...dockerAdapters()],
+  // O Antigravity entra pelo pacote dele, e não por `hostAdapters()`: ele não
+  // é um provider do Sandcastle, é uma CLI que o projeto fala direto
+  // (planejamento v0.4, Fase 3B).
+  adapters: [...hostAdapters(), ...antigravityHostAdapters(), ...dockerAdapters()],
   achievements,
   logger,
 });
