@@ -25,6 +25,16 @@ import type { HarnessCapabilities as HarnessCapabilitiesContract } from "@dungeo
 export interface HarnessCapabilities extends HarnessCapabilitiesContract {
   /** Retoma criando uma sessão nova em vez de mutar a original (fork). */
   readonly forkSession: boolean;
+  /**
+   * Sobe servidores MCP declarados por Run, em modo headless (Fase 7).
+   *
+   * `true` só quando o adapter traduz `ExecutionRequest.mcpServers` para a
+   * configuração da CLI **e** a suíte de contrato viu um `ToolCall` chegar ao
+   * servidor. `false` faz o runtime avisar e seguir sem as ferramentas; nunca
+   * falha o Run. Como `forkSession`, ainda não está no contrato da API — a
+   * promoção é assunto da 7C, quando a tela de Equipamento quiser mostrá-la.
+   */
+  readonly mcpServers: boolean;
 }
 
 /**
@@ -46,6 +56,7 @@ export const NO_CAPABILITIES: HarnessCapabilities = {
   nativePermissions: false,
   hostExecution: false,
   dockerExecution: false,
+  mcpServers: false,
 };
 
 /** Monta uma matriz a partir de {@link NO_CAPABILITIES}. */

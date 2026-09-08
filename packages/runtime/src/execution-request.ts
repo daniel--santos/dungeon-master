@@ -10,6 +10,7 @@
 
 import type { UsageSummary } from "@dungeon-master/contracts";
 
+import type { McpServerSpec } from "./mcp.js";
 import type { StandardSchemaLike } from "./standard-schema.js";
 import type {
   ExecutionProfileSnapshot,
@@ -72,6 +73,12 @@ export interface ExecutionRequest<TOutput = unknown> {
   readonly outputSchema?: StructuredOutputSpec<TOutput>;
   /** Sobrescreve os padrões de {@link ExecutionTimeouts}. */
   readonly timeouts?: Partial<ExecutionTimeouts>;
+  /**
+   * Servidores MCP oferecidos ao agente neste Run: o do Grimório e os do
+   * Loadout, já resolvidos pelo Worker. Um adapter sem `mcpServers` na matriz
+   * os ignora com um `Diagnostic`; o Run segue sem as ferramentas.
+   */
+  readonly mcpServers?: readonly McpServerSpec[];
   /**
    * Retoma a sessão do harness. O adapter precisa ter `resume` na matriz de
    * capabilities; sem isso o pedido falha no início, e não no meio.

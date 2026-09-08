@@ -46,6 +46,7 @@ import type {
   ResolvedPermission,
 } from "./harness.js";
 import { isHarnessFinished, RuntimeRequestError } from "./harness.js";
+import { applyMcpInstruction, mcpEnv, mcpEnvKeys, type McpServerSpec } from "./mcp.js";
 import type { HarnessRegistry } from "./registry.js";
 import type { StructuredOutputResult } from "./structured-output.js";
 import {
@@ -242,12 +243,20 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         yield diagnostic(note.level, note.message);
       }
 
+      // ------------------------------------------------------- servidores MCP
+      // A capability decide, e a decisão é visível: um harness que não sobe
+      // servidor MCP em modo headless perde as ferramentas e ganha um aviso no
+      // diário. Nunca uma falha — o Run sem Grimório ainda é o Run pedido.
+      const mcpServers = resolveMcpServers(request.mcpServers, adapter);
+      if (mcpServers.note !== undefined) yield diagnostic("WARN", mcpServers.note);
+
       // ------------------------------------------------------------- ambiente
       // `AGENT_GIT_ENV_KEYS` entra em todo harness, e não só nos que declaram
       // precisar: o worktree e a allow-list com `git commit` são do runtime, e
       // não do adapter. Um agente que recebe permissão para commitar e não
       // recebe como achar a identidade do git falha no commit e o Run termina
-      // sem ele.
+      // sem ele. As chaves dos servidores MCP entram só quando eles vão subir:
+      // sem servidor não há por que o agente enxergar a URL do banco.
       const env = buildExecutionEnv({
         ...(request.executionProfile.environmentPolicy === undefined
           ? {}
@@ -256,7 +265,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
           ...(options.extraEnvKeys ?? []),
           ...AGENT_GIT_ENV_KEYS,
           ...adapterEnvKeys(adapter),
+          ...mcpEnvKeys(mcpServers.servers),
         ],
+        // O valor que o Worker entrega de propósito (a URL do banco do servidor
+        // do Grimório) entra pelo runtime, e não pela allow-list: ele pode não
+        // existir no ambiente de quem subiu o Worker.
+        runtimeVariables: mcpEnv(mcpServers.servers),
         ...(options.envSource === undefined ? {} : { source: options.envSource }),
       });
 
@@ -290,7 +304,13 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       const tag = spec?.tag ?? DEFAULT_OUTPUT_TAG;
       const maxAttempts = spec === undefined ? 1 : 1 + Math.max(0, spec.maxRetries ?? 1);
 
-      let prompt = applyStructuredOutputInstruction(request.prompt, spec);
+      // A linha das ferramentas entra depois do que o Worker montou e antes
+      // da instrução do bloco `<result>`, que fica por último de propósito: é
+      // a instrução de formato, e o modelo segue melhor a que fecha o prompt.
+      let prompt = applyStructuredOutputInstruction(
+        applyMcpInstruction(request.prompt, mcpServers.servers),
+        spec,
+      );
       let resume = request.resume;
       let lastFailure: Extract<StructuredOutputResult<unknown>, { ok: false }> | undefined;
 
@@ -324,6 +344,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
           ...(request.executionProfile.resourceLimits === undefined
             ? {}
             : { resourceLimits: request.executionProfile.resourceLimits }),
+          ...(mcpServers.servers === undefined ? {} : { mcpServers: mcpServers.servers }),
         };
         control.executionId = harnessRequest.executionId;
 
@@ -925,6 +946,35 @@ function describeHarnessFailure(
 
 function adapterEnvKeys(adapter: HarnessAdapter): readonly string[] {
   return adapter.environmentKeys ?? [];
+}
+
+interface ResolvedMcpServers {
+  /** A lista que vai ao adapter; `undefined` quando não há o que subir. */
+  readonly servers: readonly McpServerSpec[] | undefined;
+  readonly note?: string;
+}
+
+/**
+ * Os servidores MCP que este adapter vai subir.
+ *
+ * A regra é a mesma das permissões e da rede: o que não é possível vira
+ * aviso, nunca promessa. Um pedido com servidores para um adapter sem a
+ * capability produz um `Diagnostic` que nomeia os servidores perdidos, e o
+ * Run segue com o que a CLI sabe fazer.
+ */
+export function resolveMcpServers(
+  requested: readonly McpServerSpec[] | undefined,
+  adapter: HarnessAdapter,
+): ResolvedMcpServers {
+  if (requested === undefined || requested.length === 0) return { servers: undefined };
+  if (adapter.capabilities.mcpServers) return { servers: requested };
+  const nomes = requested.map((server) => server.name).join(", ");
+  return {
+    servers: undefined,
+    note:
+      `O adapter ${adapter.id} não sobe servidores MCP em modo headless; o Run segue sem ` +
+      `as ferramentas de: ${nomes}. Veja a matriz de capabilities do harness.`,
+  };
 }
 
 function lastNonEmptyText(text: string): string {

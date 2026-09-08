@@ -21,6 +21,7 @@ import type {
 } from "@dungeon-master/contracts";
 
 import type { HarnessCapabilities } from "./capabilities.js";
+import type { McpServerSpec } from "./mcp.js";
 import type {
   EnforcementLevel,
   ExecutionMode,
@@ -179,6 +180,12 @@ export interface HarnessExecutionRequest {
   readonly network?: ResolvedNetwork;
   /** Limites de recurso do perfil. Só o backend de container os aplica. */
   readonly resourceLimits?: RuntimeResourceLimits;
+  /**
+   * Servidores MCP a subir, já filtrados pelo runtime: só chegam a um adapter
+   * com `mcpServers: true`. No modo `DOCKER`, já vêm reescritos com o comando
+   * de dentro do container (veja `mcpServersForContainer`).
+   */
+  readonly mcpServers?: readonly McpServerSpec[];
 }
 
 /**

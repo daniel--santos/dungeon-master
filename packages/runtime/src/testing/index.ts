@@ -8,3 +8,4 @@
 
 export * from "./contract-suite.js";
 export * from "./fake-harness.js";
+export * from "./fake-mcp.js";

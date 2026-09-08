@@ -36,8 +36,17 @@ import { createHarnessRegistry } from "../registry.js";
 import type { ExecutionProfileSnapshot, ModelRef } from "../types.js";
 import { createWorkspaceManager } from "../workspace.js";
 import { createWorkspaceResolver } from "../workspace-resolver.js";
+import {
+  FAKE_MCP_SERVER_NAME,
+  FAKE_MCP_TOOL_NAME,
+  fakeMcpServerSpec,
+  newFakeMcpMarker,
+} from "./fake-mcp.js";
 
-/** Os onze casos, na ordem em que a Fase 3E os lista. */
+/**
+ * Os onze casos, na ordem em que a Fase 3E os lista, mais o décimo segundo da
+ * Fase 7: um servidor MCP declarado no pedido é subido pela CLI e chamado.
+ */
 export const HARNESS_CONTRACT_CASES = [
   "canRunPrompt",
   "emitsText",
@@ -50,6 +59,7 @@ export const HARNESS_CONTRACT_CASES = [
   "capturesSessionId",
   "reportsVersion",
   "reportsCapabilities",
+  "usesMcpServer",
 ] as const;
 
 export type HarnessContractCase = (typeof HARNESS_CONTRACT_CASES)[number];
@@ -63,6 +73,8 @@ export interface ContractPrompts {
   readonly structured: string;
   /** Um prompt longo o bastante para ser cancelado no meio. */
   readonly slow: string;
+  /** Um prompt que obriga a chamar `echo_marker` do servidor MCP `fake`. */
+  readonly mcp: string;
 }
 
 const DEFAULT_PROMPTS: ContractPrompts = {
@@ -70,6 +82,10 @@ const DEFAULT_PROMPTS: ContractPrompts = {
   tool: "Use sua ferramenta de shell para executar `git --version` e depois responda apenas OK.",
   structured: 'Responda com o campo answer valendo exatamente "ok".',
   slow: "Conte de 1 até 300, escrevendo um número por linha, sem usar ferramentas.",
+  mcp:
+    `Chame a ferramenta ${FAKE_MCP_TOOL_NAME} do servidor MCP \`${FAKE_MCP_SERVER_NAME}\` ` +
+    `(o nome completo pode aparecer como mcp__${FAKE_MCP_SERVER_NAME}__${FAKE_MCP_TOOL_NAME}) ` +
+    "uma vez, sem usar nenhuma outra ferramenta, e responda apenas com o texto exato que ela devolver.",
 };
 
 export interface HarnessContractSuiteOptions {
@@ -365,6 +381,7 @@ export function harnessContractSuite(options: HarnessContractSuiteOptions): void
         "nativePermissions",
         "hostExecution",
         "dockerExecution",
+        "mcpServers",
       ] as const;
       for (const key of keys) {
         expect(typeof adapter.capabilities[key], `capability ${key}`).toBe("boolean");
@@ -372,6 +389,64 @@ export function harnessContractSuite(options: HarnessContractSuiteOptions): void
       expect(adapter.capabilities.hostExecution).toBe(true);
       expect(adapter.id.length).toBeGreaterThan(0);
     });
+
+    testCase(
+      options,
+      "usesMcpServer",
+      "sobe o servidor MCP do pedido e a chamada aparece no diário com o nome do servidor",
+      async () => {
+        if (!adapter.capabilities.mcpServers) {
+          // A matriz diz não, e o runtime precisa dizer o mesmo: aviso no
+          // diário, e o Run termina bem sem as ferramentas.
+          const events = await collect(
+            buildRequest("mcp-unsupported", {
+              mcpServers: [fakeMcpServerSpec({ marker: newFakeMcpMarker() })],
+            }),
+          );
+          const aviso = events.find(
+            (event) =>
+              event.type === "Diagnostic" &&
+              event.message.includes("não sobe servidores MCP") &&
+              event.message.includes(FAKE_MCP_SERVER_NAME),
+          );
+          expect(aviso, describeEvents(events)).toBeDefined();
+          expect(events.at(-1)?.type, describeEvents(events)).toBe("RunCompleted");
+          return;
+        }
+
+        const marker = newFakeMcpMarker();
+        const events = await collect(
+          buildRequest("mcp", {
+            prompt: prompts.mcp,
+            mcpServers: [fakeMcpServerSpec({ marker })],
+          }),
+        );
+
+        expect(events.at(-1)?.type, describeEvents(events)).toBe("RunCompleted");
+
+        // O nome da chamada carrega o servidor: é assim que o diário distingue
+        // uma busca no Grimório de um `Bash` qualquer.
+        const chamada = events.find(
+          (event) =>
+            event.type === "ToolCall" &&
+            event.name.includes(FAKE_MCP_SERVER_NAME) &&
+            event.name.includes(FAKE_MCP_TOOL_NAME),
+        );
+        expect(chamada, describeEvents(events)).toBeDefined();
+
+        // E a resposta veio do processo do servidor, não do modelo: o marcador
+        // foi sorteado agora e só existe no argv daquele processo.
+        const esperado = `marcador: ${marker}`;
+        const viuMarcador = events.some(
+          (event) =>
+            (event.type === "ToolResult" && event.output.includes(esperado)) ||
+            (event.type === "TextDelta" && event.text.includes(esperado)) ||
+            (event.type === "RunCompleted" && event.summary.includes(esperado)),
+        );
+        expect(viuMarcador, describeEvents(events)).toBe(true);
+      },
+      caseTimeout,
+    );
   });
 }
 

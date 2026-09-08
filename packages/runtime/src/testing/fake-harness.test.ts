@@ -22,6 +22,9 @@ harnessContractSuite({
     // Ignora sinal e sobe um neto: o cancelamento precisa escalar para
     // `SIGKILL` no POSIX e andar a árvore no Windows.
     slow: "@@fake:ignore-signals\n@@fake:spawn-child\n@@fake:sleep 600000",
+    // O falso sobe o servidor de `--mcp-config` e chama a ferramenta pelo
+    // protocolo, como uma CLI de verdade faria.
+    mcp: "@@fake:mcp fake echo_marker",
   },
   // O falso não tem "modelo inexistente": a falha vem de uma diretiva que sai
   // com código diferente de zero, que é o mesmo caminho de código.

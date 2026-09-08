@@ -18,6 +18,7 @@ export * from "./clock.js";
 export * from "./env.js";
 export * from "./execution-request.js";
 export * from "./harness.js";
+export * from "./mcp.js";
 export * from "./process.js";
 export * from "./registry.js";
 export * from "./standard-schema.js";
