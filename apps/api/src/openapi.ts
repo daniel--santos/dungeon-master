@@ -37,6 +37,14 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       { name: "runs", description: "Runs: as tentativas concretas de realizar uma Task." },
       { name: "workflows", description: "Workflows: o processo de uma execução, como dados." },
       { name: "approvals", description: "ApprovalGates: as pausas humanas de um Run." },
+      {
+        name: "proposals",
+        description: "ProposedTasks: o trabalho que os Runs encontraram e não fizeram.",
+      },
+      {
+        name: "knowledge",
+        description: "KnowledgeCandidates: o que os Runs aprenderam, à espera da destilação.",
+      },
       { name: "achievements", description: "O catálogo versionado de Conquistas." },
     ],
   }) as unknown as Record<string, unknown>;

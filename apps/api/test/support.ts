@@ -68,6 +68,8 @@ export async function limparTudo(handle: DatabaseHandle): Promise<void> {
     "achievement_cursor",
     "achievement_definition",
     "hero_stats",
+    "proposed_task",
+    "knowledge_candidate",
     "approval_gate",
     "run_step",
     "workspace_lock",
