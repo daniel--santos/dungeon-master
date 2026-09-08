@@ -46,6 +46,11 @@ export const SENSITIVE_ENV_VARS = [
   "CLAUDE_CODE_OAUTH_TOKEN",
   "CODEX_ACCESS_TOKEN",
   "CODEX_API_KEY",
+  // A URL do banco entra no ambiente do agente na Fase 7, para o servidor MCP
+  // do Grimório que a CLI sobe como filho; ela carrega a senha do PostgreSQL.
+  // O `userinfo` de URL já era apagado pela regra genérica abaixo, mas o valor
+  // inteiro na lista também cobre o caso de um agente que imprime só a senha.
+  "DATABASE_URL",
 ] as const;
 
 export const REDACTED = "[REDACTED]" as const;
