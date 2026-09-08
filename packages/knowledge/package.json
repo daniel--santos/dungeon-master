@@ -26,6 +26,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@dungeon-master/context": "workspace:*",
     "@dungeon-master/contracts": "workspace:*",
     "zod": "4.5.4"
   },

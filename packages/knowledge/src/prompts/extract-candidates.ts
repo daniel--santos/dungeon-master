@@ -12,9 +12,9 @@
 // duplicata do `l1-dedup.ts` entra no mesmo prompt, porque aqui é uma
 // chamada por lote. Prompt reescrito em português.
 
+import { escapeXmlTags } from "@dungeon-master/context";
 import { z } from "zod";
 
-import { escapeXmlTags } from "../sanitize.js";
 import type { DistillCandidate, ProjectContext, RunTranscript } from "../types.js";
 import {
   candidateKey,

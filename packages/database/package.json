@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@dungeon-master/achievements": "workspace:*",
+    "@dungeon-master/context": "workspace:*",
     "@dungeon-master/contracts": "workspace:*",
     "@dungeon-master/domain": "workspace:*",
     "@dungeon-master/events": "workspace:*",

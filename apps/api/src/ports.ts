@@ -26,6 +26,7 @@ import type {
   ProposedTask,
   ProposedTaskListItem,
   Run,
+  RunContext,
   RunEvent,
   RunListItem,
   RunStep,
@@ -415,6 +416,8 @@ export interface RunsPort {
   steps(runId: string): Promise<RunStep[]>;
   /** Os ApprovalGates do Run, do mais antigo ao mais novo. */
   gates(runId: string): Promise<ApprovalGate[]>;
+  /** O registro do Context Engine (Fase 7). `null` enquanto o Run não foi reclamado. */
+  context(runId: string): Promise<RunContext | null>;
 }
 
 /**
@@ -639,6 +642,7 @@ export function createSpecPorts(): {
         openStream: () => recusar("o stream de eventos de Run"),
         steps: inerte("os steps de Run"),
         gates: inerte("os gates de Run"),
+        context: inerte("o contexto de Run"),
       },
       workflows: {
         list: inerte("a listagem de Workflows"),

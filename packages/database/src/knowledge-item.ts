@@ -5,8 +5,8 @@ import type {
   KnowledgeReviewFilter,
   ProjectSummary,
 } from "@dungeon-master/contracts";
+import { escapeXmlTags } from "@dungeon-master/context";
 import { sanitizeCredentials } from "@dungeon-master/events";
-import { escapeXmlTags } from "@dungeon-master/knowledge";
 import {
   and,
   asc,

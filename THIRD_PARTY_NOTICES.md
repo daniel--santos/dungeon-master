@@ -337,18 +337,11 @@ por uma porta, e não pelo `CleanContextRunner` do original.
 
 #### `packages/knowledge/src/sanitize.ts`
 
-- Origem: TencentDB Agent Memory — `MemoryCore/src/utils/sanitize.ts@3efcd31` (`escapeXmlTags`)
-- Copyright: (c) 2026 Tencent. Licensed under the MIT License.
-- Modo: copiar função
-- Fase: 6 (o manifesto a colocava na Fase 7, em `packages/context`; ela veio antes porque o
-  Distiller já persiste texto escrito por modelo)
-- Testes: `packages/knowledge/src/sanitize.test.ts` (o original não tem teste ao lado)
-- Changes: a lista de tags escapadas deixou de ser a das seções de memória pessoal
-  (`user-persona`, `relevant-memories`, ...) e passou a ser a das fronteiras que este
-  projeto usa em prompt (`system`, `assistant`, `user`, `result`, `candidate`, `knowledge`,
-  `project-summary`, `run-log`, `instructions`, `context`); o resto do arquivo de origem
-  (limpeza de metadados de gateway, filtros L0/L1, detecção de injeção) não veio. Entrou
-  `sanitizeLlmText`, que é nosso, por cima da função copiada.
+`escapeXmlTags` veio para cá na Fase 6, antes do destino do manifesto, porque o Distiller
+já persistia texto escrito por modelo. Na Fase 7 ela mudou para
+`packages/context/src/sanitize.ts`, que é o destino do manifesto, e este arquivo passou a
+importar de lá: só `sanitizeLlmText`, que é nosso, continua aqui. A entrada da cópia está
+na seção da Fase 7, abaixo.
 
 #### `packages/knowledge/src/l0-noise-filter.ts`
 
@@ -440,6 +433,52 @@ por uma porta, e não pelo `CleanContextRunner` do original.
   o `setTimeout`, o `ManagedTimer`, as filas seriais e o checkpoint não. A sessão de chat
   virou o Project; o scheduler não tem relógio próprio — o laço do Worker pergunta
   `due(now)` a cada tique, e é isso que o torna testável sem esperar.
+
+### TencentDB Agent Memory — packages/context (Fase 7)
+
+Manifesto: planejamento v0.4, seção 13.3, as três linhas da Fase 7. Todos os arquivos
+estão no commit fixado `3efcd31`. Nenhum dos três tem teste ao lado na origem; os testes
+são nossos e rodam na matriz de CI. O `graph-search.ts` do manifesto (modo "ler", etapa 5
+do retrieval) não veio: o Grimório ainda não tem wikilinks.
+
+#### `packages/context/src/sanitize.ts`
+
+- Origem: TencentDB Agent Memory — `MemoryCore/src/utils/sanitize.ts@3efcd31`
+  (`escapeXmlTags`) e `MemoryCore/src/core/scene/scene-navigation.ts@3efcd31`
+  (`stripSceneNavigation`)
+- Copyright: (c) 2026 Tencent. Licensed under the MIT License.
+- Modo: copiar função (as duas)
+- Fase: 7 (`escapeXmlTags` tinha vindo antes, na Fase 6, para `packages/knowledge`; agora
+  mora aqui e o knowledge importa daqui — uma fonte só)
+- Testes: `packages/context/src/sanitize.test.ts` (os originais não têm teste ao lado)
+- Changes: a lista de tags escapadas deixou de ser a das seções de memória pessoal
+  (`user-persona`, `relevant-memories`, ...) e passou a ser a das fronteiras que este
+  projeto usa em prompt — as clássicas `system`, `assistant` e `user`, as do resultado e
+  dos candidatos, e as seções do bloco de contexto (`context`, `project-summary`,
+  `decisions`, `knowledge`, `related-tasks`, `artifacts`, `skills` e os itens delas).
+  `stripSceneNavigation` virou `stripInjectedContext`: o marcador deixou de ser o
+  cabeçalho da navegação de cenas do `persona.md` e passou a ser o cabeçalho fixo do nosso
+  bloco de contexto — o que ela evita é o mesmo laço de realimentação, um texto escrito
+  por modelo que ecoou o bloco que recebeu e o devolveria ao prompt seguinte. O algoritmo
+  (primeira ocorrência do cabeçalho, corte dali até o fim, `trimEnd`) é o do original. O
+  resto dos dois arquivos de origem (limpeza de metadados de gateway, filtros L0/L1,
+  detecção de injeção, JSON; a geração da navegação com emojis de calor e caminhos de
+  arquivo) não veio. `sanitizeForContext` é nosso, por cima das duas.
+
+#### `packages/context/src/token-estimate.ts`
+
+- Origem: TencentDB Agent Memory — `MemoryCore/src/offload/fast-token-estimate.ts@3efcd31`
+- Copyright: (c) 2026 Tencent. Licensed under the MIT License.
+- Modo: copiar
+- Fase: 7
+- Testes: `packages/context/src/token-estimate.test.ts` (o original não tem teste ao lado)
+- Changes: a tabela binária de custo por caractere CJK (`cjk_token_table.bin`, lida do
+  disco por `readFileSync`) não veio — o pacote é puro e não toca arquivo —, então todo
+  Han usa a constante de 1,3 token que o original já usava quando a tabela não estava
+  disponível; os imports de `fs`, `path` e `url` saíram com ela. `fastEstimateMessages`
+  deixou de aceitar `any[]` e passou a receber `readonly unknown[]`. Comentários
+  traduzidos; o algoritmo de classificação por codepoint e os coeficientes por categoria
+  são os do original. É o estimador do orçamento de contexto.
 
 ## Licença deste projeto
 

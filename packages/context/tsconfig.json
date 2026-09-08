@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // Só para os testes, que rodam em Node: o pacote em si não usa builtins
+    // (CLAUDE.md, seção 7).
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}

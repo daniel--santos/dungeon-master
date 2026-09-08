@@ -3498,6 +3498,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{id}/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * O contexto montado para a execução
+         * @description O registro do Context Engine (Fase 7): o bloco de texto que foi ao prompt, as seções, cada item incluído com motivo, score e tokens, os excluídos por orçamento, o orçamento e o uso, e a política aplicada com a origem dela. Montado uma vez, quando o Worker reclama o Run; o mesmo texto vale para todos os passos e para qualquer retomada. `404` enquanto o Run não foi reclamado, e para Runs anteriores ao Context Engine.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Run. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O contexto do Run. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunContext"];
+                    };
+                };
+                /** @description Não existe Run com este id, ou ele ainda não tem contexto montado. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{id}/cancel": {
         parameters: {
             query?: never;
@@ -4876,6 +4927,11 @@ export interface components {
             "knowledge.loadoutId": components["schemas"]["KnowledgeLoadoutId"];
             "knowledge.distillEveryMinutes": components["schemas"]["KnowledgeDistillEveryMinutes"];
             "achievements.forgeEveryNRuns": components["schemas"]["ForgeEveryNRuns"];
+            "context.enabled": components["schemas"]["ContextEnabled"];
+            "context.budgetTokens": components["schemas"]["ContextBudgetTokens"];
+            "context.maxKnowledgeItems": components["schemas"]["ContextMaxKnowledgeItems"];
+            "context.maxDecisions": components["schemas"]["ContextMaxDecisions"];
+            "context.maxArtifacts": components["schemas"]["ContextMaxArtifacts"];
         };
         /**
          * @description Glossário ativo da interface.
@@ -4895,6 +4951,16 @@ export interface components {
         KnowledgeDistillEveryMinutes: number;
         /** @description Quantas Expedições precisam terminar entre duas Conquistas forjadas. */
         ForgeEveryNRuns: number;
+        /** @description O Context Engine monta o bloco de contexto dos Runs? */
+        ContextEnabled: boolean;
+        /** @description Orçamento de tokens do bloco de contexto de cada Run. */
+        ContextBudgetTokens: number;
+        /** @description Quantas páginas relevantes do Grimório entram no contexto, no máximo. */
+        ContextMaxKnowledgeItems: number;
+        /** @description Quantas decisões mais recentes entram no contexto, no máximo. */
+        ContextMaxDecisions: number;
+        /** @description Quantos artefatos de Runs anteriores entram no contexto, no máximo. */
+        ContextMaxArtifacts: number;
         /** @description Novo valor de uma configuração. */
         UpdateUserSetting: {
             /** @description Novo valor da configuração. Validado pelo schema da chave. */
@@ -6581,6 +6647,157 @@ export interface components {
             updatedAt: string;
             /** @description Título da Task no momento da leitura. Vem por junção. */
             taskTitle: string;
+        };
+        /** @description O contexto montado para um Run, com o registro. */
+        RunContext: {
+            /** Format: uuid */
+            runId: string;
+            /** Format: uuid */
+            taskId: string;
+            /** Format: uuid */
+            projectId: string;
+            status: components["schemas"]["RunContextStatus"];
+            /** @description O bloco exato inserido no prompt. Vazio quando o status não é `ASSEMBLED`. */
+            text: string;
+            /** @description A consulta FTS derivada do título e da descrição da Task. Nula sem termos. */
+            query: string | null;
+            sections: components["schemas"]["ContextSection"][];
+            excluded: components["schemas"]["ContextExclusion"][];
+            budget: components["schemas"]["ContextBudget"];
+            usage: components["schemas"]["ContextUsage"];
+            policy: components["schemas"]["RunContextPolicy"];
+            /**
+             * Format: uuid
+             * @description Preenchido quando o Run retomou a sessão de outro e copiou o contexto dele, para a conversa continuar com o mesmo texto.
+             */
+            inheritedFromRunId: string | null;
+            /** @description Por que a montagem falhou, em `FAILED`. */
+            error: string | null;
+            /**
+             * Format: date-time
+             * @description Instante da montagem, em UTC (ISO 8601).
+             */
+            assembledAt: string;
+            /**
+             * Format: date-time
+             * @description Gravação, em UTC (ISO 8601).
+             */
+            createdAt: string;
+        };
+        /**
+         * @description `ASSEMBLED` tem texto; `EMPTY` montou e não achou nada; `DISABLED` a configuração `context.enabled` estava desligada; `FAILED` a montagem falhou e o Run seguiu sem contexto.
+         * @enum {string}
+         */
+        RunContextStatus: "ASSEMBLED" | "EMPTY" | "DISABLED" | "FAILED";
+        /** @description Uma seção do contexto montado. */
+        ContextSection: {
+            kind: components["schemas"]["ContextSectionKind"];
+            /** @description O cabeçalho fixo da seção no texto. */
+            title: string;
+            items: components["schemas"]["ContextItem"][];
+            /** @description Tokens estimados da seção inteira. */
+            tokens: number;
+            /** @description Teto da seção, derivado do total. */
+            budgetTokens: number;
+            /** @description Algum item foi cortado ou excluído desta seção por orçamento. */
+            truncated: boolean;
+        };
+        /**
+         * @description Resumo do Project, decisões recentes, páginas relevantes, Task mãe e dependências, artefatos de Runs anteriores e habilidades do Loadout.
+         * @enum {string}
+         */
+        ContextSectionKind: "SUMMARY" | "DECISIONS" | "KNOWLEDGE" | "LINEAGE" | "ARTIFACTS" | "SKILLS";
+        /** @description Um item incluído no contexto, com o motivo. */
+        ContextItem: {
+            /** @description Id da origem: o KnowledgeItem, a Task, `<runId>:<posição>` do artefato ou o nome da skill. */
+            id: string;
+            kind: components["schemas"]["ContextItemKind"];
+            /** @description Título, já sanitizado, como aparece no texto. */
+            title: string;
+            reason: components["schemas"]["ContextItemReason"];
+            /** @description `ts_rank` do FTS, nos itens vindos da busca. Nulo nos demais. */
+            score: number | null;
+            /** @description Estimativa rápida de tokens do trecho. */
+            tokens: number;
+            /** @description O trecho foi cortado para caber no orçamento. */
+            truncated: boolean;
+        };
+        /**
+         * @description O tipo da entidade de origem de um item.
+         * @enum {string}
+         */
+        ContextItemKind: "KNOWLEDGE_ITEM" | "TASK" | "ARTIFACT" | "SKILL";
+        /**
+         * @description `FTS_MATCH` é a busca textual do PostgreSQL sobre título e descrição da Task; os demais são regras fixas.
+         * @enum {string}
+         */
+        ContextItemReason: "PROJECT_SUMMARY" | "RECENT_DECISION" | "FTS_MATCH" | "PARENT_TASK" | "DEPENDENCY" | "PRIOR_RUN_ARTIFACT" | "PARENT_TASK_ARTIFACT" | "LOADOUT_SKILL";
+        /** @description Um item que ficou de fora por orçamento. */
+        ContextExclusion: {
+            section: components["schemas"]["ContextSectionKind"];
+            item: components["schemas"]["ContextItem"];
+            reason: components["schemas"]["ContextExclusionReason"];
+        };
+        /**
+         * @description `SECTION_BUDGET` estourou o teto da seção; `TOTAL_BUDGET` foi cortado pela ordem de prioridade para o total caber.
+         * @enum {string}
+         */
+        ContextExclusionReason: "SECTION_BUDGET" | "TOTAL_BUDGET";
+        /** @description O orçamento de tokens aplicado à montagem. */
+        ContextBudget: {
+            /** @description O orçamento total aplicado. */
+            totalTokens: number;
+            /** @description Tokens reservados para a moldura fixa: preâmbulo e delimitadores. */
+            frameTokens: number;
+            /** @description Piso do resumo: o corte por prioridade nunca o leva abaixo disto. */
+            summaryMinTokens: number;
+            /** @description Teto por seção. */
+            sections: {
+                SUMMARY?: number;
+                DECISIONS?: number;
+                KNOWLEDGE?: number;
+                LINEAGE?: number;
+                ARTIFACTS?: number;
+                SKILLS?: number;
+            };
+        };
+        /** @description O que a montagem consumiu do orçamento. */
+        ContextUsage: {
+            /** @description Tokens estimados do texto final, pelo estimador rápido. */
+            estimatedTokens: number;
+            /** @description Itens incluídos, somando as seções. */
+            itemCount: number;
+            /** @description Itens excluídos por orçamento. */
+            excludedCount: number;
+        };
+        /** @description A política aplicada e a origem dela. */
+        RunContextPolicy: {
+            enabled: boolean;
+            budgetTokens: number;
+            maxKnowledgeItems: number;
+            maxDecisions: number;
+            maxArtifacts: number;
+            includeProjectSummary: boolean;
+            includeDecisions: boolean;
+            includeParentContext: boolean;
+            includeDependencyContext: boolean;
+            source: {
+                loadout: {
+                    /** Format: uuid */
+                    id: string;
+                    version: number;
+                    knowledgePolicy: components["schemas"]["KnowledgePolicy"];
+                    contextPolicy: components["schemas"]["ContextPolicy"];
+                };
+                settings: components["schemas"]["ContextSettingsSnapshot"];
+            };
+        };
+        ContextSettingsSnapshot: {
+            enabled: boolean;
+            budgetTokens: number;
+            maxKnowledgeItems: number;
+            maxDecisions: number;
+            maxArtifacts: number;
         };
         /** @description Uma página do log de eventos de um Run. */
         RunEventList: {

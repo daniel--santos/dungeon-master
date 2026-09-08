@@ -271,6 +271,21 @@
           },
           "achievements.forgeEveryNRuns": {
             "$ref": "#/components/schemas/ForgeEveryNRuns"
+          },
+          "context.enabled": {
+            "$ref": "#/components/schemas/ContextEnabled"
+          },
+          "context.budgetTokens": {
+            "$ref": "#/components/schemas/ContextBudgetTokens"
+          },
+          "context.maxKnowledgeItems": {
+            "$ref": "#/components/schemas/ContextMaxKnowledgeItems"
+          },
+          "context.maxDecisions": {
+            "$ref": "#/components/schemas/ContextMaxDecisions"
+          },
+          "context.maxArtifacts": {
+            "$ref": "#/components/schemas/ContextMaxArtifacts"
           }
         },
         "required": [
@@ -279,7 +294,12 @@
           "knowledge.humanReview",
           "knowledge.loadoutId",
           "knowledge.distillEveryMinutes",
-          "achievements.forgeEveryNRuns"
+          "achievements.forgeEveryNRuns",
+          "context.enabled",
+          "context.budgetTokens",
+          "context.maxKnowledgeItems",
+          "context.maxDecisions",
+          "context.maxArtifacts"
         ],
         "description": "Configurações do usuário com os padrões já aplicados."
       },
@@ -318,6 +338,34 @@
         "minimum": 1,
         "maximum": 10000,
         "description": "Quantas Expedições precisam terminar entre duas Conquistas forjadas."
+      },
+      "ContextEnabled": {
+        "type": "boolean",
+        "description": "O Context Engine monta o bloco de contexto dos Runs?"
+      },
+      "ContextBudgetTokens": {
+        "type": "integer",
+        "minimum": 500,
+        "maximum": 200000,
+        "description": "Orçamento de tokens do bloco de contexto de cada Run."
+      },
+      "ContextMaxKnowledgeItems": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 50,
+        "description": "Quantas páginas relevantes do Grimório entram no contexto, no máximo."
+      },
+      "ContextMaxDecisions": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 50,
+        "description": "Quantas decisões mais recentes entram no contexto, no máximo."
+      },
+      "ContextMaxArtifacts": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Quantos artefatos de Runs anteriores entram no contexto, no máximo."
       },
       "UpdateUserSetting": {
         "type": "object",
@@ -4458,6 +4506,461 @@
           "taskTitle"
         ],
         "description": "Um Run na listagem, com o título da Task."
+      },
+      "RunContext": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunContextStatus"
+          },
+          "text": {
+            "type": "string",
+            "description": "O bloco exato inserido no prompt. Vazio quando o status não é `ASSEMBLED`."
+          },
+          "query": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A consulta FTS derivada do título e da descrição da Task. Nula sem termos."
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextSection"
+            }
+          },
+          "excluded": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextExclusion"
+            }
+          },
+          "budget": {
+            "$ref": "#/components/schemas/ContextBudget"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ContextUsage"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/RunContextPolicy"
+          },
+          "inheritedFromRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Preenchido quando o Run retomou a sessão de outro e copiou o contexto dele, para a conversa continuar com o mesmo texto."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Por que a montagem falhou, em `FAILED`."
+          },
+          "assembledAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante da montagem, em UTC (ISO 8601)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Gravação, em UTC (ISO 8601)."
+          }
+        },
+        "required": [
+          "runId",
+          "taskId",
+          "projectId",
+          "status",
+          "text",
+          "query",
+          "sections",
+          "excluded",
+          "budget",
+          "usage",
+          "policy",
+          "inheritedFromRunId",
+          "error",
+          "assembledAt",
+          "createdAt"
+        ],
+        "description": "O contexto montado para um Run, com o registro."
+      },
+      "RunContextStatus": {
+        "type": "string",
+        "enum": [
+          "ASSEMBLED",
+          "EMPTY",
+          "DISABLED",
+          "FAILED"
+        ],
+        "description": "`ASSEMBLED` tem texto; `EMPTY` montou e não achou nada; `DISABLED` a configuração `context.enabled` estava desligada; `FAILED` a montagem falhou e o Run seguiu sem contexto."
+      },
+      "ContextSection": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ContextSectionKind"
+          },
+          "title": {
+            "type": "string",
+            "description": "O cabeçalho fixo da seção no texto."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextItem"
+            }
+          },
+          "tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tokens estimados da seção inteira."
+          },
+          "budgetTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Teto da seção, derivado do total."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "Algum item foi cortado ou excluído desta seção por orçamento."
+          }
+        },
+        "required": [
+          "kind",
+          "title",
+          "items",
+          "tokens",
+          "budgetTokens",
+          "truncated"
+        ],
+        "description": "Uma seção do contexto montado."
+      },
+      "ContextSectionKind": {
+        "type": "string",
+        "enum": [
+          "SUMMARY",
+          "DECISIONS",
+          "KNOWLEDGE",
+          "LINEAGE",
+          "ARTIFACTS",
+          "SKILLS"
+        ],
+        "description": "Resumo do Project, decisões recentes, páginas relevantes, Task mãe e dependências, artefatos de Runs anteriores e habilidades do Loadout."
+      },
+      "ContextItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Id da origem: o KnowledgeItem, a Task, `<runId>:<posição>` do artefato ou o nome da skill."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ContextItemKind"
+          },
+          "title": {
+            "type": "string",
+            "description": "Título, já sanitizado, como aparece no texto."
+          },
+          "reason": {
+            "$ref": "#/components/schemas/ContextItemReason"
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "`ts_rank` do FTS, nos itens vindos da busca. Nulo nos demais."
+          },
+          "tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Estimativa rápida de tokens do trecho."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "O trecho foi cortado para caber no orçamento."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "reason",
+          "score",
+          "tokens",
+          "truncated"
+        ],
+        "description": "Um item incluído no contexto, com o motivo."
+      },
+      "ContextItemKind": {
+        "type": "string",
+        "enum": [
+          "KNOWLEDGE_ITEM",
+          "TASK",
+          "ARTIFACT",
+          "SKILL"
+        ],
+        "description": "O tipo da entidade de origem de um item."
+      },
+      "ContextItemReason": {
+        "type": "string",
+        "enum": [
+          "PROJECT_SUMMARY",
+          "RECENT_DECISION",
+          "FTS_MATCH",
+          "PARENT_TASK",
+          "DEPENDENCY",
+          "PRIOR_RUN_ARTIFACT",
+          "PARENT_TASK_ARTIFACT",
+          "LOADOUT_SKILL"
+        ],
+        "description": "`FTS_MATCH` é a busca textual do PostgreSQL sobre título e descrição da Task; os demais são regras fixas."
+      },
+      "ContextExclusion": {
+        "type": "object",
+        "properties": {
+          "section": {
+            "$ref": "#/components/schemas/ContextSectionKind"
+          },
+          "item": {
+            "$ref": "#/components/schemas/ContextItem"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/ContextExclusionReason"
+          }
+        },
+        "required": [
+          "section",
+          "item",
+          "reason"
+        ],
+        "description": "Um item que ficou de fora por orçamento."
+      },
+      "ContextExclusionReason": {
+        "type": "string",
+        "enum": [
+          "SECTION_BUDGET",
+          "TOTAL_BUDGET"
+        ],
+        "description": "`SECTION_BUDGET` estourou o teto da seção; `TOTAL_BUDGET` foi cortado pela ordem de prioridade para o total caber."
+      },
+      "ContextBudget": {
+        "type": "object",
+        "properties": {
+          "totalTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "O orçamento total aplicado."
+          },
+          "frameTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tokens reservados para a moldura fixa: preâmbulo e delimitadores."
+          },
+          "summaryMinTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Piso do resumo: o corte por prioridade nunca o leva abaixo disto."
+          },
+          "sections": {
+            "type": "object",
+            "properties": {
+              "SUMMARY": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "DECISIONS": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "KNOWLEDGE": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "LINEAGE": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ARTIFACTS": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "SKILLS": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "description": "Teto por seção."
+          }
+        },
+        "required": [
+          "totalTokens",
+          "frameTokens",
+          "summaryMinTokens",
+          "sections"
+        ],
+        "description": "O orçamento de tokens aplicado à montagem."
+      },
+      "ContextUsage": {
+        "type": "object",
+        "properties": {
+          "estimatedTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tokens estimados do texto final, pelo estimador rápido."
+          },
+          "itemCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Itens incluídos, somando as seções."
+          },
+          "excludedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Itens excluídos por orçamento."
+          }
+        },
+        "required": [
+          "estimatedTokens",
+          "itemCount",
+          "excludedCount"
+        ],
+        "description": "O que a montagem consumiu do orçamento."
+      },
+      "RunContextPolicy": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "budgetTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxKnowledgeItems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxDecisions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxArtifacts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "includeProjectSummary": {
+            "type": "boolean"
+          },
+          "includeDecisions": {
+            "type": "boolean"
+          },
+          "includeParentContext": {
+            "type": "boolean"
+          },
+          "includeDependencyContext": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "loadout": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "knowledgePolicy": {
+                    "$ref": "#/components/schemas/KnowledgePolicy"
+                  },
+                  "contextPolicy": {
+                    "$ref": "#/components/schemas/ContextPolicy"
+                  }
+                },
+                "required": [
+                  "id",
+                  "version",
+                  "knowledgePolicy",
+                  "contextPolicy"
+                ]
+              },
+              "settings": {
+                "$ref": "#/components/schemas/ContextSettingsSnapshot"
+              }
+            },
+            "required": [
+              "loadout",
+              "settings"
+            ]
+          }
+        },
+        "required": [
+          "enabled",
+          "budgetTokens",
+          "maxKnowledgeItems",
+          "maxDecisions",
+          "maxArtifacts",
+          "includeProjectSummary",
+          "includeDecisions",
+          "includeParentContext",
+          "includeDependencyContext",
+          "source"
+        ],
+        "description": "A política aplicada e a origem dela."
+      },
+      "ContextSettingsSnapshot": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "budgetTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxKnowledgeItems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxDecisions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxArtifacts": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "enabled",
+          "budgetTokens",
+          "maxKnowledgeItems",
+          "maxDecisions",
+          "maxArtifacts"
+        ]
       },
       "RunEventList": {
         "type": "object",
@@ -12320,6 +12823,50 @@
           },
           "404": {
             "description": "Não existe Run com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{id}/context": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "O contexto montado para a execução",
+        "description": "O registro do Context Engine (Fase 7): o bloco de texto que foi ao prompt, as seções, cada item incluído com motivo, score e tokens, os excluídos por orçamento, o orçamento e o uso, e a política aplicada com a origem dela. Montado uma vez, quando o Worker reclama o Run; o mesmo texto vale para todos os passos e para qualquer retomada. `404` enquanto o Run não foi reclamado, e para Runs anteriores ao Context Engine.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Run."
+            },
+            "required": true,
+            "description": "UUIDv7 do Run.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O contexto do Run.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunContext"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Run com este id, ou ele ainda não tem contexto montado.",
             "content": {
               "application/problem+json": {
                 "schema": {

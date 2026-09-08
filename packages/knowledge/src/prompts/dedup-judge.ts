@@ -9,7 +9,8 @@
 // curtas (`C1`, `K1`) para o modelo não errar UUIDs; `merged_priority` e
 // `merged_timestamps` saíram. Prompt reescrito em português.
 
-import { escapeXmlTags } from "../sanitize.js";
+import { escapeXmlTags } from "@dungeon-master/context";
+
 import type { ExistingKnowledgeItem } from "../types.js";
 
 /** Um candidato e os itens que o recall achou parecidos com ele. */

@@ -33,3 +33,4 @@ export * from "./knowledge-candidate.js";
 export * from "./knowledge-item.js";
 export * from "./distillation.js";
 export * from "./task-graph.js";
+export * from "./run-context.js";
