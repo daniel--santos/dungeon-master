@@ -216,6 +216,12 @@ Windows 11 e macOS são de primeira classe; o CI roda nos dois em todo commit.
 - **Prove que o vermelho é vermelho.** Ao mexer em infraestrutura de teste, crie um teste que
   falha de propósito, rode o pacote e confira `exit 1`; depois apague o teste.
 
+**Node.** O CI roda a versão do `.nvmrc` (24). A máquina de desenvolvimento pode usar o Node
+22 LTS a partir do 22.22 (o `jsdom` exige): com o 24.15 no Windows, processos node (Vite,
+fork do vitest, API) morriam em silêncio sob carga com exit `0xC0000409`; com o 22 a suíte
+de ponta a ponta passa de primeira. O `engines` aceita as duas linhas; nunca use recurso
+que só exista no 24.
+
 ## 9. Erros, eventos e logs
 
 - Todo erro da API sai em `application/problem+json` (RFC 9457) com `type`, `title`,
