@@ -1,4 +1,5 @@
 import type {
+  DiscoveredTask,
   KnowledgeCandidateInput,
   RunError,
   RunResult,
@@ -16,9 +17,10 @@ import { collectKnowledgeCandidates } from "./executors/knowledge.js";
  * A regra é a do planejamento (v0.4, Fase 4B): `SUCCEEDED` quando todo step
  * está `SUCCEEDED` ou `SKIPPED`; `FAILED` quando algum terminou em `FAILED` ou
  * `TIMED_OUT`. O `result` tem o formato do Run simples — `status`, `summary`,
- * `artifacts`, `knowledgeCandidates`, `warnings` — para que a Task seja
- * acoplada pelas mesmas regras (`taskStatusForRunTransition`) e a interface
- * leia o mesmo campo pelo mesmo nome.
+ * `artifacts`, `knowledgeCandidates`, `discoveredTasks`, `warnings` — para
+ * que a Task seja acoplada pelas mesmas regras (`taskStatusForRunTransition`),
+ * a interface leia o mesmo campo pelo mesmo nome, e a escrita terminal grave
+ * propostas e candidatos pelo mesmo caminho do Run simples (Fase 5).
  *
  * O veredito (`result.status`) é o do **último step de agente** que assentou
  * em `SUCCEEDED`: é ele quem sabe se o trabalho ficou pronto. Um Workflow sem
@@ -49,6 +51,7 @@ export function aggregateRunResult(steps: readonly RunStep[]): AggregatedRun {
 
   const artifacts = collectArtifacts(ordered);
   const knowledgeCandidates = collectKnowledge(ordered);
+  const discoveredTasks = collectDiscoveredTasks(ordered);
   const usage = sumUsage(ordered);
   const warnings = collectWarnings(ordered);
 
@@ -67,6 +70,7 @@ export function aggregateRunResult(steps: readonly RunStep[]): AggregatedRun {
     ...(usage === undefined ? {} : { usage }),
     ...(artifacts.length === 0 ? {} : { artifacts }),
     ...(knowledgeCandidates.length === 0 ? {} : { knowledgeCandidates }),
+    ...(discoveredTasks.length === 0 ? {} : { discoveredTasks }),
     steps: ordered.map((step) => ({
       key: step.key,
       name: step.name,
@@ -128,6 +132,24 @@ function collectKnowledge(steps: readonly RunStep[]): KnowledgeCandidateInput[] 
     .find((step) => step.status === "SUCCEEDED" && step.result?.kind === "knowledge");
   if (consolidado?.result?.kind === "knowledge") return consolidado.result.candidates;
   return collectKnowledgeCandidates(steps);
+}
+
+/**
+ * O trabalho que os agentes encontraram e não fizeram, na ordem dos steps.
+ *
+ * Todos os steps de agente com resultado entram, e não só os `SUCCEEDED`: um
+ * step que falhou por permissão negada ainda pode ter apontado o que faltava,
+ * e a proposta é justamente o que sobrevive à falha. Não há deduplicação por
+ * título de propósito — quem decide se duas propostas são a mesma é quem
+ * aprova, com a Task de origem na frente.
+ */
+function collectDiscoveredTasks(steps: readonly RunStep[]): DiscoveredTask[] {
+  const discovered: DiscoveredTask[] = [];
+  for (const step of steps) {
+    if (step.result?.kind !== "agent") continue;
+    for (const task of step.result.discoveredTasks ?? []) discovered.push(task);
+  }
+  return discovered;
 }
 
 function sumUsage(steps: readonly RunStep[]): UsageSummary | undefined {

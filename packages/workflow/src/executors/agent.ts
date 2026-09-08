@@ -120,6 +120,9 @@ export const agentStepExecutor: StepExecutor<AgentStepDefinition> = {
             ...(estruturado.knowledgeCandidates === undefined
               ? {}
               : { knowledgeCandidates: estruturado.knowledgeCandidates }),
+            ...(estruturado.discoveredTasks === undefined
+              ? {}
+              : { discoveredTasks: estruturado.discoveredTasks }),
             ...(usage === undefined ? {} : { usage }),
           };
 

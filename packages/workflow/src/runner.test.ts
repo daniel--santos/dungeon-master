@@ -197,6 +197,7 @@ describe("Expedição guiada", () => {
             summary: "Implementado.",
             artifacts: [{ path: "src/a.ts" }],
             knowledgeCandidates: [{ title: "Dica", content: "Use o snapshot." }],
+            discoveredTasks: [{ title: "Cobrir a.ts com testes", rationale: "Ficou sem." }],
           },
           usage: {
             inputTokens: 10,
@@ -258,6 +259,9 @@ describe("Expedição guiada", () => {
     expect(outcome.result["artifacts"]).toEqual([{ path: "src/a.ts" }]);
     expect(outcome.result["knowledgeCandidates"]).toEqual([
       { title: "Dica", content: "Use o snapshot." },
+    ]);
+    expect(outcome.result["discoveredTasks"]).toEqual([
+      { title: "Cobrir a.ts com testes", rationale: "Ficou sem." },
     ]);
     expect(outcome.result.usage?.inputTokens).toBe(10);
     expect(outcome.harnessSessionId).toBe("s-execute");
@@ -689,6 +693,7 @@ describe("predicados e validação", () => {
             output: {
               status: "completed",
               knowledgeCandidates: [{ title: "T1", content: "C1" }],
+              discoveredTasks: [{ title: "D1" }],
             },
           }),
         ],
@@ -697,6 +702,7 @@ describe("predicados e validação", () => {
             output: {
               status: "completed",
               knowledgeCandidates: [{ title: "T2", content: "C2", kind: "gotcha" }],
+              discoveredTasks: [{ title: "D2", description: "Depois de D1." }],
             },
           }),
         ],
@@ -714,6 +720,12 @@ describe("predicados e validação", () => {
       ],
     });
     expect(outcome.result["knowledgeCandidates"]).toHaveLength(2);
+    // As propostas dos dois agentes, na ordem topológica: é daqui que a
+    // escrita terminal grava as ProposedTasks do Run com Workflow.
+    expect(outcome.result["discoveredTasks"]).toEqual([
+      { title: "D1" },
+      { title: "D2", description: "Depois de D1." },
+    ]);
   });
 });
 
