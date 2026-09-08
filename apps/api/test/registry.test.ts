@@ -310,7 +310,7 @@ describe(`${API_BASE_PATH}/agents`, () => {
 });
 
 describe(`${API_BASE_PATH}/execution-profiles`, () => {
-  it("traz os dois perfis semeados, com o de Docker desligado", async () => {
+  it("traz os dois perfis semeados, os dois ligados", async () => {
     const response = await pedir({
       app,
       method: "GET",
@@ -324,9 +324,16 @@ describe(`${API_BASE_PATH}/execution-profiles`, () => {
     expect(campoAberto?.enabled).toBe(true);
     expect(campoAberto?.workspaceStrategy).toBe("GIT_WORKTREE");
     expect(campoAberto?.enforcement).toBe("HARNESS_NATIVE");
-    // A masmorra selada só é ligada na Fase 2C, quando o Docker existir.
-    expect(masmorra?.enabled).toBe(false);
+    // A masmorra selada nasceu desligada e foi ligada na Fase 2C, quando o modo
+    // DOCKER passou a existir e o ADR 0001 provou a autenticação de dois
+    // harnesses dentro do container.
+    expect(masmorra?.enabled).toBe(true);
     expect(masmorra?.enforcement).toBe("SANDBOX_ENFORCED");
+    // `SANDBOX_ENFORCED` mais `commandExecution: ALL` é o que concede `bypass`
+    // sem o opt-in inseguro: dentro do container quem impõe a fronteira é o
+    // container, e não a CLI.
+    expect(masmorra?.permissionPolicy.commandExecution).toBe("ALL");
+    expect(masmorra?.permissionPolicy.allowUnsafeBypass).toBeUndefined();
   });
 
   it("cria com as políticas padrão e edita uma delas", async () => {
@@ -457,13 +464,35 @@ describe(`${API_BASE_PATH}/loadouts`, () => {
     const agent = await criarAgent("Quer a masmorra");
     const harness = await harnessClaudeCode();
 
-    const perfis = ExecutionProfileListSchema.parse(
+    // O perfil desligado é criado aqui, e não procurado na semente: desde a Fase
+    // 2C os dois perfis semeados nascem ligados, e um teste que dependesse disso
+    // voltaria a quebrar no dia em que a semente mudar de novo.
+    const criado = ExecutionProfileSchema.parse(
       await (
-        await pedir({ app, method: "GET", path: `${API_BASE_PATH}/execution-profiles` })
+        await pedir({
+          app,
+          method: "POST",
+          path: `${API_BASE_PATH}/execution-profiles`,
+          body: {
+            name: "Perfil desligado",
+            mode: "HOST",
+            workspaceStrategy: "CURRENT",
+            enforcement: "ADVISORY",
+          },
+        })
       ).json(),
     );
-    const desligado = perfis.items.find((item) => !item.enabled);
-    if (desligado === undefined) throw new Error("Nenhum perfil desligado foi semeado.");
+    const desligado = ExecutionProfileSchema.parse(
+      await (
+        await pedir({
+          app,
+          method: "PATCH",
+          path: `${API_BASE_PATH}/execution-profiles/${criado.id}`,
+          body: { enabled: false },
+        })
+      ).json(),
+    );
+    expect(desligado.enabled).toBe(false);
 
     const response = await pedir({
       app,
