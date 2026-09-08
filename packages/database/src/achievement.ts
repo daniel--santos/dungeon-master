@@ -16,7 +16,7 @@ import {
   placeholderForScope,
   type Condition,
 } from "@dungeon-master/achievements";
-import type { HarnessKey } from "@dungeon-master/contracts";
+import type { AchievementState, HarnessKey } from "@dungeon-master/contracts";
 import type { EventsLogger } from "@dungeon-master/events";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 
@@ -113,8 +113,13 @@ function definitionValues(
 
 /** O que muda quando a definição já existe. `id` e `effective_from` não mudam. */
 function definitionUpdate(values: ReturnType<typeof definitionValues>) {
-  const { id: _id, userId: _userId, naturalKey: _naturalKey, effectiveFrom: _from, ...rest } =
-    values;
+  const {
+    id: _id,
+    userId: _userId,
+    naturalKey: _naturalKey,
+    effectiveFrom: _from,
+    ...rest
+  } = values;
   return { ...rest, updatedAt: new Date() };
 }
 
@@ -185,10 +190,7 @@ interface ScopeCandidate {
  * relógio: uma reconstrução recalcula o mesmo instante e reproduz o mesmo
  * desbloqueio.
  */
-async function projectCandidates(
-  db: DatabaseExecutor,
-  userId: string,
-): Promise<ScopeCandidate[]> {
+async function projectCandidates(db: DatabaseExecutor, userId: string): Promise<ScopeCandidate[]> {
   const rows = await db
     .select({ id: projects.id, createdAt: projects.createdAt })
     .from(projects)
@@ -218,10 +220,7 @@ export function harnessSlug(key: HarnessKey): string {
 }
 
 /** As Guildas já usadas, pelo primeiro Run de cada uma. */
-async function harnessCandidates(
-  db: DatabaseExecutor,
-  userId: string,
-): Promise<ScopeCandidate[]> {
+async function harnessCandidates(db: DatabaseExecutor, userId: string): Promise<ScopeCandidate[]> {
   const rows = await db
     .select({ key: runs.harnessKey, since: sql<Date>`min(${runs.createdAt})` })
     .from(runs)
@@ -500,8 +499,12 @@ function formatDefinitionDescription(
  * Não é coluna: é derivado do progresso e dos desbloqueios em toda leitura. Uma
  * coluna de estado seria uma quarta verdade sobre o mesmo fato, e ela ficaria
  * errada na primeira reconstrução.
+ *
+ * O tipo vem de `@dungeon-master/contracts`, que é onde a API o declara como
+ * `z.enum` e valida o filtro da rota contra ele. Redeclarar os quatro nomes
+ * aqui deixaria as duas listas livres para divergir em silêncio.
  */
-export type AchievementState = "LOCKED" | "HIDDEN" | "IN_PROGRESS" | "UNLOCKED";
+export type { AchievementState };
 
 export interface AchievementView {
   readonly id: string;
@@ -553,20 +556,26 @@ export interface AchievementListResult {
   readonly counts: AchievementCounts;
 }
 
-function rarityForTier(
-  row: AchievementDefinitionRow,
-  tier: number,
-): AchievementRarity {
+function rarityForTier(row: AchievementDefinitionRow, tier: number): AchievementRarity {
   const escala = row.tierRarities;
   if (escala === null || escala.length === 0) return row.rarity;
   const indice = Math.min(Math.max(tier, 1), escala.length) - 1;
   return escala[indice] ?? row.rarity;
 }
 
+/**
+ * O rótulo do tier, ou `null` quando não há tier nenhum a rotular.
+ *
+ * `tier` zero é "nada desbloqueado ainda", e ali o rótulo é nulo: uma carta
+ * mostrando "Caçador de Monstros I" com o primeiro limiar ainda por cruzar
+ * anunciaria um tier que o usuário não tem. O numeral aparece junto com o
+ * desbloqueio, não antes dele.
+ */
 function tierLabel(row: AchievementDefinitionRow, tier: number): string | null {
   const rotulos = row.tiers;
   if (rotulos === null || rotulos.length <= 1) return null;
-  return rotulos[Math.min(Math.max(tier, 1), rotulos.length) - 1] ?? null;
+  if (tier < 1) return null;
+  return rotulos[Math.min(tier, rotulos.length) - 1] ?? null;
 }
 
 function buildView(
@@ -601,8 +610,7 @@ function buildView(
         : "LOCKED";
 
   const ultimo = unlocks.reduce<AchievementUnlockRow | null>(
-    (maior, unlock) =>
-      maior === null || unlock.unlockedAt > maior.unlockedAt ? unlock : maior,
+    (maior, unlock) => (maior === null || unlock.unlockedAt > maior.unlockedAt ? unlock : maior),
     null,
   );
 
@@ -624,7 +632,7 @@ function buildView(
     tier: {
       current: maiorTier,
       total,
-      label: tierLabel(row, Math.max(maiorTier, 1)),
+      label: tierLabel(row, maiorTier),
     },
     progress: {
       current: value,
@@ -790,10 +798,7 @@ export async function markAchievementUnlockSeen(
     .select()
     .from(achievementUnlocks)
     .where(
-      and(
-        eq(achievementUnlocks.id, input.unlockId),
-        eq(achievementUnlocks.userId, input.userId),
-      ),
+      and(eq(achievementUnlocks.id, input.unlockId), eq(achievementUnlocks.userId, input.userId)),
     );
 
   if (existente === undefined) return null;

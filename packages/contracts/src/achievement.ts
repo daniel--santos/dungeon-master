@@ -24,12 +24,7 @@ import { PageQuerySchema } from "./pagination.js";
  * "???" da grade. Ela vira `IN_PROGRESS` no primeiro fato que conta, e é assim
  * que uma instância de template aparece.
  */
-export const ACHIEVEMENT_STATE_VALUES = [
-  "LOCKED",
-  "HIDDEN",
-  "IN_PROGRESS",
-  "UNLOCKED",
-] as const;
+export const ACHIEVEMENT_STATE_VALUES = ["LOCKED", "HIDDEN", "IN_PROGRESS", "UNLOCKED"] as const;
 
 export const AchievementStateSchema = z.enum(ACHIEVEMENT_STATE_VALUES).meta({
   id: "AchievementState",
@@ -52,7 +47,11 @@ export const AchievementTierSchema = z
     label: z
       .string()
       .nullable()
-      .describe("Rótulo do tier corrente (`I`, `II`, `III`). Nulo quando há um tier só."),
+      .describe(
+        "Rótulo do tier corrente (`I`, `II`, `III`). Nulo quando a Conquista " +
+          "tem um tier só, e também quando `current` é `0`: o numeral aparece " +
+          "junto com o desbloqueio, não antes dele.",
+      ),
   })
   .meta({ id: "AchievementTier", description: "O tier corrente de uma Conquista." });
 
