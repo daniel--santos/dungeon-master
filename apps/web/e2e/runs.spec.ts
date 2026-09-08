@@ -113,6 +113,10 @@ test("cadastra herói e equipamento, parte com o aceite e cancela pelo diálogo"
   await page.getByRole("button", { name: `Nova ${dnd["entity.run"]}` }).click();
 
   const dialog = page.getByRole("dialog");
+  // O diálogo pré-seleciona o Equipamento padrão ou o primeiro por nome, e desde
+  // a Fase 6 o semeado "Escriba do Grimório" vem antes de "Forja do e2e"; o
+  // teste escolhe o seu de propósito.
+  await escolher(page, dnd["entity.loadout"], "Forja do e2e");
   await expect(dialog.getByText("Forja do e2e").first()).toBeVisible();
 
   // Sem o aceite explícito, a Expedição não parte. É a exigência da Fase 2B.
