@@ -78,6 +78,13 @@
       "when": 1788838502862,
       "tag": "0010_rituais_passos_e_selos",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788844907097,
+      "tag": "0011_propostas_de_task_e_candidatos_a_conhecimento",
+      "breakpoints": true
     }
   ]
 }

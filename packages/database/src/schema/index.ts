@@ -8,3 +8,5 @@ export * from "./execution.js";
 export * from "./workflow.js";
 export * from "./run.js";
 export * from "./run-step.js";
+export * from "./proposed-task.js";
+export * from "./knowledge-candidate.js";
