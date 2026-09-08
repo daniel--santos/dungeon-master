@@ -49,6 +49,14 @@
       "description": "Runs: as tentativas concretas de realizar uma Task."
     },
     {
+      "name": "workflows",
+      "description": "Workflows: o processo de uma execução, como dados."
+    },
+    {
+      "name": "approvals",
+      "description": "ApprovalGates: as pausas humanas de um Run."
+    },
+    {
       "name": "achievements",
       "description": "O catálogo versionado de Conquistas."
     }
@@ -711,6 +719,14 @@
             "format": "uuid",
             "description": "Task mãe, quando esta é uma subtarefa."
           },
+          "workflowId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Workflow que os Runs desta Task seguem. Nulo é o Run simples, de um agente só. O Run congela a definição vigente ao nascer, então trocar aqui não afeta Run em voo."
+          },
           "title": {
             "type": "string",
             "description": "Título da Task."
@@ -754,6 +770,7 @@
           "id",
           "projectId",
           "parentTaskId",
+          "workflowId",
           "title",
           "description",
           "kind",
@@ -815,6 +832,14 @@
             ],
             "format": "uuid",
             "description": "Task mãe. Precisa pertencer ao mesmo Project e não estar em `INBOX`."
+          },
+          "workflowId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Workflow que os Runs desta Task seguem. Precisa existir."
           },
           "title": {
             "type": "string",
@@ -881,6 +906,14 @@
             "format": "uuid",
             "description": "Task mãe, quando esta é uma subtarefa."
           },
+          "workflowId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Workflow que os Runs desta Task seguem. Nulo é o Run simples, de um agente só. O Run congela a definição vigente ao nascer, então trocar aqui não afeta Run em voo."
+          },
           "title": {
             "type": "string",
             "description": "Título da Task."
@@ -945,6 +978,7 @@
           "id",
           "projectId",
           "parentTaskId",
+          "workflowId",
           "title",
           "description",
           "kind",
@@ -1011,6 +1045,14 @@
             ],
             "format": "uuid",
             "description": "Troca ou remove a Task mãe. `null` desliga a subtarefa da mãe."
+          },
+          "workflowId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Troca ou remove o Workflow. `null` volta ao Run simples. Não afeta Runs já criados: cada um congelou a definição que valia quando nasceu."
           },
           "title": {
             "type": "string",
@@ -2279,7 +2321,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "Captura congelada do Workflow. Sempre nulo até a Fase 4."
+            "description": "Captura congelada do Workflow da Task no instante da criação. Nulo no Run simples, de um agente só. Os steps ficam em `GET /runs/{id}/steps`."
           },
           "resumedFromRunId": {
             "type": [
@@ -2791,7 +2833,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "Captura congelada do Workflow. Sempre nulo até a Fase 4."
+            "description": "Captura congelada do Workflow da Task no instante da criação. Nulo no Run simples, de um agente só. Os steps ficam em `GET /runs/{id}/steps`."
           },
           "resumedFromRunId": {
             "type": [
@@ -2944,7 +2986,7 @@
           },
           "type": {
             "type": "string",
-            "description": "Tipo do evento, no vocabulário do `ExecutionEvent`."
+            "description": "Tipo do evento, no vocabulário de `ExecutionEvent` ou de `WorkflowEvent`."
           },
           "timestamp": {
             "type": "string",
@@ -2963,6 +3005,1495 @@
           "timestamp"
         ],
         "description": "Uma linha do log append-only de um Run."
+      },
+      "RunStepList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunStep"
+            },
+            "description": "Os steps do Run, na ordem topológica."
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "Os RunSteps de um Run."
+      },
+      "RunStep": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do RunStep."
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workflowStepId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "O WorkflowStep da versão congelada que este RunStep executa."
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/WorkflowStepType"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Ordem topológica da captura."
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStepStatus"
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Quantas vezes o step já rodou. Zero enquanto `PENDING`."
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Primeira entrada em `RUNNING`, em UTC."
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Entrada em estado terminal, em UTC."
+          },
+          "result": {
+            "$ref": "#/components/schemas/RunStepResult"
+          },
+          "error": {
+            "$ref": "#/components/schemas/RunError"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "runId",
+          "workflowStepId",
+          "key",
+          "name",
+          "type",
+          "position",
+          "status",
+          "attempt",
+          "startedAt",
+          "finishedAt",
+          "result",
+          "error",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Um step de um Run, com estado próprio."
+      },
+      "WorkflowStepType": {
+        "type": "string",
+        "enum": [
+          "agent",
+          "command",
+          "validation",
+          "approval",
+          "knowledge"
+        ],
+        "description": "Tipo de um step de Workflow."
+      },
+      "RunStepStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "WAITING_APPROVAL",
+          "SUCCEEDED",
+          "FAILED",
+          "SKIPPED",
+          "TIMED_OUT",
+          "CANCELLED"
+        ],
+        "description": "Estado de um RunStep na máquina de estados."
+      },
+      "RunStepResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "agent"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "completed",
+                  "blocked",
+                  "failed"
+                ],
+                "description": "O veredito do agente. É o que `outputStatusIs` lê."
+              },
+              "summary": {
+                "type": "string",
+                "description": "Resumo escrito pelo agente."
+              },
+              "output": {
+                "description": "Structured output validado, quando houver."
+              },
+              "harnessSessionId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "knowledgeCandidates": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/KnowledgeCandidateInput"
+                },
+                "description": "O que o agente aprendeu. O step `knowledge` consolida isto."
+              }
+            },
+            "required": [
+              "kind",
+              "status"
+            ],
+            "description": "Resultado de um step `agent`."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "command"
+                ]
+              },
+              "exitCode": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Código de saída. Nulo quando o processo morreu por sinal."
+              },
+              "durationMs": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "stdoutTail": {
+                "type": "string",
+                "description": "Fim da saída padrão, truncado e sanitizado."
+              },
+              "stderrTail": {
+                "type": "string",
+                "description": "Fim da saída de erro, truncado e sanitizado."
+              }
+            },
+            "required": [
+              "kind",
+              "exitCode",
+              "durationMs"
+            ],
+            "description": "Resultado de um step `command`."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "validation"
+                ]
+              },
+              "verdict": {
+                "$ref": "#/components/schemas/ValidationVerdict"
+              },
+              "exitCode": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Código de saída. Nulo quando o processo morreu por sinal."
+              },
+              "durationMs": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "stdoutTail": {
+                "type": "string",
+                "description": "Fim da saída padrão, truncado e sanitizado."
+              },
+              "stderrTail": {
+                "type": "string",
+                "description": "Fim da saída de erro, truncado e sanitizado."
+              }
+            },
+            "required": [
+              "kind",
+              "verdict",
+              "exitCode",
+              "durationMs"
+            ],
+            "description": "Resultado de um step `validation`."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "approval"
+                ]
+              },
+              "gateId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "decision": {
+                "$ref": "#/components/schemas/ApprovalDecision"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "resolvedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "kind",
+              "gateId",
+              "decision",
+              "note",
+              "resolvedAt"
+            ],
+            "description": "Resultado de um step `approval`, escrito na resolução do gate."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "knowledge"
+                ]
+              },
+              "candidates": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/KnowledgeCandidateInput"
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "candidates"
+            ],
+            "description": "Resultado de um step `knowledge`."
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "O resultado de um RunStep, por tipo de step."
+      },
+      "KnowledgeCandidateInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Título do que foi aprendido."
+          },
+          "content": {
+            "type": "string",
+            "description": "O aprendizado, escrito para ser lido depois."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Classificação livre: `convention`, `gotcha`, `howto`."
+          }
+        },
+        "required": [
+          "title",
+          "content"
+        ],
+        "description": "Candidato a item do Grimório do Project. Destilado na Fase 6."
+      },
+      "ValidationVerdict": {
+        "type": "string",
+        "enum": [
+          "passed",
+          "failed"
+        ],
+        "description": "Código 0 é `passed`; qualquer outro é `failed`."
+      },
+      "ApprovalDecision": {
+        "type": "string",
+        "enum": [
+          "approve",
+          "reject"
+        ],
+        "description": "O que o humano decidiu no gate."
+      },
+      "ApprovalGateList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalGate"
+            },
+            "description": "Os gates do Run, do mais antigo ao mais novo."
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "Os ApprovalGates de um Run."
+      },
+      "ApprovalGate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do gate."
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runStepId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "O RunStep de tipo `approval` que pediu."
+          },
+          "gateKey": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$",
+            "description": "Chave estável do gate, vinda da definição."
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApprovalGateStatus"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Quando o Run parou para esperar, em UTC."
+          },
+          "resolvedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Quando a decisão foi gravada, em UTC."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Justificativa de quem decidiu, sanitizada."
+          }
+        },
+        "required": [
+          "id",
+          "runId",
+          "runStepId",
+          "gateKey",
+          "title",
+          "description",
+          "status",
+          "requestedAt",
+          "resolvedAt",
+          "note"
+        ],
+        "description": "Um pedido de aprovação humana em um Run."
+      },
+      "ApprovalGateStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "GRANTED",
+          "REJECTED"
+        ],
+        "description": "Estado de um ApprovalGate."
+      },
+      "WorkflowPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Workflow"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de Workflows, em ordem alfabética de nome."
+      },
+      "Workflow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do Workflow."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome, igual ao `definition.name`. Único por usuário."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "definition": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "description": "Nome do Workflow."
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 5000
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/WorkflowStepDefinition"
+                },
+                "minItems": 1,
+                "maxItems": 50,
+                "description": "Os steps, na ordem de leitura. A ordem de execução vem de `dependsOn`."
+              }
+            },
+            "required": [
+              "name",
+              "steps"
+            ],
+            "description": "A definição vigente, que a próxima captura congela."
+          },
+          "latestVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "description": "Número da última WorkflowVersion capturada. Nulo enquanto nenhum Run usou o Workflow."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "definition",
+          "latestVersion",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Um Workflow e a definição vigente dele."
+      },
+      "WorkflowStepDefinition": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/AgentStepDefinition"
+          },
+          {
+            "$ref": "#/components/schemas/CommandStepDefinition"
+          },
+          {
+            "$ref": "#/components/schemas/ValidationStepDefinition"
+          },
+          {
+            "$ref": "#/components/schemas/ApprovalStepDefinition"
+          },
+          {
+            "$ref": "#/components/schemas/KnowledgeStepDefinition"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "agent": "#/components/schemas/AgentStepDefinition",
+            "command": "#/components/schemas/CommandStepDefinition",
+            "validation": "#/components/schemas/ValidationStepDefinition",
+            "approval": "#/components/schemas/ApprovalStepDefinition",
+            "knowledge": "#/components/schemas/KnowledgeStepDefinition"
+          }
+        },
+        "description": "Um step, discriminado por `type`."
+      },
+      "AgentStepDefinition": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "agent"
+            ]
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$",
+            "description": "Chave única na definição. É por ela que o Run acompanha o step."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Nome para leitura."
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,40}$"
+            },
+            "maxItems": 50,
+            "default": [],
+            "description": "Steps que precisam ter assentado antes deste rodar. Sem `when`, todos precisam ter terminado em `SUCCEEDED`; com `when`, os predicados decidem."
+          },
+          "when": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Predicate"
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "description": "Conjunção de predicados. Qualquer um falso pula o step."
+          },
+          "retry": {
+            "type": "object",
+            "properties": {
+              "maxAttempts": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5,
+                "description": "Tentativas no total, incluindo a primeira."
+              }
+            },
+            "required": [
+              "maxAttempts"
+            ],
+            "description": "Quantas vezes o step pode rodar antes de contar como `FAILED`."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 86400000,
+            "description": "Teto de duração de uma tentativa, em milissegundos."
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000,
+            "description": "Prompt literal do step. Sem placeholders: o que o motor acrescenta vai depois dele."
+          },
+          "includeOutputsOf": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,40}$"
+            },
+            "maxItems": 50,
+            "description": "Steps cujo resumo de resultado o motor anexa ao prompt. Precisam ser dependências deste step, diretas ou indiretas."
+          }
+        },
+        "required": [
+          "type",
+          "key",
+          "name",
+          "prompt"
+        ],
+        "description": "Um step executado por um agente."
+      },
+      "Predicate": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "stepSucceeded"
+                ]
+              },
+              "step": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,40}$",
+                "description": "Chave de um step que é dependência deste."
+              }
+            },
+            "required": [
+              "kind",
+              "step"
+            ],
+            "description": "O step terminou em `SUCCEEDED`."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "stepFailed"
+                ]
+              },
+              "step": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,40}$",
+                "description": "Chave de um step que é dependência deste."
+              }
+            },
+            "required": [
+              "kind",
+              "step"
+            ],
+            "description": "O step terminou em `FAILED` ou `TIMED_OUT`."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "outputStatusIs"
+                ]
+              },
+              "step": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,40}$",
+                "description": "Chave de um step de agente que é dependência deste."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "completed",
+                  "blocked",
+                  "failed"
+                ],
+                "description": "O veredito que o agente reportou."
+              }
+            },
+            "required": [
+              "kind",
+              "step",
+              "status"
+            ],
+            "description": "O resultado estruturado do step de agente tem este `status`."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "validationPassed"
+                ]
+              },
+              "step": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,40}$",
+                "description": "Chave de um step de validação que é dependência deste."
+              }
+            },
+            "required": [
+              "kind",
+              "step"
+            ],
+            "description": "O step de validação saiu com código 0."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "artifactExists"
+                ]
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "description": "Caminho relativo ao workspace do Run."
+              }
+            },
+            "required": [
+              "kind",
+              "path"
+            ],
+            "description": "O arquivo existe no workspace quando o step é avaliado."
+          }
+        ],
+        "description": "Uma condição do conjunto fechado de `when`."
+      },
+      "CommandStepDefinition": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "command"
+            ]
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$",
+            "description": "Chave única na definição. É por ela que o Run acompanha o step."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Nome para leitura."
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,40}$"
+            },
+            "maxItems": 50,
+            "default": [],
+            "description": "Steps que precisam ter assentado antes deste rodar. Sem `when`, todos precisam ter terminado em `SUCCEEDED`; com `when`, os predicados decidem."
+          },
+          "when": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Predicate"
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "description": "Conjunção de predicados. Qualquer um falso pula o step."
+          },
+          "retry": {
+            "type": "object",
+            "properties": {
+              "maxAttempts": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5,
+                "description": "Tentativas no total, incluindo a primeira."
+              }
+            },
+            "required": [
+              "maxAttempts"
+            ],
+            "description": "Quantas vezes o step pode rodar antes de contar como `FAILED`."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 86400000,
+            "description": "Teto de duração de uma tentativa, em milissegundos."
+          },
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "description": "Programa e argumentos, um por posição. Spawn sem shell: nada é interpretado."
+          },
+          "cwd": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Diretório de trabalho, relativo ao workspace do Run. Ausente é a raiz do workspace."
+          }
+        },
+        "required": [
+          "type",
+          "key",
+          "name",
+          "argv"
+        ],
+        "description": "Um processo rodado sem shell. Código de saída diferente de 0 é `FAILED`."
+      },
+      "ValidationStepDefinition": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "validation"
+            ]
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$",
+            "description": "Chave única na definição. É por ela que o Run acompanha o step."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Nome para leitura."
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,40}$"
+            },
+            "maxItems": 50,
+            "default": [],
+            "description": "Steps que precisam ter assentado antes deste rodar. Sem `when`, todos precisam ter terminado em `SUCCEEDED`; com `when`, os predicados decidem."
+          },
+          "when": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Predicate"
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "description": "Conjunção de predicados. Qualquer um falso pula o step."
+          },
+          "retry": {
+            "type": "object",
+            "properties": {
+              "maxAttempts": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5,
+                "description": "Tentativas no total, incluindo a primeira."
+              }
+            },
+            "required": [
+              "maxAttempts"
+            ],
+            "description": "Quantas vezes o step pode rodar antes de contar como `FAILED`."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 86400000,
+            "description": "Teto de duração de uma tentativa, em milissegundos."
+          },
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "description": "Programa e argumentos, um por posição. Spawn sem shell: nada é interpretado."
+          },
+          "cwd": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Diretório de trabalho, relativo ao workspace do Run. Ausente é a raiz do workspace."
+          }
+        },
+        "required": [
+          "type",
+          "key",
+          "name",
+          "argv"
+        ],
+        "description": "Um processo com semântica de veredito: código 0 é `passed`, outro é `failed`. Não derruba o Run por si só; quem decide são os dependentes, via `when`."
+      },
+      "ApprovalStepDefinition": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "approval"
+            ]
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$",
+            "description": "Chave única na definição. É por ela que o Run acompanha o step."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Nome para leitura."
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,40}$"
+            },
+            "maxItems": 50,
+            "default": [],
+            "description": "Steps que precisam ter assentado antes deste rodar. Sem `when`, todos precisam ter terminado em `SUCCEEDED`; com `when`, os predicados decidem."
+          },
+          "when": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Predicate"
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "description": "Conjunção de predicados. Qualquer um falso pula o step."
+          },
+          "retry": {
+            "type": "object",
+            "properties": {
+              "maxAttempts": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5,
+                "description": "Tentativas no total, incluindo a primeira."
+              }
+            },
+            "required": [
+              "maxAttempts"
+            ],
+            "description": "Quantas vezes o step pode rodar antes de contar como `FAILED`."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 86400000,
+            "description": "Teto de duração de uma tentativa, em milissegundos."
+          },
+          "gateKey": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$",
+            "description": "Chave do ApprovalGate, única na definição. É por ela, e não pelo id do step, que um Run retomado reencontra o gate em vez de criar um segundo."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "O que está sendo pedido, em uma linha."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000,
+            "description": "Contexto para quem decide."
+          }
+        },
+        "required": [
+          "type",
+          "key",
+          "name",
+          "gateKey",
+          "title"
+        ],
+        "description": "Uma pausa até um humano decidir."
+      },
+      "KnowledgeStepDefinition": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "knowledge"
+            ]
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$",
+            "description": "Chave única na definição. É por ela que o Run acompanha o step."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Nome para leitura."
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,40}$"
+            },
+            "maxItems": 50,
+            "default": [],
+            "description": "Steps que precisam ter assentado antes deste rodar. Sem `when`, todos precisam ter terminado em `SUCCEEDED`; com `when`, os predicados decidem."
+          },
+          "when": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Predicate"
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "description": "Conjunção de predicados. Qualquer um falso pula o step."
+          },
+          "retry": {
+            "type": "object",
+            "properties": {
+              "maxAttempts": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5,
+                "description": "Tentativas no total, incluindo a primeira."
+              }
+            },
+            "required": [
+              "maxAttempts"
+            ],
+            "description": "Quantas vezes o step pode rodar antes de contar como `FAILED`."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 86400000,
+            "description": "Teto de duração de uma tentativa, em milissegundos."
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "collect"
+            ],
+            "description": "`collect` consolida os `knowledgeCandidates` dos steps de agente anteriores no resultado do Run. A destilação em KnowledgeItem é da Fase 6."
+          }
+        },
+        "required": [
+          "type",
+          "key",
+          "name",
+          "mode"
+        ],
+        "description": "Consolida o que os agentes aprenderam."
+      },
+      "WorkflowDefinition": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Nome do Workflow."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowStepDefinition"
+            },
+            "minItems": 1,
+            "maxItems": 50,
+            "description": "Os steps, na ordem de leitura. A ordem de execução vem de `dependsOn`."
+          }
+        },
+        "required": [
+          "name",
+          "steps"
+        ],
+        "description": "A definição de um Workflow: dados validados, sem linguagem de expressão. É o documento que a captura congela em uma WorkflowVersion."
+      },
+      "WorkflowVersionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowVersion"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de versões, da mais recente para a mais antiga."
+      },
+      "WorkflowVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da versão. É o `workflowVersionId` do Run."
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Sequencial por Workflow, começando em 1."
+          },
+          "definition": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "description": "Nome do Workflow."
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 5000
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/WorkflowStepDefinition"
+                },
+                "minItems": 1,
+                "maxItems": 50,
+                "description": "Os steps, na ordem de leitura. A ordem de execução vem de `dependsOn`."
+              }
+            },
+            "required": [
+              "name",
+              "steps"
+            ],
+            "description": "A definição no instante da captura."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante da captura, em UTC."
+          }
+        },
+        "required": [
+          "id",
+          "workflowId",
+          "version",
+          "definition",
+          "createdAt"
+        ],
+        "description": "Uma definição congelada, referenciada por Runs."
+      },
+      "WorkflowVersionDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da versão. É o `workflowVersionId` do Run."
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Sequencial por Workflow, começando em 1."
+          },
+          "definition": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "description": "Nome do Workflow."
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 5000
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/WorkflowStepDefinition"
+                },
+                "minItems": 1,
+                "maxItems": 50,
+                "description": "Os steps, na ordem de leitura. A ordem de execução vem de `dependsOn`."
+              }
+            },
+            "required": [
+              "name",
+              "steps"
+            ],
+            "description": "A definição no instante da captura."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante da captura, em UTC."
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowStep"
+            },
+            "description": "Os steps, na ordem topológica da captura."
+          }
+        },
+        "required": [
+          "id",
+          "workflowId",
+          "version",
+          "definition",
+          "createdAt",
+          "steps"
+        ],
+        "description": "Uma versão com os steps materializados."
+      },
+      "WorkflowStep": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workflowVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/WorkflowStepType"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Posição na ordem topológica da captura. Começa em 0."
+          },
+          "definition": {
+            "$ref": "#/components/schemas/WorkflowStepDefinition"
+          }
+        },
+        "required": [
+          "id",
+          "workflowVersionId",
+          "key",
+          "name",
+          "type",
+          "position",
+          "definition"
+        ],
+        "description": "Um step de uma WorkflowVersion."
+      },
+      "ApprovalGatePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalGateListItem"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de gates, do pedido mais recente para o mais antigo."
+      },
+      "ApprovalGateListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do gate."
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runStepId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "O RunStep de tipo `approval` que pediu."
+          },
+          "gateKey": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$",
+            "description": "Chave estável do gate, vinda da definição."
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApprovalGateStatus"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Quando o Run parou para esperar, em UTC."
+          },
+          "resolvedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Quando a decisão foi gravada, em UTC."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Justificativa de quem decidiu, sanitizada."
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Task do Run. Vem por junção."
+          },
+          "taskTitle": {
+            "type": "string",
+            "description": "Título da Task no momento da leitura. Vem por junção."
+          }
+        },
+        "required": [
+          "id",
+          "runId",
+          "runStepId",
+          "gateKey",
+          "title",
+          "description",
+          "status",
+          "requestedAt",
+          "resolvedAt",
+          "note",
+          "taskId",
+          "taskTitle"
+        ],
+        "description": "Um gate na listagem, com a Task junto."
+      },
+      "ResolveApprovalGate": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/ApprovalDecision"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 5000,
+            "description": "Justificativa. Vai para o evento de auditoria."
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "description": "Corpo de `POST /api/v1/approval-gates/{id}/resolve`."
       },
       "AchievementCatalog": {
         "type": "object",
@@ -5937,7 +7468,7 @@
           "tasks"
         ],
         "summary": "Edita os campos editáveis",
-        "description": "`status` nunca passa por aqui: a transição tem rota própria, que valida a máquina de estados e as regras de filhas e dependências. Trocar o Project só vale para uma Task sem mãe e sem filhas.",
+        "description": "`status` nunca passa por aqui: a transição tem rota própria, que valida a máquina de estados e as regras de filhas e dependências. Trocar o Project só vale para uma Task sem mãe e sem filhas. `workflowId` liga ou desliga o Workflow dos próximos Runs; os já criados mantêm a versão que congelaram.",
         "parameters": [
           {
             "schema": {
@@ -7845,6 +9376,653 @@
           },
           "404": {
             "description": "Não existe Run com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{id}/steps": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Os steps do Run",
+        "description": "Na ordem topológica da versão capturada, com estado, tentativa, resultado e erro de cada um. Vazio num Run simples, sem Workflow.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Run."
+            },
+            "required": true,
+            "description": "UUIDv7 do Run.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Os RunSteps.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunStepList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Run com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{id}/gates": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Os gates de aprovação do Run",
+        "description": "Do pedido mais antigo ao mais novo, pendentes e decididos.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Run."
+            },
+            "required": true,
+            "description": "UUIDv7 do Run.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Os ApprovalGates.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGateList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Run com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workflows": {
+      "get": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "Lista os Workflows",
+        "description": "Em ordem alfabética de nome. Cada item traz a definição vigente inteira.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de Workflows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paginação inválida.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "Cria um Workflow",
+        "description": "Recebe a definição inteira: nome, descrição e steps. Workflows são dados, validados por schema, sem linguagem de expressão. Nenhuma versão nasce aqui: a primeira captura acontece no primeiro Run.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowDefinition"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Workflow criado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workflow"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo malformado.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe um Workflow com este nome.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A definição quebra uma regra estrutural: ciclo, dependência inexistente, chave repetida, gateKey repetido ou predicado sobre um step que não é dependência. `errors[]` aponta o step e o campo.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workflows/{id}": {
+      "get": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "Um Workflow",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Workflow."
+            },
+            "required": true,
+            "description": "UUIDv7 do Workflow.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O Workflow com a definição vigente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workflow"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Workflow com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "Substitui a definição do Workflow",
+        "description": "Valida e grava a definição inteira. Não toca nas versões já capturadas: Runs em andamento e retomadas continuam na versão que congelaram, e a próxima captura só cria versão nova se a definição mudou.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Workflow."
+            },
+            "required": true,
+            "description": "UUIDv7 do Workflow.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowDefinition"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O Workflow depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workflow"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo malformado.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Workflow com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe outro Workflow com este nome.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A definição quebra uma regra estrutural: ciclo, dependência inexistente, chave repetida, gateKey repetido ou predicado sobre um step que não é dependência. `errors[]` aponta o step e o campo.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "Apaga o Workflow",
+        "description": "Recusa com `409` quando alguma versão já foi usada por um Run: o histórico do Run ficaria sem a definição que explica os steps dele. Tasks que apontavam para o Workflow voltam ao Run simples.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Workflow."
+            },
+            "required": true,
+            "description": "UUIDv7 do Workflow.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Workflow apagado."
+          },
+          "404": {
+            "description": "Não existe Workflow com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Alguma versão do Workflow é referenciada por Runs.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workflows/{id}/versions": {
+      "get": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "As versões congeladas do Workflow",
+        "description": "Da mais recente para a mais antiga. Cada uma traz a definição no instante da captura.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Workflow."
+            },
+            "required": true,
+            "description": "UUIDv7 do Workflow.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de versões.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowVersionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paginação inválida.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Workflow com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workflow-versions/{id}": {
+      "get": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "Uma versão congelada, com os steps",
+        "description": "É o que `workflowVersionId` do Run aponta. Imutável: a resposta é a mesma hoje e depois de qualquer edição do Workflow.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da WorkflowVersion."
+            },
+            "required": true,
+            "description": "UUIDv7 da WorkflowVersion.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A versão e os steps, na ordem topológica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowVersionDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe WorkflowVersion com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/approval-gates": {
+      "get": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "Lista os gates de aprovação",
+        "description": "Do pedido mais recente para o mais antigo. `status=PENDING` é a caixa de entrada de aprovações. Cada item traz `taskId` e `taskTitle` por junção.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "GRANTED",
+                "REJECTED"
+              ],
+              "description": "Só os gates neste estado."
+            },
+            "required": false,
+            "description": "Só os gates neste estado.",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só os gates deste Run."
+            },
+            "required": false,
+            "description": "Só os gates deste Run.",
+            "name": "runId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de gates.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGatePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/approval-gates/{id}/resolve": {
+      "post": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "Aprova ou recusa o gate",
+        "description": "Resolução por CAS transacional: um único `UPDATE` condicionado a `status = PENDING`. Se outra decisão chegou antes, a resposta é `409` com o estado atual do gate em `gate`, e nada é sobrescrito. Na mesma transação o RunStep de aprovação assenta, o Run volta a `QUEUED` para o Worker retomá-lo, e `ApprovalGranted` ou `ApprovalRejected` entram no log do Run.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do ApprovalGate."
+            },
+            "required": true,
+            "description": "UUIDv7 do ApprovalGate.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveApprovalGate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O gate decidido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGate"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe ApprovalGate com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "O gate já foi decidido (o estado atual vem em `gate`), ou o Run não está mais esperando.",
             "content": {
               "application/problem+json": {
                 "schema": {

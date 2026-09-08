@@ -783,7 +783,7 @@ export interface paths {
         head?: never;
         /**
          * Edita os campos editáveis
-         * @description `status` nunca passa por aqui: a transição tem rota própria, que valida a máquina de estados e as regras de filhas e dependências. Trocar o Project só vale para uma Task sem mãe e sem filhas.
+         * @description `status` nunca passa por aqui: a transição tem rota própria, que valida a máquina de estados e as regras de filhas e dependências. Trocar o Project só vale para uma Task sem mãe e sem filhas. `workflowId` liga ou desliga o Workflow dos próximos Runs; os já criados mantêm a versão que congelaram.
          */
         patch: {
             parameters: {
@@ -2611,6 +2611,617 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{id}/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Os steps do Run
+         * @description Na ordem topológica da versão capturada, com estado, tentativa, resultado e erro de cada um. Vazio num Run simples, sem Workflow.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Run. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Os RunSteps. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunStepList"];
+                    };
+                };
+                /** @description Não existe Run com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{id}/gates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Os gates de aprovação do Run
+         * @description Do pedido mais antigo ao mais novo, pendentes e decididos.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Run. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Os ApprovalGates. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApprovalGateList"];
+                    };
+                };
+                /** @description Não existe Run com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista os Workflows
+         * @description Em ordem alfabética de nome. Cada item traz a definição vigente inteira.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de Workflows. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkflowPage"];
+                    };
+                };
+                /** @description Paginação inválida. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria um Workflow
+         * @description Recebe a definição inteira: nome, descrição e steps. Workflows são dados, validados por schema, sem linguagem de expressão. Nenhuma versão nasce aqui: a primeira captura acontece no primeiro Run.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["WorkflowDefinition"];
+                };
+            };
+            responses: {
+                /** @description Workflow criado. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Workflow"];
+                    };
+                };
+                /** @description Corpo malformado. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Já existe um Workflow com este nome. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A definição quebra uma regra estrutural: ciclo, dependência inexistente, chave repetida, gateKey repetido ou predicado sobre um step que não é dependência. `errors[]` aponta o step e o campo. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflows/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Um Workflow */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Workflow. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O Workflow com a definição vigente. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Workflow"];
+                    };
+                };
+                /** @description Não existe Workflow com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        /**
+         * Substitui a definição do Workflow
+         * @description Valida e grava a definição inteira. Não toca nas versões já capturadas: Runs em andamento e retomadas continuam na versão que congelaram, e a próxima captura só cria versão nova se a definição mudou.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Workflow. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["WorkflowDefinition"];
+                };
+            };
+            responses: {
+                /** @description O Workflow depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Workflow"];
+                    };
+                };
+                /** @description Corpo malformado. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Workflow com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Já existe outro Workflow com este nome. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A definição quebra uma regra estrutural: ciclo, dependência inexistente, chave repetida, gateKey repetido ou predicado sobre um step que não é dependência. `errors[]` aponta o step e o campo. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * Apaga o Workflow
+         * @description Recusa com `409` quando alguma versão já foi usada por um Run: o histórico do Run ficaria sem a definição que explica os steps dele. Tasks que apontavam para o Workflow voltam ao Run simples.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Workflow. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Workflow apagado. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Não existe Workflow com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Alguma versão do Workflow é referenciada por Runs. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflows/{id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * As versões congeladas do Workflow
+         * @description Da mais recente para a mais antiga. Cada uma traz a definição no instante da captura.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                };
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Workflow. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de versões. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkflowVersionPage"];
+                    };
+                };
+                /** @description Paginação inválida. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Workflow com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflow-versions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Uma versão congelada, com os steps
+         * @description É o que `workflowVersionId` do Run aponta. Imutável: a resposta é a mesma hoje e depois de qualquer edição do Workflow.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 da WorkflowVersion. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A versão e os steps, na ordem topológica. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkflowVersionDetail"];
+                    };
+                };
+                /** @description Não existe WorkflowVersion com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approval-gates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista os gates de aprovação
+         * @description Do pedido mais recente para o mais antigo. `status=PENDING` é a caixa de entrada de aprovações. Cada item traz `taskId` e `taskTitle` por junção.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                    /** @description Só os gates neste estado. */
+                    status?: "PENDING" | "GRANTED" | "REJECTED";
+                    /** @description Só os gates deste Run. */
+                    runId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de gates. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApprovalGatePage"];
+                    };
+                };
+                /** @description Filtro ou paginação inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approval-gates/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aprova ou recusa o gate
+         * @description Resolução por CAS transacional: um único `UPDATE` condicionado a `status = PENDING`. Se outra decisão chegou antes, a resposta é `409` com o estado atual do gate em `gate`, e nada é sobrescrito. Na mesma transação o RunStep de aprovação assenta, o Run volta a `QUEUED` para o Worker retomá-lo, e `ApprovalGranted` ou `ApprovalRejected` entram no log do Run.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do ApprovalGate. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ResolveApprovalGate"];
+                };
+            };
+            responses: {
+                /** @description O gate decidido. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApprovalGate"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe ApprovalGate com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description O gate já foi decidido (o estado atual vem em `gate`), ou o Run não está mais esperando. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/achievements/catalog": {
         parameters: {
             query?: never;
@@ -3119,6 +3730,11 @@ export interface components {
              * @description Task mãe, quando esta é uma subtarefa.
              */
             parentTaskId: string | null;
+            /**
+             * Format: uuid
+             * @description Workflow que os Runs desta Task seguem. Nulo é o Run simples, de um agente só. O Run congela a definição vigente ao nascer, então trocar aqui não afeta Run em voo.
+             */
+            workflowId: string | null;
             /** @description Título da Task. */
             title: string;
             /** @description Descrição livre. */
@@ -3169,6 +3785,11 @@ export interface components {
              * @description Task mãe. Precisa pertencer ao mesmo Project e não estar em `INBOX`.
              */
             parentTaskId?: string | null;
+            /**
+             * Format: uuid
+             * @description Workflow que os Runs desta Task seguem. Precisa existir.
+             */
+            workflowId?: string | null;
             /** @description Título da Task. */
             title: string;
             /** @description Descrição livre. */
@@ -3201,6 +3822,11 @@ export interface components {
              * @description Task mãe, quando esta é uma subtarefa.
              */
             parentTaskId: string | null;
+            /**
+             * Format: uuid
+             * @description Workflow que os Runs desta Task seguem. Nulo é o Run simples, de um agente só. O Run congela a definição vigente ao nascer, então trocar aqui não afeta Run em voo.
+             */
+            workflowId: string | null;
             /** @description Título da Task. */
             title: string;
             /** @description Descrição livre. */
@@ -3253,6 +3879,11 @@ export interface components {
              * @description Troca ou remove a Task mãe. `null` desliga a subtarefa da mãe.
              */
             parentTaskId?: string | null;
+            /**
+             * Format: uuid
+             * @description Troca ou remove o Workflow. `null` volta ao Run simples. Não afeta Runs já criados: cada um congelou a definição que valia quando nasceu.
+             */
+            workflowId?: string | null;
             title?: string;
             description?: string | null;
             kind?: components["schemas"]["TaskKind"];
@@ -3732,7 +4363,7 @@ export interface components {
             workspacePath: string | null;
             /**
              * Format: uuid
-             * @description Captura congelada do Workflow. Sempre nulo até a Fase 4.
+             * @description Captura congelada do Workflow da Task no instante da criação. Nulo no Run simples, de um agente só. Os steps ficam em `GET /runs/{id}/steps`.
              */
             workflowVersionId: string | null;
             /**
@@ -3933,7 +4564,7 @@ export interface components {
             workspacePath: string | null;
             /**
              * Format: uuid
-             * @description Captura congelada do Workflow. Sempre nulo até a Fase 4.
+             * @description Captura congelada do Workflow da Task no instante da criação. Nulo no Run simples, de um agente só. Os steps ficam em `GET /runs/{id}/steps`.
              */
             workflowVersionId: string | null;
             /**
@@ -3995,7 +4626,7 @@ export interface components {
             runId: string;
             /** @description Posição dentro do Run, começando em 1. Estritamente crescente e sem lacunas. */
             sequence: number;
-            /** @description Tipo do evento, no vocabulário do `ExecutionEvent`. */
+            /** @description Tipo do evento, no vocabulário de `ExecutionEvent` ou de `WorkflowEvent`. */
             type: string;
             /**
              * Format: date-time
@@ -4004,6 +4635,535 @@ export interface components {
             timestamp: string;
             /** @description Dados do evento, já sanitizados de credenciais. */
             payload?: unknown;
+        };
+        /** @description Os RunSteps de um Run. */
+        RunStepList: {
+            /** @description Os steps do Run, na ordem topológica. */
+            items: components["schemas"]["RunStep"][];
+        };
+        /** @description Um step de um Run, com estado próprio. */
+        RunStep: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do RunStep.
+             */
+            id: string;
+            /** Format: uuid */
+            runId: string;
+            /**
+             * Format: uuid
+             * @description O WorkflowStep da versão congelada que este RunStep executa.
+             */
+            workflowStepId: string;
+            key: string;
+            name: string;
+            type: components["schemas"]["WorkflowStepType"];
+            /** @description Ordem topológica da captura. */
+            position: number;
+            status: components["schemas"]["RunStepStatus"];
+            /** @description Quantas vezes o step já rodou. Zero enquanto `PENDING`. */
+            attempt: number;
+            /**
+             * Format: date-time
+             * @description Primeira entrada em `RUNNING`, em UTC.
+             */
+            startedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Entrada em estado terminal, em UTC.
+             */
+            finishedAt: string | null;
+            result: components["schemas"]["RunStepResult"];
+            error: components["schemas"]["RunError"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /**
+         * @description Tipo de um step de Workflow.
+         * @enum {string}
+         */
+        WorkflowStepType: "agent" | "command" | "validation" | "approval" | "knowledge";
+        /**
+         * @description Estado de um RunStep na máquina de estados.
+         * @enum {string}
+         */
+        RunStepStatus: "PENDING" | "RUNNING" | "WAITING_APPROVAL" | "SUCCEEDED" | "FAILED" | "SKIPPED" | "TIMED_OUT" | "CANCELLED";
+        /** @description O resultado de um RunStep, por tipo de step. */
+        RunStepResult: {
+            /** @enum {string} */
+            kind: "agent";
+            /**
+             * @description O veredito do agente. É o que `outputStatusIs` lê.
+             * @enum {string}
+             */
+            status: "completed" | "blocked" | "failed";
+            /** @description Resumo escrito pelo agente. */
+            summary?: string;
+            /** @description Structured output validado, quando houver. */
+            output?: unknown;
+            harnessSessionId?: string;
+            /** @description O que o agente aprendeu. O step `knowledge` consolida isto. */
+            knowledgeCandidates?: components["schemas"]["KnowledgeCandidateInput"][];
+        } | {
+            /** @enum {string} */
+            kind: "command";
+            /** @description Código de saída. Nulo quando o processo morreu por sinal. */
+            exitCode: number | null;
+            durationMs: number;
+            /** @description Fim da saída padrão, truncado e sanitizado. */
+            stdoutTail?: string;
+            /** @description Fim da saída de erro, truncado e sanitizado. */
+            stderrTail?: string;
+        } | {
+            /** @enum {string} */
+            kind: "validation";
+            verdict: components["schemas"]["ValidationVerdict"];
+            /** @description Código de saída. Nulo quando o processo morreu por sinal. */
+            exitCode: number | null;
+            durationMs: number;
+            /** @description Fim da saída padrão, truncado e sanitizado. */
+            stdoutTail?: string;
+            /** @description Fim da saída de erro, truncado e sanitizado. */
+            stderrTail?: string;
+        } | {
+            /** @enum {string} */
+            kind: "approval";
+            /** Format: uuid */
+            gateId: string;
+            decision: components["schemas"]["ApprovalDecision"];
+            note: string | null;
+            /** Format: date-time */
+            resolvedAt: string;
+        } | {
+            /** @enum {string} */
+            kind: "knowledge";
+            candidates: components["schemas"]["KnowledgeCandidateInput"][];
+        } | null;
+        /** @description Candidato a item do Grimório do Project. Destilado na Fase 6. */
+        KnowledgeCandidateInput: {
+            /** @description Título do que foi aprendido. */
+            title: string;
+            /** @description O aprendizado, escrito para ser lido depois. */
+            content: string;
+            /** @description Classificação livre: `convention`, `gotcha`, `howto`. */
+            kind?: string;
+        };
+        /**
+         * @description Código 0 é `passed`; qualquer outro é `failed`.
+         * @enum {string}
+         */
+        ValidationVerdict: "passed" | "failed";
+        /**
+         * @description O que o humano decidiu no gate.
+         * @enum {string}
+         */
+        ApprovalDecision: "approve" | "reject";
+        /** @description Os ApprovalGates de um Run. */
+        ApprovalGateList: {
+            /** @description Os gates do Run, do mais antigo ao mais novo. */
+            items: components["schemas"]["ApprovalGate"][];
+        };
+        /** @description Um pedido de aprovação humana em um Run. */
+        ApprovalGate: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do gate.
+             */
+            id: string;
+            /** Format: uuid */
+            runId: string;
+            /**
+             * Format: uuid
+             * @description O RunStep de tipo `approval` que pediu.
+             */
+            runStepId: string;
+            /** @description Chave estável do gate, vinda da definição. */
+            gateKey: string;
+            title: string;
+            description: string | null;
+            status: components["schemas"]["ApprovalGateStatus"];
+            /**
+             * Format: date-time
+             * @description Quando o Run parou para esperar, em UTC.
+             */
+            requestedAt: string;
+            /**
+             * Format: date-time
+             * @description Quando a decisão foi gravada, em UTC.
+             */
+            resolvedAt: string | null;
+            /** @description Justificativa de quem decidiu, sanitizada. */
+            note: string | null;
+        };
+        /**
+         * @description Estado de um ApprovalGate.
+         * @enum {string}
+         */
+        ApprovalGateStatus: "PENDING" | "GRANTED" | "REJECTED";
+        /** @description Uma página de Workflows, em ordem alfabética de nome. */
+        WorkflowPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["Workflow"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Um Workflow e a definição vigente dele. */
+        Workflow: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do Workflow.
+             */
+            id: string;
+            /** @description Nome, igual ao `definition.name`. Único por usuário. */
+            name: string;
+            description: string | null;
+            /** @description A definição vigente, que a próxima captura congela. */
+            definition: {
+                /** @description Nome do Workflow. */
+                name: string;
+                description?: string;
+                /** @description Os steps, na ordem de leitura. A ordem de execução vem de `dependsOn`. */
+                steps: components["schemas"]["WorkflowStepDefinition"][];
+            };
+            /** @description Número da última WorkflowVersion capturada. Nulo enquanto nenhum Run usou o Workflow. */
+            latestVersion: number | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description Um step, discriminado por `type`. */
+        WorkflowStepDefinition: components["schemas"]["AgentStepDefinition"] | components["schemas"]["CommandStepDefinition"] | components["schemas"]["ValidationStepDefinition"] | components["schemas"]["ApprovalStepDefinition"] | components["schemas"]["KnowledgeStepDefinition"];
+        /** @description Um step executado por um agente. */
+        AgentStepDefinition: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "agent";
+            /** @description Chave única na definição. É por ela que o Run acompanha o step. */
+            key: string;
+            /** @description Nome para leitura. */
+            name: string;
+            /**
+             * @description Steps que precisam ter assentado antes deste rodar. Sem `when`, todos precisam ter terminado em `SUCCEEDED`; com `when`, os predicados decidem.
+             * @default []
+             */
+            dependsOn: string[];
+            /** @description Conjunção de predicados. Qualquer um falso pula o step. */
+            when?: components["schemas"]["Predicate"][];
+            /** @description Quantas vezes o step pode rodar antes de contar como `FAILED`. */
+            retry?: {
+                /** @description Tentativas no total, incluindo a primeira. */
+                maxAttempts: number;
+            };
+            /** @description Teto de duração de uma tentativa, em milissegundos. */
+            timeoutMs?: number;
+            /** @description Prompt literal do step. Sem placeholders: o que o motor acrescenta vai depois dele. */
+            prompt: string;
+            /** @description Steps cujo resumo de resultado o motor anexa ao prompt. Precisam ser dependências deste step, diretas ou indiretas. */
+            includeOutputsOf?: string[];
+        };
+        /** @description Uma condição do conjunto fechado de `when`. */
+        Predicate: {
+            /** @enum {string} */
+            kind: "stepSucceeded";
+            /** @description Chave de um step que é dependência deste. */
+            step: string;
+        } | {
+            /** @enum {string} */
+            kind: "stepFailed";
+            /** @description Chave de um step que é dependência deste. */
+            step: string;
+        } | {
+            /** @enum {string} */
+            kind: "outputStatusIs";
+            /** @description Chave de um step de agente que é dependência deste. */
+            step: string;
+            /**
+             * @description O veredito que o agente reportou.
+             * @enum {string}
+             */
+            status: "completed" | "blocked" | "failed";
+        } | {
+            /** @enum {string} */
+            kind: "validationPassed";
+            /** @description Chave de um step de validação que é dependência deste. */
+            step: string;
+        } | {
+            /** @enum {string} */
+            kind: "artifactExists";
+            /** @description Caminho relativo ao workspace do Run. */
+            path: string;
+        };
+        /** @description Um processo rodado sem shell. Código de saída diferente de 0 é `FAILED`. */
+        CommandStepDefinition: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "command";
+            /** @description Chave única na definição. É por ela que o Run acompanha o step. */
+            key: string;
+            /** @description Nome para leitura. */
+            name: string;
+            /**
+             * @description Steps que precisam ter assentado antes deste rodar. Sem `when`, todos precisam ter terminado em `SUCCEEDED`; com `when`, os predicados decidem.
+             * @default []
+             */
+            dependsOn: string[];
+            /** @description Conjunção de predicados. Qualquer um falso pula o step. */
+            when?: components["schemas"]["Predicate"][];
+            /** @description Quantas vezes o step pode rodar antes de contar como `FAILED`. */
+            retry?: {
+                /** @description Tentativas no total, incluindo a primeira. */
+                maxAttempts: number;
+            };
+            /** @description Teto de duração de uma tentativa, em milissegundos. */
+            timeoutMs?: number;
+            /** @description Programa e argumentos, um por posição. Spawn sem shell: nada é interpretado. */
+            argv: string[];
+            /** @description Diretório de trabalho, relativo ao workspace do Run. Ausente é a raiz do workspace. */
+            cwd?: string;
+        };
+        /** @description Um processo com semântica de veredito: código 0 é `passed`, outro é `failed`. Não derruba o Run por si só; quem decide são os dependentes, via `when`. */
+        ValidationStepDefinition: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "validation";
+            /** @description Chave única na definição. É por ela que o Run acompanha o step. */
+            key: string;
+            /** @description Nome para leitura. */
+            name: string;
+            /**
+             * @description Steps que precisam ter assentado antes deste rodar. Sem `when`, todos precisam ter terminado em `SUCCEEDED`; com `when`, os predicados decidem.
+             * @default []
+             */
+            dependsOn: string[];
+            /** @description Conjunção de predicados. Qualquer um falso pula o step. */
+            when?: components["schemas"]["Predicate"][];
+            /** @description Quantas vezes o step pode rodar antes de contar como `FAILED`. */
+            retry?: {
+                /** @description Tentativas no total, incluindo a primeira. */
+                maxAttempts: number;
+            };
+            /** @description Teto de duração de uma tentativa, em milissegundos. */
+            timeoutMs?: number;
+            /** @description Programa e argumentos, um por posição. Spawn sem shell: nada é interpretado. */
+            argv: string[];
+            /** @description Diretório de trabalho, relativo ao workspace do Run. Ausente é a raiz do workspace. */
+            cwd?: string;
+        };
+        /** @description Uma pausa até um humano decidir. */
+        ApprovalStepDefinition: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "approval";
+            /** @description Chave única na definição. É por ela que o Run acompanha o step. */
+            key: string;
+            /** @description Nome para leitura. */
+            name: string;
+            /**
+             * @description Steps que precisam ter assentado antes deste rodar. Sem `when`, todos precisam ter terminado em `SUCCEEDED`; com `when`, os predicados decidem.
+             * @default []
+             */
+            dependsOn: string[];
+            /** @description Conjunção de predicados. Qualquer um falso pula o step. */
+            when?: components["schemas"]["Predicate"][];
+            /** @description Quantas vezes o step pode rodar antes de contar como `FAILED`. */
+            retry?: {
+                /** @description Tentativas no total, incluindo a primeira. */
+                maxAttempts: number;
+            };
+            /** @description Teto de duração de uma tentativa, em milissegundos. */
+            timeoutMs?: number;
+            /** @description Chave do ApprovalGate, única na definição. É por ela, e não pelo id do step, que um Run retomado reencontra o gate em vez de criar um segundo. */
+            gateKey: string;
+            /** @description O que está sendo pedido, em uma linha. */
+            title: string;
+            /** @description Contexto para quem decide. */
+            description?: string;
+        };
+        /** @description Consolida o que os agentes aprenderam. */
+        KnowledgeStepDefinition: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "knowledge";
+            /** @description Chave única na definição. É por ela que o Run acompanha o step. */
+            key: string;
+            /** @description Nome para leitura. */
+            name: string;
+            /**
+             * @description Steps que precisam ter assentado antes deste rodar. Sem `when`, todos precisam ter terminado em `SUCCEEDED`; com `when`, os predicados decidem.
+             * @default []
+             */
+            dependsOn: string[];
+            /** @description Conjunção de predicados. Qualquer um falso pula o step. */
+            when?: components["schemas"]["Predicate"][];
+            /** @description Quantas vezes o step pode rodar antes de contar como `FAILED`. */
+            retry?: {
+                /** @description Tentativas no total, incluindo a primeira. */
+                maxAttempts: number;
+            };
+            /** @description Teto de duração de uma tentativa, em milissegundos. */
+            timeoutMs?: number;
+            /**
+             * @description `collect` consolida os `knowledgeCandidates` dos steps de agente anteriores no resultado do Run. A destilação em KnowledgeItem é da Fase 6.
+             * @enum {string}
+             */
+            mode: "collect";
+        };
+        /** @description A definição de um Workflow: dados validados, sem linguagem de expressão. É o documento que a captura congela em uma WorkflowVersion. */
+        WorkflowDefinition: {
+            /** @description Nome do Workflow. */
+            name: string;
+            description?: string;
+            /** @description Os steps, na ordem de leitura. A ordem de execução vem de `dependsOn`. */
+            steps: components["schemas"]["WorkflowStepDefinition"][];
+        };
+        /** @description Uma página de versões, da mais recente para a mais antiga. */
+        WorkflowVersionPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["WorkflowVersion"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Uma definição congelada, referenciada por Runs. */
+        WorkflowVersion: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da versão. É o `workflowVersionId` do Run.
+             */
+            id: string;
+            /** Format: uuid */
+            workflowId: string;
+            /** @description Sequencial por Workflow, começando em 1. */
+            version: number;
+            /** @description A definição no instante da captura. */
+            definition: {
+                /** @description Nome do Workflow. */
+                name: string;
+                description?: string;
+                /** @description Os steps, na ordem de leitura. A ordem de execução vem de `dependsOn`. */
+                steps: components["schemas"]["WorkflowStepDefinition"][];
+            };
+            /**
+             * Format: date-time
+             * @description Instante da captura, em UTC.
+             */
+            createdAt: string;
+        };
+        /** @description Uma versão com os steps materializados. */
+        WorkflowVersionDetail: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da versão. É o `workflowVersionId` do Run.
+             */
+            id: string;
+            /** Format: uuid */
+            workflowId: string;
+            /** @description Sequencial por Workflow, começando em 1. */
+            version: number;
+            /** @description A definição no instante da captura. */
+            definition: {
+                /** @description Nome do Workflow. */
+                name: string;
+                description?: string;
+                /** @description Os steps, na ordem de leitura. A ordem de execução vem de `dependsOn`. */
+                steps: components["schemas"]["WorkflowStepDefinition"][];
+            };
+            /**
+             * Format: date-time
+             * @description Instante da captura, em UTC.
+             */
+            createdAt: string;
+            /** @description Os steps, na ordem topológica da captura. */
+            steps: components["schemas"]["WorkflowStep"][];
+        };
+        /** @description Um step de uma WorkflowVersion. */
+        WorkflowStep: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            workflowVersionId: string;
+            key: string;
+            name: string;
+            type: components["schemas"]["WorkflowStepType"];
+            /** @description Posição na ordem topológica da captura. Começa em 0. */
+            position: number;
+            definition: components["schemas"]["WorkflowStepDefinition"];
+        };
+        /** @description Uma página de gates, do pedido mais recente para o mais antigo. */
+        ApprovalGatePage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["ApprovalGateListItem"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Um gate na listagem, com a Task junto. */
+        ApprovalGateListItem: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do gate.
+             */
+            id: string;
+            /** Format: uuid */
+            runId: string;
+            /**
+             * Format: uuid
+             * @description O RunStep de tipo `approval` que pediu.
+             */
+            runStepId: string;
+            /** @description Chave estável do gate, vinda da definição. */
+            gateKey: string;
+            title: string;
+            description: string | null;
+            status: components["schemas"]["ApprovalGateStatus"];
+            /**
+             * Format: date-time
+             * @description Quando o Run parou para esperar, em UTC.
+             */
+            requestedAt: string;
+            /**
+             * Format: date-time
+             * @description Quando a decisão foi gravada, em UTC.
+             */
+            resolvedAt: string | null;
+            /** @description Justificativa de quem decidiu, sanitizada. */
+            note: string | null;
+            /**
+             * Format: uuid
+             * @description Task do Run. Vem por junção.
+             */
+            taskId: string;
+            /** @description Título da Task no momento da leitura. Vem por junção. */
+            taskTitle: string;
+        };
+        /** @description Corpo de `POST /api/v1/approval-gates/{id}/resolve`. */
+        ResolveApprovalGate: {
+            decision: components["schemas"]["ApprovalDecision"];
+            /** @description Justificativa. Vai para o evento de auditoria. */
+            note?: string;
         };
         /** @description O catálogo versionado de Conquistas, já validado. */
         AchievementCatalog: {
