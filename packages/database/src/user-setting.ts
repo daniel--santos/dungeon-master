@@ -6,7 +6,7 @@ import {
   type UserSettings,
   type UserSettingsKey,
 } from "@dungeon-master/contracts";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import type { Database } from "./client.js";
 import { appendDashboardEvent, type DatabaseExecutor } from "./dashboard-event.js";
@@ -71,13 +71,21 @@ export async function writeUserSetting(
   db: Database,
   input: WriteUserSettingInput,
 ): Promise<UserSettings> {
+  // post-mortem #1 (08/09/2026): gravar `knowledge.loadoutId = null` respondia
+  // 500. Para o Drizzle, `null` numa coluna `jsonb` é o NULL do SQL, e não o
+  // `null` do JSON — a coluna é `not null` e a inserção falhava. O valor passa
+  // a ir serializado e convertido explicitamente com `::jsonb`, o que grava o
+  // literal `null` do JSON; a leitura já tratava `null` como valor válido da
+  // chave. A configuração anulável da Fase 6 foi a primeira a exercitar isto.
+  const value = sql`${JSON.stringify(input.value)}::jsonb`;
+
   return await db.transaction(async (tx) => {
     await tx
       .insert(userSettings)
-      .values({ userId: input.userId, key: input.key, value: input.value })
+      .values({ userId: input.userId, key: input.key, value })
       .onConflictDoUpdate({
         target: [userSettings.userId, userSettings.key],
-        set: { value: input.value, updatedAt: new Date() },
+        set: { value, updatedAt: new Date() },
       });
 
     await appendDashboardEvent(tx, {

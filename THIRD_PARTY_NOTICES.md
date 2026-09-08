@@ -326,6 +326,121 @@ injeção, e o pacote roda inteiro em teste sem infraestrutura.
   de `.sandcastle/Dockerfile` (ADR 0005 e ADR 0014 de lá), com a atribuição no cabeçalho
   do próprio arquivo.
 
+### TencentDB Agent Memory — packages/knowledge (Fase 6)
+
+Manifesto: planejamento v0.4, seção 13.3. Todos os arquivos estão no commit fixado
+`3efcd31`. Nenhum serviço veio: o `MemoryProxy`, o gateway, o store SQLite, a ACL e o
+checkpoint ficaram de fora, como a seção 13.3 manda. O que entrou são prompts e helpers
+autocontidos, reescritos em português e para os seis tipos fechados da Fase 6, sem a
+camada de persona. As chamadas ao modelo passaram a entrar pelo `AgentRuntime` do projeto,
+por uma porta, e não pelo `CleanContextRunner` do original.
+
+#### `packages/knowledge/src/sanitize.ts`
+
+- Origem: TencentDB Agent Memory — `MemoryCore/src/utils/sanitize.ts@3efcd31` (`escapeXmlTags`)
+- Copyright: (c) 2026 Tencent. Licensed under the MIT License.
+- Modo: copiar função
+- Fase: 6 (o manifesto a colocava na Fase 7, em `packages/context`; ela veio antes porque o
+  Distiller já persiste texto escrito por modelo)
+- Testes: `packages/knowledge/src/sanitize.test.ts` (o original não tem teste ao lado)
+- Changes: a lista de tags escapadas deixou de ser a das seções de memória pessoal
+  (`user-persona`, `relevant-memories`, ...) e passou a ser a das fronteiras que este
+  projeto usa em prompt (`system`, `assistant`, `user`, `result`, `candidate`, `knowledge`,
+  `project-summary`, `run-log`, `instructions`, `context`); o resto do arquivo de origem
+  (limpeza de metadados de gateway, filtros L0/L1, detecção de injeção) não veio. Entrou
+  `sanitizeLlmText`, que é nosso, por cima da função copiada.
+
+#### `packages/knowledge/src/l0-noise-filter.ts`
+
+- Origem: TencentDB Agent Memory — `MemoryProxy/src/common/user-query-extractor.ts@3efcd31`
+- Copyright: (c) 2026 Tencent. Licensed under the MIT License.
+- Modo: adaptar
+- Fase: 6
+- Testes: `packages/knowledge/src/l0-noise-filter.test.ts` (o original não tem teste ao lado)
+- Changes: `extractUserQueryText` virou `filterHarnessNoise`, aplicado ao texto que um Run
+  gravou em `run_event` antes de entrar no prompt do Distiller, e não à mensagem do
+  usuário de um proxy de chat. As três camadas ficaram (descarte da mensagem inteira quando
+  é prompt interno da CLI; remoção dos wrappers XML injetados; filtro linha a linha dos
+  ecos de ferramenta e do frontmatter de MEMORY.md), com a lista de wrappers ampliada com
+  `local-command-stdout`, `command-name`, `command-message` e `function_results`. O bloco
+  `<user_query>` do CodeBuddy e o marcador de sessão do DSH não vieram.
+
+#### `packages/knowledge/src/prompts/extract-candidates.ts`
+
+- Origem: TencentDB Agent Memory — `MemoryCore/src/core/prompts/l1-extraction.ts@3efcd31`
+- Copyright: (c) 2026 Tencent. Licensed under the MIT License.
+- Modo: adaptar
+- Fase: 6
+- Testes: `packages/knowledge/src/prompts/prompts.test.ts`
+- Changes: a estrutura do prompt (princípios gerais, um bloco por tipo com definição e "o
+  que não extrair", saída como JSON estrito com referência às fontes) é do original. A
+  segmentação de situação e a camada de persona saíram; os tipos `persona`/`episodic`/
+  `instruction` e os de trabalho viraram `FACT`, `DECISION`, `DISCOVERY`, `CONSTRAINT`,
+  `PROCEDURE`; a entrada deixou de ser uma conversa e virou os candidatos que os agentes já
+  escreveram, mais o L0 do Run como contexto; o julgamento de duplicata entra no mesmo
+  prompt, porque aqui é uma chamada por lote. Prompt reescrito em português.
+
+#### `packages/knowledge/src/prompts/dedup-judge.ts` e `packages/knowledge/src/dedup.ts`
+
+- Origem: TencentDB Agent Memory — `MemoryCore/src/core/prompts/l1-dedup.ts@3efcd31` e
+  `MemoryCore/src/core/record/l1-dedup.ts@3efcd31`
+- Copyright: (c) 2026 Tencent. Licensed under the MIT License.
+- Modo: adaptar
+- Fase: 6
+- Testes: `packages/knowledge/src/dedup.test.ts` e `prompts/prompts.test.ts` (os originais
+  não têm teste ao lado)
+- Changes: o pool unificado, o julgamento em lote e o funil em duas fases com fail-open ("na
+  dúvida, store") são do original. As quatro ações (`store`/`skip`/`update`/`merge`) viraram
+  três (`PROMOTE`/`REJECT`/`MERGE`): um item já revisado por um humano não é reescrito por
+  modelo, e a mescla só liga o candidato ao item. `record_id` virou chaves curtas (`C1`,
+  `K1`), `merged_priority` e `merged_timestamps` saíram. O recall vetorial e o FTS5 do
+  SQLite saíram; o recall é uma porta implementada com o FTS do PostgreSQL em
+  `packages/database/src/knowledge-distiller.ts`. A chamada ao modelo saiu do arquivo e
+  mora no Distiller; a normalização fail-open passou a traduzir chaves, sanitizar todo texto
+  e inferir o tipo pelo `kind` quando o modelo não disse.
+
+#### `packages/knowledge/src/prompts/project-summary.ts`
+
+- Origem: TencentDB Agent Memory — `MemoryCore/src/core/prompts/scene-extraction.ts@3efcd31`
+  e `MemoryCore/src/offload_server/prompts/l2-prompt.ts@3efcd31` (guardrails, linhas 9–18)
+- Copyright: (c) 2026 Tencent. Licensed under the MIT License.
+- Modo: adaptar
+- Fase: 6
+- Testes: `packages/knowledge/src/prompts/prompts.test.ts`
+- Changes: o papel do "arquiteto de consolidação" (narrativa em vez de lista, integrar em
+  vez de anexar, reescrever) e os guardrails do L2 (agregar, lápide para o que não deu
+  certo, conclusão em vez de cronologia, só o que aconteceu, tudo com fonte) são do
+  original. Os arquivos de cena e as ferramentas `read`/`write`/`edit` saíram — o modelo não
+  toca disco e devolve um documento como JSON; os "scene blocks" viraram os itens ativos do
+  Grimório e o `persona.md` virou o Project Summary corrente; o limite de cenas virou o teto
+  de tamanho. Prompt reescrito em português.
+
+#### `packages/knowledge/src/summary-trigger.ts`
+
+- Origem: TencentDB Agent Memory — `MemoryCore/src/core/persona/persona-trigger.ts@3efcd31`
+- Copyright: (c) 2026 Tencent. Licensed under the MIT License.
+- Modo: adaptar
+- Fase: 6
+- Testes: `packages/knowledge/src/summary-trigger.test.ts` (o original não tem teste ao lado)
+- Changes: a classe que lia o checkpoint do disco virou uma função pura sobre fatos que a
+  porta entrega; as cinco condições da persona viraram as cinco condições de regeneração
+  do Project Summary — pedido explícito, partida a frio, recuperação de um resumo sem
+  corpo, itens cobertos que mudaram na revisão, limiar de itens novos. Sem
+  `CheckpointManager` nem `StorageAdapter`.
+
+#### `packages/knowledge/src/distiller-scheduler.ts`
+
+- Origem: TencentDB Agent Memory — `MemoryCore/src/utils/pipeline-manager.ts@3efcd31`
+  (gatilhos de L1 e L2) e `MemoryCore/src/utils/managed-timer.ts@3efcd31` (`tryAdvanceTo`)
+- Copyright: (c) 2026 Tencent. Licensed under the MIT License.
+- Modo: ler (extrair só a lógica)
+- Fase: 6
+- Testes: `packages/knowledge/src/distiller-scheduler.test.ts`
+- Changes: só a lógica de lote, ociosidade reiniciável e timer que só anda para baixo veio;
+  o `setTimeout`, o `ManagedTimer`, as filas seriais e o checkpoint não. A sessão de chat
+  virou o Project; o scheduler não tem relógio próprio — o laço do Worker pergunta
+  `due(now)` a cada tique, e é isso que o torna testável sem esperar.
+
 ## Licença deste projeto
 
 Dungeon Master é distribuído sob a licença MIT. Veja [`LICENSE`](./LICENSE).

@@ -222,6 +222,12 @@ Windows 11 e macOS são de primeira classe; o CI roda nos dois em todo commit.
 - Eventos de execução são append-only e têm dois contratos de escrita: `appendEvent`
   nunca lança, `persistEvent` propaga. Escolha conscientemente qual usar.
 - Nada fire-and-forget no caminho de escrita de resultado ou de conhecimento.
+- **Post-mortem em comentário.** O código que corrige um incidente real leva, no ponto da
+  correção, um comentário `// post-mortem #<n> (<data>): <o que aconteceu e o que mudou>`,
+  numerado em sequência no repositório (o próximo é o maior `#<n>` existente mais um). O
+  comentário fica: é o que impede a "simplificação" que reintroduz o bug. Convenção adotada
+  do TencentDB Agent Memory (documento técnico, seção 20.1). O `#1` está em
+  `packages/database/src/user-setting.ts`.
 
 ## 10. Código de terceiros
 

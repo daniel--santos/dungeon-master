@@ -119,6 +119,31 @@ export const ProposalEventTypeSchema = z.enum(PROPOSAL_EVENT_TYPE_VALUES).meta({
 
 export type ProposalEventType = z.infer<typeof ProposalEventTypeSchema>;
 
+/**
+ * O que o Distiller e a revisão do Grimório emitem (planejamento v0.4, Fase 6).
+ *
+ * `knowledge.distilled` sai na transação que grava as decisões de um lote, com
+ * as contagens; `knowledge.item.reviewed` sai na transação do CAS de aprovação
+ * ou recusa de um item; `knowledge_item.promoted` é o fato que o projetor de
+ * Conquistas consome (é a fonte de "Escriba do Grimório") e sai quando um item
+ * **fica ativo** — na promoção sem revisão, ou na aprovação com ela —, nunca
+ * antes; `achievement.forged` sai quando o lote grava uma Conquista forjada em
+ * revisão, para a tela avisar sem mostrá-la no Hall.
+ */
+export const KNOWLEDGE_EVENT_TYPE_VALUES = [
+  "knowledge.distilled",
+  "knowledge.item.reviewed",
+  "knowledge_item.promoted",
+  "achievement.forged",
+] as const;
+
+export const KnowledgeEventTypeSchema = z.enum(KNOWLEDGE_EVENT_TYPE_VALUES).meta({
+  id: "KnowledgeEventType",
+  description: "Eventos do Grimório: lote destilado, item revisado, item ativo e forjada proposta.",
+});
+
+export type KnowledgeEventType = z.infer<typeof KnowledgeEventTypeSchema>;
+
 export const DASHBOARD_EVENT_TYPE_VALUES = [
   "system.ping",
   "settings.changed",
@@ -127,6 +152,7 @@ export const DASHBOARD_EVENT_TYPE_VALUES = [
   ...ACHIEVEMENT_EVENT_TYPE_VALUES,
   ...APPROVAL_EVENT_TYPE_VALUES,
   ...PROPOSAL_EVENT_TYPE_VALUES,
+  ...KNOWLEDGE_EVENT_TYPE_VALUES,
 ] as const;
 
 export const DashboardEventTypeSchema = z

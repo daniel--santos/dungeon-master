@@ -5,6 +5,7 @@ import { seedDemoData } from "../src/demo.js";
 import { resolveDatabaseUrl } from "../src/env.js";
 import { LOCAL_USER_ID, seedLocalUser } from "../src/seed.js";
 import { seedExecutionRegistry } from "../src/seed-execution.js";
+import { seedKnowledgeLoadout } from "../src/seed-knowledge.js";
 import { seedWorkflows } from "../src/seed-workflow.js";
 
 /**
@@ -37,6 +38,14 @@ try {
       `(${String(execucao.harnessesCreated)} novos), ` +
       `${String(execucao.executionProfilesTotal)} ExecutionProfiles ` +
       `(${String(execucao.executionProfilesCreated)} novos)`,
+  );
+
+  const escriba = await seedKnowledgeLoadout(handle.db, { userId: LOCAL_USER_ID });
+
+  console.log(
+    escriba.loadoutId === null
+      ? `[db:seed] Loadout do Escriba não semeado: ${escriba.reason ?? "motivo desconhecido"}`
+      : `[db:seed] Loadout do Escriba ${escriba.loadoutId} ${escriba.created ? "criado" : "já existia"}`,
   );
 
   const rituais = await seedWorkflows(handle.db, { userId: LOCAL_USER_ID });

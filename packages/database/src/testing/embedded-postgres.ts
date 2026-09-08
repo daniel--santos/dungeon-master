@@ -35,6 +35,7 @@ import { createDatabase } from "../client.js";
 import { runMigrations } from "../migrate.js";
 import { seedLocalUser } from "../seed.js";
 import { seedExecutionRegistry } from "../seed-execution.js";
+import { seedKnowledgeLoadout } from "../seed-knowledge.js";
 
 const TEST_USER = "dungeon";
 const TEST_PASSWORD = "dungeon";
@@ -288,6 +289,9 @@ export async function startTestPostgres(
       // começaria montando à mão o vocabulário que o `db:seed` já define.
       const { userId } = await seedLocalUser(handle.db);
       await seedExecutionRegistry(handle.db, { userId });
+      // O Loadout do Escriba vai junto pelo mesmo motivo: um teste do
+      // Distiller começaria montando à mão o que o `db:seed` já define.
+      await seedKnowledgeLoadout(handle.db, { userId });
     } finally {
       await handle.close();
     }

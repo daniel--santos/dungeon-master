@@ -3,11 +3,24 @@ import { type DashboardEvent, RUN_EVENT_CHANNEL, type RunEvent } from "@dungeon-
 import {
   addTaskDependency,
   appendDashboardEvent,
+  approveForgedAchievement,
+  approveKnowledgeItem,
   approveProposedTask,
+  discardForgedAchievement,
   listAchievementUnlockPage,
   listAchievementViews,
+  listDistillationRuns,
+  listForgedAchievements,
+  listKnowledgeItems,
+  listProjectDecisions,
   markAchievementUnlockSeen,
+  getKnowledgeItem,
+  getProjectSummary,
   readHeroStats,
+  rejectKnowledgeItem,
+  renameForgedAchievement,
+  requestDistillation,
+  updateKnowledgeItem,
   captureInboxTask,
   changeTaskStatus,
   createAgent,
@@ -263,6 +276,12 @@ export function createAchievementsPort(options: AchievementsPortOptions): Achiev
     unlocks: (page) => listAchievementUnlockPage(db, { userId, ...page }),
     markSeen: (unlockId) => markAchievementUnlockSeen(db, { userId, unlockId }),
     heroStats: () => readHeroStats(db, { userId, xpToNextLevel }),
+    listForged: (reviewStatus) => listForgedAchievements(db, { userId, reviewStatus }),
+    approveForged: (definitionId, patch) =>
+      approveForgedAchievement(db, { userId, definitionId, patch }),
+    renameForged: (definitionId, patch) =>
+      renameForgedAchievement(db, { userId, definitionId, patch }),
+    discardForged: (definitionId) => discardForgedAchievement(db, { userId, definitionId }),
   };
 }
 
@@ -598,6 +617,48 @@ export function createWorkPort(options: WorkPortOptions): WorkPort {
     knowledgeCandidates: {
       list: (input) =>
         listKnowledgeCandidates(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          filters: input.filters,
+        }),
+    },
+    knowledge: {
+      listItems: async (projectId, input) => {
+        // A existência é checada antes de listar: o Grimório de um Project
+        // inexistente é 404, não uma página vazia.
+        const project = await findProjectRow(db, { userId, projectId });
+        if (project === null) return null;
+        return await listKnowledgeItems(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          filters: { ...input.filters, projectId },
+        });
+      },
+      getItem: (knowledgeItemId) => getKnowledgeItem(db, { userId, knowledgeItemId }),
+      updateItem: (knowledgeItemId, patch) =>
+        updateKnowledgeItem(db, { userId, knowledgeItemId, patch }),
+      approveItem: (knowledgeItemId, input) =>
+        approveKnowledgeItem(db, { userId, knowledgeItemId, ...input }),
+      rejectItem: (knowledgeItemId, input) =>
+        rejectKnowledgeItem(db, { userId, knowledgeItemId, ...input }),
+      summary: (projectId) => getProjectSummary(db, { userId, projectId }),
+      decisions: (projectId, input) =>
+        listProjectDecisions(db, {
+          userId,
+          projectId,
+          page: input.page,
+          pageSize: input.pageSize,
+          status: input.status,
+        }),
+      distill: async (projectId) => {
+        const project = await findProjectRow(db, { userId, projectId });
+        if (project === null) return null;
+        return await requestDistillation(db, { userId, projectId });
+      },
+      distillationRuns: (input) =>
+        listDistillationRuns(db, {
           userId,
           page: input.page,
           pageSize: input.pageSize,

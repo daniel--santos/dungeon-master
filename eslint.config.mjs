@@ -42,6 +42,9 @@ const RUNTIME_BOUNDARY_MESSAGE =
 const WORKFLOW_BOUNDARY_MESSAGE =
   "Fronteira: packages/workflow não importa banco, ORM, HTTP, logger nem o writer de eventos; persistência, runtime de agente, executor de processo e relógio entram por contrato (ports.ts).";
 
+const KNOWLEDGE_BOUNDARY_MESSAGE =
+  "Fronteira: packages/knowledge não importa banco, ORM, HTTP, logger, o writer de eventos nem os pacotes de runtime; persistência, advisory lock, modelo e relógio entram por contrato (ports.ts).";
+
 export default tseslint.config(
   {
     ignores: [
@@ -282,6 +285,36 @@ export default tseslint.config(
             {
               group: ["**/packages/database/**", "**/apps/**"],
               message: WORKFLOW_BOUNDARY_MESSAGE,
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // ------------------------------------------------------- packages/knowledge
+  //
+  // O Distiller decide o destino de cada candidato; quem grava linha, pega o
+  // advisory lock e chama o harness é quem implementa as portas de `ports.ts`
+  // — o Worker, com os repositórios reais e o `AgentRuntime`, ou a memória dos
+  // testes. A lista é a do workflow mais os pacotes de runtime: o Distiller
+  // só conhece o modelo pela porta `KnowledgeAgentRuntime`, e um import do
+  // `AgentRuntime` aqui amarraria os prompts a processos e a CLIs.
+  {
+    files: ["packages/knowledge/src/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex:
+                "^(@dungeon-master/(database|api-client|events|runtime|runtime-sandcastle|runtime-antigravity|workflow|platform)|drizzle-orm|drizzle-kit|pg|postgres|embedded-postgres|hono|@hono/.*|pino)($|/)",
+              message: KNOWLEDGE_BOUNDARY_MESSAGE,
+            },
+            {
+              group: ["**/packages/database/**", "**/packages/runtime*/**", "**/apps/**"],
+              message: KNOWLEDGE_BOUNDARY_MESSAGE,
             },
           ],
         },

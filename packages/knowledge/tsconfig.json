@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // O scheduler usa timers e o pacote roda em Node: builtins que o
+    // TypeScript 6 não puxa sozinho (CLAUDE.md, seção 7).
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}

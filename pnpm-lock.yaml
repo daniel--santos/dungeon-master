@@ -81,6 +81,9 @@ importers:
         specifier: 4.5.4
         version: 4.5.4
     devDependencies:
+      '@dungeon-master/knowledge':
+        specifier: workspace:*
+        version: link:../../packages/knowledge
       '@types/node':
         specifier: 26.5.0
         version: 26.5.0
@@ -226,6 +229,9 @@ importers:
       '@dungeon-master/events':
         specifier: workspace:*
         version: link:../../packages/events
+      '@dungeon-master/knowledge':
+        specifier: workspace:*
+        version: link:../../packages/knowledge
       '@dungeon-master/platform':
         specifier: workspace:*
         version: link:../../packages/platform
@@ -344,6 +350,9 @@ importers:
       '@dungeon-master/events':
         specifier: workspace:*
         version: link:../events
+      '@dungeon-master/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
       dotenv:
         specifier: 17.4.2
         version: 17.4.2
@@ -403,6 +412,25 @@ importers:
 
   packages/glossary:
     devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 5.0.0
+        version: 5.0.0(@types/node@26.5.0)(jsdom@30.0.1)(vite@8.2.2(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))
+
+  packages/knowledge:
+    dependencies:
+      '@dungeon-master/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
+    devDependencies:
+      '@types/node':
+        specifier: 26.5.0
+        version: 26.5.0
       typescript:
         specifier: 6.0.3
         version: 6.0.3

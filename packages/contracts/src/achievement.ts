@@ -164,3 +164,123 @@ export const HeroStatsResponseSchema = z
   });
 
 export type HeroStatsResponse = z.infer<typeof HeroStatsResponseSchema>;
+
+// --------------------------------------------------------------------------
+// Conquistas forjadas (Fase 2.5C, depois da Fase 6)
+// --------------------------------------------------------------------------
+
+/**
+ * A revisão de uma Conquista forjada.
+ *
+ * O Distiller propõe; o usuário aprova, renomeia ou descarta (documento
+ * técnico, questão aberta 11, decidida: sim, passa pelo Selo da Guilda). Uma
+ * forjada em `PENDING_REVIEW` ou `DISCARDED` é invisível no Hall e o projetor
+ * não a avalia; só `APPROVED` entra na projeção.
+ */
+export const ACHIEVEMENT_REVIEW_STATUS_VALUES = [
+  "PENDING_REVIEW",
+  "APPROVED",
+  "DISCARDED",
+] as const;
+
+export const AchievementReviewStatusSchema = z.enum(ACHIEVEMENT_REVIEW_STATUS_VALUES).meta({
+  id: "AchievementReviewStatus",
+  description: "Estado de revisão de uma Conquista forjada.",
+});
+
+export type AchievementReviewStatus = z.infer<typeof AchievementReviewStatusSchema>;
+
+/** O resultado notável que inspirou a forjada. Vocabulário fechado, para a tela rotular. */
+export const NOTABLE_RESULT_KIND_VALUES = [
+  "NEMESIS_DEFEATED",
+  "VICTORY_STREAK",
+  "FIRST_HARNESS_VICTORY",
+  "DURATION_RECORD",
+] as const;
+
+export const NotableResultKindSchema = z.enum(NOTABLE_RESULT_KIND_VALUES).meta({
+  id: "NotableResultKind",
+  description:
+    "Monstro reaberto derrotado, sequência de vitórias, primeira vitória de uma Guilda ou " +
+    "recorde de duração.",
+});
+
+export type NotableResultKind = z.infer<typeof NotableResultKindSchema>;
+
+export const ForgedAchievementProvenanceSchema = z
+  .object({
+    kind: NotableResultKindSchema,
+    detail: z.string().describe("O fato, em uma linha canônica, escrito pelo código."),
+    projectId: z.uuid().nullable(),
+    runId: z.uuid().nullable().describe("O Run que produziu o resultado notável."),
+    taskId: z.uuid().nullable(),
+    distillationRunId: z.uuid().nullable().describe("O lote do Distiller que propôs a forjada."),
+    harnessSessionId: z.string().nullable(),
+  })
+  .meta({ id: "ForgedAchievementProvenance", description: "De onde a forjada veio." });
+
+export type ForgedAchievementProvenance = z.infer<typeof ForgedAchievementProvenanceSchema>;
+
+export const FORGED_NAME_MAX_LENGTH = 120;
+export const FORGED_DESCRIPTION_MAX_LENGTH = 120;
+export const FORGED_FLAVOR_MAX_LENGTH = 240;
+
+/**
+ * Uma Conquista forjada pelo Distiller.
+ *
+ * Só a versão `theme` é escrita pelo modelo: texto de sabor só existe no tema
+ * (VOICE.md, seção 7), e a versão sóbria que a tabela exige vem do código, a
+ * partir do resultado notável. Todo texto passou por `escapeXmlTags` e nunca
+ * volta a um prompt.
+ */
+export const ForgedAchievementSchema = z
+  .object({
+    id: z.uuid().describe("UUIDv7 da definição gravada."),
+    reviewStatus: AchievementReviewStatusSchema,
+    name: z.string().describe("Nome no tema, escrito pelo modelo e sanitizado."),
+    description: z.string().describe("A condição cumprida e o beat de plateia, no tema."),
+    flavor: z.string().describe("O anúncio no ar, no tema."),
+    plainName: z.string().describe("A versão sóbria, escrita pelo código."),
+    plainDescription: z.string().describe("A condição, no vocabulário canônico."),
+    icon: z.string(),
+    rarity: z.enum(["COMMON", "RARE", "EPIC", "LEGENDARY"]),
+    provenance: ForgedAchievementProvenanceSchema,
+    reviewedAt: z.iso.datetime().nullable(),
+    createdAt: z.iso.datetime(),
+  })
+  .meta({ id: "ForgedAchievement", description: "Uma Conquista proposta pelo Distiller." });
+
+export type ForgedAchievement = z.infer<typeof ForgedAchievementSchema>;
+
+export const ForgedAchievementListSchema = z
+  .object({
+    items: z.array(ForgedAchievementSchema).describe("Da mais recente para a mais antiga."),
+  })
+  .meta({ id: "ForgedAchievementList", description: "As Conquistas forjadas do usuário." });
+
+export type ForgedAchievementList = z.infer<typeof ForgedAchievementListSchema>;
+
+export const ForgedAchievementListQuerySchema = z
+  .object({
+    reviewStatus: AchievementReviewStatusSchema.optional().describe(
+      "Só as neste estado. Ausente lista as em revisão.",
+    ),
+  })
+  .meta({ id: "ForgedAchievementListQuery" });
+
+export type ForgedAchievementListQuery = z.infer<typeof ForgedAchievementListQuerySchema>;
+
+export const RenameForgedAchievementSchema = z
+  .object({
+    name: z.string().trim().min(1).max(FORGED_NAME_MAX_LENGTH).optional(),
+    description: z.string().trim().min(1).max(FORGED_DESCRIPTION_MAX_LENGTH).optional(),
+    flavor: z.string().trim().min(1).max(FORGED_FLAVOR_MAX_LENGTH).optional(),
+  })
+  .meta({
+    id: "RenameForgedAchievement",
+    description:
+      "Corpo de `POST /api/v1/achievements/{id}/rename` e, opcionalmente, de `/approve`: " +
+      "o texto que o usuário reescreveu.",
+  });
+
+export type RenameForgedAchievement = z.infer<typeof RenameForgedAchievementSchema>;

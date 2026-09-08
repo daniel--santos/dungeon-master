@@ -1,7 +1,9 @@
 import type {
   ApprovalGateWriteFailure,
   DependencyWriteFailure,
+  ForgedAchievementWriteFailure,
   InboxFailure,
+  KnowledgeItemWriteFailure,
   ProposedTaskWriteFailure,
   RegistryWriteFailure,
   RunStepWriteFailure,
@@ -634,6 +636,89 @@ function descreverRecusaDeExecucao(
         "A Task depende de outras que ainda não estão COMPLETED: " +
         `${listar(rejection.blocking)}. Conclua-as ou remova a dependência.`
       );
+  }
+}
+
+/**
+ * Traduz as recusas da revisão e da edição de um item do Grimório.
+ *
+ * `KNOWLEDGE_ITEM_ALREADY_REVIEWED` é o CAS perdido: o `409` leva o item como
+ * ficou em `item`, para a interface mostrar o que já foi decidido em vez de
+ * tentar de novo.
+ */
+export function knowledgeItemFailureProblem(failure: KnowledgeItemWriteFailure): HttpProblem {
+  switch (failure.code) {
+    case "KNOWLEDGE_ITEM_ALREADY_REVIEWED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Item já revisado",
+        detail:
+          `O item já está em ${failure.item.status}` +
+          (failure.item.reviewedAt === null ? "." : `, revisado em ${failure.item.reviewedAt}.`) +
+          " Outra decisão chegou antes; nada foi sobrescrito.",
+        extensions: { item: failure.item },
+      });
+    case "KNOWLEDGE_ITEM_ARCHIVE_NOT_ALLOWED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Arquivamento não permitido",
+        detail:
+          `O item está em ${failure.status}. Arquivar exige ACTIVE e desarquivar exige ARCHIVED; ` +
+          "um item em revisão é aprovado ou recusado, não arquivado.",
+      });
+    case "KNOWLEDGE_SUMMARY_TYPE_LOCKED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "O resumo não troca de tipo",
+        detail:
+          "O SUMMARY é o resumo corrente do Project e é regenerado pelo Distiller; edite o " +
+          "texto, mas o tipo fica.",
+      });
+  }
+}
+
+/**
+ * Traduz as recusas da revisão de uma Conquista forjada.
+ *
+ * `FORGED_ALREADY_REVIEWED` é o CAS perdido, com a forjada atual em
+ * `achievement`. `NOT_FORGED` é `409`, e não `404`: a definição existe, só não
+ * é do tipo que estas rotas revisam.
+ */
+export function forgedAchievementFailureProblem(
+  failure: ForgedAchievementWriteFailure,
+): HttpProblem {
+  switch (failure.code) {
+    case "FORGED_ALREADY_REVIEWED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Conquista forjada já revisada",
+        detail:
+          `A forjada já está em ${failure.achievement.reviewStatus}` +
+          (failure.achievement.reviewedAt === null
+            ? "."
+            : `, revisada em ${failure.achievement.reviewedAt}.`) +
+          " Outra decisão chegou antes; nada foi sobrescrito.",
+        extensions: { achievement: failure.achievement },
+      });
+    case "FORGED_DISCARDED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Conquista forjada descartada",
+        detail: "Uma forjada descartada não é renomeada.",
+        extensions: { achievement: failure.achievement },
+      });
+    case "NOT_FORGED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Conquista não é forjada",
+        detail: `A definição tem origem ${failure.origin}; só uma forjada passa por revisão.`,
+      });
   }
 }
 

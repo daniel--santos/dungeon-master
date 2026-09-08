@@ -153,6 +153,12 @@ describe(`GET ${API_BASE_PATH}/settings`, () => {
 
     expect(body["ui.theme"]).toBe("dnd");
     expect(body["execution.hostAcknowledged"]).toBe(false);
+    // As quatro chaves da Fase 6, com os padrões: revisão ligada, Loadout
+    // semeado, dez minutos de timer e uma forjada a cada vinte Expedições.
+    expect(body["knowledge.humanReview"]).toBe(true);
+    expect(body["knowledge.loadoutId"]).toBeNull();
+    expect(body["knowledge.distillEveryMinutes"]).toBe(10);
+    expect(body["achievements.forgeEveryNRuns"]).toBe(20);
   });
 
   it("devolve o que está gravado por cima do padrão", async () => {
@@ -415,5 +421,41 @@ describe(`POST ${API_BASE_PATH}/events/ping`, () => {
 
     expect(response.status).toBe(404);
     expect(ProblemDetailsSchema.parse(await response.json()).status).toBe(404);
+  });
+});
+
+describe(`PUT ${API_BASE_PATH}/settings/{key} — as chaves da Fase 6`, () => {
+  async function put(key: string, value: unknown): Promise<Response> {
+    return await app.request(`${API_BASE_PATH}/settings/${key}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ value }),
+    });
+  }
+
+  /** Grava e devolve o objeto completo; uma resposta que não é 200 falha com o corpo na mensagem. */
+  async function gravar(key: string, value: unknown) {
+    const response = await put(key, value);
+    const texto = await response.text();
+    if (response.status !== 200) {
+      throw new Error(`PUT ${key} respondeu ${String(response.status)}: ${texto}`);
+    }
+    return UserSettingsSchema.parse(JSON.parse(texto));
+  }
+
+  it("grava a revisão humana, o Loadout do Escriba e o timer, e recusa valor fora do schema", async () => {
+    expect((await gravar("knowledge.humanReview", false))["knowledge.humanReview"]).toBe(false);
+
+    const comLoadout = await gravar("knowledge.loadoutId", "01996d00-0000-7000-8000-0000000000aa");
+    expect(comLoadout["knowledge.loadoutId"]).toBe("01996d00-0000-7000-8000-0000000000aa");
+    expect((await gravar("knowledge.loadoutId", null))["knowledge.loadoutId"]).toBeNull();
+
+    expect(
+      (await gravar("knowledge.distillEveryMinutes", 3))["knowledge.distillEveryMinutes"],
+    ).toBe(3);
+
+    expect((await put("knowledge.distillEveryMinutes", 0)).status).toBe(400);
+    expect((await put("achievements.forgeEveryNRuns", "vinte")).status).toBe(400);
+    expect((await put("knowledge.loadoutId", "não é uuid")).status).toBe(400);
   });
 });

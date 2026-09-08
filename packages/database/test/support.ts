@@ -118,6 +118,8 @@ export async function limparExecucao(handle: DatabaseHandle): Promise<void> {
   for (const tabela of [
     "proposed_task",
     "knowledge_candidate",
+    "knowledge_item",
+    "distillation_run",
     "approval_gate",
     "run_step",
     "workspace_lock",

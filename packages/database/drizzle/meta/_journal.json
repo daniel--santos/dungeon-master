@@ -85,6 +85,13 @@
       "when": 1788844907097,
       "tag": "0011_propostas_de_task_e_candidatos_a_conhecimento",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788870014074,
+      "tag": "0012_grimorio_distiller_e_forjadas",
+      "breakpoints": true
     }
   ]
 }

@@ -6,10 +6,17 @@ import {
   type Condition,
   type Provenance,
 } from "@dungeon-master/achievements";
-import { HERO_SCOPE_VALUES, type HeroScope } from "@dungeon-master/contracts";
+import {
+  ACHIEVEMENT_REVIEW_STATUS_VALUES,
+  HERO_SCOPE_VALUES,
+  type ForgedAchievementProvenance,
+  type HeroScope,
+} from "@dungeon-master/contracts";
+import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -50,6 +57,15 @@ export const ACHIEVEMENT_SOURCE_VALUES = ["activity", "run_event", "dashboard_ev
 export const achievementSource = pgEnum("achievement_source", ACHIEVEMENT_SOURCE_VALUES);
 
 export type AchievementSource = (typeof ACHIEVEMENT_SOURCE_VALUES)[number];
+
+/**
+ * A revisão de uma Conquista forjada (Fase 2.5C). Só existe em `FORGED`: o
+ * `CHECK` da tabela amarra a coluna à origem.
+ */
+export const achievementReviewStatus = pgEnum(
+  "achievement_review_status",
+  ACHIEVEMENT_REVIEW_STATUS_VALUES,
+);
 
 /** Herói e Equipamento acumulam a mesma coisa; o que muda é a quem ela pertence. */
 export const heroScope = pgEnum("hero_scope", HERO_SCOPE_VALUES);
@@ -110,6 +126,17 @@ export const achievementDefinitions = pgTable(
     condition: jsonb("condition").$type<Condition>().notNull(),
     provenance: jsonb("provenance").$type<Provenance>(),
     /**
+     * A revisão de uma forjada (Fase 2.5C). Nula fora de `FORGED`.
+     *
+     * Uma forjada nasce `PENDING_REVIEW` e é invisível: o projetor e o Hall só
+     * leem definições com esta coluna nula ou `APPROVED`. `DISCARDED` fica na
+     * tabela para o rate limit contar e para a proveniência não sumir.
+     */
+    reviewStatus: achievementReviewStatus("review_status"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+    /** Só numa forjada: o resultado notável, o Run e o lote que a propôs. */
+    forgedProvenance: jsonb("forged_provenance").$type<ForgedAchievementProvenance>(),
+    /**
      * A partir de quando os fatos contam para esta Conquista.
      *
      * Nulo em tudo que veio do catálogo: uma Conquista fixa vale desde sempre.
@@ -130,6 +157,10 @@ export const achievementDefinitions = pgTable(
   (table) => [
     unique("achievement_definition_natural_key_uq").on(table.userId, table.naturalKey),
     index("achievement_definition_user_origin_idx").on(table.userId, table.origin),
+    check(
+      "achievement_definition_forged_review_ck",
+      sql`("origin" = 'FORGED') = ("review_status" is not null) and ("origin" = 'FORGED') = ("forged_provenance" is not null)`,
+    ),
   ],
 );
 

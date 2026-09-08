@@ -11,9 +11,13 @@ import {
   AchievementStateSchema,
   AchievementTierSchema,
   AchievementUnlockListQuerySchema,
+  ForgedAchievementListQuerySchema,
+  ForgedAchievementListSchema,
+  ForgedAchievementSchema,
   HeroStatsResponseSchema,
   paginatedSchema,
   ProblemDetailsSchema,
+  RenameForgedAchievementSchema,
 } from "@dungeon-master/contracts";
 import { createRoute, z } from "@hono/zod-openapi";
 
@@ -304,5 +308,114 @@ export const heroStatsRoute = createRoute({
       description: "Os acumulados por Agent e por Loadout.",
       content: { "application/json": { schema: HeroStatsResponseSchema } },
     },
+  },
+});
+
+// --------------------------------------------------------------------------
+// As forjadas em revisão (Fase 2.5C, depois da Fase 6)
+// --------------------------------------------------------------------------
+
+/**
+ * O Distiller propõe; o usuário aprova, renomeia ou descarta. Uma forjada em
+ * revisão é invisível no Hall e o projetor não a avalia; aprovar grava o
+ * desbloqueio na hora, porque o resultado notável já aconteceu.
+ *
+ * `/achievements/forged` é registrada **antes** das rotas com `{id}` para o
+ * roteador não tentar casar "forged" como um id.
+ */
+
+export const ForgedAchievementIdParamSchema = z.object({
+  id: z.uuid().describe("UUIDv7 da definição forjada."),
+});
+
+export const forgedAchievementsListRoute = createRoute({
+  method: "get",
+  path: `${API_BASE_PATH}/achievements/forged`,
+  tags: ["achievements"],
+  summary: "As Conquistas forjadas",
+  description:
+    "Da mais recente para a mais antiga. Sem filtro, as em revisão: só o usuário as torna " +
+    "visíveis no Hall. O texto é do tema; a versão sóbria é escrita pelo código.",
+  request: { query: ForgedAchievementListQuerySchema },
+  responses: {
+    200: {
+      description: "As forjadas.",
+      content: { "application/json": { schema: ForgedAchievementListSchema } },
+    },
+    400: problem("Filtro inválido."),
+  },
+});
+
+export const forgedAchievementApproveRoute = createRoute({
+  method: "post",
+  path: `${API_BASE_PATH}/achievements/{id}/approve`,
+  tags: ["achievements"],
+  summary: "Aprova uma Conquista forjada",
+  description:
+    "Leva a forjada a `APPROVED` e grava o desbloqueio na mesma transação, com o instante do " +
+    "Run notável. O corpo pode trazer o texto reescrito. Decisão por CAS: se outra chegou " +
+    "antes, `409` com a forjada atual em `achievement`.",
+  request: {
+    params: ForgedAchievementIdParamSchema,
+    body: {
+      required: true,
+      content: { "application/json": { schema: RenameForgedAchievementSchema } },
+    },
+  },
+  responses: {
+    200: {
+      description: "A forjada aprovada.",
+      content: { "application/json": { schema: ForgedAchievementSchema } },
+    },
+    400: problem("Corpo inválido."),
+    404: problem("Não existe Conquista com este id."),
+    409: problem(
+      "A forjada já foi revisada (a atual vem em `achievement`), ou a definição não é forjada.",
+    ),
+  },
+});
+
+export const forgedAchievementRenameRoute = createRoute({
+  method: "post",
+  path: `${API_BASE_PATH}/achievements/{id}/rename`,
+  tags: ["achievements"],
+  summary: "Reescreve o texto de uma Conquista forjada",
+  description:
+    "Nome, descrição e fala do tema. Vale em revisão e depois de aprovada; uma descartada " +
+    "não é renomeada. A versão sóbria não muda: ela descreve a condição.",
+  request: {
+    params: ForgedAchievementIdParamSchema,
+    body: {
+      required: true,
+      content: { "application/json": { schema: RenameForgedAchievementSchema } },
+    },
+  },
+  responses: {
+    200: {
+      description: "A forjada com o texto novo.",
+      content: { "application/json": { schema: ForgedAchievementSchema } },
+    },
+    400: problem("Corpo inválido."),
+    404: problem("Não existe Conquista com este id."),
+    409: problem("A forjada foi descartada, ou a definição não é forjada."),
+  },
+});
+
+export const forgedAchievementDiscardRoute = createRoute({
+  method: "post",
+  path: `${API_BASE_PATH}/achievements/{id}/discard`,
+  tags: ["achievements"],
+  summary: "Descarta uma Conquista forjada",
+  description:
+    "O mesmo CAS da aprovação. A linha fica, como `DISCARDED`, para o rate limit das " +
+    "forjadas contar e para a proveniência não sumir.",
+  request: { params: ForgedAchievementIdParamSchema },
+  responses: {
+    200: {
+      description: "A forjada descartada.",
+      content: { "application/json": { schema: ForgedAchievementSchema } },
+    },
+    404: problem("Não existe Conquista com este id."),
+    409: problem("A forjada já foi revisada, ou a definição não é forjada."),
   },
 });

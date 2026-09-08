@@ -135,29 +135,47 @@ precisa do navegador instalado uma vez: `pnpm --filter web exec playwright insta
 | `pnpm db:seed --demo` | acrescenta a massa de demonstração; idempotente |
 | `pnpm db:check`       | verifica que schema e migrações estão em dia    |
 
+### Operação (`pnpm dm`)
+
+| Comando                                                  | O que faz                                                                                  |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `pnpm dm achievements rebuild`                           | zera a projeção de Conquistas e reprojeta tudo do início                                   |
+| `pnpm dm knowledge distill [--project <id>] [--summary]` | roda um lote do Distiller agora, com o mesmo Escriba do Worker; `--summary` força o resumo |
+| `pnpm dm knowledge status`                               | candidatos pendentes por Project, itens por estado, últimos lotes e forjadas em revisão    |
+
+O Distiller do Worker roda sozinho por ociosidade, timer (`knowledge.distillEveryMinutes` em
+Settings) e `NOTIFY`; a linha de comando existe para o operador não esperar. O `db:seed`
+semeia o Loadout "Escriba do Grimório" com o primeiro harness ligado que produz resultado
+estruturado; `knowledge.loadoutId` em Settings escolhe outro.
+
 ## Variáveis de ambiente
 
 Todas têm padrão sensato para desenvolvimento local. Os arquivos `.env.example` de
 `apps/api` e `apps/worker` listam o conjunto completo; copie para um `.env` na raiz se
 quiser mudar algo.
 
-| Variável                           | Padrão                                                       | Onde                   |
-| ---------------------------------- | ------------------------------------------------------------ | ---------------------- |
-| `DATABASE_URL`                     | `postgresql://dungeon:dungeon@127.0.0.1:5433/dungeon_master` | API, Worker, migrações |
-| `API_HOST`                         | `127.0.0.1`                                                  | API                    |
-| `API_PORT`                         | `3333`                                                       | API                    |
-| `API_REQUEST_TIMEOUT_MS`           | `0` (sem limite, por causa do SSE)                           | API                    |
-| `API_HEADERS_TIMEOUT_MS`           | `65000`                                                      | API                    |
-| `API_KEEP_ALIVE_TIMEOUT_MS`        | `61000`                                                      | API                    |
-| `WORKER_TICK_INTERVAL_MS`          | `1000`                                                       | Worker                 |
-| `WORKER_SHUTDOWN_TIMEOUT_MS`       | `30000`                                                      | Worker                 |
-| `WORKER_MAX_CONCURRENT_RUNS`       | `2`                                                          | Worker                 |
-| `WORKER_RUN_IDLE_TIMEOUT_MS`       | `600000`                                                     | Worker                 |
-| `WORKER_RUN_COMPLETION_TIMEOUT_MS` | `3600000`                                                    | Worker                 |
-| `WORKER_WORKTREES_ROOT`            | `<pai do repositório>/.dm-worktrees/<nome do repositório>`   | Worker                 |
-| `VITE_API_PROXY_TARGET`            | `http://127.0.0.1:3333`                                      | Web (dev)              |
-| `LOG_LEVEL`                        | `info`                                                       | API, Worker            |
-| `NODE_ENV`                         | `development`                                                | tudo                   |
+| Variável                                     | Padrão                                                       | Onde                   |
+| -------------------------------------------- | ------------------------------------------------------------ | ---------------------- |
+| `DATABASE_URL`                               | `postgresql://dungeon:dungeon@127.0.0.1:5433/dungeon_master` | API, Worker, migrações |
+| `API_HOST`                                   | `127.0.0.1`                                                  | API                    |
+| `API_PORT`                                   | `3333`                                                       | API                    |
+| `API_REQUEST_TIMEOUT_MS`                     | `0` (sem limite, por causa do SSE)                           | API                    |
+| `API_HEADERS_TIMEOUT_MS`                     | `65000`                                                      | API                    |
+| `API_KEEP_ALIVE_TIMEOUT_MS`                  | `61000`                                                      | API                    |
+| `WORKER_TICK_INTERVAL_MS`                    | `1000`                                                       | Worker                 |
+| `WORKER_SHUTDOWN_TIMEOUT_MS`                 | `30000`                                                      | Worker                 |
+| `WORKER_MAX_CONCURRENT_RUNS`                 | `2`                                                          | Worker                 |
+| `WORKER_RUN_IDLE_TIMEOUT_MS`                 | `600000`                                                     | Worker                 |
+| `WORKER_RUN_COMPLETION_TIMEOUT_MS`           | `3600000`                                                    | Worker                 |
+| `WORKER_WORKTREES_ROOT`                      | `<pai do repositório>/.dm-worktrees/<nome do repositório>`   | Worker                 |
+| `WORKER_DISTILLER_ENABLED`                   | `true`                                                       | Worker                 |
+| `WORKER_DISTILLER_IDLE_MS`                   | `60000`                                                      | Worker                 |
+| `WORKER_DISTILLER_LLM_IDLE_TIMEOUT_MS`       | `180000`                                                     | Worker                 |
+| `WORKER_DISTILLER_LLM_COMPLETION_TIMEOUT_MS` | `600000`                                                     | Worker                 |
+| `WORKER_DISTILLER_BATCH_SIZE`                | `20`                                                         | Worker                 |
+| `VITE_API_PROXY_TARGET`                      | `http://127.0.0.1:3333`                                      | Web (dev)              |
+| `LOG_LEVEL`                                  | `info`                                                       | API, Worker            |
+| `NODE_ENV`                                   | `development`                                                | tudo                   |
 
 Portas: **3333** API, **5173** Web, **5433** PostgreSQL de desenvolvimento.
 
