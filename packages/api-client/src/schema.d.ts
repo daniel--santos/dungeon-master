@@ -1684,7 +1684,7 @@ export interface paths {
                     /** @description Só os candidatos deste Project. */
                     projectId?: string;
                     /** @description Só os candidatos neste estado. */
-                    status?: "PENDING" | "PROMOTED" | "REJECTED";
+                    status?: "PENDING" | "PROMOTED" | "REJECTED" | "MERGED";
                     /** @description Só os candidatos desta Task. */
                     taskId?: string;
                     /** @description Só os candidatos deste Run. */
@@ -1703,6 +1703,556 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["KnowledgeCandidatePage"];
+                    };
+                };
+                /** @description Filtro ou paginação inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/knowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * O Grimório do Project
+         * @description Os itens de conhecimento do Project, do mais recente para o mais antigo. `q` faz busca textual (FTS do PostgreSQL) sobre título e conteúdo, e nesse caso a ordem é por relevância. `review=pending` é a fila de revisão humana.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                    /** @description Só os itens deste tipo. */
+                    type?: "FACT" | "DECISION" | "DISCOVERY" | "CONSTRAINT" | "PROCEDURE" | "SUMMARY";
+                    /** @description Só os itens neste estado. */
+                    status?: "PENDING_REVIEW" | "ACTIVE" | "REJECTED" | "ARCHIVED";
+                    /** @description Só os pendentes, ou só os decididos. */
+                    review?: "pending" | "reviewed";
+                    /** @description Busca textual (FTS do PostgreSQL) sobre título e conteúdo. */
+                    q?: string;
+                };
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Project. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página do Grimório. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["KnowledgeItemPage"];
+                    };
+                };
+                /** @description Filtro ou paginação inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Project com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge-items/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Um item do Grimório, com proveniência */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do KnowledgeItem. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O item. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["KnowledgeItem"];
+                    };
+                };
+                /** @description Não existe KnowledgeItem com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edita ou arquiva um item
+         * @description Título, conteúdo e tipo sobem a `version` quando mudam. `archived: true` arquiva um item `ACTIVE`; `false` desarquiva. O `SUMMARY` não troca de tipo: é regenerado pelo Distiller.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do KnowledgeItem. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateKnowledgeItem"];
+                };
+            };
+            responses: {
+                /** @description O item depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["KnowledgeItem"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe KnowledgeItem com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Arquivar exige `ACTIVE`, desarquivar exige `ARCHIVED`, e o resumo não troca de tipo. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/knowledge-items/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aprova um item em revisão
+         * @description Leva o item a `ACTIVE`. Decisão por CAS: se outra decisão chegou antes, `409` com o item atual em `item`. Na mesma transação saem `knowledge.item.reviewed` e `knowledge_item.promoted`, o fato que o projetor de Conquistas consome.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do KnowledgeItem. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ReviewKnowledgeItem"];
+                };
+            };
+            responses: {
+                /** @description O item aprovado. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["KnowledgeItem"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe KnowledgeItem com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description O item já foi revisado; o atual vem em `item`. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge-items/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recusa um item em revisão
+         * @description O mesmo CAS da aprovação. Se outra decisão chegou antes, `409` com o item atual.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do KnowledgeItem. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ReviewKnowledgeItem"];
+                };
+            };
+            responses: {
+                /** @description O item recusado. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["KnowledgeItem"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe KnowledgeItem com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description O item já foi revisado; o atual vem em `item`. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * O resumo corrente do Project
+         * @description O item `SUMMARY` regenerado pelo Distiller, ou nulo enquanto não houver um, com o número de itens que ficaram ativos depois dele.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Project. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O resumo e o seu atraso. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProjectSummary"];
+                    };
+                };
+                /** @description Não existe Project com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * As decisões do Project
+         * @description Os itens `DECISION`, com proveniência, em ordem cronológica — da mais antiga para a mais recente. Sem `status`, entram as ativas e as em revisão.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                    /** @description Só as decisões neste estado. Ausente lista `ACTIVE` e `PENDING_REVIEW`. */
+                    status?: "PENDING_REVIEW" | "ACTIVE" | "REJECTED" | "ARCHIVED";
+                };
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Project. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de decisões. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DecisionPage"];
+                    };
+                };
+                /** @description Filtro ou paginação inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Project com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/distill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pede um lote do Distiller
+         * @description Acorda o Worker pelo canal do banco e responde `202`: o lote roda lá, sob o advisory lock do Project, nunca dentro da requisição. Se o Worker estiver fora do ar, os candidatos continuam `PENDING` e saem no timer da próxima partida.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Project. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O pedido foi aceito. */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DistillationRequested"];
+                    };
+                };
+                /** @description Não existe Project com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/distillation-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Os lotes do Distiller
+         * @description Do mais recente para o mais antigo. Um lote `FAILED` traz o erro; os candidatos dele continuam `PENDING` para o lote seguinte.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                    /** @description Só os lotes deste Project. */
+                    projectId?: string;
+                    /** @description Só os lotes neste estado. */
+                    status?: "RUNNING" | "SUCCEEDED" | "FAILED";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de lotes. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DistillationRunPage"];
                     };
                 };
                 /** @description Filtro ou paginação inválidos. */
@@ -3789,6 +4339,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/achievements/forged": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * As Conquistas forjadas
+         * @description Da mais recente para a mais antiga. Sem filtro, as em revisão: só o usuário as torna visíveis no Hall. O texto é do tema; a versão sóbria é escrita pelo código.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Só as neste estado. Ausente lista as em revisão. */
+                    reviewStatus?: "PENDING_REVIEW" | "APPROVED" | "DISCARDED";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description As forjadas. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ForgedAchievementList"];
+                    };
+                };
+                /** @description Filtro inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/achievements": {
         parameters: {
             query?: never;
@@ -3987,6 +4588,212 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/achievements/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aprova uma Conquista forjada
+         * @description Leva a forjada a `APPROVED` e grava o desbloqueio na mesma transação, com o instante do Run notável. O corpo pode trazer o texto reescrito. Decisão por CAS: se outra chegou antes, `409` com a forjada atual em `achievement`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 da definição forjada. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RenameForgedAchievement"];
+                };
+            };
+            responses: {
+                /** @description A forjada aprovada. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ForgedAchievement"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Conquista com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A forjada já foi revisada (a atual vem em `achievement`), ou a definição não é forjada. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/achievements/{id}/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reescreve o texto de uma Conquista forjada
+         * @description Nome, descrição e fala do tema. Vale em revisão e depois de aprovada; uma descartada não é renomeada. A versão sóbria não muda: ela descreve a condição.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 da definição forjada. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RenameForgedAchievement"];
+                };
+            };
+            responses: {
+                /** @description A forjada com o texto novo. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ForgedAchievement"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Conquista com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A forjada foi descartada, ou a definição não é forjada. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/achievements/{id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Descarta uma Conquista forjada
+         * @description O mesmo CAS da aprovação. A linha fica, como `DISCARDED`, para o rate limit das forjadas contar e para a proveniência não sumir.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 da definição forjada. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A forjada descartada. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ForgedAchievement"];
+                    };
+                };
+                /** @description Não existe Conquista com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A forjada já foi revisada, ou a definição não é forjada. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4065,6 +4872,10 @@ export interface components {
         UserSettings: {
             "ui.theme": components["schemas"]["UiTheme"];
             "execution.hostAcknowledged": components["schemas"]["HostAcknowledged"];
+            "knowledge.humanReview": components["schemas"]["KnowledgeHumanReview"];
+            "knowledge.loadoutId": components["schemas"]["KnowledgeLoadoutId"];
+            "knowledge.distillEveryMinutes": components["schemas"]["KnowledgeDistillEveryMinutes"];
+            "achievements.forgeEveryNRuns": components["schemas"]["ForgeEveryNRuns"];
         };
         /**
          * @description Glossário ativo da interface.
@@ -4073,6 +4884,17 @@ export interface components {
         UiTheme: "dnd" | "plain";
         /** @description O usuário já aceitou explicitamente executar sem isolamento no host. */
         HostAcknowledged: boolean;
+        /** @description Os itens promovidos pelo Distiller esperam a aprovação do usuário? */
+        KnowledgeHumanReview: boolean;
+        /**
+         * Format: uuid
+         * @description Loadout usado pelo Distiller. Nulo usa o Loadout semeado do Escriba.
+         */
+        KnowledgeLoadoutId: string | null;
+        /** @description A cada quantos minutos o Distiller varre os candidatos pendentes. */
+        KnowledgeDistillEveryMinutes: number;
+        /** @description Quantas Expedições precisam terminar entre duas Conquistas forjadas. */
+        ForgeEveryNRuns: number;
         /** @description Novo valor de uma configuração. */
         UpdateUserSetting: {
             /** @description Novo valor da configuração. Validado pelo schema da chave. */
@@ -4724,9 +5546,31 @@ export interface components {
             title: string;
             /** @description O aprendizado, escrito para ser lido depois. */
             content: string;
-            /** @description Classificação livre dada pelo agente: `convention`, `gotcha`, `howto`. */
+            /** @description Classificação livre dada pelo agente: `convention`, `gotcha`, `howto`. Uma `decision` do resultado chega com `kind` = `decision`. */
             kind: string | null;
             status: components["schemas"]["KnowledgeCandidateStatus"];
+            /**
+             * @description O veredito do Distiller. Nulo enquanto `PENDING`.
+             * @enum {string|null}
+             */
+            decision: "PROMOTE" | "REJECT" | "MERGE" | null;
+            /** @description Por que o Distiller decidiu assim, em uma linha. Nulo enquanto `PENDING`. */
+            reason: string | null;
+            /**
+             * Format: uuid
+             * @description O item do Grimório que o candidato virou (`PROMOTED`) ou em que foi mesclado (`MERGED`). Nulo nos demais casos.
+             */
+            knowledgeItemId: string | null;
+            /**
+             * Format: uuid
+             * @description O lote do Distiller que decidiu. Nulo enquanto `PENDING`.
+             */
+            distillationRunId: string | null;
+            /**
+             * Format: date-time
+             * @description Quando a decisão foi gravada, em UTC. Nulo enquanto `PENDING`.
+             */
+            processedAt: string | null;
             /**
              * Format: date-time
              * @description Gravação, em UTC (ISO 8601): o instante do desfecho do Run.
@@ -4734,10 +5578,277 @@ export interface components {
             createdAt: string;
         };
         /**
-         * @description Estado de um KnowledgeCandidate no pipeline de destilação.
+         * @description Estado de um KnowledgeCandidate no pipeline de destilação. `MERGED` é a duplicata de um item que o Grimório já tinha.
          * @enum {string}
          */
-        KnowledgeCandidateStatus: "PENDING" | "PROMOTED" | "REJECTED";
+        KnowledgeCandidateStatus: "PENDING" | "PROMOTED" | "REJECTED" | "MERGED";
+        /** @description Uma página do Grimório, do item mais recente para o mais antigo (ou por relevância, com `q`). */
+        KnowledgeItemPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["KnowledgeItem"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Uma página do Grimório do Project. */
+        KnowledgeItem: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do item.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description O Project cujo Grimório contém o item.
+             */
+            projectId: string;
+            type: components["schemas"]["KnowledgeItemType"];
+            status: components["schemas"]["KnowledgeItemStatus"];
+            /** @description Título, sanitizado. */
+            title: string;
+            /** @description O conteúdo, sanitizado. Nunca volta a um prompt nesta fase. */
+            content: string;
+            provenance: components["schemas"]["KnowledgeItemProvenance"];
+            /** @description Sobe a cada edição e a cada regeneração do `SUMMARY`. */
+            version: number;
+            /**
+             * Format: date-time
+             * @description Quando o usuário aprovou ou recusou, em UTC. Nulo até a revisão.
+             */
+            reviewedAt: string | null;
+            /** @description Justificativa de quem revisou, sanitizada. */
+            reviewNote: string | null;
+            /**
+             * Format: date-time
+             * @description Quando saiu do Grimório, em UTC.
+             */
+            archivedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Gravação, em UTC (ISO 8601).
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Última escrita, em UTC (ISO 8601).
+             */
+            updatedAt: string;
+        };
+        /**
+         * @description Tipo fechado do item: fato, decisão, descoberta, restrição, procedimento ou o resumo corrente do Project.
+         * @enum {string}
+         */
+        KnowledgeItemType: "FACT" | "DECISION" | "DISCOVERY" | "CONSTRAINT" | "PROCEDURE" | "SUMMARY";
+        /**
+         * @description `PENDING_REVIEW` espera o usuário; `ACTIVE` está no Grimório; `REJECTED` foi recusado na revisão; `ARCHIVED` saiu do Grimório depois de ativo.
+         * @enum {string}
+         */
+        KnowledgeItemStatus: "PENDING_REVIEW" | "ACTIVE" | "REJECTED" | "ARCHIVED";
+        /** @description A proveniência de um item do Grimório. */
+        KnowledgeItemProvenance: {
+            /**
+             * Format: uuid
+             * @description O candidato que virou este item.
+             */
+            candidateId: string | null;
+            /**
+             * Format: uuid
+             * @description O Run cujo resultado trouxe o candidato.
+             */
+            runId: string | null;
+            /**
+             * Format: uuid
+             * @description A Task daquele Run.
+             */
+            taskId: string | null;
+            /**
+             * Format: uuid
+             * @description O lote do Distiller que escreveu o item.
+             */
+            distillationRunId: string | null;
+            /** @description Sessão do harness que escreveu o texto, quando capturada. */
+            harnessSessionId: string | null;
+            /** @description Tokens gastos pelo lote que escreveu o item. */
+            usage: {
+                /** @description Tokens de entrada não cacheados. */
+                inputTokens: number;
+                /** @description Tokens gerados. */
+                outputTokens: number;
+                /** @description Tokens de entrada servidos do cache. */
+                cacheReadInputTokens: number;
+                /** @description Tokens de entrada gravados no cache. */
+                cacheCreationInputTokens: number;
+                /** @description Custo informado pelo harness, quando existir. */
+                costUsd?: number;
+            } | null;
+            /** @description Candidatos posteriores mesclados neste item, na ordem em que chegaram. */
+            mergedCandidateIds: string[];
+            /** @description Só no `SUMMARY`: os itens ativos que a consolidação cobriu. */
+            coveredItemIds: string[];
+        };
+        /** @description Corpo de `PATCH /api/v1/knowledge-items/{id}`. */
+        UpdateKnowledgeItem: {
+            title?: string;
+            content?: string;
+            /**
+             * @description Novo tipo. `SUMMARY` não é aceito: o resumo é regenerado pelo Distiller.
+             * @enum {string}
+             */
+            type?: "FACT" | "DECISION" | "DISCOVERY" | "CONSTRAINT" | "PROCEDURE";
+            /** @description Arquiva (`true`) ou desarquiva (`false`). */
+            archived?: boolean;
+        };
+        /** @description Corpo de `POST /api/v1/knowledge-items/{id}/approve` e `/reject`. */
+        ReviewKnowledgeItem: {
+            /** @description Justificativa da decisão. Fica no item. */
+            note?: string;
+        };
+        /** @description O resumo corrente do Project e o seu atraso. */
+        ProjectSummary: {
+            /** Format: uuid */
+            projectId: string;
+            /** @description O item `SUMMARY` corrente, ou nulo. */
+            item: {
+                /**
+                 * Format: uuid
+                 * @description UUIDv7 do item.
+                 */
+                id: string;
+                /**
+                 * Format: uuid
+                 * @description O Project cujo Grimório contém o item.
+                 */
+                projectId: string;
+                type: components["schemas"]["KnowledgeItemType"];
+                status: components["schemas"]["KnowledgeItemStatus"];
+                /** @description Título, sanitizado. */
+                title: string;
+                /** @description O conteúdo, sanitizado. Nunca volta a um prompt nesta fase. */
+                content: string;
+                provenance: components["schemas"]["KnowledgeItemProvenance"];
+                /** @description Sobe a cada edição e a cada regeneração do `SUMMARY`. */
+                version: number;
+                /**
+                 * Format: date-time
+                 * @description Quando o usuário aprovou ou recusou, em UTC. Nulo até a revisão.
+                 */
+                reviewedAt: string | null;
+                /** @description Justificativa de quem revisou, sanitizada. */
+                reviewNote: string | null;
+                /**
+                 * Format: date-time
+                 * @description Quando saiu do Grimório, em UTC.
+                 */
+                archivedAt: string | null;
+                /**
+                 * Format: date-time
+                 * @description Gravação, em UTC (ISO 8601).
+                 */
+                createdAt: string;
+                /**
+                 * Format: date-time
+                 * @description Última escrita, em UTC (ISO 8601).
+                 */
+                updatedAt: string;
+            } | null;
+            /** @description Itens `ACTIVE` do Grimório, sem contar o próprio resumo. */
+            activeItemCount: number;
+            /** @description Itens que ficaram ativos depois da última regeneração do resumo. */
+            promotedSinceSummary: number;
+        };
+        /** @description As decisões do Project em ordem cronológica: da mais antiga para a mais recente. */
+        DecisionPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["KnowledgeItem"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description O pedido de um lote foi aceito; o Worker o executa de forma assíncrona. */
+        DistillationRequested: {
+            /** Format: uuid */
+            projectId: string;
+            pendingCandidates: number;
+            /** Format: date-time */
+            requestedAt: string;
+        };
+        /** @description Uma página de lotes, do mais recente para o mais antigo. */
+        DistillationRunPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["DistillationRun"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Um lote do Distiller sobre um Project. */
+        DistillationRun: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do lote.
+             */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            status: components["schemas"]["DistillationRunStatus"];
+            trigger: components["schemas"]["DistillationTrigger"];
+            /**
+             * Format: uuid
+             * @description O Loadout do Escriba usado. Nulo quando o lote falhou antes de escolher um.
+             */
+            loadoutId: string | null;
+            /** @description Sessão do harness da chamada de destilação, quando capturada. */
+            harnessSessionId: string | null;
+            /** @description Tokens somados das chamadas do lote. */
+            usage: {
+                /** @description Tokens de entrada não cacheados. */
+                inputTokens: number;
+                /** @description Tokens gerados. */
+                outputTokens: number;
+                /** @description Tokens de entrada servidos do cache. */
+                cacheReadInputTokens: number;
+                /** @description Tokens de entrada gravados no cache. */
+                cacheCreationInputTokens: number;
+                /** @description Custo informado pelo harness, quando existir. */
+                costUsd?: number;
+            } | null;
+            /** @description Candidatos que o lote pegou. */
+            candidateCount: number;
+            promoted: number;
+            rejected: number;
+            merged: number;
+            /** @description O `SUMMARY` do Project foi regenerado neste lote? */
+            summaryRegenerated: boolean;
+            /**
+             * Format: uuid
+             * @description A Conquista forjada que o lote propôs, quando houve resultado notável.
+             */
+            forgedAchievementId: string | null;
+            /** @description Por que o lote falhou, sanitizado. Nulo em `RUNNING` e `SUCCEEDED`. */
+            error: string | null;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            finishedAt: string | null;
+        };
+        /**
+         * @description Estado de um lote do Distiller.
+         * @enum {string}
+         */
+        DistillationRunStatus: "RUNNING" | "SUCCEEDED" | "FAILED";
+        /**
+         * @description `TIMER` é o intervalo de `knowledge.distillEveryMinutes`; `IDLE` é a ociosidade depois do último candidato; `NOTIFY` é um pedido explícito que chegou pelo canal do banco; `MANUAL` é a API ou a linha de comando.
+         * @enum {string}
+         */
+        DistillationTrigger: "TIMER" | "IDLE" | "NOTIFY" | "MANUAL";
         /** @description O cadastro fechado de Harnesses. */
         HarnessList: {
             /** @description Os Harnesses conhecidos, na ordem do catálogo. */
@@ -6488,6 +7599,69 @@ export interface components {
             /** @description A mensagem do schema. */
             message: string;
         };
+        /** @description As Conquistas forjadas do usuário. */
+        ForgedAchievementList: {
+            /** @description Da mais recente para a mais antiga. */
+            items: components["schemas"]["ForgedAchievement"][];
+        };
+        /** @description Uma Conquista proposta pelo Distiller. */
+        ForgedAchievement: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da definição gravada.
+             */
+            id: string;
+            reviewStatus: components["schemas"]["AchievementReviewStatus"];
+            /** @description Nome no tema, escrito pelo modelo e sanitizado. */
+            name: string;
+            /** @description A condição cumprida e o beat de plateia, no tema. */
+            description: string;
+            /** @description O anúncio no ar, no tema. */
+            flavor: string;
+            /** @description A versão sóbria, escrita pelo código. */
+            plainName: string;
+            /** @description A condição, no vocabulário canônico. */
+            plainDescription: string;
+            icon: string;
+            /** @enum {string} */
+            rarity: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
+            provenance: components["schemas"]["ForgedAchievementProvenance"];
+            /** Format: date-time */
+            reviewedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /**
+         * @description Estado de revisão de uma Conquista forjada.
+         * @enum {string}
+         */
+        AchievementReviewStatus: "PENDING_REVIEW" | "APPROVED" | "DISCARDED";
+        /** @description De onde a forjada veio. */
+        ForgedAchievementProvenance: {
+            kind: components["schemas"]["NotableResultKind"];
+            /** @description O fato, em uma linha canônica, escrito pelo código. */
+            detail: string;
+            /** Format: uuid */
+            projectId: string | null;
+            /**
+             * Format: uuid
+             * @description O Run que produziu o resultado notável.
+             */
+            runId: string | null;
+            /** Format: uuid */
+            taskId: string | null;
+            /**
+             * Format: uuid
+             * @description O lote do Distiller que propôs a forjada.
+             */
+            distillationRunId: string | null;
+            harnessSessionId: string | null;
+        };
+        /**
+         * @description Monstro reaberto derrotado, sequência de vitórias, primeira vitória de uma Guilda ou recorde de duração.
+         * @enum {string}
+         */
+        NotableResultKind: "NEMESIS_DEFEATED" | "VICTORY_STREAK" | "FIRST_HARNESS_VICTORY" | "DURATION_RECORD";
         /** @description As Conquistas do usuário e a contagem por estado, sempre sobre o total. */
         AchievementListResponse: {
             /** @description As Conquistas que casam com o filtro. */
@@ -6668,6 +7842,12 @@ export interface components {
             tokens: number;
             /** @description Harness mais usado. Empate desfeito pela ordem alfabética. */
             topHarness: string | null;
+        };
+        /** @description Corpo de `POST /api/v1/achievements/{id}/rename` e, opcionalmente, de `/approve`: o texto que o usuário reescreveu. */
+        RenameForgedAchievement: {
+            name?: string;
+            description?: string;
+            flavor?: string;
         };
     };
     responses: never;

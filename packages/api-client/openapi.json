@@ -62,11 +62,11 @@
     },
     {
       "name": "knowledge",
-      "description": "KnowledgeCandidates: o que os Runs aprenderam, à espera da destilação."
+      "description": "O Grimório: candidatos, itens de conhecimento com revisão humana, o resumo e as decisões do Project, e os lotes do Distiller."
     },
     {
       "name": "achievements",
-      "description": "O catálogo versionado de Conquistas."
+      "description": "O catálogo versionado de Conquistas, a projeção de progresso e as forjadas em revisão."
     }
   ],
   "components": {
@@ -259,11 +259,27 @@
           },
           "execution.hostAcknowledged": {
             "$ref": "#/components/schemas/HostAcknowledged"
+          },
+          "knowledge.humanReview": {
+            "$ref": "#/components/schemas/KnowledgeHumanReview"
+          },
+          "knowledge.loadoutId": {
+            "$ref": "#/components/schemas/KnowledgeLoadoutId"
+          },
+          "knowledge.distillEveryMinutes": {
+            "$ref": "#/components/schemas/KnowledgeDistillEveryMinutes"
+          },
+          "achievements.forgeEveryNRuns": {
+            "$ref": "#/components/schemas/ForgeEveryNRuns"
           }
         },
         "required": [
           "ui.theme",
-          "execution.hostAcknowledged"
+          "execution.hostAcknowledged",
+          "knowledge.humanReview",
+          "knowledge.loadoutId",
+          "knowledge.distillEveryMinutes",
+          "achievements.forgeEveryNRuns"
         ],
         "description": "Configurações do usuário com os padrões já aplicados."
       },
@@ -278,6 +294,30 @@
       "HostAcknowledged": {
         "type": "boolean",
         "description": "O usuário já aceitou explicitamente executar sem isolamento no host."
+      },
+      "KnowledgeHumanReview": {
+        "type": "boolean",
+        "description": "Os itens promovidos pelo Distiller esperam a aprovação do usuário?"
+      },
+      "KnowledgeLoadoutId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "uuid",
+        "description": "Loadout usado pelo Distiller. Nulo usa o Loadout semeado do Escriba."
+      },
+      "KnowledgeDistillEveryMinutes": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1440,
+        "description": "A cada quantos minutos o Distiller varre os candidatos pendentes."
+      },
+      "ForgeEveryNRuns": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10000,
+        "description": "Quantas Expedições precisam terminar entre duas Conquistas forjadas."
       },
       "UpdateUserSetting": {
         "type": "object",
@@ -1749,10 +1789,54 @@
               "string",
               "null"
             ],
-            "description": "Classificação livre dada pelo agente: `convention`, `gotcha`, `howto`."
+            "description": "Classificação livre dada pelo agente: `convention`, `gotcha`, `howto`. Uma `decision` do resultado chega com `kind` = `decision`."
           },
           "status": {
             "$ref": "#/components/schemas/KnowledgeCandidateStatus"
+          },
+          "decision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PROMOTE",
+              "REJECT",
+              "MERGE",
+              null
+            ],
+            "description": "O veredito do Distiller. Nulo enquanto `PENDING`."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Por que o Distiller decidiu assim, em uma linha. Nulo enquanto `PENDING`."
+          },
+          "knowledgeItemId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "O item do Grimório que o candidato virou (`PROMOTED`) ou em que foi mesclado (`MERGED`). Nulo nos demais casos."
+          },
+          "distillationRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "O lote do Distiller que decidiu. Nulo enquanto `PENDING`."
+          },
+          "processedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Quando a decisão foi gravada, em UTC. Nulo enquanto `PENDING`."
           },
           "createdAt": {
             "type": "string",
@@ -1769,6 +1853,11 @@
           "content",
           "kind",
           "status",
+          "decision",
+          "reason",
+          "knowledgeItemId",
+          "distillationRunId",
+          "processedAt",
           "createdAt"
         ],
         "description": "Um candidato a item de conhecimento do Project."
@@ -1778,9 +1867,671 @@
         "enum": [
           "PENDING",
           "PROMOTED",
-          "REJECTED"
+          "REJECTED",
+          "MERGED"
         ],
-        "description": "Estado de um KnowledgeCandidate no pipeline de destilação."
+        "description": "Estado de um KnowledgeCandidate no pipeline de destilação. `MERGED` é a duplicata de um item que o Grimório já tinha."
+      },
+      "KnowledgeItemPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeItem"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página do Grimório, do item mais recente para o mais antigo (ou por relevância, com `q`)."
+      },
+      "KnowledgeItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do item."
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "O Project cujo Grimório contém o item."
+          },
+          "type": {
+            "$ref": "#/components/schemas/KnowledgeItemType"
+          },
+          "status": {
+            "$ref": "#/components/schemas/KnowledgeItemStatus"
+          },
+          "title": {
+            "type": "string",
+            "description": "Título, sanitizado."
+          },
+          "content": {
+            "type": "string",
+            "description": "O conteúdo, sanitizado. Nunca volta a um prompt nesta fase."
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/KnowledgeItemProvenance"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Sobe a cada edição e a cada regeneração do `SUMMARY`."
+          },
+          "reviewedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Quando o usuário aprovou ou recusou, em UTC. Nulo até a revisão."
+          },
+          "reviewNote": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Justificativa de quem revisou, sanitizada."
+          },
+          "archivedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Quando saiu do Grimório, em UTC."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Gravação, em UTC (ISO 8601)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Última escrita, em UTC (ISO 8601)."
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "type",
+          "status",
+          "title",
+          "content",
+          "provenance",
+          "version",
+          "reviewedAt",
+          "reviewNote",
+          "archivedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Uma página do Grimório do Project."
+      },
+      "KnowledgeItemType": {
+        "type": "string",
+        "enum": [
+          "FACT",
+          "DECISION",
+          "DISCOVERY",
+          "CONSTRAINT",
+          "PROCEDURE",
+          "SUMMARY"
+        ],
+        "description": "Tipo fechado do item: fato, decisão, descoberta, restrição, procedimento ou o resumo corrente do Project."
+      },
+      "KnowledgeItemStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING_REVIEW",
+          "ACTIVE",
+          "REJECTED",
+          "ARCHIVED"
+        ],
+        "description": "`PENDING_REVIEW` espera o usuário; `ACTIVE` está no Grimório; `REJECTED` foi recusado na revisão; `ARCHIVED` saiu do Grimório depois de ativo."
+      },
+      "KnowledgeItemProvenance": {
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "O candidato que virou este item."
+          },
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "O Run cujo resultado trouxe o candidato."
+          },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "A Task daquele Run."
+          },
+          "distillationRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "O lote do Distiller que escreveu o item."
+          },
+          "harnessSessionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Sessão do harness que escreveu o texto, quando capturada."
+          },
+          "usage": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "inputTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Tokens de entrada não cacheados."
+              },
+              "outputTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Tokens gerados."
+              },
+              "cacheReadInputTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Tokens de entrada servidos do cache."
+              },
+              "cacheCreationInputTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Tokens de entrada gravados no cache."
+              },
+              "costUsd": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Custo informado pelo harness, quando existir."
+              }
+            },
+            "required": [
+              "inputTokens",
+              "outputTokens",
+              "cacheReadInputTokens",
+              "cacheCreationInputTokens"
+            ],
+            "description": "Tokens gastos pelo lote que escreveu o item."
+          },
+          "mergedCandidateIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Candidatos posteriores mesclados neste item, na ordem em que chegaram."
+          },
+          "coveredItemIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Só no `SUMMARY`: os itens ativos que a consolidação cobriu."
+          }
+        },
+        "required": [
+          "candidateId",
+          "runId",
+          "taskId",
+          "distillationRunId",
+          "harnessSessionId",
+          "usage",
+          "mergedCandidateIds",
+          "coveredItemIds"
+        ],
+        "description": "A proveniência de um item do Grimório."
+      },
+      "UpdateKnowledgeItem": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "FACT",
+              "DECISION",
+              "DISCOVERY",
+              "CONSTRAINT",
+              "PROCEDURE"
+            ],
+            "description": "Novo tipo. `SUMMARY` não é aceito: o resumo é regenerado pelo Distiller."
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Arquiva (`true`) ou desarquiva (`false`)."
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/knowledge-items/{id}`."
+      },
+      "ReviewKnowledgeItem": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 5000,
+            "description": "Justificativa da decisão. Fica no item."
+          }
+        },
+        "description": "Corpo de `POST /api/v1/knowledge-items/{id}/approve` e `/reject`."
+      },
+      "ProjectSummary": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "item": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "UUIDv7 do item."
+              },
+              "projectId": {
+                "type": "string",
+                "format": "uuid",
+                "description": "O Project cujo Grimório contém o item."
+              },
+              "type": {
+                "$ref": "#/components/schemas/KnowledgeItemType"
+              },
+              "status": {
+                "$ref": "#/components/schemas/KnowledgeItemStatus"
+              },
+              "title": {
+                "type": "string",
+                "description": "Título, sanitizado."
+              },
+              "content": {
+                "type": "string",
+                "description": "O conteúdo, sanitizado. Nunca volta a um prompt nesta fase."
+              },
+              "provenance": {
+                "$ref": "#/components/schemas/KnowledgeItemProvenance"
+              },
+              "version": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "description": "Sobe a cada edição e a cada regeneração do `SUMMARY`."
+              },
+              "reviewedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "description": "Quando o usuário aprovou ou recusou, em UTC. Nulo até a revisão."
+              },
+              "reviewNote": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Justificativa de quem revisou, sanitizada."
+              },
+              "archivedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "description": "Quando saiu do Grimório, em UTC."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Gravação, em UTC (ISO 8601)."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Última escrita, em UTC (ISO 8601)."
+              }
+            },
+            "required": [
+              "id",
+              "projectId",
+              "type",
+              "status",
+              "title",
+              "content",
+              "provenance",
+              "version",
+              "reviewedAt",
+              "reviewNote",
+              "archivedAt",
+              "createdAt",
+              "updatedAt"
+            ],
+            "description": "O item `SUMMARY` corrente, ou nulo."
+          },
+          "activeItemCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Itens `ACTIVE` do Grimório, sem contar o próprio resumo."
+          },
+          "promotedSinceSummary": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Itens que ficaram ativos depois da última regeneração do resumo."
+          }
+        },
+        "required": [
+          "projectId",
+          "item",
+          "activeItemCount",
+          "promotedSinceSummary"
+        ],
+        "description": "O resumo corrente do Project e o seu atraso."
+      },
+      "DecisionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeItem"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "As decisões do Project em ordem cronológica: da mais antiga para a mais recente."
+      },
+      "DistillationRequested": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "pendingCandidates": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "projectId",
+          "pendingCandidates",
+          "requestedAt"
+        ],
+        "description": "O pedido de um lote foi aceito; o Worker o executa de forma assíncrona."
+      },
+      "DistillationRunPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistillationRun"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de lotes, do mais recente para o mais antigo."
+      },
+      "DistillationRun": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do lote."
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DistillationRunStatus"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/DistillationTrigger"
+          },
+          "loadoutId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "O Loadout do Escriba usado. Nulo quando o lote falhou antes de escolher um."
+          },
+          "harnessSessionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Sessão do harness da chamada de destilação, quando capturada."
+          },
+          "usage": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "inputTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Tokens de entrada não cacheados."
+              },
+              "outputTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Tokens gerados."
+              },
+              "cacheReadInputTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Tokens de entrada servidos do cache."
+              },
+              "cacheCreationInputTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Tokens de entrada gravados no cache."
+              },
+              "costUsd": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Custo informado pelo harness, quando existir."
+              }
+            },
+            "required": [
+              "inputTokens",
+              "outputTokens",
+              "cacheReadInputTokens",
+              "cacheCreationInputTokens"
+            ],
+            "description": "Tokens somados das chamadas do lote."
+          },
+          "candidateCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Candidatos que o lote pegou."
+          },
+          "promoted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rejected": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "merged": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "summaryRegenerated": {
+            "type": "boolean",
+            "description": "O `SUMMARY` do Project foi regenerado neste lote?"
+          },
+          "forgedAchievementId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "A Conquista forjada que o lote propôs, quando houve resultado notável."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Por que o lote falhou, sanitizado. Nulo em `RUNNING` e `SUCCEEDED`."
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "status",
+          "trigger",
+          "loadoutId",
+          "harnessSessionId",
+          "usage",
+          "candidateCount",
+          "promoted",
+          "rejected",
+          "merged",
+          "summaryRegenerated",
+          "forgedAchievementId",
+          "error",
+          "startedAt",
+          "finishedAt"
+        ],
+        "description": "Um lote do Distiller sobre um Project."
+      },
+      "DistillationRunStatus": {
+        "type": "string",
+        "enum": [
+          "RUNNING",
+          "SUCCEEDED",
+          "FAILED"
+        ],
+        "description": "Estado de um lote do Distiller."
+      },
+      "DistillationTrigger": {
+        "type": "string",
+        "enum": [
+          "TIMER",
+          "IDLE",
+          "NOTIFY",
+          "MANUAL"
+        ],
+        "description": "`TIMER` é o intervalo de `knowledge.distillEveryMinutes`; `IDLE` é a ociosidade depois do último candidato; `NOTIFY` é um pedido explícito que chegou pelo canal do banco; `MANUAL` é a API ou a linha de comando."
       },
       "HarnessList": {
         "type": "object",
@@ -7064,6 +7815,173 @@
         ],
         "description": "Um problema de validação do catálogo."
       },
+      "ForgedAchievementList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ForgedAchievement"
+            },
+            "description": "Da mais recente para a mais antiga."
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "As Conquistas forjadas do usuário."
+      },
+      "ForgedAchievement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da definição gravada."
+          },
+          "reviewStatus": {
+            "$ref": "#/components/schemas/AchievementReviewStatus"
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome no tema, escrito pelo modelo e sanitizado."
+          },
+          "description": {
+            "type": "string",
+            "description": "A condição cumprida e o beat de plateia, no tema."
+          },
+          "flavor": {
+            "type": "string",
+            "description": "O anúncio no ar, no tema."
+          },
+          "plainName": {
+            "type": "string",
+            "description": "A versão sóbria, escrita pelo código."
+          },
+          "plainDescription": {
+            "type": "string",
+            "description": "A condição, no vocabulário canônico."
+          },
+          "icon": {
+            "type": "string"
+          },
+          "rarity": {
+            "type": "string",
+            "enum": [
+              "COMMON",
+              "RARE",
+              "EPIC",
+              "LEGENDARY"
+            ]
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ForgedAchievementProvenance"
+          },
+          "reviewedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "reviewStatus",
+          "name",
+          "description",
+          "flavor",
+          "plainName",
+          "plainDescription",
+          "icon",
+          "rarity",
+          "provenance",
+          "reviewedAt",
+          "createdAt"
+        ],
+        "description": "Uma Conquista proposta pelo Distiller."
+      },
+      "AchievementReviewStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING_REVIEW",
+          "APPROVED",
+          "DISCARDED"
+        ],
+        "description": "Estado de revisão de uma Conquista forjada."
+      },
+      "ForgedAchievementProvenance": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/NotableResultKind"
+          },
+          "detail": {
+            "type": "string",
+            "description": "O fato, em uma linha canônica, escrito pelo código."
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "O Run que produziu o resultado notável."
+          },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "distillationRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "O lote do Distiller que propôs a forjada."
+          },
+          "harnessSessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "detail",
+          "projectId",
+          "runId",
+          "taskId",
+          "distillationRunId",
+          "harnessSessionId"
+        ],
+        "description": "De onde a forjada veio."
+      },
+      "NotableResultKind": {
+        "type": "string",
+        "enum": [
+          "NEMESIS_DEFEATED",
+          "VICTORY_STREAK",
+          "FIRST_HARNESS_VICTORY",
+          "DURATION_RECORD"
+        ],
+        "description": "Monstro reaberto derrotado, sequência de vitórias, primeira vitória de uma Guilda ou recorde de duração."
+      },
       "AchievementListResponse": {
         "type": "object",
         "properties": {
@@ -7576,6 +8494,27 @@
           "topHarness"
         ],
         "description": "O acumulado de um Agent ou de um Loadout."
+      },
+      "RenameForgedAchievement": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "flavor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          }
+        },
+        "description": "Corpo de `POST /api/v1/achievements/{id}/rename` e, opcionalmente, de `/approve`: o texto que o usuário reescreveu."
       }
     },
     "parameters": {}
@@ -9425,7 +10364,8 @@
               "enum": [
                 "PENDING",
                 "PROMOTED",
-                "REJECTED"
+                "REJECTED",
+                "MERGED"
               ],
               "description": "Só os candidatos neste estado."
             },
@@ -9464,6 +10404,666 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/KnowledgeCandidatePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/knowledge": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "O Grimório do Project",
+        "description": "Os itens de conhecimento do Project, do mais recente para o mais antigo. `q` faz busca textual (FTS do PostgreSQL) sobre título e conteúdo, e nesse caso a ordem é por relevância. `review=pending` é a fila de revisão humana.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Project."
+            },
+            "required": true,
+            "description": "UUIDv7 do Project.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FACT",
+                "DECISION",
+                "DISCOVERY",
+                "CONSTRAINT",
+                "PROCEDURE",
+                "SUMMARY"
+              ],
+              "description": "Só os itens deste tipo."
+            },
+            "required": false,
+            "description": "Só os itens deste tipo.",
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING_REVIEW",
+                "ACTIVE",
+                "REJECTED",
+                "ARCHIVED"
+              ],
+              "description": "Só os itens neste estado."
+            },
+            "required": false,
+            "description": "Só os itens neste estado.",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "reviewed"
+              ],
+              "description": "Só os pendentes, ou só os decididos."
+            },
+            "required": false,
+            "description": "Só os pendentes, ou só os decididos.",
+            "name": "review",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Busca textual (FTS do PostgreSQL) sobre título e conteúdo."
+            },
+            "required": false,
+            "description": "Busca textual (FTS do PostgreSQL) sobre título e conteúdo.",
+            "name": "q",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página do Grimório.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeItemPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Project com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge-items/{id}": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Um item do Grimório, com proveniência",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do KnowledgeItem."
+            },
+            "required": true,
+            "description": "UUIDv7 do KnowledgeItem.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O item.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe KnowledgeItem com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Edita ou arquiva um item",
+        "description": "Título, conteúdo e tipo sobem a `version` quando mudam. `archived: true` arquiva um item `ACTIVE`; `false` desarquiva. O `SUMMARY` não troca de tipo: é regenerado pelo Distiller.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do KnowledgeItem."
+            },
+            "required": true,
+            "description": "UUIDv7 do KnowledgeItem.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateKnowledgeItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O item depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe KnowledgeItem com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Arquivar exige `ACTIVE`, desarquivar exige `ARCHIVED`, e o resumo não troca de tipo.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge-items/{id}/approve": {
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Aprova um item em revisão",
+        "description": "Leva o item a `ACTIVE`. Decisão por CAS: se outra decisão chegou antes, `409` com o item atual em `item`. Na mesma transação saem `knowledge.item.reviewed` e `knowledge_item.promoted`, o fato que o projetor de Conquistas consome.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do KnowledgeItem."
+            },
+            "required": true,
+            "description": "UUIDv7 do KnowledgeItem.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewKnowledgeItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O item aprovado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe KnowledgeItem com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "O item já foi revisado; o atual vem em `item`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge-items/{id}/reject": {
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Recusa um item em revisão",
+        "description": "O mesmo CAS da aprovação. Se outra decisão chegou antes, `409` com o item atual.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do KnowledgeItem."
+            },
+            "required": true,
+            "description": "UUIDv7 do KnowledgeItem.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewKnowledgeItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O item recusado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe KnowledgeItem com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "O item já foi revisado; o atual vem em `item`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/summary": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "O resumo corrente do Project",
+        "description": "O item `SUMMARY` regenerado pelo Distiller, ou nulo enquanto não houver um, com o número de itens que ficaram ativos depois dele.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Project."
+            },
+            "required": true,
+            "description": "UUIDv7 do Project.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O resumo e o seu atraso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Project com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/decisions": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "As decisões do Project",
+        "description": "Os itens `DECISION`, com proveniência, em ordem cronológica — da mais antiga para a mais recente. Sem `status`, entram as ativas e as em revisão.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Project."
+            },
+            "required": true,
+            "description": "UUIDv7 do Project.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING_REVIEW",
+                "ACTIVE",
+                "REJECTED",
+                "ARCHIVED"
+              ],
+              "description": "Só as decisões neste estado. Ausente lista `ACTIVE` e `PENDING_REVIEW`."
+            },
+            "required": false,
+            "description": "Só as decisões neste estado. Ausente lista `ACTIVE` e `PENDING_REVIEW`.",
+            "name": "status",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de decisões.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Project com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/distill": {
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Pede um lote do Distiller",
+        "description": "Acorda o Worker pelo canal do banco e responde `202`: o lote roda lá, sob o advisory lock do Project, nunca dentro da requisição. Se o Worker estiver fora do ar, os candidatos continuam `PENDING` e saem no timer da próxima partida.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Project."
+            },
+            "required": true,
+            "description": "UUIDv7 do Project.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "O pedido foi aceito.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DistillationRequested"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Project com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/distillation-runs": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Os lotes do Distiller",
+        "description": "Do mais recente para o mais antigo. Um lote `FAILED` traz o erro; os candidatos dele continuam `PENDING` para o lote seguinte.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só os lotes deste Project."
+            },
+            "required": false,
+            "description": "Só os lotes deste Project.",
+            "name": "projectId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "RUNNING",
+                "SUCCEEDED",
+                "FAILED"
+              ],
+              "description": "Só os lotes neste estado."
+            },
+            "required": false,
+            "description": "Só os lotes neste estado.",
+            "name": "status",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de lotes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DistillationRunPage"
                 }
               }
             }
@@ -11607,6 +13207,54 @@
         }
       }
     },
+    "/api/v1/achievements/forged": {
+      "get": {
+        "tags": [
+          "achievements"
+        ],
+        "summary": "As Conquistas forjadas",
+        "description": "Da mais recente para a mais antiga. Sem filtro, as em revisão: só o usuário as torna visíveis no Hall. O texto é do tema; a versão sóbria é escrita pelo código.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING_REVIEW",
+                "APPROVED",
+                "DISCARDED"
+              ],
+              "description": "Só as neste estado. Ausente lista as em revisão."
+            },
+            "required": false,
+            "description": "Só as neste estado. Ausente lista as em revisão.",
+            "name": "reviewStatus",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "As forjadas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForgedAchievementList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/achievements": {
       "get": {
         "tags": [
@@ -11800,6 +13448,208 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HeroStatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/achievements/{id}/approve": {
+      "post": {
+        "tags": [
+          "achievements"
+        ],
+        "summary": "Aprova uma Conquista forjada",
+        "description": "Leva a forjada a `APPROVED` e grava o desbloqueio na mesma transação, com o instante do Run notável. O corpo pode trazer o texto reescrito. Decisão por CAS: se outra chegou antes, `409` com a forjada atual em `achievement`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da definição forjada."
+            },
+            "required": true,
+            "description": "UUIDv7 da definição forjada.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameForgedAchievement"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A forjada aprovada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForgedAchievement"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Conquista com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A forjada já foi revisada (a atual vem em `achievement`), ou a definição não é forjada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/achievements/{id}/rename": {
+      "post": {
+        "tags": [
+          "achievements"
+        ],
+        "summary": "Reescreve o texto de uma Conquista forjada",
+        "description": "Nome, descrição e fala do tema. Vale em revisão e depois de aprovada; uma descartada não é renomeada. A versão sóbria não muda: ela descreve a condição.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da definição forjada."
+            },
+            "required": true,
+            "description": "UUIDv7 da definição forjada.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameForgedAchievement"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A forjada com o texto novo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForgedAchievement"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Conquista com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A forjada foi descartada, ou a definição não é forjada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/achievements/{id}/discard": {
+      "post": {
+        "tags": [
+          "achievements"
+        ],
+        "summary": "Descarta uma Conquista forjada",
+        "description": "O mesmo CAS da aprovação. A linha fica, como `DISCARDED`, para o rate limit das forjadas contar e para a proveniência não sumir.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da definição forjada."
+            },
+            "required": true,
+            "description": "UUIDv7 da definição forjada.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A forjada descartada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForgedAchievement"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Conquista com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A forjada já foi revisada, ou a definição não é forjada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
