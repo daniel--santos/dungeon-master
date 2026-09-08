@@ -19,8 +19,7 @@ import { ACTIVITY_TYPE_VALUES } from "./activity.js";
  * Tipos de evento que o sistema emite hoje.
  *
  * O enum é fechado no **lado de quem escreve**: `appendDashboardEvent` só
- * aceita um destes. Reservados para as fases seguintes, sem entrar ainda:
- * `achievement.unlocked` e `hero_stats.updated` (planejamento v0.4, Fase 2.5).
+ * aceita um destes.
  *
  * Os tipos de domínio são exatamente os de `ActivityType`, reaproveitados em
  * vez de reescritos: cada mudança de Project ou de Task grava uma linha de
@@ -58,11 +57,32 @@ export const RegistryEventTypeSchema = z.enum(REGISTRY_EVENT_TYPE_VALUES).meta({
 
 export type RegistryEventType = z.infer<typeof RegistryEventTypeSchema>;
 
+/**
+ * O que o projetor de Conquistas emite (planejamento v0.4, Fase 2.5B).
+ *
+ * Ficam fora de `ActivityType` porque não são fatos de um Project: são
+ * projeção. Os dois saem na **mesma transação** do desbloqueio, e é isso que
+ * garante que a tela nunca receba um toast de uma Conquista que o banco não
+ * tem.
+ */
+export const ACHIEVEMENT_EVENT_TYPE_VALUES = [
+  "achievement.unlocked",
+  "hero_stats.updated",
+] as const;
+
+export const AchievementEventTypeSchema = z.enum(ACHIEVEMENT_EVENT_TYPE_VALUES).meta({
+  id: "AchievementEventType",
+  description: "Eventos de projeção das Conquistas: desbloqueio e estatísticas de Herói.",
+});
+
+export type AchievementEventType = z.infer<typeof AchievementEventTypeSchema>;
+
 export const DASHBOARD_EVENT_TYPE_VALUES = [
   "system.ping",
   "settings.changed",
   ...ACTIVITY_TYPE_VALUES,
   ...REGISTRY_EVENT_TYPE_VALUES,
+  ...ACHIEVEMENT_EVENT_TYPE_VALUES,
 ] as const;
 
 export const DashboardEventTypeSchema = z

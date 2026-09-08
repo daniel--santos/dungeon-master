@@ -33,7 +33,7 @@ import type {
   WorkspaceManager,
   WorktreeHandle,
 } from "@dungeon-master/runtime";
-import { PERMISSION_DENIED_DIAGNOSTIC_CODE } from "@dungeon-master/runtime";
+import { GitCommandError, PERMISSION_DENIED_DIAGNOSTIC_CODE } from "@dungeon-master/runtime";
 
 import type { Logger } from "./logger.js";
 import { resolveRunPolicies } from "./policy.js";
@@ -533,15 +533,30 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
     let commits: readonly CommitRef[] = [];
     let changes: readonly WorkspaceChange[] = [];
     if (worktree !== undefined) {
+      // As duas leituras falham em silêncio para não derrubar um Run que já
+      // terminou, mas silêncio no log do worker é invisível: no CI o aviso não
+      // aparece, e um `result.commits` ausente ficou sem explicação por uma
+      // rodada inteira. O `Diagnostic` é persistido, sai antes do evento
+      // terminal e leva o stderr do git, que é onde o motivo está escrito.
       try {
         commits = await deps.workspace.collectCommits(worktree.path, worktree.baseCommit);
       } catch (error) {
         logger?.warn({ err: error, runId: run.id }, "não consegui coletar os commits do worktree");
+        await diagnostic(
+          "WARN",
+          "Não consegui ler os commits do worktree; o resultado deste Run sai sem eles.",
+          descreverFalhaDeGit(error),
+        );
       }
       try {
         changes = await deps.workspace.collectChanges(worktree.path, worktree.baseCommit);
       } catch (error) {
         logger?.warn({ err: error, runId: run.id }, "não consegui ler o diff do worktree");
+        await diagnostic(
+          "WARN",
+          "Não consegui ler o diff do worktree; este Run não emitiu Artifact algum.",
+          descreverFalhaDeGit(error),
+        );
       }
     }
 
@@ -697,6 +712,26 @@ export async function executeRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Pro
 }
 
 /** Os campos que todo desfecho carrega, tenha ele resultado ou erro. */
+/**
+ * O que dizer sobre um comando `git` que falhou na coleta.
+ *
+ * O `stderr` do git é a única linha que diz o motivo de verdade — "Author
+ * identity unknown", "dubious ownership", "not a git repository" —, e ele só
+ * existe dentro de `GitCommandError`. Sem ele o diagnóstico repetiria a
+ * mensagem genérica e mandaria o leitor adivinhar.
+ */
+function descreverFalhaDeGit(error: unknown): string {
+  if (error instanceof GitCommandError) {
+    const stderr = error.failure.stderr.trim();
+    return (
+      `git ${error.failure.args.join(" ")} em ${error.failure.cwd} ` +
+      `terminou com código ${String(error.failure.code)}.` +
+      (stderr.length === 0 ? "" : ` ${stderr}`)
+    );
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
 function comumDoDesfecho(
   preservedWorktreePath: string | undefined,
   commits: readonly CommitRef[],

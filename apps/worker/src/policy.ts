@@ -1,7 +1,8 @@
-import type {
-  DiagnosticLevel,
-  ExecutionProfileSnapshot,
-  HarnessKey,
+import {
+  DEFAULT_TRUSTED_COMMANDS,
+  type DiagnosticLevel,
+  type ExecutionProfileSnapshot,
+  type HarnessKey,
 } from "@dungeon-master/contracts";
 import type {
   HarnessCapabilities,
@@ -71,13 +72,11 @@ export interface ResolvedRunPolicies {
 /**
  * Os comandos que `commandExecution: ALL` concede por padrão.
  *
- * `git` está aqui porque uma tarefa de código que não pode commitar não termina
- * — foi exatamente assim que o primeiro Run desta fase parou. A lista é curta de
- * propósito: cada prefixo aqui é uma porta aberta em toda execução do sistema,
- * e ampliar isto é decisão de projeto, não conveniência de um Run. Um perfil que
- * precisa de mais acrescenta em `allowedCommands`.
+ * Vem de `@dungeon-master/contracts` e é reexportada aqui por conveniência de
+ * quem lê a tradução: o que a semente coloca no perfil "Campo aberto" e o que
+ * `ALL` concede são a mesma lista, de propósito.
  */
-export const DEFAULT_TRUSTED_COMMANDS: readonly string[] = ["git"];
+export { DEFAULT_TRUSTED_COMMANDS };
 
 export interface ResolveRunPoliciesInput {
   readonly profile: ExecutionProfileSnapshot;

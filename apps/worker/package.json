@@ -11,9 +11,11 @@
     "lint": "eslint .",
     "test": "vitest run",
     "dev": "tsx watch src/main.ts",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "dm": "tsx scripts/dm.ts"
   },
   "dependencies": {
+    "@dungeon-master/achievements": "workspace:*",
     "@dungeon-master/contracts": "workspace:*",
     "@dungeon-master/database": "workspace:*",
     "@dungeon-master/events": "workspace:*",

@@ -28,7 +28,7 @@ import type {
 
 import type { Clock } from "./clock.js";
 import { systemClock } from "./clock.js";
-import { buildExecutionEnv } from "./env.js";
+import { AGENT_GIT_ENV_KEYS, buildExecutionEnv } from "./env.js";
 import type {
   ExecutionRequest,
   ExecutionResult,
@@ -243,11 +243,20 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       }
 
       // ------------------------------------------------------------- ambiente
+      // `AGENT_GIT_ENV_KEYS` entra em todo harness, e não só nos que declaram
+      // precisar: o worktree e a allow-list com `git commit` são do runtime, e
+      // não do adapter. Um agente que recebe permissão para commitar e não
+      // recebe como achar a identidade do git falha no commit e o Run termina
+      // sem ele.
       const env = buildExecutionEnv({
         ...(request.executionProfile.environmentPolicy === undefined
           ? {}
           : { policy: request.executionProfile.environmentPolicy }),
-        adapterKeys: [...(options.extraEnvKeys ?? []), ...adapterEnvKeys(adapter)],
+        adapterKeys: [
+          ...(options.extraEnvKeys ?? []),
+          ...AGENT_GIT_ENV_KEYS,
+          ...adapterEnvKeys(adapter),
+        ],
         ...(options.envSource === undefined ? {} : { source: options.envSource }),
       });
 

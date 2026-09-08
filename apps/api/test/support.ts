@@ -1,7 +1,11 @@
 import { type DatabaseHandle, LOCAL_USER_ID } from "@dungeon-master/database";
 
 import { type App, createApp } from "../src/app.js";
-import { createExecutionPort, createRunEventsRuntime } from "../src/composition.js";
+import {
+  createAchievementsPort,
+  createExecutionPort,
+  createRunEventsRuntime,
+} from "../src/composition.js";
 import { createWorkPort } from "../src/composition.js";
 import { createSpecPorts } from "../src/ports.js";
 
@@ -41,6 +45,7 @@ export function criarApp(handle: DatabaseHandle): App {
     work: createWorkPort({ db: handle.db, userId: LOCAL_USER_ID }),
     execution: createExecutionPort({ db: handle.db, userId: LOCAL_USER_ID, runEvents }),
     achievements: inertes.achievements,
+    hall: createAchievementsPort({ db: handle.db, userId: LOCAL_USER_ID }),
     pingEnabled: false,
   });
 }
@@ -58,6 +63,11 @@ export function criarApp(handle: DatabaseHandle): App {
  */
 export async function limparTudo(handle: DatabaseHandle): Promise<void> {
   for (const tabela of [
+    "achievement_unlock",
+    "achievement_progress",
+    "achievement_cursor",
+    "achievement_definition",
+    "hero_stats",
     "workspace_lock",
     "run_event",
     "run",

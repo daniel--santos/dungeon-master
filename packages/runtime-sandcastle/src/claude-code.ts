@@ -9,7 +9,11 @@
 // de ser o padrão e passou a exigir política explícita. Verificado contra a CLI
 // 2.1.263 em 07/09/2026.
 
-import type { HarnessSignal, ResolvedPermission } from "@dungeon-master/runtime";
+import type {
+  HarnessExecutionRequest,
+  HarnessSignal,
+  ResolvedPermission,
+} from "@dungeon-master/runtime";
 import { capabilities, PERMISSION_DENIED_DIAGNOSTIC_CODE } from "@dungeon-master/runtime";
 import type { UsageSummary } from "@dungeon-master/contracts";
 
@@ -109,51 +113,7 @@ export function claudeCodeDefinition(options: ClaudeCodeOptions = {}): CliHarnes
     installHint: "Instale com `npm i -g @anthropic-ai/claude-code` e autentique com `claude`.",
     parseVersion: (stdout, stderr) => parseSemverish(stdout, stderr),
     parseLine: parseClaudeLine,
-    buildArgs: (request): CliArgs => {
-      const args = ["--print", "--verbose", "--output-format", "stream-json"];
-
-      if (request.model !== undefined) args.push("--model", request.model.id);
-      if (options.effort !== undefined) args.push("--effort", options.effort);
-
-      // `--permission-mode` e `--dangerously-skip-permissions` são mutuamente
-      // exclusivos na CLI. O modo padrão não passa nenhum dos dois: vale o
-      // padrão da própria ferramenta, que é o mais restritivo.
-      if (request.permission.mode === "BYPASS") {
-        args.push("--dangerously-skip-permissions");
-      } else {
-        if (request.permission.mode === "CONFIGURED") {
-          // `acceptEdits` é o piso do modo configurado: ele tira do caminho a
-          // confirmação de cada edição. Quem libera **comando** é a
-          // `--allowedTools` abaixo, e não o modo — foi essa confusão que fez o
-          // primeiro Run desta fase terminar `blocked` sem conseguir commitar.
-          args.push("--permission-mode", request.permission.harnessMode ?? "acceptEdits");
-
-          const permitidas = allowedToolsFor(request.permission.grant);
-          if (permitidas.length > 0) args.push("--allowedTools", permitidas.join(","));
-
-          const negadas = deniedToolsFor(request.permission.grant);
-          if (negadas.length > 0) args.push("--disallowedTools", negadas.join(","));
-        }
-
-        // Sem ninguém para responder, o que fosse perguntar é **negado**, e não
-        // fica esperando. É a diferença entre um Run que falha dizendo o que
-        // faltou na allow-list e um Run pendurado até o timeout de ociosidade.
-        args.push("--permission-prompts", "none");
-      }
-
-      if (request.resume !== undefined) {
-        args.push("--resume", request.resume.harnessSessionId);
-        if (request.resume.fork === true) args.push("--fork-session");
-      }
-
-      if (options.extraArgs !== undefined) args.push(...options.extraArgs);
-      if (request.extraArgs !== undefined) args.push(...request.extraArgs);
-
-      // O prompt vai pelo stdin, e não no argv: no Windows a linha de comando
-      // inteira tem teto de 32767 caracteres, e um prompt com contexto de
-      // projeto passa disso sem esforço.
-      return { args, stdin: request.prompt };
-    },
+    buildArgs: (request): CliArgs => buildClaudeCodeArgs(request, options),
     describeExit: (exitCode, stderrTail) => {
       const tail = stderrTail.trim();
       if (tail.length === 0) return undefined;
@@ -171,6 +131,63 @@ export function claudeCodeDefinition(options: ClaudeCodeOptions = {}): CliHarnes
 /** Adapter do Claude Code rodando no host. */
 export function claudeCode(options: ClaudeCodeOptions = {}) {
   return createCliHarnessAdapter(claudeCodeDefinition(options));
+}
+
+/**
+ * O argv do Claude Code para um pedido já resolvido.
+ *
+ * Exportada, e não fechada dentro de `claudeCode()`, porque a tradução da
+ * política em `--allowedTools` é a peça que mais precisa de teste e a que menos
+ * dá para verificar por fora: um argv errado não quebra o Run, ele faz o agente
+ * ser negado no meio e reportar que não conseguiu.
+ */
+export function buildClaudeCodeArgs(
+  request: HarnessExecutionRequest,
+  options: ClaudeCodeOptions = {},
+): CliArgs {
+  const args = ["--print", "--verbose", "--output-format", "stream-json"];
+
+  if (request.model !== undefined) args.push("--model", request.model.id);
+  if (options.effort !== undefined) args.push("--effort", options.effort);
+
+  // `--permission-mode` e `--dangerously-skip-permissions` são mutuamente
+  // exclusivos na CLI. O modo padrão não passa nenhum dos dois: vale o
+  // padrão da própria ferramenta, que é o mais restritivo.
+  if (request.permission.mode === "BYPASS") {
+    args.push("--dangerously-skip-permissions");
+  } else {
+    if (request.permission.mode === "CONFIGURED") {
+      // `acceptEdits` é o piso do modo configurado: ele tira do caminho a
+      // confirmação de cada edição. Quem libera **comando** é a
+      // `--allowedTools` abaixo, e não o modo — foi essa confusão que fez o
+      // primeiro Run desta fase terminar `blocked` sem conseguir commitar.
+      args.push("--permission-mode", request.permission.harnessMode ?? "acceptEdits");
+
+      const permitidas = allowedToolsFor(request.permission.grant);
+      if (permitidas.length > 0) args.push("--allowedTools", permitidas.join(","));
+
+      const negadas = deniedToolsFor(request.permission.grant);
+      if (negadas.length > 0) args.push("--disallowedTools", negadas.join(","));
+    }
+
+    // Sem ninguém para responder, o que fosse perguntar é **negado**, e não
+    // fica esperando. É a diferença entre um Run que falha dizendo o que
+    // faltou na allow-list e um Run pendurado até o timeout de ociosidade.
+    args.push("--permission-prompts", "none");
+  }
+
+  if (request.resume !== undefined) {
+    args.push("--resume", request.resume.harnessSessionId);
+    if (request.resume.fork === true) args.push("--fork-session");
+  }
+
+  if (options.extraArgs !== undefined) args.push(...options.extraArgs);
+  if (request.extraArgs !== undefined) args.push(...request.extraArgs);
+
+  // O prompt vai pelo stdin, e não no argv: no Windows a linha de comando
+  // inteira tem teto de 32767 caracteres, e um prompt com contexto de
+  // projeto passa disso sem esforço.
+  return { args, stdin: request.prompt };
 }
 
 /**

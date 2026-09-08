@@ -94,3 +94,36 @@ export const GIT_ENV_KEYS: readonly string[] = [
 export function buildGitEnv(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
   return buildEnv([...essentialEnvKeys(), ...GIT_ENV_KEYS], { GIT_TERMINAL_PROMPT: "0" }, source);
 }
+
+/**
+ * As chaves sem as quais o `git` **do agente** não acha configuração nem identidade.
+ *
+ * O runtime entrega ao agente um worktree e uma allow-list que inclui
+ * `git commit`. Um `git commit` sem `user.email` não commita: ele falha com
+ * "Author identity unknown", e o Run segue sem commit nenhum. A identidade mora
+ * no gitconfig global, e achar o gitconfig global depende de `HOME`/
+ * `USERPROFILE` ou de `GIT_CONFIG_GLOBAL` — nada disso está no piso do sistema
+ * operacional no Windows, onde `essentialEnvKeys` só entrega `PATH`, `TEMP` e
+ * companhia.
+ *
+ * Foi assim que o CI do Windows quebrou e o do macOS não: no macOS `HOME` está
+ * no piso, no Windows não está, e a máquina do desenvolvedor escondia a falha
+ * porque o Git for Windows encontra `C:\Users\<você>\.gitconfig` pelo perfil do
+ * Windows mesmo sem variável nenhuma. O runner não tem esse arquivo.
+ *
+ * **Chave de credencial não entra aqui.** `SSH_AUTH_SOCK`, `GIT_ASKPASS` e
+ * `GIT_SSH_COMMAND` estão em `GIT_ENV_KEYS`, que é o ambiente do git *nosso*,
+ * e ficam de fora do ambiente do agente de propósito: elas autenticam contra
+ * remoto, e a lista de comandos confiáveis não inclui `git push`. Entregar a
+ * chave junto seria conceder por ambiente o que a política nega por comando.
+ */
+export const AGENT_GIT_ENV_KEYS: readonly string[] = [
+  "HOME",
+  "USERPROFILE",
+  "HOMEDRIVE",
+  "HOMEPATH",
+  "XDG_CONFIG_HOME",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_SYSTEM",
+  "GIT_CONFIG_NOSYSTEM",
+];

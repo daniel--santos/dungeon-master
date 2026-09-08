@@ -6,6 +6,8 @@
  * falha no CI se o schema e as migrações divergirem.
  */
 
+export * from "./achievement.js";
+export * from "./achievement-projector.js";
 export * from "./activity.js";
 export * from "./client.js";
 export * from "./dashboard-event.js";

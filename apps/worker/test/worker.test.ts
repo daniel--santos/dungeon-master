@@ -12,17 +12,24 @@ import {
   type Database,
   type DatabaseHandle,
 } from "@dungeon-master/database";
-import { createWorkspaceManager, type HarnessAdapter } from "@dungeon-master/runtime";
+import {
+  createWorkspaceManager,
+  GitCommandError,
+  type HarnessAdapter,
+  type WorkspaceManager,
+} from "@dungeon-master/runtime";
 import { fakeHarness } from "@dungeon-master/runtime/testing";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
+import type { AchievementProjector } from "../src/achievements.js";
 import { newWorkerId } from "../src/config.js";
 import { createWorker, type Worker } from "../src/worker.js";
 import {
   abrirBanco,
   CONFIG_PADRAO,
   criarRepositorio,
+  diarioDoRun,
   enfileirar,
   esperar,
   esperarStatusDeRun,
@@ -84,13 +91,16 @@ async function subirWorker(input: {
   runIdleTimeoutMs?: number;
   workerId?: string;
   start?: boolean;
+  workspace?: WorkspaceManager;
+  achievements?: AchievementProjector;
 }): Promise<Worker> {
   const criado = createWorker({
     db,
     pool: handle.pool,
     userId: USER,
     adapters: input.adapters ?? [fakeHarness()],
-    workspace: managerPara(repositorio),
+    workspace: input.workspace ?? managerPara(repositorio),
+    ...(input.achievements === undefined ? {} : { achievements: input.achievements }),
     config: {
       ...CONFIG_PADRAO,
       workerId: input.workerId ?? newWorkerId(),
@@ -230,15 +240,20 @@ describe("espólios pelo diff do worktree", () => {
     });
 
     const terminado = await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED"]);
-    expect(terminado.status, JSON.stringify(terminado.error)).toBe("SUCCEEDED");
-
     const eventos = await eventosDoRun(db, criado.id);
+    // O diário entra na mensagem de toda asserção daqui para baixo: o log do
+    // worker não aparece no CI, e sem ele uma falha aqui não diz o que o Run
+    // fez. Foi o que custou uma rodada para descobrir que o `git commit` do
+    // agente é que estava falhando.
+    const diario = diarioDoRun(eventos);
+    expect(terminado.status, `${JSON.stringify(terminado.error)}\n${diario}`).toBe("SUCCEEDED");
+
     const artefatos = eventos
       .filter((evento) => evento.type === "Artifact")
       .map((evento) => evento.payload as { path: string; kind?: string; bytes?: number });
 
     const porCaminho = new Map(artefatos.map((artefato) => [artefato.path, artefato]));
-    expect([...porCaminho.keys()].sort()).toEqual(["OLA.md", "RASCUNHO.md", "README.md"]);
+    expect([...porCaminho.keys()].sort(), diario).toEqual(["OLA.md", "RASCUNHO.md", "README.md"]);
     expect(porCaminho.get("OLA.md")?.kind).toBe("created");
     expect(porCaminho.get("README.md")?.kind).toBe("modified");
     expect(porCaminho.get("OLA.md")?.bytes).toBeGreaterThan(0);
@@ -249,9 +264,67 @@ describe("espólios pelo diff do worktree", () => {
 
     // O commit do agente foi coletado, e o worktree ficou preservado porque
     // sobrou mudança não commitada.
-    const commits = terminado.result?.["commits"] as ReadonlyArray<{ subject: string }>;
-    expect(commits.map((commit) => commit.subject)).toEqual(["commit-do-agente"]);
+    // `commits` ausente é a forma que a falha do CI tinha: o `git commit` do
+    // agente não passava, `collectCommits` devolvia lista vazia e o campo era
+    // omitido. Afirmar a presença antes de mapear troca um `TypeError` sem
+    // pista pelo diário do Run.
+    const commits = terminado.result?.["commits"] as ReadonlyArray<{ subject: string }> | undefined;
+    expect(commits, `o Run terminou sem commits.\n${diario}`).toBeDefined();
+    expect(commits?.map((commit) => commit.subject)).toEqual(["commit-do-agente"]);
     expect(terminado.result?.["preservedWorktreePath"]).toBeTypeOf("string");
+  });
+
+  it("uma coleta que falha vira Diagnostic com o stderr do git", async () => {
+    // A falha de `collectCommits` só virava `logger.warn`, e o log do worker
+    // não aparece no CI: um `result.commits` ausente ficou uma rodada inteira
+    // sem explicação. O `Diagnostic` é persistido e sai antes do terminal, que
+    // é o único lugar onde quem lê o diário do Run vai procurar.
+    const real = managerPara(repositorio);
+    const quebrado: WorkspaceManager = {
+      ...real,
+      collectCommits: () =>
+        Promise.reject(
+          new GitCommandError("git log falhou", {
+            args: ["log", "--reverse"],
+            cwd: "/worktree",
+            code: 128,
+            stderr: "fatal: detected dubious ownership in repository",
+          }),
+        ),
+    };
+
+    const cenario = await montarCenario(db, {
+      nome: "coleta-ruim",
+      workspacePath: repositorio.repo,
+    });
+    await subirWorker({ workspace: quebrado });
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: '@@fake:block {"status":"completed","summary":"terminei"}',
+    });
+
+    const terminado = await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED"]);
+    // Uma coleta que falha não derruba um Run que já terminou o trabalho.
+    expect(terminado.status).toBe("SUCCEEDED");
+
+    const eventos = await eventosDoRun(db, criado.id);
+    const aviso = eventos.find(
+      (evento) =>
+        evento.type === "Diagnostic" &&
+        String((evento.payload as { message?: string }).message).includes("commits do worktree"),
+    );
+    expect(aviso, diarioDoRun(eventos)).toBeDefined();
+
+    const payload = aviso?.payload as { level: string; detail?: string };
+    expect(payload.level).toBe("WARN");
+    expect(payload.detail).toContain("dubious ownership");
+    expect(payload.detail).toContain("git log --reverse");
+
+    // Antes do terminal: depois dele nada mais é emitido.
+    const tipos = eventos.map((evento) => evento.type);
+    expect(tipos.indexOf("Diagnostic")).toBeLessThan(tipos.indexOf("RunCompleted"));
   });
 
   it("um Run que não mexeu em nada não inventa espólio", async () => {
@@ -705,5 +778,91 @@ describe("posse do workspace", () => {
     // A branch do Run some com o worktree; o repositório principal fica limpo.
     const status = await git(["status", "--porcelain"], repositorio.repo);
     expect(status.trim()).toBe("");
+  });
+});
+
+describe("projetor de Conquistas", () => {
+  /** Um projetor que só conta disparos: o que ele calcula é testado no banco. */
+  function projetorFalso() {
+    let disparos = 0;
+
+    const projector: AchievementProjector = {
+      trigger: () => {
+        disparos += 1;
+      },
+      run: async () => await Promise.resolve({ ok: true, processed: 0, unlocked: 0, error: null }),
+      drain: async () => {
+        await Promise.resolve();
+      },
+    };
+
+    return {
+      get disparos() {
+        return disparos;
+      },
+      projector,
+    };
+  }
+
+  it("cada tique dispara o projetor, mesmo sem Run na fila", async () => {
+    const falso = projetorFalso();
+    const criado = await subirWorker({ start: false, achievements: falso.projector });
+
+    await criado.pump();
+    await criado.pump();
+
+    expect(falso.disparos).toBe(2);
+  });
+
+  it("uma Expedição terminada dispara o projetor sem segurar o Run", async () => {
+    const cenario = await montarCenario(db, {
+      nome: "projetor",
+      workspacePath: repositorio.repo,
+    });
+    const falso = projetorFalso();
+    await subirWorker({ achievements: falso.projector });
+
+    const run = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: '@@fake:block {"status":"completed","summary":"pronto"}',
+    });
+
+    const terminado = await esperarStatusDeRun(db, run.id, ["SUCCEEDED", "FAILED", "TIMED_OUT"]);
+
+    // O Run terminou bem: o projetor não está no caminho de escrita do desfecho.
+    expect(terminado.status, JSON.stringify(terminado.error)).toBe("SUCCEEDED");
+    expect(falso.disparos).toBeGreaterThan(0);
+  });
+
+  it("um projetor que lança não derruba o tique nem o Run", async () => {
+    const cenario = await montarCenario(db, {
+      nome: "projetor-quebrado",
+      workspacePath: repositorio.repo,
+    });
+
+    // O contrato é do projetor, mas quem chama precisa sobreviver a ele: um
+    // `trigger` que lança viria de dentro do `finally` que solta o Run.
+    const quebrado: AchievementProjector = {
+      trigger: () => {
+        throw new Error("projetor quebrado");
+      },
+      run: async () => await Promise.resolve({ ok: false, processed: 0, unlocked: 0, error: "x" }),
+      drain: async () => {
+        await Promise.resolve();
+      },
+    };
+
+    await subirWorker({ achievements: quebrado });
+
+    const run = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: '@@fake:block {"status":"completed","summary":"pronto"}',
+    });
+
+    const terminado = await esperarStatusDeRun(db, run.id, ["SUCCEEDED", "FAILED", "TIMED_OUT"]);
+    expect(terminado.status, JSON.stringify(terminado.error)).toBe("SUCCEEDED");
+    expect(await statusDaTask(db, cenario.taskId)).toBe("COMPLETED");
   });
 });

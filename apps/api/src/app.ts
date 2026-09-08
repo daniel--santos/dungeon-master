@@ -6,6 +6,7 @@ import {
 } from "@dungeon-master/contracts";
 import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
+import { HTTPException } from "hono/http-exception";
 import { streamSSE } from "hono/streaming";
 
 import { requestId } from "hono/request-id";
@@ -25,6 +26,7 @@ import { registerRunRoutes } from "./handlers/runs.js";
 import { registerTaskRoutes } from "./handlers/tasks.js";
 import type { Logger } from "./logger.js";
 import type {
+  AchievementsPort,
   DashboardEventsPort,
   DatabaseProbe,
   ExecutionPort,
@@ -36,6 +38,8 @@ import {
   buildProblem,
   HttpProblem,
   problemResponse,
+  problemTitleForStatus,
+  problemTypeForStatus,
   ProblemType,
   toValidationIssues,
 } from "./problem.js";
@@ -68,6 +72,13 @@ export interface CreateAppOptions {
    * requisição. Carregá-lo uma vez no boot também mantém `pnpm gen` sem I/O.
    */
   achievements: AchievementCatalog;
+  /**
+   * O Hall com estado: progresso, crônica e estatísticas de Herói.
+   *
+   * Separado do catálogo porque são coisas diferentes: o catálogo é o arquivo
+   * versionado, sem usuário; isto é a projeção que o Worker mantém no banco.
+   */
+  hall: AchievementsPort;
   logger?: Logger;
   /** Instante do boot, usado para calcular `uptimeSeconds`. */
   startedAt?: number;
@@ -281,7 +292,7 @@ export function createApp(options: CreateAppOptions) {
 
   // ------------------------------------------------------------- Conquistas
 
-  registerAchievementRoutes(app, options.achievements);
+  registerAchievementRoutes(app, options.achievements, options.hall);
 
   app.doc31(`${API_BASE_PATH}/openapi.json`, {
     openapi: "3.1.0",
@@ -306,7 +317,11 @@ export function createApp(options: CreateAppOptions) {
         description: "Cadastros de execução: Harness, Model, Agent, ExecutionProfile e Loadout.",
       },
       { name: "runs", description: "Runs: as tentativas concretas de realizar uma Task." },
-      { name: "achievements", description: "O catálogo versionado de Conquistas." },
+      {
+        name: "achievements",
+        description: "O catálogo versionado de Conquistas e a projeção de progresso.",
+      },
+      { name: "heroes", description: "Estatísticas de Herói e de Equipamento. Projeção." },
     ],
   });
 
@@ -345,6 +360,38 @@ export function createApp(options: CreateAppOptions) {
           instance,
           requestId: id,
           errors: error.errors,
+        }),
+      );
+    }
+
+    // Erros que o Hono levanta antes de qualquer handler nosso: corpo que não é
+    // JSON válido, `content-type` errado, corpo grande demais. Eles já sabem o
+    // status certo, e tratá-los como erro inesperado devolvia `500` para o que é
+    // culpa da requisição — o cliente via "erro interno" e ficava sem saber que
+    // bastava corrigir o corpo.
+    if (error instanceof HTTPException) {
+      const status = error.status;
+      const cliente = status < 500;
+
+      logger?.[cliente ? "warn" : "error"](
+        { requestId: id, err: error, status },
+        "exceção HTTP do framework",
+      );
+
+      return problemResponse(
+        c,
+        buildProblem({
+          status,
+          type: problemTypeForStatus(status),
+          title: problemTitleForStatus(status),
+          // A mensagem do Hono descreve o que veio errado na requisição
+          // ("Malformed JSON in request body") e é segura de mostrar. Num `5xx`
+          // ela pode carregar detalhe interno, e aí vale a regra de sempre.
+          detail: cliente
+            ? error.message
+            : "A requisição falhou por um erro inesperado. Consulte os logs pelo requestId.",
+          instance,
+          requestId: id,
         }),
       );
     }
