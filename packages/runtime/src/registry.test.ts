@@ -5,10 +5,15 @@ import type { HarnessAdapter } from "./harness.js";
 import { createHarnessRegistry } from "./registry.js";
 import { createAsyncQueue } from "./async-queue.js";
 
-function stub(id: string, key: HarnessAdapter["key"]): HarnessAdapter {
+function stub(
+  id: string,
+  key: HarnessAdapter["key"],
+  executionMode?: HarnessAdapter["executionMode"],
+): HarnessAdapter {
   return {
     id,
     key,
+    ...(executionMode === undefined ? {} : { executionMode }),
     capabilities: NO_CAPABILITIES,
     preflight: () => Promise.resolve({ installed: true, problems: [] }),
     // eslint-disable-next-line require-yield
@@ -39,7 +44,47 @@ describe("createHarnessRegistry", () => {
   it("a mensagem de chave ausente diz o que existe", () => {
     const registry = createHarnessRegistry([stub("a", "CLAUDE_CODE")]);
 
-    expect(() => registry.resolve("ANTIGRAVITY")).toThrow(/Registrados: CLAUDE_CODE/);
+    expect(() => registry.resolve("ANTIGRAVITY")).toThrow(/Registrados neste modo: CLAUDE_CODE/);
+  });
+
+  it("o mesmo harness tem um adapter por modo, e o modo escolhe", () => {
+    // É o desenho da Fase 2C: `claude-code@host` e `claude-code@docker` são dois
+    // objetos com a mesma `key`, e quem decide entre eles é o
+    // `ExecutionProfile.mode` do Run.
+    const registry = createHarnessRegistry([
+      stub("claude-code@host", "CLAUDE_CODE"),
+      stub("claude-code@docker", "CLAUDE_CODE", "DOCKER"),
+    ]);
+
+    expect(registry.resolve("CLAUDE_CODE").id).toBe("claude-code@host");
+    expect(registry.resolve("CLAUDE_CODE", "HOST").id).toBe("claude-code@host");
+    expect(registry.resolve("CLAUDE_CODE", "DOCKER").id).toBe("claude-code@docker");
+    expect(registry.keys("DOCKER")).toEqual(["CLAUDE_CODE"]);
+  });
+
+  it("um adapter sem modo declarado é de host", () => {
+    const registry = createHarnessRegistry([stub("a", "PI")]);
+
+    expect(registry.find("PI", "HOST")?.id).toBe("a");
+    expect(registry.find("PI", "DOCKER")).toBeUndefined();
+  });
+
+  it("dois adapters do mesmo harness em modos diferentes não colidem", () => {
+    expect(() => createHarnessRegistry([stub("a", "PI"), stub("b", "PI", "DOCKER")])).not.toThrow();
+    expect(() =>
+      createHarnessRegistry([stub("a", "PI", "DOCKER"), stub("b", "PI", "DOCKER")]),
+    ).toThrow(/Dois adapters registrados para o harness PI no modo DOCKER/);
+  });
+
+  it("um harness que só roda no host manda trocar o Ambiente de Execução", () => {
+    // É o caso do Codex, que o ADR 0001 deixou de fora do modo isolado. A
+    // mensagem precisa dizer o que fazer: "não registrado" mandaria procurar um
+    // defeito de configuração que não existe.
+    const registry = createHarnessRegistry([stub("codex@host", "CODEX")]);
+
+    expect(() => registry.resolve("CODEX", "DOCKER")).toThrow(
+      /não roda no modo DOCKER.*Escolha outro Ambiente de Execução/s,
+    );
   });
 });
 
