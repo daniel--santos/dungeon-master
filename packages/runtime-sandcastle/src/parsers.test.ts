@@ -204,6 +204,74 @@ describe("parsePiLine (CLI 0.85.1)", () => {
     ).toEqual([{ kind: "session", id: "01a07dc9-1889-7473-8cee-d5374504bf90" }]);
   });
 
+  it("um `stopReason: error` no message_end vira erro, e não sucesso silencioso", () => {
+    // Linha real capturada em 07/09/2026, com o Pi 0.85.1 dentro do container:
+    // a chave do provedor bateu no limite de cota. Sem esta tradução o Run
+    // terminava `RunCompleted` com zero texto e consumo zerado — sucesso
+    // aparente com trabalho nenhum feito.
+    const linha = JSON.stringify({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        content: [],
+        provider: "google",
+        model: "gemini-3.1-pro-preview",
+        usage: { input: 0, output: 0, totalTokens: 0 },
+        stopReason: "error",
+        errorMessage: JSON.stringify({
+          error: {
+            message: JSON.stringify({
+              error: {
+                code: 429,
+                message: "You exceeded your current quota",
+                status: "RESOURCE_EXHAUSTED",
+              },
+            }),
+            code: 429,
+            status: "Too Many Requests",
+          },
+        }),
+      },
+    });
+
+    const signals = parsePiLine(linha);
+    const erro = signals.find((signal) => signal.kind === "error");
+
+    expect(erro).toBeDefined();
+    expect(erro?.kind === "error" && erro.message).toContain("exceeded your current quota");
+    // Cota volta sozinha; a retentativa do runtime faz sentido aqui.
+    expect(erro?.kind === "error" && erro.retryable).toBe(true);
+  });
+
+  it("uma mensagem que terminou bem não produz erro nenhum", () => {
+    const linha = JSON.stringify({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "OK" }],
+        usage: { input: 10, output: 2, totalTokens: 12 },
+        stopReason: "stop",
+      },
+    });
+
+    expect(parsePiLine(linha).every((signal) => signal.kind !== "error")).toBe(true);
+  });
+
+  it("credencial recusada pelo provedor não é retentável", () => {
+    const linha = JSON.stringify({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        content: [],
+        stopReason: "error",
+        errorMessage: JSON.stringify({ error: { message: "Invalid API key provided", code: 401 } }),
+      },
+    });
+
+    const erro = parsePiLine(linha).find((signal) => signal.kind === "error");
+    expect(erro?.kind === "error" && erro.retryable).toBe(false);
+  });
+
   it("traduz o delta de texto", () => {
     expect(
       parsePiLine(
