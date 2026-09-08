@@ -167,14 +167,19 @@ describe("caminho feliz", () => {
     expect(sequences).toEqual(sequences.map((_valor, indice) => indice + 1));
 
     const tipos = eventos.map((evento) => evento.type);
-    expect(tipos[0]).toBe("RunStarted");
+    // Os diagnósticos de política vêm antes de `RunStarted`: eles descrevem o
+    // que foi concedido, e a concessão é decidida antes de o processo subir.
+    expect(tipos.indexOf("RunStarted")).toBeLessThan(tipos.indexOf("ToolCall"));
     expect(tipos).toContain("ToolCall");
     expect(tipos).toContain("ToolResult");
     expect(tipos).toContain("SessionCaptured");
     expect(tipos.at(-1)).toBe("RunCompleted");
 
     // O payload guarda o evento inteiro, com o discriminante.
-    const started = eventos[0]?.payload as { type: string; workspacePath: string };
+    const started = eventos.find((evento) => evento.type === "RunStarted")?.payload as {
+      type: string;
+      workspacePath: string;
+    };
     expect(started.type).toBe("RunStarted");
     expect(started.workspacePath).toBe(terminado.workspacePath);
 
@@ -200,6 +205,127 @@ describe("caminho feliz", () => {
     expect(terminado.result?.["commits"]).toBeUndefined();
 
     await expect(stat(terminado.workspacePath ?? "")).rejects.toThrow();
+  });
+});
+
+describe("espólios pelo diff do worktree", () => {
+  it("emite Artifact para o que o Run criou, modificou e apagou", async () => {
+    const cenario = await montarCenario(db, { nome: "espolios", workspacePath: repositorio.repo });
+    await subirWorker({});
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: [
+        // O agente falso escreve arquivo de verdade; quem os descobre é o diff
+        // do worktree, e não o stream — nenhum dos três harnesses de host anuncia
+        // artefato, fora o Codex.
+        "@@fake:write OLA.md Ola do Dungeon Master.",
+        "@@fake:write README.md # mexido",
+        "@@fake:git add -A",
+        "@@fake:git commit -m commit-do-agente",
+        "@@fake:write RASCUNHO.md nao commitado",
+        '@@fake:block {"status":"completed","summary":"mexi nos arquivos"}',
+      ].join("\n"),
+    });
+
+    const terminado = await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED"]);
+    expect(terminado.status, JSON.stringify(terminado.error)).toBe("SUCCEEDED");
+
+    const eventos = await eventosDoRun(db, criado.id);
+    const artefatos = eventos
+      .filter((evento) => evento.type === "Artifact")
+      .map((evento) => evento.payload as { path: string; kind?: string; bytes?: number });
+
+    const porCaminho = new Map(artefatos.map((artefato) => [artefato.path, artefato]));
+    expect([...porCaminho.keys()].sort()).toEqual(["OLA.md", "RASCUNHO.md", "README.md"]);
+    expect(porCaminho.get("OLA.md")?.kind).toBe("created");
+    expect(porCaminho.get("README.md")?.kind).toBe("modified");
+    expect(porCaminho.get("OLA.md")?.bytes).toBeGreaterThan(0);
+
+    // Os espólios saem antes do evento terminal: depois dele nada é emitido.
+    const tipos = eventos.map((evento) => evento.type);
+    expect(tipos.lastIndexOf("Artifact")).toBeLessThan(tipos.indexOf("RunCompleted"));
+
+    // O commit do agente foi coletado, e o worktree ficou preservado porque
+    // sobrou mudança não commitada.
+    const commits = terminado.result?.["commits"] as ReadonlyArray<{ subject: string }>;
+    expect(commits.map((commit) => commit.subject)).toEqual(["commit-do-agente"]);
+    expect(terminado.result?.["preservedWorktreePath"]).toBeTypeOf("string");
+  });
+
+  it("um Run que não mexeu em nada não inventa espólio", async () => {
+    const cenario = await montarCenario(db, {
+      nome: "sem-espolio",
+      workspacePath: repositorio.repo,
+    });
+    await subirWorker({});
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: '@@fake:block {"status":"completed","summary":"nada a fazer"}',
+    });
+
+    await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED"]);
+    const eventos = await eventosDoRun(db, criado.id);
+    expect(eventos.filter((evento) => evento.type === "Artifact")).toHaveLength(0);
+  });
+});
+
+describe("permissão negada", () => {
+  it("negação com trabalho inacabado vira FAILED dizendo o que faltou", async () => {
+    const cenario = await montarCenario(db, { nome: "negado", workspacePath: repositorio.repo });
+    await subirWorker({});
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: [
+        "@@fake:denied PowerShell(git commit)",
+        '@@fake:block {"status":"blocked","summary":"nao consegui commitar"}',
+      ].join("\n"),
+    });
+
+    const terminado = await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED"]);
+
+    // Sem esta regra o Run seria SUCCEEDED com a Task BLOCKED, e o motivo — a
+    // CLI recusou um comando — só apareceria na prosa do agente.
+    expect(terminado.status).toBe("FAILED");
+    expect(terminado.error?.["code"]).toBe("PERMISSION_DENIED");
+    expect(terminado.error?.["deniedTools"]).toEqual(["PowerShell(git commit)"]);
+    expect(terminado.error?.["retryable"]).toBe(true);
+    expect(await statusDaTask(db, cenario.taskId)).toBe("FAILED");
+
+    const negacao = (await eventosDoRun(db, criado.id))
+      .filter((evento) => evento.type === "Diagnostic")
+      .map((evento) => evento.payload as { code?: string; detail?: string })
+      .find((payload) => payload.code === "PERMISSION_DENIED");
+
+    expect(negacao?.detail).toContain("allowUnsafeBypass");
+  });
+
+  it("negação que o agente contornou não reprova o Run", async () => {
+    const cenario = await montarCenario(db, { nome: "contornou", workspacePath: repositorio.repo });
+    await subirWorker({});
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      // É o caso real: o agente tenta PowerShell, é negado, refaz com Bash e
+      // termina. Reprovar aqui descartaria trabalho concluído.
+      prompt: [
+        "@@fake:denied PowerShell",
+        "@@fake:write OLA.md Ola",
+        '@@fake:block {"status":"completed","summary":"fiz pelo outro caminho"}',
+      ].join("\n"),
+    });
+
+    const terminado = await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED"]);
+
+    expect(terminado.status, JSON.stringify(terminado.error)).toBe("SUCCEEDED");
+    expect(terminado.result?.status).toBe("completed");
+    expect(await statusDaTask(db, cenario.taskId)).toBe("COMPLETED");
   });
 });
 
