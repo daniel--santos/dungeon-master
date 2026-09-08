@@ -1,4 +1,7 @@
+import { readFile } from "node:fs/promises";
+
 import { TerminalStatusWriteError } from "@dungeon-master/events";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
 import { createDatabase, type DatabaseHandle } from "../src/client.js";
@@ -19,7 +22,12 @@ import {
   transitionRun,
   writeRunTerminalStatus,
 } from "../src/run.js";
-import { listExecutionProfiles } from "../src/execution-profile.js";
+import {
+  DEFAULT_ENVIRONMENT_POLICY,
+  DEFAULT_NETWORK_POLICY,
+  listExecutionProfiles,
+} from "../src/execution-profile.js";
+import { executionProfiles } from "../src/schema/execution.js";
 import { OPEN_FIELD_ALLOWED_COMMANDS } from "../src/seed-execution.js";
 import { getTaskDetail } from "../src/task.js";
 import {
@@ -799,5 +807,99 @@ describe("sementes de execução", () => {
     // Bypass nunca é padrão: ele é opt-in explícito de quem edita o perfil.
     expect(campoAberto?.permissionPolicy.allowUnsafeBypass).toBeUndefined();
     expect(campoAberto?.enforcement).toBe("HARNESS_NATIVE");
+  });
+});
+
+/**
+ * A migração de dados `0006`, rodada contra linhas que este teste cria.
+ *
+ * A semente só insere perfil que não existe: quem instalou antes da lista de
+ * subcomandos continuaria com `git` inteiro, e portanto com `git push` e
+ * `git reset --hard` liberados. A migração é o único caminho até esses bancos.
+ *
+ * O teste executa o SQL que de fato é distribuído, lido do arquivo, e não uma
+ * segunda escrita da mesma consulta: duas versões da regra divergiriam, e a que
+ * roda na máquina do usuário é a do arquivo.
+ */
+describe("migração da allow-list padrão antiga", () => {
+  const LISTA_ANTIGA = ["git", "ls", "cat", "node"];
+  const LISTA_NOVA = ["git add", "git commit", "git status", "git diff", "git log"];
+
+  async function criarPerfil(nome: string, allowedCommands: readonly string[]): Promise<string> {
+    const id = newId();
+    await handle.db.insert(executionProfiles).values({
+      id,
+      userId: USER,
+      name: nome,
+      mode: "HOST",
+      workspaceStrategy: "GIT_WORKTREE",
+      enforcement: "HARNESS_NATIVE",
+      permissionPolicy: {
+        workspaceWrite: true,
+        commandExecution: "ALLOWLIST",
+        allowedCommands: [...allowedCommands],
+        deniedCommands: [],
+      },
+      environmentPolicy: DEFAULT_ENVIRONMENT_POLICY,
+      networkPolicy: DEFAULT_NETWORK_POLICY,
+      enabled: false,
+      isDefault: false,
+    });
+    return id;
+  }
+
+  async function listaDe(id: string): Promise<readonly string[] | undefined> {
+    const [linha] = await handle.db
+      .select({ policy: executionProfiles.permissionPolicy })
+      .from(executionProfiles)
+      .where(and(eq(executionProfiles.id, id), eq(executionProfiles.userId, USER)));
+    return linha?.policy.allowedCommands;
+  }
+
+  it("reescreve o padrão antigo e preserva o que foi personalizado", async () => {
+    const padraoAntigo = await criarPerfil("migração padrão antigo", LISTA_ANTIGA);
+    const personalizado = await criarPerfil("migração personalizado", [
+      "git",
+      "ls",
+      "cat",
+      "node",
+      "pnpm test",
+    ]);
+    // Mesmos elementos, outra ordem: a condição é igualdade exata, então esta
+    // linha também é escolha de alguém e fica como está.
+    const outraOrdem = await criarPerfil("migração outra ordem", ["ls", "git", "cat", "node"]);
+    const jaMigrado = await criarPerfil("migração já feita", LISTA_NOVA);
+
+    const sql = await readFile(
+      new URL("../drizzle/0006_allow_list_padrao_do_campo_aberto.sql", import.meta.url),
+      "utf8",
+    );
+    await handle.pool.query(sql);
+
+    expect(await listaDe(padraoAntigo)).toEqual(LISTA_NOVA);
+    expect(await listaDe(personalizado)).toEqual(["git", "ls", "cat", "node", "pnpm test"]);
+    expect(await listaDe(outraOrdem)).toEqual(["ls", "git", "cat", "node"]);
+    // Idempotente: rodar de novo sobre quem já está na lista nova não muda nada.
+    await handle.pool.query(sql);
+    expect(await listaDe(jaMigrado)).toEqual(LISTA_NOVA);
+    expect(await listaDe(padraoAntigo)).toEqual(LISTA_NOVA);
+  });
+
+  it("não mexe no resto da política", async () => {
+    const id = await criarPerfil("migração resto intacto", LISTA_ANTIGA);
+    const sql = await readFile(
+      new URL("../drizzle/0006_allow_list_padrao_do_campo_aberto.sql", import.meta.url),
+      "utf8",
+    );
+    await handle.pool.query(sql);
+
+    const [linha] = await handle.db
+      .select({ policy: executionProfiles.permissionPolicy })
+      .from(executionProfiles)
+      .where(and(eq(executionProfiles.id, id), eq(executionProfiles.userId, USER)));
+
+    expect(linha?.policy.workspaceWrite).toBe(true);
+    expect(linha?.policy.commandExecution).toBe("ALLOWLIST");
+    expect(linha?.policy.deniedCommands).toEqual([]);
   });
 });
