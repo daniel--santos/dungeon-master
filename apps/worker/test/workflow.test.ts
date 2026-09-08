@@ -6,6 +6,8 @@ import { WorkflowDefinitionSchema } from "@dungeon-master/contracts";
 import {
   createWorkflow,
   getRun,
+  listKnowledgeCandidates,
+  listProposedTasks,
   listRunApprovalGates,
   listRunSteps,
   listWorkspaceLocksByRun,
@@ -130,7 +132,9 @@ const EXPEDICAO_GUIADA: WorkflowDefinition = WorkflowDefinitionSchema.parse({
         "@@fake:git add -A",
         "@@fake:git commit -m executa-plano",
         "@@fake:usage 50 20",
-        '@@fake:block {"status":"completed","summary":"Executado.","artifacts":[{"path":"PLANO.md"}],"knowledgeCandidates":[{"title":"Dica","content":"Commit cedo."}]}',
+        '@@fake:block {"status":"completed","summary":"Executado.","artifacts":[{"path":"PLANO.md"}],' +
+          '"knowledgeCandidates":[{"title":"Dica","content":"Commit cedo."}],' +
+          '"discoveredTasks":[{"title":"Revisar o PLANO.md","rationale":"Ficou sem revisão."}]}',
       ].join("\n"),
     },
     {
@@ -300,9 +304,21 @@ describe("Expedição guiada no Worker", () => {
     expect(terminado.result?.["knowledgeCandidates"]).toEqual([
       { title: "Dica", content: "Commit cedo." },
     ]);
+    expect(terminado.result?.["discoveredTasks"]).toEqual([
+      { title: "Revisar o PLANO.md", rationale: "Ficou sem revisão." },
+    ]);
     expect(terminado.result?.usage?.inputTokens).toBe(50);
     expect(terminado.harnessSessionId).toBe("sessao-execute");
     expect(await statusDaTask(db, cenario.taskId)).toBe("COMPLETED");
+
+    // O resultado agregado alimentou o domínio na transação do desfecho
+    // (Fase 5), pelo mesmo caminho do Run simples.
+    const propostas = await listProposedTasks(db, { userId: USER, page: 1, pageSize: 10 });
+    expect(propostas.items.map((item) => [item.title, item.originRunId, item.status])).toEqual([
+      ["Revisar o PLANO.md", criado.id, "PROPOSED"],
+    ]);
+    const candidatos = await listKnowledgeCandidates(db, { userId: USER, page: 1, pageSize: 10 });
+    expect(candidatos.items.map((item) => [item.title, item.runId])).toEqual([["Dica", criado.id]]);
 
     // O commit do agente foi coletado do worktree reaberto.
     const commits = terminado.result?.["commits"] as ReadonlyArray<{ subject: string }> | undefined;

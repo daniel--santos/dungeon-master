@@ -5,6 +5,8 @@ import type { TaskExecutionResult } from "@dungeon-master/contracts";
 import {
   createRun,
   getRun,
+  listKnowledgeCandidates,
+  listProposedTasks,
   listWorkspaceLocksByRun,
   requestRunCancellation,
   runs,
@@ -154,7 +156,9 @@ describe("caminho feliz", () => {
         "@@fake:text Vou implementar.",
         "@@fake:tool Bash git status",
         "@@fake:usage 120 34",
-        '@@fake:block {"status":"completed","summary":"Implementei o que a Task pedia."}',
+        '@@fake:block {"status":"completed","summary":"Implementei o que a Task pedia.",' +
+          '"discoveredTasks":[{"title":"Cobrir o parser com testes","rationale":"Nenhum teste toca o erro."}],' +
+          '"knowledgeCandidates":[{"title":"Rodar o lint antes","content":"O lint pega o import quebrado.","kind":"howto"}]}',
       ].join("\n"),
     });
 
@@ -163,6 +167,18 @@ describe("caminho feliz", () => {
     expect(terminado.status, JSON.stringify(terminado.error)).toBe("SUCCEEDED");
     expect(terminado.result?.status).toBe("completed");
     expect(terminado.result?.summary).toBe("Implementei o que a Task pedia.");
+
+    // O resultado alimentou o domínio na transação do desfecho (Fase 5): a
+    // proposta e o candidato existem assim que o Run está SUCCEEDED.
+    const propostas = await listProposedTasks(db, { userId: USER, page: 1, pageSize: 10 });
+    expect(propostas.items.map((item) => [item.title, item.status, item.originRunId])).toEqual([
+      ["Cobrir o parser com testes", "PROPOSED", criado.id],
+    ]);
+    expect(propostas.items[0]?.originTaskId).toBe(cenario.taskId);
+    const candidatos = await listKnowledgeCandidates(db, { userId: USER, page: 1, pageSize: 10 });
+    expect(candidatos.items.map((item) => [item.title, item.kind, item.status])).toEqual([
+      ["Rodar o lint antes", "howto", "PENDING"],
+    ]);
     expect(terminado.harnessSessionId).toBe("sessao-feliz");
     expect(terminado.harnessVersion).toBe("0.0.0-fake");
     expect(terminado.workspacePath).toContain("worktrees");
