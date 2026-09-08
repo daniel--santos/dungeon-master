@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Archive, ArchiveRestore, ListChecks, Plus, Waypoints } from "lucide-react";
+import { Archive, ArchiveRestore, BookOpen, ListChecks, Plus, Waypoints } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/datetime";
 import type { SortOrder, TaskSortField } from "@/lib/domain";
 import { useGlossary } from "@/lib/glossary";
+import { usePendingKnowledge } from "@/lib/knowledge";
+import { KNOWLEDGE_PENDING_COLOR } from "@/lib/knowledge-domain";
 import { PROPOSAL_COLOR } from "@/lib/proposal-domain";
 import { useProject, useProjectActivity, useSetProjectArchived } from "@/lib/projects";
 import { projectDetailSearchSchema } from "@/lib/search";
@@ -39,6 +41,9 @@ function ProjectDetailPage() {
   const project = useProject(id);
   const archive = useSetProjectArchived();
   const activity = useProjectActivity(id, search.activityPage, ACTIVITY_PAGE_SIZE);
+  // Fase 6B: o atalho para o Grimório leva o número de Páginas que esperam o Selo.
+  const pendingKnowledge = usePendingKnowledge(id);
+  const pendingCount = pendingKnowledge.data?.total ?? 0;
 
   const [editing, setEditing] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -113,6 +118,31 @@ function ProjectDetailPage() {
           </div>
 
           <div className="flex flex-none items-center gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link
+                data-project-knowledge-link
+                params={{ id }}
+                search={{ tab: "items", page: 1 }}
+                to="/projects/$id/knowledge"
+              >
+                <BookOpen aria-hidden />
+                <span>{t("nav.knowledge")}</span>
+                {pendingCount > 0 && (
+                  <span
+                    aria-label={t("knowledge.pending.title")}
+                    className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full border px-1.25 font-mono text-[10.5px] leading-none"
+                    data-project-pending-knowledge={pendingCount}
+                    style={{
+                      borderColor: `color-mix(in oklch, ${KNOWLEDGE_PENDING_COLOR} 45%, transparent)`,
+                      backgroundColor: `color-mix(in oklch, ${KNOWLEDGE_PENDING_COLOR} 14%, transparent)`,
+                      color: KNOWLEDGE_PENDING_COLOR,
+                    }}
+                  >
+                    {pendingCount}
+                  </span>
+                )}
+              </Link>
+            </Button>
             <Button asChild size="sm" variant="outline">
               <Link data-project-graph-link params={{ id }} to="/projects/$id/graph">
                 <Waypoints aria-hidden />

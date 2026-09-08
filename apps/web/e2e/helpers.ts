@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { dnd } from "@dungeon-master/glossary";
 import { expect, type Page } from "@playwright/test";
 import { Client } from "pg";
 
@@ -16,11 +17,20 @@ import { Client } from "pg";
  * explícito no começo de cada teste que depende de label.
  */
 
+/**
+ * O interruptor de tema, pelo nome acessível: Settings tem mais de um
+ * `switch` desde a Fase 6B (a revisão humana do Grimório), e o rótulo do tema
+ * é o mesmo nos dois glossários.
+ */
+export function themeToggle(page: Page) {
+  return page.getByRole("switch", { name: dnd["settings.theme.toggle"] });
+}
+
 /** Liga ou desliga o interruptor de tema, pela tela de configurações. */
 export async function setTheme(page: Page, on: boolean): Promise<void> {
   await page.goto("/settings");
 
-  const toggle = page.getByRole("switch");
+  const toggle = themeToggle(page);
   await expect(toggle).toBeEnabled();
 
   const wanted = on ? "checked" : "unchecked";
@@ -382,6 +392,402 @@ export async function seedRunOutcome(
 
     await client.query("COMMIT");
     return { proposedTaskIds };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    await client.end();
+  }
+}
+
+export interface SeedKnowledgeInput {
+  /** Um Run em `QUEUED`, criado pela API. */
+  readonly runId: string;
+  /** Um sufixo para os títulos ficarem únicos entre testes. */
+  readonly suffix: string;
+}
+
+export interface SeedKnowledgeResult {
+  readonly projectId: string;
+  readonly taskId: string;
+  readonly batchId: string;
+  /** O `FACT` em revisão. */
+  readonly pendingFactId: string;
+  /** A `DECISION` em revisão. */
+  readonly pendingDecisionId: string;
+  /** O item `ACTIVE`. */
+  readonly activeItemId: string;
+  /** O `SUMMARY` corrente. */
+  readonly summaryId: string;
+  /** A forjada em revisão. */
+  readonly forgedId: string;
+  readonly titles: {
+    readonly pendingFact: string;
+    readonly pendingDecision: string;
+    readonly active: string;
+    readonly summary: string;
+    readonly forged: string;
+  };
+}
+
+/**
+ * Deixa uma Campanha com Grimório, por SQL no banco do e2e (Fase 6B).
+ *
+ * Quem faz isso em produção é o Distiller do Worker, num lote sob o advisory
+ * lock do Project, e a configuração do Playwright não sobe Worker de
+ * propósito. A fixture escreve o que o lote escreveria, na mesma transação:
+ * o Run termina `SUCCEEDED` com candidatos no resultado, a Task vai para
+ * `COMPLETED`, um `distillation_run` nasce e termina `SUCCEEDED`, quatro
+ * candidatos são decididos (dois promovidos, um recusado com motivo, um
+ * fundido), quatro itens entram no Grimório (um `FACT` e uma `DECISION` em
+ * `PENDING_REVIEW`, um `PROCEDURE` `ACTIVE`, o `SUMMARY`), uma forjada entra
+ * na forja, e `knowledge.distilled` e `achievement.forged` entram no
+ * dashboard — cujo trigger emite o `NOTIFY` no COMMIT, então a interface
+ * aberta recebe os toasts pelo SSE de verdade.
+ *
+ * As decisões, essas são pela API: é o CAS de `POST /knowledge-items/{id}/…`
+ * e de `POST /achievements/{id}/…` que o teste quer provar, e ele exige
+ * exatamente o estado que a fixture deixa.
+ */
+export async function seedKnowledge(input: SeedKnowledgeInput): Promise<SeedKnowledgeResult> {
+  const databaseUrl = process.env["DATABASE_URL"];
+  if (databaseUrl === undefined) {
+    throw new Error("DATABASE_URL não está no ambiente: rode pelo run-e2e.mjs.");
+  }
+
+  const titles = {
+    pendingFact: `A sala norte alaga depois da chuva ${input.suffix}`,
+    pendingDecision: `Entrar sempre pela galeria leste ${input.suffix}`,
+    active: `Como abrir o portão sem a chave ${input.suffix}`,
+    summary: `O que a Campanha já sabe ${input.suffix}`,
+    forged: `Domador do Deadlock ${input.suffix}`,
+  };
+
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+
+    const run = await client.query<{ user_id: string; task_id: string; project_id: string }>(
+      `SELECT r.user_id, r.task_id, t.project_id
+         FROM run r JOIN task t ON t.id = r.task_id
+        WHERE r.id = $1 AND r.status = 'QUEUED'
+        FOR UPDATE OF r`,
+      [input.runId],
+    );
+    const owner = run.rows[0];
+    if (owner === undefined) throw new Error(`O Run ${input.runId} não existe ou não está QUEUED.`);
+
+    const candidates = [
+      {
+        title: titles.pendingFact,
+        content: "Depois da chuva o piso fica sob água.",
+        kind: "gotcha",
+      },
+      {
+        title: titles.pendingDecision,
+        content: "A galeria leste é a entrada padrão.",
+        kind: "decision",
+      },
+      { title: `Hoje choveu ${input.suffix}`, content: "Choveu a tarde inteira.", kind: "note" },
+      {
+        title: `Três batidas abrem o portão ${input.suffix}`,
+        content: "Ritmo: 3, pausa, 2.",
+        kind: "howto",
+      },
+    ];
+
+    const result = {
+      status: "completed",
+      summary: "Fixture do e2e: o trabalho terminou e ensinou alguma coisa.",
+      artifacts: [],
+      discoveredTasks: [],
+      knowledgeCandidates: candidates,
+      warnings: [],
+    };
+
+    await client.query(
+      `UPDATE run
+         SET status = 'SUCCEEDED', started_at = coalesce(started_at, now() - interval '2 minutes'),
+             finished_at = now() - interval '1 minute', updated_at = now(), result = $2::jsonb
+       WHERE id = $1`,
+      [input.runId, JSON.stringify(result)],
+    );
+    await client.query(
+      `UPDATE task SET status = 'COMPLETED', completed_at = now(), updated_at = now() WHERE id = $1`,
+      [owner.task_id],
+    );
+
+    const batchId = randomUUID();
+    await client.query(
+      `INSERT INTO distillation_run
+         (id, user_id, project_id, status, trigger, loadout_id, candidate_count, promoted, rejected,
+          merged, summary_regenerated, started_at, finished_at)
+       VALUES ($1, $2, $3, 'SUCCEEDED', 'MANUAL', NULL, 4, 2, 1, 1, true,
+               now() - interval '50 seconds', now() - interval '10 seconds')`,
+      [batchId, owner.user_id, owner.project_id],
+    );
+
+    const provenance = (candidateId: string | null, merged: readonly string[] = []) => ({
+      candidateId,
+      runId: input.runId,
+      taskId: owner.task_id,
+      distillationRunId: batchId,
+      harnessSessionId: null,
+      usage: null,
+      mergedCandidateIds: [...merged],
+      coveredItemIds: [],
+    });
+
+    const candidateIds = candidates.map(() => randomUUID());
+    const [factCandidate, decisionCandidate, rejectedCandidate, mergedCandidate] = candidateIds as [
+      string,
+      string,
+      string,
+      string,
+    ];
+
+    const pendingFactId = randomUUID();
+    const pendingDecisionId = randomUUID();
+    const activeItemId = randomUUID();
+    const summaryId = randomUUID();
+
+    const insertItem = (values: {
+      id: string;
+      type: string;
+      status: string;
+      title: string;
+      content: string;
+      provenance: unknown;
+      version: number;
+      reviewed: boolean;
+      createdOffsetSeconds: number;
+    }) =>
+      client.query(
+        `INSERT INTO knowledge_item
+           (id, user_id, project_id, type, status, title, content, provenance, version, reviewed_at,
+            created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9,
+                 CASE WHEN $10 THEN now() - interval '30 seconds' ELSE NULL END,
+                 now() - ($11 || ' seconds')::interval, now() - ($11 || ' seconds')::interval)`,
+        [
+          values.id,
+          owner.user_id,
+          owner.project_id,
+          values.type,
+          values.status,
+          values.title,
+          values.content,
+          JSON.stringify(values.provenance),
+          values.version,
+          values.reviewed,
+          String(values.createdOffsetSeconds),
+        ],
+      );
+
+    // O ativo primeiro: a decisão pendente é "posterior" a ele na linha do tempo.
+    await insertItem({
+      id: activeItemId,
+      type: "PROCEDURE",
+      status: "ACTIVE",
+      title: titles.active,
+      content: "Três batidas, uma pausa, duas batidas.\nFunciona mesmo sem a chave.",
+      provenance: provenance(null, [mergedCandidate]),
+      version: 2,
+      reviewed: true,
+      createdOffsetSeconds: 40,
+    });
+    await insertItem({
+      id: pendingFactId,
+      type: "FACT",
+      status: "PENDING_REVIEW",
+      title: titles.pendingFact,
+      content:
+        "Depois da chuva o piso da sala norte fica sob água.\nO caminho seguro é pela galeria leste.",
+      provenance: provenance(factCandidate),
+      version: 1,
+      reviewed: false,
+      createdOffsetSeconds: 30,
+    });
+    await insertItem({
+      id: pendingDecisionId,
+      type: "DECISION",
+      status: "PENDING_REVIEW",
+      title: titles.pendingDecision,
+      content: "Decidido: a galeria leste é a entrada padrão da masmorra.",
+      provenance: provenance(decisionCandidate),
+      version: 1,
+      reviewed: false,
+      createdOffsetSeconds: 20,
+    });
+    await insertItem({
+      id: summaryId,
+      type: "SUMMARY",
+      status: "ACTIVE",
+      title: titles.summary,
+      content: "Uma masmorra que alaga, um portão que abre com ritmo, uma galeria que salva.",
+      provenance: {
+        candidateId: null,
+        runId: null,
+        taskId: null,
+        distillationRunId: batchId,
+        harnessSessionId: null,
+        usage: null,
+        mergedCandidateIds: [],
+        coveredItemIds: [activeItemId],
+      },
+      version: 1,
+      reviewed: false,
+      createdOffsetSeconds: 10,
+    });
+
+    const decisions = [
+      {
+        id: factCandidate,
+        status: "PROMOTED",
+        decision: "PROMOTE",
+        reason: "Fato novo e útil.",
+        itemId: pendingFactId,
+      },
+      {
+        id: decisionCandidate,
+        status: "PROMOTED",
+        decision: "PROMOTE",
+        reason: "Uma decisão registrada.",
+        itemId: pendingDecisionId,
+      },
+      {
+        id: rejectedCandidate,
+        status: "REJECTED",
+        decision: "REJECT",
+        reason: "Efêmero: não serve para a próxima Expedição.",
+        itemId: null,
+      },
+      {
+        id: mergedCandidate,
+        status: "MERGED",
+        decision: "MERGE",
+        reason: "Repete o procedimento do portão.",
+        itemId: activeItemId,
+      },
+    ];
+    for (const [position, candidate] of candidates.entries()) {
+      const decided = decisions[position]!;
+      await client.query(
+        `INSERT INTO knowledge_candidate
+           (id, user_id, project_id, task_id, run_id, position, title, content, kind, status,
+            decision, reason, knowledge_item_id, distillation_run_id, processed_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now() - interval '10 seconds')`,
+        [
+          decided.id,
+          owner.user_id,
+          owner.project_id,
+          owner.task_id,
+          input.runId,
+          position,
+          candidate.title,
+          candidate.content,
+          candidate.kind,
+          decided.status,
+          decided.decision,
+          decided.reason,
+          decided.itemId,
+          batchId,
+        ],
+      );
+    }
+
+    const forgedId = randomUUID();
+    const forgedProvenance = {
+      kind: "VICTORY_STREAK",
+      detail: `3 Runs bem-sucedidos seguidos, fechados pelo Run ${input.runId}.`,
+      projectId: owner.project_id,
+      runId: input.runId,
+      taskId: owner.task_id,
+      distillationRunId: batchId,
+      harnessSessionId: null,
+    };
+    await client.query(
+      `INSERT INTO achievement_definition
+         (id, user_id, origin, natural_key, scope_type, scope_id, name_theme, name_plain,
+          description_theme, description_plain, flavor, icon, rarity, hidden, condition, provenance,
+          review_status, forged_provenance)
+       VALUES ($1, $2, 'FORGED', $3, 'PROJECT', $4, $5, $6, $7, $8, $9, 'flame', 'RARE', false,
+               $10::jsonb, $11::jsonb, 'PENDING_REVIEW', $12::jsonb)`,
+      [
+        forgedId,
+        owner.user_id,
+        `forged:${forgedId}`,
+        owner.project_id,
+        titles.forged,
+        `Sequência de 3 Runs bem-sucedidos ${input.suffix}`,
+        "Três Vitórias seguidas. A arquibancada apostou na derrota e perdeu.",
+        "Encadear 3 Runs bem-sucedidos seguidos no Project.",
+        "Três seguidas. A plateia queria sangue e recebeu planilha. Anota: previsível, porém eficaz.",
+        JSON.stringify({
+          predicate: "streak",
+          source: "run.succeeded",
+          length: 3,
+          filter: { "project.id": owner.project_id },
+        }),
+        JSON.stringify({
+          runId: input.runId,
+          taskId: owner.task_id,
+          createdAt: new Date().toISOString(),
+        }),
+        JSON.stringify(forgedProvenance),
+      ],
+    );
+
+    await client.query(`UPDATE distillation_run SET forged_achievement_id = $2 WHERE id = $1`, [
+      batchId,
+      forgedId,
+    ]);
+
+    await client.query(
+      `INSERT INTO dashboard_event (user_id, type, payload) VALUES ($1, 'knowledge.distilled', $2::jsonb)`,
+      [
+        owner.user_id,
+        JSON.stringify({
+          projectId: owner.project_id,
+          distillationRunId: batchId,
+          promoted: 2,
+          rejected: 1,
+          merged: 1,
+          pendingReview: 2,
+          knowledgeItemIds: [pendingFactId, pendingDecisionId],
+        }),
+      ],
+    );
+    await client.query(
+      `INSERT INTO dashboard_event (user_id, type, payload) VALUES ($1, 'achievement.forged', $2::jsonb)`,
+      [
+        owner.user_id,
+        JSON.stringify({
+          definitionId: forgedId,
+          name: titles.forged,
+          kind: "VICTORY_STREAK",
+          projectId: owner.project_id,
+          runId: input.runId,
+          taskId: owner.task_id,
+          distillationRunId: batchId,
+          reviewStatus: "PENDING_REVIEW",
+        }),
+      ],
+    );
+
+    await client.query("COMMIT");
+    return {
+      projectId: owner.project_id,
+      taskId: owner.task_id,
+      batchId,
+      pendingFactId,
+      pendingDecisionId,
+      activeItemId,
+      summaryId,
+      forgedId,
+      titles,
+    };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
     throw error;

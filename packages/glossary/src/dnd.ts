@@ -220,6 +220,146 @@ export const dnd: Record<GlossaryKey, string> = {
   "graph.cycle": "Essa ligação fecharia um ciclo no Mapa: {path}. A aresta foi desfeita.",
   "graph.openProposals": "Tem Pistas em aberto",
 
+  // -------------------------------------------------------------- knowledge
+  "knowledge.scribe": "Escriba do Grimório",
+  "knowledge.type.fact": "Fato",
+  "knowledge.type.decision": "Decreto",
+  "knowledge.type.discovery": "Descoberta",
+  "knowledge.type.constraint": "Restrição",
+  "knowledge.type.procedure": "Procedimento",
+  "knowledge.type.summary": "Resumo da Campanha",
+  "knowledge.status.pendingReview": "Aguardando o Selo do Escriba",
+  "knowledge.status.active": "No Grimório",
+  "knowledge.status.rejected": "Recusada",
+  "knowledge.status.archived": "Arquivada",
+  "knowledge.review.pending": "Aguardando o Selo",
+  "knowledge.review.reviewed": "Já seladas",
+  "knowledge.review.title": "Fila do Selo do Escriba",
+  "knowledge.review.empty":
+    "Nenhuma Página aguarda o Selo. Quando o Escriba promover um candidato, ela aparece aqui para você decidir.",
+  "knowledge.review.hint":
+    "O Escriba escreveu estas Páginas a partir do que as Expedições aprenderam. Sele o que vale, corrija o que quase vale, recuse o resto.",
+  "knowledge.decision.approve": "Selar a Página",
+  "knowledge.decision.reject": "Recusar a Página",
+  "knowledge.decision.editApprove": "Corrigir antes de selar",
+  "knowledge.decision.saveApprove": "Salvar e selar",
+  "knowledge.approve.done": "A Página entrou no Grimório.",
+  "knowledge.reject.title": "Recusar esta Página do Grimório?",
+  "knowledge.reject.body":
+    "A Página fica registrada como recusada, com a sua nota, e nunca entra no Grimório. A decisão não pode ser desfeita.",
+  "knowledge.reject.done": "Página recusada.",
+  "knowledge.conflict":
+    "Outra mão selou antes da sua. Nada foi sobrescrito: a Página está {status}.",
+  "knowledge.edit.title": "Corrigir a Página",
+  "knowledge.edit.body":
+    "Título, conteúdo e tipo. Cada correção sobe a versão da Página; o Resumo da Campanha não troca de tipo.",
+  "knowledge.edit.done": "Página salva.",
+  "knowledge.archive.title": "Arquivar esta Página?",
+  "knowledge.archive.body":
+    "A Página sai do Grimório e deixa de contar para o Resumo da Campanha. Ela fica guardada e pode voltar depois.",
+  "knowledge.archive.action": "Arquivar a Página",
+  "knowledge.archive.done": "Página arquivada.",
+  "knowledge.unarchive.action": "Devolver ao Grimório",
+  "knowledge.unarchive.done": "A Página voltou ao Grimório.",
+  "knowledge.detail.open": "Abrir a Página",
+  "knowledge.summary.title": "Resumo da Campanha",
+  "knowledge.summary.empty":
+    "O Escriba ainda não escreveu o Resumo da Campanha. Ele nasce no primeiro lote com Páginas seladas.",
+  "knowledge.summary.stale": "{n} Páginas entraram no Grimório depois deste resumo.",
+  "knowledge.summary.fresh": "Cobre todas as Páginas do Grimório.",
+  "knowledge.distill.now": "Chamar o Escriba",
+  "knowledge.distill.requested":
+    "O Escriba foi chamado. {n} candidatos esperam o lote, que roda em segundo plano.",
+  "knowledge.distill.nothing":
+    "O Escriba foi chamado, mas nenhum candidato espera: o lote vai voltar de mãos vazias.",
+  "knowledge.distill.done":
+    "O Escriba passou pelo Grimório: {promoted} promovidas, {merged} fundidas, {rejected} recusadas.",
+  "knowledge.batches.title": "Lotes do Escriba",
+  "knowledge.batches.empty":
+    "Nenhum lote ainda. O Escriba passa pelo Grimório na cadência configurada, ou quando você o chama.",
+  "knowledge.batch.status.running": "Escrevendo",
+  "knowledge.batch.status.succeeded": "Encerrado",
+  "knowledge.batch.status.failed": "Falhou",
+  "knowledge.batch.trigger.timer": "Pela cadência",
+  "knowledge.batch.trigger.idle": "Por ociosidade",
+  "knowledge.batch.trigger.notify": "A pedido",
+  "knowledge.batch.trigger.manual": "Chamado à mão",
+  "knowledge.batch.counts":
+    "{candidates} candidatos · {promoted} promovidas · {merged} fundidas · {rejected} recusadas",
+  "knowledge.batch.summaryRegenerated": "Resumo reescrito",
+  "knowledge.batch.forged": "Forjou uma Conquista",
+  "knowledge.candidate.status.pending": "Aguardando o Escriba",
+  "knowledge.candidate.status.promoted": "Virou Página",
+  "knowledge.candidate.status.rejected": "Recusado pelo Escriba",
+  "knowledge.candidate.status.merged": "Fundido numa Página",
+  "knowledge.candidate.openItem": "Abrir a Página no Grimório",
+  "knowledge.provenance.title": "Proveniência",
+  "knowledge.provenance.run": "Expedição de origem",
+  "knowledge.provenance.task": "Missão de origem",
+  "knowledge.provenance.batch": "Lote do Escriba",
+  "knowledge.provenance.merged": "Candidatos fundidos nesta Página",
+  "knowledge.provenance.covered": "Páginas cobertas por este resumo",
+  "knowledge.provenance.none":
+    "Sem Expedição de origem: escrita pelo Escriba a partir do Grimório.",
+  "knowledge.decisions.empty":
+    "Nenhum Decreto ainda. Quando uma Expedição registrar uma decisão e o Escriba a promover, ela entra nesta linha do tempo.",
+  "knowledge.decisions.from": "Decretado na Expedição",
+  "knowledge.tab.items": "Páginas",
+  "knowledge.tab.batches": "Lotes",
+  "knowledge.list.empty":
+    "O Grimório está em branco. As Expedições trazem candidatos, e o Escriba os transforma em Páginas.",
+  "knowledge.list.noMatch": "Nenhuma Página casa com esse filtro.",
+  "knowledge.search.placeholder": "Buscar no Grimório…",
+  "knowledge.filter.type": "Tipo",
+  "knowledge.filter.status": "Estado",
+  "knowledge.filter.review": "Selo",
+  "knowledge.pending.title": "Páginas aguardando o Selo",
+  "knowledge.overview.description":
+    "O que cada Campanha já aprendeu. O Escriba escreve as Páginas a partir das Expedições, e você sela o que entra.",
+  "knowledge.overview.empty":
+    "Nenhuma Campanha ainda. O Grimório nasce com a primeira Expedição que traz um candidato.",
+  "knowledge.overview.open": "Abrir o Grimório",
+  "knowledge.overview.noSummary": "Sem resumo ainda",
+  "knowledge.overview.summaryAt": "Resumo escrito {when}",
+  "knowledge.count.active": "{n} no Grimório",
+  "knowledge.count.pending": "{n} aguardando o Selo",
+
+  // ---------------------------------------------------------------- forged
+  "forged.section.title": "Na forja",
+  "forged.section.empty":
+    "Nada na forja. Quando o Escriba encontrar um feito notável numa Expedição, a Conquista forjada aparece aqui antes de entrar no Hall.",
+  "forged.section.hint":
+    "O Escriba escreveu estas cartas. Pendure no Hall as que valem, reescreva as que quase valem, descarte o resto.",
+  "forged.decision.approve": "Pendurar no Hall",
+  "forged.decision.rename": "Reescrever",
+  "forged.decision.discard": "Descartar a forjada",
+  "forged.rename.title": "Reescrever a forjada",
+  "forged.rename.body":
+    "Só o texto do tema muda: nome, descrição e fala. A versão sóbria descreve a condição e é escrita pelo código.",
+  "forged.rename.name": "Nome no tema",
+  "forged.rename.description": "Descrição no tema",
+  "forged.rename.flavor": "Fala do Dungeon Master",
+  "forged.rename.plain": "Versão sóbria (não muda)",
+  "forged.discard.title": "Descartar esta forjada?",
+  "forged.discard.body":
+    "Ela nunca entra no Hall. A carta fica guardada só para a forja contar o intervalo entre forjadas. A decisão não pode ser desfeita.",
+  "forged.approve.done": "A forjada foi pendurada no Hall.",
+  "forged.rename.done": "Forjada reescrita.",
+  "forged.discard.done": "Forjada descartada.",
+  "forged.conflict":
+    "Outra mão decidiu antes da sua. Nada foi sobrescrito: a forjada está {status}.",
+  "forged.status.pendingReview": "Na forja",
+  "forged.status.approved": "Pendurada no Hall",
+  "forged.status.discarded": "Descartada",
+  "forged.provenance": "Forjada a partir de",
+  "forged.kind.nemesisDefeated": "Monstro reaberto derrotado",
+  "forged.kind.victoryStreak": "Sequência de Vitórias",
+  "forged.kind.firstHarnessVictory": "Primeira Vitória de uma Guilda",
+  "forged.kind.durationRecord": "Recorde de duração",
+  "forged.toast.title": "O Escriba forjou uma Conquista",
+  "forged.toast.body": "Está na forja, esperando o seu veredito antes de entrar no Hall.",
+  "forged.toast.open": "Abrir a forja",
+
   // ------------------------------------------------------------------- env
   "env.host": "Campo aberto",
   "env.host.warning": "sem isolamento",
@@ -314,4 +454,22 @@ export const dnd: Record<GlossaryKey, string> = {
   // -------------------------------------------------------------- settings
   "settings.theme.toggle": "Tema Dungeon Master",
   "settings.theme.description": "Vocabulário de RPG na interface. Desligue para nomes neutros.",
+  "settings.knowledge.title": "Grimório",
+  "settings.knowledge.description":
+    "Como o Escriba do Grimório escreve as Páginas de cada Campanha, e quando.",
+  "settings.knowledge.humanReview": "Selo do Escriba",
+  "settings.knowledge.humanReview.description":
+    "Ligado, toda Página que o Escriba promover espera o seu Selo antes de entrar no Grimório. Desligado, ela entra direto.",
+  "settings.knowledge.loadout": "Equipamento do Escriba",
+  "settings.knowledge.loadout.description":
+    "O Escriba não executa nada: lê o prompt e responde JSON. Por isso o Equipamento precisa de uma Guilda com saída estruturada.",
+  "settings.knowledge.loadout.default": "O semeado: {name}",
+  "settings.knowledge.loadout.noStructuredOutput": "sem saída estruturada",
+  "settings.knowledge.every": "Cadência do Escriba",
+  "settings.knowledge.every.description":
+    "A cada quantos minutos o Escriba varre os candidatos pendentes de todas as Campanhas. Entre 1 e 1440.",
+  "settings.knowledge.forgeEvery": "Intervalo entre forjadas",
+  "settings.knowledge.forgeEvery.description":
+    "Quantas Expedições precisam terminar entre duas Conquistas forjadas, para a forja continuar rara. Entre 1 e 10000.",
+  "settings.knowledge.saved": "O Grimório foi configurado.",
 };

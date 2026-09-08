@@ -53,6 +53,23 @@ export function useLiveQueries(): void {
         // (que parou ou voltou à fila) e os steps dele.
         void queryClient.invalidateQueries({ queryKey: ["approval-gates"] });
         void queryClient.invalidateQueries({ queryKey: ["runs"] });
+        return;
+      }
+
+      if (event.type.startsWith("knowledge.") || event.type.startsWith("knowledge_item.")) {
+        // Um lote destilado, um item revisado ou promovido (Fase 6B): a lista e
+        // a fila do Grimório, o resumo, as decisões, os lotes e o contador da
+        // navegação releem; os candidatos do cockpit também, porque o lote é o
+        // que os decide.
+        void queryClient.invalidateQueries({ queryKey: ["knowledge"] });
+        void queryClient.invalidateQueries({ queryKey: ["knowledge-candidates"] });
+        return;
+      }
+
+      if (event.type === "achievement.forged") {
+        // A forja ganhou uma carta: a seção do Hall relê. O toast mora em
+        // `useForgedToasts`, no layout raiz.
+        void queryClient.invalidateQueries({ queryKey: ["achievements", "forged"] });
       }
     });
   }, [addListener, queryClient]);

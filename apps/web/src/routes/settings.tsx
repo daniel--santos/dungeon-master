@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { AppearanceSection } from "@/components/settings/appearance";
 import { DiagnosticsSection } from "@/components/settings/diagnostics";
 import { ExecutionSection } from "@/components/settings/execution";
+import { KnowledgeSection } from "@/components/settings/knowledge";
 import { useGlossary } from "@/lib/glossary";
 
 export const Route = createFileRoute("/settings")({
@@ -21,6 +22,7 @@ function SettingsPage() {
       />
       <AppearanceSection />
       <ExecutionSection />
+      <KnowledgeSection />
       <DiagnosticsSection />
     </>
   );

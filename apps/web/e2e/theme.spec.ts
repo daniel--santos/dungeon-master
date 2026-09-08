@@ -1,6 +1,8 @@
 import { dnd, plain } from "@dungeon-master/glossary";
 import { expect, test, type Page } from "@playwright/test";
 
+import { themeToggle } from "./helpers";
+
 /**
  * O critério de conclusão da Fase 1 para a web: alternar o interruptor troca
  * todos os labels sem recarregar, e a preferência sobrevive à recarga.
@@ -36,7 +38,7 @@ test("o interruptor de tema troca os labels sem recarregar, e persiste", async (
   await sidebar.getByRole("link", { name: dnd["nav.settings"] }).click();
   await expect(page).toHaveURL(/\/settings$/);
 
-  const toggle = page.getByRole("switch");
+  const toggle = themeToggle(page);
   await expect(toggle).toBeEnabled();
   await expect(toggle).toHaveAttribute("data-state", "checked");
 
@@ -53,7 +55,7 @@ test("o interruptor de tema troca os labels sem recarregar, e persiste", async (
   expect(await markSurvives(page)).toBe(false);
 
   // Religa, para a tela terminar como começou.
-  const toggleAgain = page.getByRole("switch");
+  const toggleAgain = themeToggle(page);
   await expect(toggleAgain).toBeEnabled();
   await expect(toggleAgain).toHaveAttribute("data-state", "unchecked");
   await toggleAgain.click();
