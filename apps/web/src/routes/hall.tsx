@@ -1,9 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { BookOpen, BugIcon, Trophy, Users } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { useMemo } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { AchievementCard } from "@/components/hall/achievement-card";
+import { BestiaryTab } from "@/components/hall/bestiary-tab";
+import { ChronicleTab } from "@/components/hall/chronicle-tab";
+import { HeroesTab } from "@/components/hall/heroes-tab";
 import { PageHeader } from "@/components/page-header";
 import { Panel } from "@/components/panel";
 import {
@@ -19,20 +22,25 @@ import {
   ACHIEVEMENT_ORIGINS,
   ACHIEVEMENT_RARITIES,
   ACHIEVEMENT_STATES,
-  filterCards,
   hallSearchSchema,
   ORIGIN_LABEL,
   RARITY_LABEL,
   STATE_LABEL,
   useHall,
+  useMarkUnlocksSeen,
+  useUnlocks,
   type AchievementOrigin,
   type AchievementRarity,
   type AchievementState,
+  type HallTab,
 } from "@/lib/achievements";
 import { useGlossary } from "@/lib/glossary";
 
 /** O Radix recusa `value=""`, então "sem filtro" precisa de um valor próprio. */
 const ANY = "__any__";
+
+/** Quantos desbloqueios recentes o Hall olha para decidir o destaque de novo. */
+const RECENT_UNLOCKS = 50;
 
 export const Route = createFileRoute("/hall")({
   validateSearch: hallSearchSchema,
@@ -40,20 +48,45 @@ export const Route = createFileRoute("/hall")({
 });
 
 /**
- * O Hall em modo catálogo.
+ * O Hall dos Heróis, com dados reais (planejamento v0.4, Fase 2.5D).
  *
- * Na Fase 1 não há projeção de progresso: o catálogo inteiro aparece bloqueado,
- * e o medidor diz zero porque é zero. Mostrar tudo desde o começo é a decisão
- * do planejamento — o usuário vê o que há para conquistar antes de existir
- * execução para conquistar qualquer coisa.
+ * As quatro abas leem a mesma projeção que o Worker mantém. A grade não deriva
+ * estado nenhum: `state`, `tier` e `progress` chegam prontos de
+ * `GET /achievements`, e os filtros vão para a consulta em vez de peneirarem o
+ * resultado no cliente — o medidor tem de continuar contando o total mesmo com
+ * um filtro aberto, e é por isso que `counts` ignora os filtros de propósito.
+ *
+ * Abrir o Hall marca como visto o que ainda não foi. Um desbloqueio chega por
+ * toast na tela em que o usuário estiver, e o toast pode passar despercebido;
+ * abrir esta tela é a prova de que ele olhou.
  */
 function HallPage() {
   const { t, format } = useGlossary();
   const navigate = useNavigate({ from: "/hall" });
   const search = Route.useSearch();
-  const { query, hall } = useHall();
 
-  const cards = useMemo(() => filterCards(hall.cards, search), [hall.cards, search]);
+  const filters = useMemo(
+    () => ({ origin: search.origin, rarity: search.rarity, state: search.state }),
+    [search.origin, search.rarity, search.state],
+  );
+
+  const { query, hall } = useHall(filters);
+
+  // Os desbloqueios recentes servem a dois propósitos: o pontinho de "ainda não
+  // vista" na carta, e a marcação de visto ao abrir a tela.
+  const unlocks = useUnlocks({ page: 1, pageSize: RECENT_UNLOCKS });
+  useMarkUnlocksSeen(unlocks.data?.items);
+
+  const unseen = useMemo(() => {
+    const keys = new Set<string>();
+    for (const unlock of unlocks.data?.items ?? []) {
+      if (unlock.seenAt === null && unlock.key !== null) keys.add(unlock.key);
+    }
+    return keys;
+  }, [unlocks.data]);
+
+  const { cards, counts } = hall;
+  const tab: HallTab = search.tab ?? "achievements";
 
   return (
     <>
@@ -66,16 +99,16 @@ function HallPage() {
         actions={
           <div className="flex flex-col items-end gap-2">
             <span className="text-muted-foreground text-[13px]">
-              <span className="text-foreground font-medium">
-                {format("{unlocked} de {total}", { unlocked: hall.unlocked, total: hall.total })}
-              </span>{" "}
-              desbloqueadas
+              {format(t("hall.counter"), { unlocked: counts.unlocked, total: counts.total })}
             </span>
             <div className="bg-muted h-1.25 w-60 overflow-hidden rounded-full">
               <div
                 className="bg-primary h-full rounded-full"
                 style={{
-                  width: hall.total === 0 ? "0%" : `${String((hall.unlocked / hall.total) * 100)}%`,
+                  width:
+                    counts.total === 0
+                      ? "0%"
+                      : `${String((counts.unlocked / counts.total) * 100)}%`,
                 }}
               />
             </div>
@@ -83,7 +116,15 @@ function HallPage() {
         }
       />
 
-      <Tabs defaultValue="achievements">
+      <Tabs
+        onValueChange={(next) => {
+          void navigate({
+            search: (previous) => ({ ...previous, tab: next as HallTab }),
+            replace: true,
+          });
+        }}
+        value={tab}
+      >
         <TabsList>
           <TabsTrigger value="achievements">{t("hall.tab.achievements")}</TabsTrigger>
           <TabsTrigger value="heroes">{t("hall.tab.heroes")}</TabsTrigger>
@@ -148,7 +189,10 @@ function HallPage() {
             <div className="flex-1" />
 
             <span className="text-muted-foreground self-center text-xs">
-              Modo catálogo · o progresso começa a contar na Fase 2
+              {format("{inProgress} · {locked}", {
+                inProgress: `${String(counts.inProgress)} ${t("achievement.state.inProgress").toLowerCase()}`,
+                locked: `${String(counts.locked)} ${t("achievement.state.locked").toLowerCase()}`,
+              })}
             </span>
           </div>
 
@@ -168,43 +212,22 @@ function HallPage() {
           {cards.length > 0 && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {cards.map((card) => (
-                <AchievementCard key={card.key} card={card} />
+                <AchievementCard key={card.key} card={card} unseen={unseen.has(card.key)} />
               ))}
             </div>
           )}
         </TabsContent>
 
         <TabsContent value="heroes">
-          <Panel>
-            <EmptyState icon={Users} title={t("hall.tab.heroes")}>
-              {format(
-                "O cadastro de {agents} chega na Fase 2A e a ficha com experiência, vitórias e derrotas na Fase 2.5.",
-                { agents: t("entity.agent.plural") },
-              )}
-            </EmptyState>
-          </Panel>
+          <HeroesTab />
         </TabsContent>
 
         <TabsContent value="bestiary">
-          <Panel>
-            <EmptyState icon={BugIcon} title={t("hall.tab.bestiary")}>
-              {format(
-                "Aqui vai aparecer tudo do tipo {bug} que você resolveu, com destaque para o que voltou e foi vencido de vez. Chega na Fase 2.5, quando houver execução para vencer.",
-                { bug: t("entity.task.kind.bug") },
-              )}
-            </EmptyState>
-          </Panel>
+          <BestiaryTab />
         </TabsContent>
 
         <TabsContent value="chronicle">
-          <Panel>
-            <EmptyState icon={BookOpen} title={t("hall.tab.chronicle")}>
-              {format(
-                "A linha do tempo dos desbloqueios chega na Fase 2.5, junto com a projeção que os calcula.",
-                {},
-              )}
-            </EmptyState>
-          </Panel>
+          <ChronicleTab />
         </TabsContent>
       </Tabs>
     </>
