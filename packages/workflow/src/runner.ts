@@ -2,6 +2,7 @@ import type {
   ApprovalGate,
   DiagnosticEvent,
   RunError,
+  RunStepError,
   RunEventPayload,
   RunResult,
   RunStep,
@@ -499,7 +500,7 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<WorkflowOutc
     status: RunStepStatus,
     summary: string,
     durationMs: number,
-    patch: { result: RunStep["result"]; error: RunError | null },
+    patch: { result: RunStep["result"]; error: RunStepError | null },
   ): Promise<void> {
     const moved = await store.transitionRunStep({
       stepKey: step.key,
@@ -537,7 +538,8 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<WorkflowOutc
       stepKey: step.key,
       from: "PENDING",
       to: "SKIPPED",
-      patch: { result: null, error: { code: reason.code, message, reason } },
+      // O motivo vai em `details`, que é onde o contrato o tipa (`RunStepError`).
+      patch: { result: null, error: { code: reason.code, message, details: reason } },
     });
     if (!moved.ok) {
       logger?.warn?.(
@@ -565,7 +567,7 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<WorkflowOutc
   async function recoverLostAttempt(step: RunStep): Promise<void> {
     const definition = definitionsByKey.get(step.key);
     const maxAttempts = definition?.retry?.maxAttempts ?? 1;
-    const error: RunError = {
+    const error: RunStepError = {
       code: "STEP_ATTEMPT_LOST",
       message:
         `A tentativa ${String(Math.max(step.attempt, 1))} do passo «${step.name}» (${step.key}) ` +
@@ -594,7 +596,7 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<WorkflowOutc
   async function settleLost(
     step: RunStep,
     status: RunStepStatus,
-    error: RunError | undefined,
+    error: RunStepError | undefined,
     result?: RunStep["result"],
   ): Promise<void> {
     const moved = await store.transitionRunStep({

@@ -4742,7 +4742,7 @@ export interface components {
              */
             finishedAt: string | null;
             result: components["schemas"]["RunStepResult"];
-            error: components["schemas"]["RunError"];
+            error: components["schemas"]["RunStepError"];
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -4852,6 +4852,64 @@ export interface components {
          * @enum {string}
          */
         ApprovalDecision: "approve" | "reject";
+        /** @description Por que um RunStep terminou em erro ou foi pulado. */
+        RunStepError: ({
+            /** @description Código estável do erro, quando houver um. */
+            code?: string;
+            /** @description Mensagem já sanitizada de credenciais. */
+            message: string;
+            /** @description Só num step `SKIPPED`: por que ele não rodou. Ausente nos demais erros. */
+            details?: {
+                /** @enum {string} */
+                code: "PREDICATE_FALSE";
+                predicate: components["schemas"]["Predicate"];
+                /** @description Por que o predicado avaliou falso. */
+                detail: string;
+            } | {
+                /** @enum {string} */
+                code: "DEPENDENCY_NOT_SUCCEEDED";
+                dependency: string;
+                /**
+                 * @description Estado terminal em que a dependência ficou.
+                 * @enum {string}
+                 */
+                status: "PENDING" | "RUNNING" | "WAITING_APPROVAL" | "SUCCEEDED" | "FAILED" | "SKIPPED" | "TIMED_OUT" | "CANCELLED";
+            };
+        } & {
+            [key: string]: unknown;
+        }) | null;
+        /** @description Uma condição do conjunto fechado de `when`. */
+        Predicate: {
+            /** @enum {string} */
+            kind: "stepSucceeded";
+            /** @description Chave de um step que é dependência deste. */
+            step: string;
+        } | {
+            /** @enum {string} */
+            kind: "stepFailed";
+            /** @description Chave de um step que é dependência deste. */
+            step: string;
+        } | {
+            /** @enum {string} */
+            kind: "outputStatusIs";
+            /** @description Chave de um step de agente que é dependência deste. */
+            step: string;
+            /**
+             * @description O veredito que o agente reportou.
+             * @enum {string}
+             */
+            status: "completed" | "blocked" | "failed";
+        } | {
+            /** @enum {string} */
+            kind: "validationPassed";
+            /** @description Chave de um step de validação que é dependência deste. */
+            step: string;
+        } | {
+            /** @enum {string} */
+            kind: "artifactExists";
+            /** @description Caminho relativo ao workspace do Run. */
+            path: string;
+        };
         /** @description Os ApprovalGates de um Run. */
         ApprovalGateList: {
             /** @description Os gates do Run, do mais antigo ao mais novo. */
@@ -4961,38 +5019,6 @@ export interface components {
             prompt: string;
             /** @description Steps cujo resumo de resultado o motor anexa ao prompt. Precisam ser dependências deste step, diretas ou indiretas. */
             includeOutputsOf?: string[];
-        };
-        /** @description Uma condição do conjunto fechado de `when`. */
-        Predicate: {
-            /** @enum {string} */
-            kind: "stepSucceeded";
-            /** @description Chave de um step que é dependência deste. */
-            step: string;
-        } | {
-            /** @enum {string} */
-            kind: "stepFailed";
-            /** @description Chave de um step que é dependência deste. */
-            step: string;
-        } | {
-            /** @enum {string} */
-            kind: "outputStatusIs";
-            /** @description Chave de um step de agente que é dependência deste. */
-            step: string;
-            /**
-             * @description O veredito que o agente reportou.
-             * @enum {string}
-             */
-            status: "completed" | "blocked" | "failed";
-        } | {
-            /** @enum {string} */
-            kind: "validationPassed";
-            /** @description Chave de um step de validação que é dependência deste. */
-            step: string;
-        } | {
-            /** @enum {string} */
-            kind: "artifactExists";
-            /** @description Caminho relativo ao workspace do Run. */
-            path: string;
         };
         /** @description Um processo rodado sem shell. Código de saída diferente de 0 é `FAILED`. */
         CommandStepDefinition: {

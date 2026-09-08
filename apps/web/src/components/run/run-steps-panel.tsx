@@ -10,7 +10,6 @@ import { formatDuration } from "@/lib/runs";
 import { cn } from "@/lib/utils";
 import {
   APPROVAL_GATE_STATUS,
-  isStepSkipReasonCode,
   RUN_STEP_STATUS,
   STEP_SKIP_REASON,
   WORKFLOW_STEP_TYPE,
@@ -187,8 +186,9 @@ function StepRow({ step, now }: { step: RunStepRecord; now: number }) {
 /**
  * O que o step deixou: o resultado por tipo, ou o motivo de não ter rodado.
  *
- * `error` é um objeto aberto no contrato. Um step pulado carrega o motivo em
- * `details` quando o motor o grava lá; se não, o `message` já diz o bastante.
+ * Um step pulado carrega o `StepSkipReason` tipado em `error.details`
+ * (`RunStepError`, no contrato); quando ele não veio, o `message` já diz o
+ * bastante.
  */
 function StepOutcome({ step }: { step: RunStepRecord }) {
   const { t } = useGlossary();
@@ -231,22 +231,13 @@ interface SkipReasonView {
 }
 
 function readSkipReason(step: RunStepRecord): SkipReasonView | null {
-  const details = step.error?.details;
-  if (typeof details !== "object" || details === null) return null;
-  const fields = details as Record<string, unknown>;
-  const code = fields["code"];
-  if (!isStepSkipReasonCode(code)) return null;
+  const reason = step.error?.details;
+  if (reason === undefined) return null;
 
-  if (code === "PREDICATE_FALSE") {
-    const detail = fields["detail"];
-    return { code, detail: typeof detail === "string" && detail !== "" ? detail : null };
+  if (reason.code === "PREDICATE_FALSE") {
+    return { code: reason.code, detail: reason.detail === "" ? null : reason.detail };
   }
-  const dependency = fields["dependency"];
-  const status = fields["status"];
-  return {
-    code,
-    detail: [dependency, status].filter((part) => typeof part === "string").join(" · ") || null,
-  };
+  return { code: reason.code, detail: `${reason.dependency} · ${reason.status}` };
 }
 
 function ResultSummary({ result }: { result: RunStepResultRecord }) {

@@ -1,7 +1,7 @@
 import {
   APPROVAL_GATE_STATUS_VALUES,
   RUN_STEP_STATUS_VALUES,
-  type RunError,
+  type RunStepError,
   type RunStepResult,
 } from "@dungeon-master/contracts";
 import { sql } from "drizzle-orm";
@@ -62,7 +62,7 @@ export const runSteps = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
     finishedAt: timestamp("finished_at", { withTimezone: true, mode: "date" }),
     result: jsonb("result").$type<RunStepResult>(),
-    error: jsonb("error").$type<RunError>(),
+    error: jsonb("error").$type<RunStepError>(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
       .notNull()
