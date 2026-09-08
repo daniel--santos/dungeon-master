@@ -4,6 +4,7 @@ import type { Server as HttpServer } from "node:http";
 
 import { createAdaptorServer } from "@hono/node-server";
 import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/database";
+import { dockerAdapters } from "@dungeon-master/runtime-sandcastle";
 
 import { createApp } from "./app.js";
 import {
@@ -16,6 +17,7 @@ import {
   loadAchievementCatalog,
 } from "./composition.js";
 import { API_BASE_PATH, loadConfig } from "./config.js";
+import { createDockerPreflightPort } from "./docker-preflight.js";
 import { createLogger } from "./logger.js";
 
 const config = loadConfig();
@@ -58,7 +60,14 @@ const app = createApp({
   events: events.port,
   settings: createSettingsPort({ db: database.db, userId: LOCAL_USER_ID }),
   work: createWorkPort({ db: database.db, userId: LOCAL_USER_ID }),
-  execution: createExecutionPort({ db: database.db, userId: LOCAL_USER_ID, runEvents }),
+  execution: createExecutionPort({
+    db: database.db,
+    userId: LOCAL_USER_ID,
+    runEvents,
+    // Os mesmos adapters de container que o Worker registra. Construir não
+    // custa nada e não toca o Docker: só a chamada da rota mede alguma coisa.
+    dockerPreflight: createDockerPreflightPort({ adapters: dockerAdapters() }),
+  }),
   achievements,
   hall: createAchievementsPort({ db: database.db, userId: LOCAL_USER_ID }),
   logger,

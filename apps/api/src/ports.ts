@@ -6,6 +6,7 @@ import type {
   ApprovalGateListItem,
   DashboardEvent,
   DashboardEventType,
+  DockerPreflight,
   ExecutionProfile,
   Harness,
   JsonValue,
@@ -331,8 +332,19 @@ export interface ApprovalGatesPort {
   ): Promise<Result<ApprovalGate, ApprovalGateWriteFailure> | null>;
 }
 
-/** As portas de execução juntas, para `createApp` receber uma em vez de oito. */
+/**
+ * O preflight do backend Docker, medido na chamada.
+ *
+ * Nunca roda no boot: quem quer saber se o daemon está no ar pede, e recebe o
+ * resultado inteiro — daemon, imagem e cada harness de container.
+ */
+export interface DockerPreflightPort {
+  check(): Promise<DockerPreflight>;
+}
+
+/** As portas de execução juntas, para `createApp` receber uma em vez de nove. */
 export interface ExecutionPort {
+  readonly dockerPreflight: DockerPreflightPort;
   readonly harnesses: HarnessesPort;
   readonly models: ModelsPort;
   readonly agents: AgentsPort;
@@ -433,6 +445,7 @@ export function createSpecPorts(): {
       },
     },
     execution: {
+      dockerPreflight: { check: inerte("o preflight do Docker") },
       harnesses: {
         list: inerte("a listagem de Harnesses"),
         setEnabled: inerte("o interruptor de Harness"),

@@ -1,4 +1,9 @@
-import { HealthResponseSchema, ProblemDetailsSchema } from "@dungeon-master/contracts";
+import {
+  type DockerPreflight,
+  DockerPreflightSchema,
+  HealthResponseSchema,
+  ProblemDetailsSchema,
+} from "@dungeon-master/contracts";
 import { HTTPException } from "hono/http-exception";
 import { describe, expect, it } from "vitest";
 
@@ -124,5 +129,52 @@ describe("spec OpenAPI", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
+  });
+});
+
+describe(`GET ${API_BASE_PATH}/preflights/docker`, () => {
+  const resultado: DockerPreflight = {
+    checkedAt: "2026-09-08T10:00:00.000Z",
+    durationMs: 1_200,
+    timeoutMs: 15_000,
+    daemon: { reachable: true, serverVersion: "27.1.1" },
+    image: { name: "dungeon-master-agent:0.2.0", present: true, user: "1000:1000" },
+    problems: [],
+    harnesses: [
+      {
+        harnessKey: "CLAUDE_CODE",
+        adapterId: "claude-code@docker",
+        installed: true,
+        version: "claude 2.1.263",
+        authenticated: true,
+        timedOut: false,
+        problems: [],
+      },
+    ],
+  };
+
+  it("devolve o que a porta mediu, e só mede quando chamada", async () => {
+    let chamadas = 0;
+    const spec = createSpecPorts();
+    const app = createApp({
+      ...spec,
+      execution: {
+        ...spec.execution,
+        dockerPreflight: {
+          check: () => {
+            chamadas += 1;
+            return Promise.resolve(resultado);
+          },
+        },
+      },
+    });
+
+    // Instanciar a app não mede nada: o preflight nunca roda no boot.
+    expect(chamadas).toBe(0);
+
+    const response = await app.request(`${API_BASE_PATH}/preflights/docker`);
+    expect(response.status).toBe(200);
+    expect(DockerPreflightSchema.parse(await response.json())).toEqual(resultado);
+    expect(chamadas).toBe(1);
   });
 });

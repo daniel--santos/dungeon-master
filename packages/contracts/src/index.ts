@@ -10,6 +10,7 @@
 
 export * from "./activity.js";
 export * from "./dashboard-event.js";
+export * from "./docker-preflight.js";
 export * from "./health.js";
 export * from "./inbox.js";
 export * from "./pagination.js";

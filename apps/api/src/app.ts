@@ -14,6 +14,7 @@ import { requestId } from "hono/request-id";
 import { API_BASE_PATH, API_VERSION } from "./config.js";
 import { registerAchievementRoutes } from "./handlers/achievements.js";
 import { registerInboxRoutes } from "./handlers/inbox.js";
+import { registerPreflightRoutes } from "./handlers/preflight.js";
 import { registerProjectRoutes } from "./handlers/projects.js";
 import {
   registerAgentRoutes,
@@ -301,6 +302,7 @@ export function createApp(options: CreateAppOptions) {
   registerAgentRoutes(app, options.execution.agents);
   registerExecutionProfileRoutes(app, options.execution.executionProfiles);
   registerLoadoutRoutes(app, options.execution.loadouts);
+  registerPreflightRoutes(app, options.execution.dockerPreflight);
   registerRunRoutes(app, options.execution.runs, logger === undefined ? {} : { logger });
 
   // ------------------------------------------------------------- Workflow
