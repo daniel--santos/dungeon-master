@@ -1,6 +1,9 @@
 import { dnd, plain } from "@dungeon-master/glossary";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { dirname, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { setTheme } from "./helpers";
@@ -14,10 +17,10 @@ import { setTheme } from "./helpers";
  * de processos a confirmar, então a API transiciona na hora e a Task volta para
  * o quadro. É o pedaço do fluxo que dá para provar de ponta a ponta hoje.
  *
- * Project e Task nascem pela API porque a web ainda não edita `workspacePath`,
- * e sem ele nenhum Run pode ser criado. O que a suíte percorre pela interface é
- * o que ela existe para provar: cadastrar um Agent e um Loadout, partir com o
- * aceite explícito, e encerrar pelo diálogo de confirmação.
+ * Dois testes montam o cenário pela API, porque o que eles provam é outra coisa;
+ * o último faz o caminho inteiro pela interface — criar a Campanha, apontar o
+ * workspace para um repositório git de verdade, criar a Missão, partir e
+ * cancelar — que é o critério de conclusão da Fase 2 pela web.
  */
 
 /** Um diretório que existe na máquina que roda a API. */
@@ -196,4 +199,108 @@ test("o badge de ambiente muda de nome, nunca de aviso, ao trocar o tema", async
 
   // Religa, para a suíte terminar como começou.
   await setTheme(page, true);
+});
+
+/**
+ * Um repositório git de verdade, criado pelo teste, em um diretório temporário.
+ *
+ * A API confere no disco antes de gravar o caminho, então apontar para um lugar
+ * inventado não passaria. `git init` porque o tipo escolhido na tela é
+ * `GIT_REPO`, e é ele que habilita a estratégia de worktree por Expedição.
+ */
+function criarRepositorio(): string {
+  const diretorio = mkdtempSync(join(tmpdir(), "dm-e2e-repo-"));
+  execFileSync("git", ["init", "--initial-branch=main", diretorio], { stdio: "ignore" });
+  return diretorio;
+}
+
+test("o fluxo inteiro pela interface: campanha com workspace, missão, partida e retirada", async ({
+  page,
+}) => {
+  await setTheme(page, true);
+
+  const repositorio = criarRepositorio();
+  const nomeDaCampanha = `Forja temporária ${String(Date.now())}`;
+  const nomeDaMissao = "Confirmar o encerramento da árvore de processos";
+
+  try {
+    await criarHeroi(page, "Ferreiro do fluxo");
+    await criarEquipamento(page, "Forja do fluxo", "Ferreiro do fluxo");
+
+    // ------------------------------------------------ criar a Campanha
+    await page.goto("/projects");
+    await page.getByRole("button", { name: `Criar ${dnd["entity.project"]}` }).click();
+
+    const criacao = page.getByRole("dialog");
+    await criacao.getByLabel("Título").fill(nomeDaCampanha);
+    await criacao.getByRole("button", { name: "Criar", exact: true }).click();
+
+    await page.getByRole("link", { name: nomeDaCampanha }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(nomeDaCampanha);
+    const urlDaCampanha = page.url();
+
+    // Nasce sem workspace, e o cabeçalho diz isso em vez de deixar descobrir no `409`.
+    await expect(page.locator('[data-workspace="missing"]')).toContainText(
+      dnd["entity.run.plural"],
+    );
+
+    // ------------------------------------------------ criar a Missão
+    await page.getByRole("button", { name: `Nova ${dnd["entity.task"]}` }).click();
+    const novaMissao = page.getByRole("dialog");
+    await novaMissao.getByLabel("Título").fill(nomeDaMissao);
+    await novaMissao.getByRole("button", { name: "Criar", exact: true }).click();
+
+    await page.getByRole("link", { name: nomeDaMissao }).click();
+    await expect(page).toHaveURL(/\/tasks\/[0-9a-f-]{36}/);
+    const urlDaMissao = page.url();
+
+    // Sem workspace, partir está desabilitado — e não escondido.
+    const partida = page.getByRole("button", { name: `Nova ${dnd["entity.run"]}` });
+    await expect(partida).toBeDisabled();
+
+    // ------------------------------------------------ apontar o workspace
+    await page.goto(urlDaCampanha);
+    await page.getByRole("button", { name: "Editar" }).click();
+
+    const edicao = page.getByRole("dialog");
+    await escolher(page, "Tipo", dnd["workspaceKind.gitRepo"]);
+    await edicao.getByLabel("Caminho").fill(repositorio);
+    await edicao.getByRole("button", { name: "Salvar" }).click();
+
+    const badge = page.locator('[data-workspace="configured"]').first();
+    await expect(badge).toContainText(repositorio);
+
+    // ------------------------------------------------ partir
+    await page.goto(urlDaMissao);
+    await expect(partida).toBeEnabled();
+    await partida.click();
+
+    const dialogo = page.getByRole("dialog");
+    await escolher(page, dnd["entity.loadout"], /Forja do fluxo/);
+    await dialogo.getByLabel(`Aceito executar ${dnd["env.host.warning"]}`).check();
+    await dialogo.getByRole("button", { name: "Partir" }).click();
+
+    await expect(page).toHaveURL(/\/runs\/[0-9a-f-]{36}/);
+    const urlDaExpedicao = page.url();
+    await expect(page.locator("[data-run-status]").first()).toHaveText(dnd["run.status.queued"]);
+
+    // O título da Missão vem na própria listagem, sem uma leitura por linha.
+    await page.goto("/runs");
+    await expect(page.getByRole("row").filter({ hasText: nomeDaMissao })).toBeVisible();
+
+    // ------------------------------------------------ cancelar
+    await page.goto(urlDaExpedicao);
+    await page.getByRole("button", { name: `Cancelar ${dnd["entity.run"]}` }).click();
+
+    const confirmacao = page.getByRole("alertdialog");
+    await confirmacao.getByRole("button", { name: `Cancelar ${dnd["entity.run"]}` }).click();
+
+    await expect(page.locator("[data-run-status]").first()).toHaveText(dnd["run.status.cancelled"]);
+
+    // ------------------------------------------------ e a Missão volta ao quadro
+    await page.goto(urlDaMissao);
+    await expect(page.getByText(dnd["task.status.ready"]).first()).toBeVisible();
+  } finally {
+    rmSync(repositorio, { recursive: true, force: true });
+  }
 });
