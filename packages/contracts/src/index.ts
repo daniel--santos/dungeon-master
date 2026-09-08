@@ -30,4 +30,6 @@ export * from "./workflow.js";
 export * from "./workflow-event.js";
 export * from "./proposed-task.js";
 export * from "./knowledge-candidate.js";
+export * from "./knowledge-item.js";
+export * from "./distillation.js";
 export * from "./task-graph.js";

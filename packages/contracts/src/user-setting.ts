@@ -97,6 +97,48 @@ export const HostAcknowledgedSchema = z.boolean().meta({
   description: "O usuário já aceitou explicitamente executar sem isolamento no host.",
 });
 
+// --------------------------------------------------------------------------
+// Grimório e Distiller (Fase 6)
+// --------------------------------------------------------------------------
+
+/**
+ * Revisão humana dos itens promovidos, ligada por padrão (documento técnico,
+ * seção 20.1: o dedup por julgamento de LLM é fail-open, e é a revisão que
+ * torna isso aceitável no começo). Com `true`, todo item promovido nasce em
+ * `PENDING_REVIEW`; com `false`, nasce `ACTIVE`.
+ */
+export const KnowledgeHumanReviewSchema = z.boolean().meta({
+  id: "KnowledgeHumanReview",
+  description: "Os itens promovidos pelo Distiller esperam a aprovação do usuário?",
+});
+
+/**
+ * O Loadout do Escriba: quem escreve o Grimório.
+ *
+ * Nulo usa o Loadout semeado "Escriba do Grimório". O Distiller entra pelo
+ * `AgentRuntime` com este equipamento, sem chave de API à parte: é a mesma
+ * CLI, o mesmo Harness e o mesmo Model das Expedições.
+ */
+export const KnowledgeLoadoutIdSchema = z.uuid().nullable().meta({
+  id: "KnowledgeLoadoutId",
+  description: "Loadout usado pelo Distiller. Nulo usa o Loadout semeado do Escriba.",
+});
+
+/** Intervalo do timer do Distiller, em minutos. */
+export const KnowledgeDistillEveryMinutesSchema = z.number().int().min(1).max(1440).meta({
+  id: "KnowledgeDistillEveryMinutes",
+  description: "A cada quantos minutos o Distiller varre os candidatos pendentes.",
+});
+
+/**
+ * Rate limit das Conquistas forjadas: no máximo uma a cada N Expedições
+ * terminadas, para preservar raridade (planejamento v0.4, Fase 2.5C).
+ */
+export const ForgeEveryNRunsSchema = z.number().int().min(1).max(10_000).meta({
+  id: "ForgeEveryNRuns",
+  description: "Quantas Expedições precisam terminar entre duas Conquistas forjadas.",
+});
+
 /**
  * O objeto completo de configurações do usuário, com todas as chaves conhecidas
  * sempre presentes.
@@ -108,6 +150,10 @@ export const UserSettingsSchema = z
   .object({
     "ui.theme": UiThemeSchema,
     "execution.hostAcknowledged": HostAcknowledgedSchema,
+    "knowledge.humanReview": KnowledgeHumanReviewSchema,
+    "knowledge.loadoutId": KnowledgeLoadoutIdSchema,
+    "knowledge.distillEveryMinutes": KnowledgeDistillEveryMinutesSchema,
+    "achievements.forgeEveryNRuns": ForgeEveryNRunsSchema,
   })
   .meta({
     id: "UserSettings",
@@ -121,6 +167,11 @@ export const DEFAULT_USER_SETTINGS: UserSettings = Object.freeze({
   "ui.theme": "dnd",
   // O padrão é não ter aceitado: o aviso do modo host aparece na primeira vez.
   "execution.hostAcknowledged": false,
+  // Revisão humana ligada por padrão: o dedup do Distiller é fail-open.
+  "knowledge.humanReview": true,
+  "knowledge.loadoutId": null,
+  "knowledge.distillEveryMinutes": 10,
+  "achievements.forgeEveryNRuns": 20,
 });
 
 /**
@@ -133,6 +184,10 @@ export const DEFAULT_USER_SETTINGS: UserSettings = Object.freeze({
 export const USER_SETTING_VALUE_SCHEMAS = {
   "ui.theme": UiThemeSchema,
   "execution.hostAcknowledged": HostAcknowledgedSchema,
+  "knowledge.humanReview": KnowledgeHumanReviewSchema,
+  "knowledge.loadoutId": KnowledgeLoadoutIdSchema,
+  "knowledge.distillEveryMinutes": KnowledgeDistillEveryMinutesSchema,
+  "achievements.forgeEveryNRuns": ForgeEveryNRunsSchema,
 } as const satisfies Record<keyof UserSettings, z.ZodType>;
 
 /** As chaves conhecidas, na ordem em que aparecem no objeto. */
