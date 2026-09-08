@@ -1,6 +1,6 @@
 # A imagem de referência do agente
 
-`agent.Dockerfile` constrói `dungeon-master-agent:0.1.0`, a imagem que o modo de execução
+`agent.Dockerfile` constrói `dungeon-master-agent:0.2.0`, a imagem que o modo de execução
 `DOCKER` ("Masmorra selada") usa para rodar um Run dentro de um container.
 
 ```bash
@@ -9,31 +9,54 @@ pnpm docker:build -- --no-cache          # ignora o cache de camadas
 pnpm docker:build -- --image outra:tag   # outra tag
 ```
 
-Medido em 07/09/2026, Windows 11 com Docker Desktop 29.7.2 (WSL2):
+Medido em 07/09/2026, Windows 11 com Docker Desktop 29.7.2 (WSL2), na mesma máquina e na
+mesma sessão, para que a comparação signifique alguma coisa:
 
-| Medida                           | Valor       |
-| -------------------------------- | ----------- |
-| Build do zero (`--no-cache`)     | 74,7 s      |
-| Tamanho da imagem                | 1,28 GB     |
-| Partida de um container (`--rm`) | 0,7 – 1,1 s |
+| Medida                           | `0.1.0` (três CLIs) | `0.2.0` (com o `agy`) |
+| -------------------------------- | ------------------- | --------------------- |
+| Build do zero (`--no-cache`)     | 68 s                | 91 s                  |
+| Tamanho da imagem                | 1,28 GB             | 1,49 GB               |
+| Partida de um container (`--rm`) | 0,7 – 1,1 s         | 0,9 – 1,9 s           |
 
-O segundo build, com cache, é quase instantâneo; o número acima é o pior caso, que é o
-que alguém enfrenta na primeira vez.
+Os 210 MB e os 23 segundos a mais são o binário do Antigravity, que é um executável Go
+único desse tamanho. O segundo build, com cache, é quase instantâneo; o número acima é o
+pior caso, que é o que alguém enfrenta na primeira vez.
 
 ## O que está dentro
 
-`node:24-bookworm-slim`, mais `git`, `procps` e `ripgrep`, mais as três CLIs em versão
-fixa — as mesmas do host em que o modo foi provado:
+`node:24-bookworm-slim`, mais `git`, `curl`, `procps` e `ripgrep`, mais as quatro CLIs em
+versão fixa — as mesmas do host em que o modo foi provado:
 
-| CLI         | Pacote npm                        | Versão  |
-| ----------- | --------------------------------- | ------- |
-| Claude Code | `@anthropic-ai/claude-code`       | 2.1.263 |
-| Codex       | `@openai/codex`                   | 0.147.0 |
-| Pi          | `@earendil-works/pi-coding-agent` | 0.85.1  |
+| CLI         | Origem                                         | Versão  |
+| ----------- | ---------------------------------------------- | ------- |
+| Claude Code | npm `@anthropic-ai/claude-code`                | 2.1.263 |
+| Codex       | npm `@openai/codex`                            | 0.147.0 |
+| Pi          | npm `@earendil-works/pi-coding-agent`          | 0.85.1  |
+| Antigravity | objeto versionado do Google, SHA-512 conferido | 1.1.27  |
 
 Subir uma versão é editar o `ARG` correspondente e reconstruir. A imagem é o registro de
 qual CLI o Run usou, e é por isso que as versões são fixas: um `@latest` faria dois Runs
 do mesmo dia rodarem em ferramentas diferentes sem nada no diário dizendo isso.
+
+O Antigravity não é pacote npm, e o instalador oficial
+(`curl … antigravity.google/cli/install.sh | bash`) busca **sempre o último** release, o
+que quebraria essa regra. A imagem, em vez de rodar o instalador, baixa o objeto que o
+manifesto dele aponta e confere o SHA-512 publicado ali:
+
+```bash
+curl -fsSL https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/linux_amd64.json
+# { "version": "1.1.27", "url": "https://storage.googleapis.com/…", "sha512": "793d4b…" }
+```
+
+Subir de versão é reler esse manifesto e trocar `ANTIGRAVITY_VERSION`, `ANTIGRAVITY_URL` e
+`ANTIGRAVITY_SHA512` juntos. O tarball traz um único executável chamado `antigravity`, que
+é instalado como `/usr/local/bin/agy` — o nome que o instalador oficial usa e que o adapter
+chama.
+
+Esquecer uma das três linhas é o erro fácil, e ele é caro: a imagem passaria a registrar
+uma versão que não é a que está lá dentro. Por isso o build termina o passo com
+`test "$(agy --version)" = "${ANTIGRAVITY_VERSION}"` e morre na divergência — verificado
+com `--build-arg ANTIGRAVITY_VERSION=9.9.9`, que falha o build.
 
 ## Nenhuma credencial mora aqui
 
@@ -50,6 +73,18 @@ tempo de execução, pelo mecanismo decidido em
 O valor de uma variável **não** entra no argv do `docker run`. O comando leva `-e NOME`
 sem `=`, e o valor viaja no ambiente do processo cliente do Docker: o argv de um processo
 é legível por qualquer coisa rodando na máquina.
+
+Existe uma terceira forma, e ela é o contrário das outras duas: `fixedEnv` escreve
+`-e NOME=VALOR` no argv de propósito, para **configurar** a CLI para dentro do container —
+um interruptor de modo, ou um caminho do sistema de arquivos do container que o ambiente do
+host não teria como conhecer. Justamente por escrever o valor no argv, **nada que seja
+segredo pode ir por ali**. O caso que a criou é o Antigravity, em
+[`docs/adr/0002-antigravity-em-docker.md`](../docs/adr/0002-antigravity-em-docker.md).
+
+O Antigravity é o único dos quatro que **não** entra no modo `DOCKER`: ele guarda a
+credencial no cofre do sistema operacional, e não em arquivo, e o único caminho não
+interativo que existe (Application Default Credentials do Google) não foi provado de ponta
+a ponta. O ADR 0002 tem o veredito, as medições e o comando exato que fecharia o gate.
 
 ## O contrato de UID/GID
 
@@ -72,7 +107,7 @@ preflight do runtime compara esse valor com o UID do worker e avisa quando a ima
 construída para outro dono, em vez de deixar o Run terminar sem espólio nenhum e sem
 explicação.
 
-Os diretórios de configuração das CLIs (`~/.claude`, `~/.codex`, `~/.pi/agent`) nascem no
+Os diretórios de configuração das CLIs (`~/.claude`, `~/.codex`, `~/.pi/agent`, `~/.gemini`) nascem no
 build com o dono certo. Sem isso, um bind mount de **arquivo** dentro de um diretório
 inexistente faz o Docker criar o pai como `root:root`, e o agente não consegue nem
 atravessá-lo — é a causa-raiz B do mesmo ADR 0014.

@@ -18,8 +18,9 @@
 #
 # Origem da técnica: `@ai-hero/sandcastle` v0.12.0, `.sandcastle/Dockerfile`
 # (MIT, © 2026 Matt Pocock) — https://github.com/mattpocock/sandcastle
-# Changes: base Node 24 em vez de 22; CLIs instaladas por npm com versão fixa em
-# vez de instalador remoto; `gh` removido; `ENTRYPOINT ["sleep","infinity"]`
+# Changes: base Node 24 em vez de 22; CLIs instaladas com versão fixa em vez de
+# instalador remoto (npm para as três de Node, objeto versionado com SHA-512
+# conferido para o Antigravity); `gh` removido; `ENTRYPOINT ["sleep","infinity"]`
 # removido porque aqui o container é de uma execução só (`docker run --rm`), e não
 # um container longevo com `docker exec`; diretórios de configuração das CLIs
 # criados no build para que um file mount não os crie como `root:root`.
@@ -38,12 +39,27 @@ ARG CLAUDE_CODE_VERSION=2.1.263
 ARG CODEX_VERSION=0.147.0
 ARG PI_VERSION=0.85.1
 
+# O Antigravity não é pacote npm: é um binário Go distribuído por um instalador
+# remoto que sempre busca o **último** release, o que quebraria a regra de versão
+# fixa. Em vez de rodar o `install.sh`, a imagem baixa o objeto versionado que o
+# manifesto daquele instalador aponta e confere o SHA-512 que ele publica.
+#
+#   curl .../manifests/linux_amd64.json  ->  { version, url, sha512 }
+#
+# Subir de versão é reler esse manifesto e trocar as três linhas juntas. A URL
+# carrega a versão no caminho, então ela não muda debaixo de nós.
+ARG ANTIGRAVITY_VERSION=1.1.27
+ARG ANTIGRAVITY_URL=https://storage.googleapis.com/antigravity-public/antigravity-cli/1.1.27-5211191891591168/linux-x64/cli_linux_x64.tar.gz
+ARG ANTIGRAVITY_SHA512=793d4b9ea2c08d9a7e50bafa02cfc8c19424bd60d6e83f91408d45f9c6d4ce79a5d576fede5bef164d823abf84f81359a14b4ca665952c47b0a7cfd743bb69c0
+
 # `git` é requisito do modo: o worktree do Run chega por bind mount e o agente
 # commita lá dentro. `procps` entrega o `ps` que o diagnóstico usa. `ripgrep` é
-# dependência de fato das três CLIs para busca em código.
+# dependência de fato das três CLIs para busca em código. `curl` baixa o binário
+# do Antigravity no passo seguinte.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
     git \
     procps \
     ripgrep \
@@ -56,6 +72,20 @@ RUN npm install -g --no-fund --no-audit \
     "@openai/codex@${CODEX_VERSION}" \
     "@earendil-works/pi-coding-agent@${PI_VERSION}" \
   && npm cache clean --force
+
+# O Antigravity, no mesmo lugar e com o mesmo dono das outras três. O tarball
+# traz um único executável chamado `antigravity`, de ~210 MB; o instalador
+# oficial o renomeia para `agy`, e é esse o nome que o adapter chama.
+#
+# O SHA-512 é conferido **antes** de extrair. Sem isso a imagem confiaria num
+# download remoto sem prova nenhuma de integridade, e a versão fixa do `ARG`
+# viraria decoração.
+RUN curl -fsSL --retry 3 -o /tmp/agy.tar.gz "${ANTIGRAVITY_URL}" \
+  && echo "${ANTIGRAVITY_SHA512}  /tmp/agy.tar.gz" | sha512sum -c - \
+  && tar -xzf /tmp/agy.tar.gz -C /tmp antigravity \
+  && install -m 0755 /tmp/antigravity /usr/local/bin/agy \
+  && rm -f /tmp/agy.tar.gz /tmp/antigravity \
+  && test "$(agy --version)" = "${ANTIGRAVITY_VERSION}"
 
 # Renomeia `node` para `agent` e realinha UID/GID. `-o` (não único) é obrigatório;
 # veja o cabeçalho.
@@ -70,6 +100,7 @@ RUN mkdir -p \
     /home/agent/.claude \
     /home/agent/.codex \
     /home/agent/.pi/agent \
+    /home/agent/.gemini \
     /home/agent/.config \
   && chown -R "${AGENT_UID}:${AGENT_GID}" /home/agent
 
