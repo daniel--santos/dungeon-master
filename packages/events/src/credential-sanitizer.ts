@@ -34,6 +34,18 @@ export const SENSITIVE_ENV_VARS = [
   "OPENAI_API_KEY",
   "GOOGLE_API_KEY",
   "GEMINI_API_KEY",
+  // Tokens de autenticação dos harnesses. Entraram no spike da 2C
+  // (`docs/adr/0001-autenticacao-em-docker.md`), que provou o buraco: com um
+  // segredo no ambiente e um agente autorizado a rodar `printenv`, o valor
+  // aparece quatro vezes no stream de um único Run — no `tool_result`, no texto
+  // do assistente e no `result` final. No modo DOCKER a credencial é entregue
+  // justamente por variável, porque procurar o **valor** no ambiente do worker é
+  // o que o sanitizador sabe fazer; um segredo que só existe dentro de um
+  // arquivo montado no container não é redigível por nome nenhum.
+  "ANTHROPIC_AUTH_TOKEN",
+  "CLAUDE_CODE_OAUTH_TOKEN",
+  "CODEX_ACCESS_TOKEN",
+  "CODEX_API_KEY",
 ] as const;
 
 export const REDACTED = "[REDACTED]" as const;
