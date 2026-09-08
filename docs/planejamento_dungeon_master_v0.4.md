@@ -791,6 +791,26 @@ Pendências que ficam registradas:
 
 **Fase 5 iniciada** (Task Decomposition + Task Graph): propostas de trabalho a partir do resultado das Expedições, Tasks filhas com dependências, grafo editável; em paralelo, uma rodada curta com as pendências de API acumuladas.
 
+## Fechamento da Fase 5 (08/09/2026)
+
+**Critério de conclusão da Fase 5 cumprido**: os resultados de execução propõem trabalho novo, propostas aprovadas viram Missões filhas com dependências, e o grafo da Campanha é editável. Provado com Claude Code real: uma Expedição terminou com duas propostas e um candidato a conhecimento gravados no mesmo instante do resultado; a aprovação com dependência criou a Missão filha com a aresta no Mapa; a recusa e as segundas decisões responderam 409 com a proposta atual.
+
+O que entrou:
+
+- **5A, backend**: tabelas `proposed_task` e `knowledge_candidate` (migração `0011`), gravadas **na mesma transação** do desfecho do Run, no Run simples e no Run com Ritual (resultado agregado), inclusive quando o Run falha; idempotência por Run e posição; item fora do contrato é pulado com aviso, nunca derruba a escrita terminal. Aprovar cria a Task filha da origem por padrão (`parentTaskId` nulo = sem mãe) com as dependências pedidas, sob CAS; ciclo responde 409 com o caminho; Task de outra Campanha é 404; da Inbox é 409. Rotas de propostas, candidatos (só leitura, para a Fase 6), grafo da Campanha (arestas no sentido da execução) e troca do conjunto de dependências; `openProposalCount` na Campanha e na Missão; eventos `task.proposed` e `task.proposal.resolved`. Autoaprovação só como ponto de extensão (`decideProposalPolicy`, sempre revisão humana).
+- **Rodada de pendências** (Fases 2.5, 3 e 4): descrição no payload de `achievement.unlocked`; `GET /task-reopenings` para o nêmesis do Bestiário; `GET /preflights/docker` sob demanda com bloco em Settings; Ritual na listagem de Selos; `StepSkipReason` tipado; `workflowId` na promoção da Inbox; aviso de permissões nativas na tela de Equipamento.
+- **5B, web**: Mapa da Campanha em `/projects/:id/graph` (React Flow com dagre, cartões com estado, prioridade, tipo, marca de Ritual e de Pistas abertas; arrastar cria dependência com ciclo devolvido em toast; remover aresta com confirmação; mãe/filha como aresta tracejada só leitura; filtro por status na URL; releitura por SSE). "Pista" é a proposta no tema ("Tarefa proposta" sem tema): painel na Campanha e na Missão de origem, diálogo de aprovação com mãe, dependências, tipo, prioridade, Ritual e nota, recusa confirmada, contador na navegação, toast em qualquer tela, e o cockpit mostra o que a Expedição trouxe. 14 testes de ponta a ponta, com fixture SQL de um desfecho com propostas.
+
+Pendências que ficam registradas:
+
+- A máquina de estados da Task não tem transição saindo de `COMPLETED`; a contagem de reaberturas fica em zero até "reabrir" existir.
+- `GET /proposed-tasks` não filtra por `runId`; a lista de Campanhas continua sem `openProposalCount` por linha.
+- A rota de dependência por aresta aceita Task de outra Campanha e o grafo omite essas arestas.
+- `KnowledgeCandidate` ainda sem processamento nem proveniência: assunto da Fase 6.
+- Ambiente: nesta máquina o Vite e o fork do vitest morrem às vezes com exit `0xC0000409`; reexecutar antes de suspeitar de regressão.
+
+**Fase 6 iniciada** (Knowledge + Distillation): `packages/knowledge` com prompts e helpers adaptados do TencentDB, Distiller assíncrono sob advisory lock por Campanha, itens do Grimório com proveniência e revisão humana ligada por padrão, Project Summary, telas Grimório e Decisões, e as Conquistas forjadas da parte 2.5C passando pela fila de revisão.
+
 ## Andamento anterior da Fase 2 (histórico)
 
 Mergeadas e verdes no CI: 2A (modelo, banco, API), 2B (runtime e adapters de host; ADR em `packages/runtime-sandcastle/README.md`: os adapters não dependem do Sandcastle em runtime), o Worker (laço, reconciliação, cancelamento confirmado, shutdown gracioso, `resumeFromRunId`, marca d'água do poller) e as telas (cadastros, Nova Expedição com aceite do modo host, Expedições, Cristal de Visão com diário ao vivo e AlertDialog de cancelamento).
