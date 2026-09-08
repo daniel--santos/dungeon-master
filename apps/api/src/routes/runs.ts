@@ -67,7 +67,9 @@ export const runsListRoute = createRoute({
   summary: "Lista as execuções",
   description:
     "Do Run mais recente para o mais antigo. `status` aceita um valor ou " +
-    "vários, repetindo o parâmetro.",
+    "vários, repetindo o parâmetro; `harnessKey` filtra por Harness e entra no " +
+    "`total`, como os demais. Cada item traz `taskTitle` pela mesma junção que " +
+    "já resolve `projectId`, para a tabela não fazer uma leitura por linha.",
   request: { query: RunListQuerySchema },
   responses: {
     200: {

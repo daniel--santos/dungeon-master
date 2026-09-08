@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { EmptyState } from "@/components/empty-state";
 import { Panel } from "@/components/panel";
+import { WorkspaceBadge } from "@/components/projects/workspace-badge";
 import { NewRunDialog } from "@/components/run/new-run-dialog";
 import { RunTable } from "@/components/run/run-table";
 import { KindChip, PriorityText, StatusChip } from "@/components/task/chips";
@@ -17,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDate, relativeTime } from "@/lib/datetime";
 import { canTransition, TASK_KIND } from "@/lib/domain";
 import { useGlossary } from "@/lib/glossary";
@@ -30,6 +32,7 @@ import {
   useUpdateTask,
 } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
+import { hasWorkspace } from "@/lib/workspace";
 
 type TaskDetail = components["schemas"]["TaskDetail"];
 type TaskSummary = components["schemas"]["TaskSummary"];
@@ -73,6 +76,12 @@ function Detail({ detail }: { detail: TaskDetail }) {
 
   const project = useProject(detail.projectId);
   const projectTitle = detail.projectId === null ? null : (project.data?.title ?? "…");
+
+  // Só depois de ler o Project dá para afirmar que falta workspace. Enquanto a
+  // leitura corre, o botão continua ativo: a API recusa com `409` e o motivo, e
+  // desabilitar por dúvida piscaria o botão a cada visita.
+  const workspaceMissing =
+    detail.projectId === null || (project.data !== undefined && !hasWorkspace(project.data));
 
   function startEditing() {
     setTitle(detail.title);
@@ -205,15 +214,37 @@ function Detail({ detail }: { detail: TaskDetail }) {
                   Editar
                 </Button>
                 {canDepart && (
-                  <Button
-                    onClick={() => {
-                      setDeparting(true);
-                    }}
-                    size="sm"
-                  >
-                    <Swords aria-hidden />
-                    <span>{format("Nova {run}", { run: t("entity.run") })}</span>
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        {/* O `span` existe porque um botão desabilitado não
+                            emite evento de ponteiro, e sem ele a explicação de
+                            por que ele está desabilitado nunca apareceria. */}
+                        <span className="inline-flex" data-depart-trigger>
+                          <Button
+                            disabled={workspaceMissing}
+                            onClick={() => {
+                              setDeparting(true);
+                            }}
+                            size="sm"
+                          >
+                            <Swords aria-hidden />
+                            <span>{format("Nova {run}", { run: t("entity.run") })}</span>
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-72">
+                        {workspaceMissing
+                          ? format(
+                              "O {project} não tem workspace. Abra-o, clique em Editar e aponte o caminho absoluto do diretório onde o {agent} vai trabalhar.",
+                              { project: t("entity.project"), agent: t("entity.agent") },
+                            )
+                          : format("Escolha o {loadout}, o ambiente e o prompt antes de partir.", {
+                              loadout: t("entity.loadout"),
+                            })}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </>
             )}
@@ -360,6 +391,9 @@ function Detail({ detail }: { detail: TaskDetail }) {
               <MetaRow label={format("{status} em", { status: t("task.status.completed") })}>
                 {formatDate(detail.completedAt)}
               </MetaRow>
+            )}
+            {project.data !== undefined && (
+              <WorkspaceBadge className="mt-2.5" project={project.data} />
             )}
           </Panel>
 

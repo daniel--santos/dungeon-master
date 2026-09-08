@@ -39,6 +39,7 @@ export type ExecutionProfileSnapshotRecord = components["schemas"]["ExecutionPro
 export type McpServerRecord = components["schemas"]["McpServerRef"];
 
 export type RunRecord = components["schemas"]["Run"];
+export type RunListItemRecord = components["schemas"]["RunListItem"];
 export type RunPageRecord = components["schemas"]["RunPage"];
 export type RunEventRecord = components["schemas"]["RunEvent"];
 export type RunEventListRecord = components["schemas"]["RunEventList"];

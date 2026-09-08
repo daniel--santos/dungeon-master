@@ -33,6 +33,7 @@ function RunsPage() {
   const harnesses = useHarnesses();
   const runs = useRuns({
     projectId: search.projectId,
+    harnessKey: search.harnessKey,
     status: search.status,
     page: search.page,
     pageSize: search.pageSize,
@@ -70,16 +71,9 @@ function RunsPage() {
     [navigate],
   );
 
+  // Os três filtros vão para a API, então a página recebida já é a resposta e o
+  // `total` do rodapé conta as linhas que o filtro deixa passar.
   const items = runs.data?.items ?? [];
-
-  // O filtro por Harness é aplicado aqui porque `GET /api/v1/runs` ainda não o
-  // aceita. Vale sobre a página recebida, e a tela diz isso no estado vazio em
-  // vez de dar a entender que o total do rodapé já o considerou.
-  const visible =
-    search.harnessKey === undefined
-      ? items
-      : items.filter((run) => run.harnessKey === search.harnessKey);
-
   const running = items.filter((run) => run.status === "RUNNING").length;
 
   return (
@@ -109,19 +103,14 @@ function RunsPage() {
                 icon={CirclePlay}
                 title={format("Nenhuma {run} com esse filtro", { run: t("entity.run") })}
               >
-                {search.harnessKey !== undefined && items.length > 0
-                  ? format(
-                      "Nenhuma das {n} desta página é da {harness} escolhida. O filtro por {harness} ainda vale só sobre a página, porque a API não o recebe.",
-                      { n: items.length, harness: t("entity.harness") },
-                    )
-                  : format(
-                      "Abra uma {task} pronta e mande uma {run} partir; ela aparece aqui na hora, ainda {status}.",
-                      {
-                        task: t("entity.task"),
-                        run: t("entity.run"),
-                        status: t("run.status.queued").toLowerCase(),
-                      },
-                    )}
+                {format(
+                  "Abra uma {task} pronta e mande uma {run} partir; ela aparece aqui na hora, ainda {status}.",
+                  {
+                    task: t("entity.task"),
+                    run: t("entity.run"),
+                    status: t("run.status.queued").toLowerCase(),
+                  },
+                )}
               </EmptyState>
             }
             error={runs.error}
@@ -129,7 +118,7 @@ function RunsPage() {
             onPageChange={onPageChange}
             page={search.page}
             pageSize={search.pageSize}
-            runs={visible}
+            runs={items}
             total={runs.data?.total ?? 0}
           />
         </Panel>
