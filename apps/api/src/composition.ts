@@ -3,6 +3,7 @@ import { type DashboardEvent, RUN_EVENT_CHANNEL, type RunEvent } from "@dungeon-
 import {
   addTaskDependency,
   appendDashboardEvent,
+  approveProposedTask,
   listAchievementUnlockPage,
   listAchievementViews,
   markAchievementUnlockSeen,
@@ -33,8 +34,10 @@ import {
   findProjectRow,
   findWorkflowRow,
   getProject,
+  getProposedTask,
   getRun,
   getTaskDetail,
+  getTaskGraph,
   getWorkflow,
   getWorkflowVersionDetail,
   latestDashboardEventSequence,
@@ -44,10 +47,12 @@ import {
   listExecutionProfiles,
   listHarnesses,
   listInboxTasks,
+  listKnowledgeCandidates,
   listLoadouts,
   listModels,
   listProjectActivity,
   listProjects,
+  listProposedTasks,
   listRunApprovalGates,
   listRunEventsSince,
   listRuns,
@@ -58,7 +63,9 @@ import {
   listWorkflowVersions,
   promoteInboxTask,
   readUserSettings,
+  rejectProposedTask,
   removeTaskDependency,
+  replaceTaskDependencies,
   requestRunCancellation,
   resolveApprovalGate,
   setHarnessEnabled,
@@ -544,6 +551,7 @@ export function createWorkPort(options: WorkPortOptions): WorkPort {
 
         return await listProjectActivity(db, { userId, projectId, ...page });
       },
+      taskGraph: (projectId) => getTaskGraph(db, { userId, projectId }),
     },
     tasks: {
       list: (input) =>
@@ -563,6 +571,8 @@ export function createWorkPort(options: WorkPortOptions): WorkPort {
         addTaskDependency(db, { userId, taskId, dependsOnTaskId }),
       removeDependency: (taskId, dependsOnTaskId) =>
         removeTaskDependency(db, { userId, taskId, dependsOnTaskId }),
+      replaceDependencies: (taskId, dependsOn) =>
+        replaceTaskDependencies(db, { userId, taskId, dependsOn }),
       reopenings: (filters) => listTaskReopenings(db, { userId, kind: filters.kind }),
     },
     inbox: {
@@ -570,6 +580,29 @@ export function createWorkPort(options: WorkPortOptions): WorkPort {
       list: (page) => listInboxTasks(db, { userId, ...page }),
       promote: (taskId, input) => promoteInboxTask(db, { userId, taskId, ...input }),
       discard: (taskId) => discardInboxTask(db, { userId, taskId }),
+    },
+    proposedTasks: {
+      list: (input) =>
+        listProposedTasks(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          filters: input.filters,
+        }),
+      get: (proposedTaskId) => getProposedTask(db, { userId, proposedTaskId }),
+      approve: (proposedTaskId, input) =>
+        approveProposedTask(db, { userId, proposedTaskId, ...input }),
+      reject: (proposedTaskId, input) =>
+        rejectProposedTask(db, { userId, proposedTaskId, ...input }),
+    },
+    knowledgeCandidates: {
+      list: (input) =>
+        listKnowledgeCandidates(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          filters: input.filters,
+        }),
     },
   };
 }

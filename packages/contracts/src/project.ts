@@ -78,6 +78,11 @@ export type Project = z.infer<typeof ProjectSchema>;
  */
 export const ProjectDetailSchema = ProjectSchema.extend({
   taskCounts: TaskStatusCountsSchema.describe("Tasks do Project agrupadas por estado."),
+  openProposalCount: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe("Quantas propostas de trabalho do Project ainda esperam decisão."),
 }).meta({ id: "ProjectDetail", description: "Um Project com a contagem de Tasks por estado." });
 
 export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;

@@ -10,11 +10,14 @@ import type {
   ExecutionProfile,
   Harness,
   JsonValue,
+  KnowledgeCandidate,
   Loadout,
   Model,
   Project,
   ProjectDetail,
   ProjectStatus,
+  ProposedTask,
+  ProposedTaskListItem,
   Run,
   RunEvent,
   RunListItem,
@@ -22,6 +25,7 @@ import type {
   SortOrder,
   Task,
   TaskDetail,
+  TaskGraph,
   TaskKind,
   TaskPriority,
   TaskReopening,
@@ -47,7 +51,10 @@ import type {
   CreateLoadoutInput,
   DependencyWriteFailure,
   InboxFailure,
+  KnowledgeCandidateFilters,
   PageResult,
+  ProposedTaskFilters,
+  ProposedTaskWriteFailure,
   RegistryWriteFailure,
   Result,
   RunFilters,
@@ -127,6 +134,8 @@ export interface ProjectsPort {
   setArchived(projectId: string, archived: boolean): Promise<ProjectDetail | null>;
   /** `null` quando o Project não existe: o diário de um Project inexistente é 404. */
   activity(projectId: string, page: PageRequest): Promise<PageResult<Activity> | null>;
+  /** `null` quando o Project não existe: o grafo de um Project inexistente é 404. */
+  taskGraph(projectId: string): Promise<TaskGraph | null>;
 }
 
 /**
@@ -186,6 +195,11 @@ export interface TasksPort {
     dependsOnTaskId: string,
   ): Promise<Result<TaskDetail, DependencyWriteFailure> | null>;
   removeDependency(taskId: string, dependsOnTaskId: string): Promise<TaskDetail | null>;
+  /** O conjunto inteiro de dependências, de uma vez. Idempotente. */
+  replaceDependencies(
+    taskId: string,
+    dependsOn: readonly string[],
+  ): Promise<Result<TaskDetail, DependencyWriteFailure> | null>;
   /** Só as Tasks já reabertas, com a contagem. Vazio enquanto reabrir não existir. */
   reopenings(filters: { kind?: TaskKind | undefined }): Promise<TaskReopening[]>;
 }
@@ -203,6 +217,44 @@ export interface InboxPort {
   list(page: PageRequest): Promise<PageResult<Task>>;
   promote(taskId: string, input: PromoteInboxRequest): Promise<Result<Task, InboxFailure> | null>;
   discard(taskId: string): Promise<Result<Task, InboxFailure> | null>;
+}
+
+/**
+ * O que `POST /proposed-tasks/{id}/approve` aceita, já validado.
+ *
+ * `parentTaskId` ausente é "a Task de origem"; `null` é "sem mãe". A
+ * diferença vem do JSON e precisa sobreviver até o repositório.
+ */
+export interface ApproveProposedTaskRequest {
+  parentTaskId?: string | null;
+  dependsOn?: readonly string[];
+  kind?: TaskKind;
+  priority?: TaskPriority;
+  workflowId?: string;
+  note?: string;
+}
+
+/** As propostas de trabalho e a decisão por CAS (Fase 5). */
+export interface ProposedTasksPort {
+  list(
+    input: PageRequest & { filters: ProposedTaskFilters },
+  ): Promise<PageResult<ProposedTaskListItem>>;
+  get(proposedTaskId: string): Promise<ProposedTaskListItem | null>;
+  approve(
+    proposedTaskId: string,
+    input: ApproveProposedTaskRequest,
+  ): Promise<Result<ProposedTask, ProposedTaskWriteFailure> | null>;
+  reject(
+    proposedTaskId: string,
+    input: { note?: string },
+  ): Promise<Result<ProposedTask, ProposedTaskWriteFailure> | null>;
+}
+
+/** Os candidatos a conhecimento. Só leitura até a Fase 6. */
+export interface KnowledgeCandidatesPort {
+  list(
+    input: PageRequest & { filters: KnowledgeCandidateFilters },
+  ): Promise<PageResult<KnowledgeCandidate>>;
 }
 
 // --------------------------------------------------------------------------
@@ -370,11 +422,13 @@ export interface AchievementsPort {
   heroStats(): Promise<HeroStatsResponse>;
 }
 
-/** As três juntas, para `createApp` receber uma dependência em vez de três. */
+/** As portas de trabalho juntas, para `createApp` receber uma dependência em vez de cinco. */
 export interface WorkPort {
   readonly projects: ProjectsPort;
   readonly tasks: TasksPort;
   readonly inbox: InboxPort;
+  readonly proposedTasks: ProposedTasksPort;
+  readonly knowledgeCandidates: KnowledgeCandidatesPort;
 }
 
 /**
@@ -426,6 +480,7 @@ export function createSpecPorts(): {
         update: inerte("a edição de Project"),
         setArchived: inerte("o arquivamento de Project"),
         activity: inerte("o diário de Project"),
+        taskGraph: inerte("o grafo de Tasks do Project"),
       },
       tasks: {
         list: inerte("a listagem de Tasks"),
@@ -435,6 +490,7 @@ export function createSpecPorts(): {
         changeStatus: inerte("a transição de status"),
         addDependency: inerte("a criação de dependência"),
         removeDependency: inerte("a remoção de dependência"),
+        replaceDependencies: inerte("a troca de dependências"),
         reopenings: inerte("a contagem de reaberturas"),
       },
       inbox: {
@@ -442,6 +498,15 @@ export function createSpecPorts(): {
         list: inerte("a listagem da Inbox"),
         promote: inerte("a promoção de uma captura"),
         discard: inerte("o descarte de uma captura"),
+      },
+      proposedTasks: {
+        list: inerte("a listagem de ProposedTasks"),
+        get: inerte("a leitura de ProposedTask"),
+        approve: inerte("a aprovação de ProposedTask"),
+        reject: inerte("a recusa de ProposedTask"),
+      },
+      knowledgeCandidates: {
+        list: inerte("a listagem de KnowledgeCandidates"),
       },
     },
     execution: {

@@ -132,6 +132,14 @@ export const TaskDetailSchema = TaskSchema.extend({
     .array(TaskSummarySchema)
     .describe("Tasks que precisam terminar antes desta poder ser enfileirada."),
   dependents: z.array(TaskSummarySchema).describe("Tasks que esperam por esta."),
+  openProposalCount: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe(
+      "Quantas propostas de trabalho vindas dos Runs desta Task ainda esperam decisão " +
+        "(`ProposedTask` em `PROPOSED`).",
+    ),
 }).meta({ id: "TaskDetail", description: "Uma Task com filhas, dependências e dependentes." });
 
 export type TaskDetail = z.infer<typeof TaskDetailSchema>;

@@ -39,6 +39,7 @@ import { type RunRow, runs } from "./schema/run.js";
 import { runSteps } from "./schema/run-step.js";
 import { taskDependencies, tasks } from "./schema/task.js";
 import { insertRunEvent, type RunEventInput } from "./run-event.js";
+import { persistRunResultOutputs } from "./run-result-outputs.js";
 import { captureWorkflowVersion } from "./workflow.js";
 import { releaseWorkspaceLock } from "./workspace-lock.js";
 
@@ -840,9 +841,12 @@ export interface WriteRunTerminalStatusInput {
  * Grava o status terminal do Run: **tudo ou nada**.
  *
  * Na mesma transação saem o Run, a transição da Task, a linha de `activity`, o
- * `dashboard_event` e a liberação da trava de workspace. Uma escrita parcial
- * aqui deixaria o pior estado possível: um Run terminado com a Task ainda em
- * `RUNNING`, ou um repositório travado por um processo que já morreu.
+ * `dashboard_event`, a liberação da trava de workspace e — quando há `result`
+ * — as `ProposedTask`s dos `discoveredTasks` e os `KnowledgeCandidate`s dos
+ * `knowledgeCandidates` (Fase 5; documento técnico, seção 21). Uma escrita
+ * parcial aqui deixaria o pior estado possível: um Run terminado com a Task
+ * ainda em `RUNNING`, um repositório travado por um processo que já morreu, ou
+ * um resultado gravado cujas propostas se perderam em silêncio.
  *
  * Qualquer falha vira `TerminalStatusWriteError` (adaptado do Archon,
  * planejamento v0.4, seção 13.2). O tipo próprio existe porque a fronteira de
@@ -896,6 +900,27 @@ export async function writeRunTerminalStatus(
         .select({ projectId: tasks.projectId })
         .from(tasks)
         .where(eq(tasks.id, row.taskId));
+
+      // O resultado alimenta o domínio aqui, e não num job depois: uma
+      // proposta ou um candidato que commitasse separado do desfecho poderia
+      // se perder sem ninguém notar (CLAUDE.md, seção 9).
+      if (input.result !== undefined && input.result !== null) {
+        if (task?.projectId === undefined || task.projectId === null) {
+          // A criação do Run exigiu um Project; chegar aqui é defeito.
+          throw new Error(
+            `A Task ${row.taskId} do Run ${row.id} não tem Project: não há onde gravar ` +
+              "as propostas e os candidatos do resultado.",
+          );
+        }
+        await persistRunResultOutputs(tx, {
+          userId: input.userId,
+          runId: row.id,
+          taskId: row.taskId,
+          projectId: task.projectId,
+          result: input.result,
+          ...(input.logger === undefined ? {} : { logger: input.logger }),
+        });
+      }
 
       return ok(toRun(aplicado.value, task?.projectId ?? null));
     }),

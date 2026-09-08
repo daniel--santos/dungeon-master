@@ -57,6 +57,14 @@
       "description": "ApprovalGates: as pausas humanas de um Run."
     },
     {
+      "name": "proposals",
+      "description": "ProposedTasks: o trabalho que os Runs encontraram e não fizeram."
+    },
+    {
+      "name": "knowledge",
+      "description": "KnowledgeCandidates: o que os Runs aprenderam, à espera da destilação."
+    },
+    {
       "name": "achievements",
       "description": "O catálogo versionado de Conquistas."
     }
@@ -416,6 +424,11 @@
               "CANCELLED"
             ],
             "description": "Tasks do Project agrupadas por estado."
+          },
+          "openProposalCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Quantas propostas de trabalho do Project ainda esperam decisão."
           }
         },
         "required": [
@@ -428,7 +441,8 @@
           "archivedAt",
           "createdAt",
           "updatedAt",
-          "taskCounts"
+          "taskCounts",
+          "openProposalCount"
         ],
         "description": "Um Project com a contagem de Tasks por estado."
       },
@@ -1013,6 +1027,11 @@
               "$ref": "#/components/schemas/TaskSummary"
             },
             "description": "Tasks que esperam por esta."
+          },
+          "openProposalCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Quantas propostas de trabalho vindas dos Runs desta Task ainda esperam decisão (`ProposedTask` em `PROPOSED`)."
           }
         },
         "required": [
@@ -1030,7 +1049,8 @@
           "updatedAt",
           "children",
           "dependencies",
-          "dependents"
+          "dependents",
+          "openProposalCount"
         ],
         "description": "Uma Task com filhas, dependências e dependentes."
       },
@@ -1233,6 +1253,534 @@
           "projectId"
         ],
         "description": "Corpo de `POST /api/v1/inbox/{id}/promote`."
+      },
+      "TaskGraph": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskGraphNode"
+            },
+            "description": "As Tasks do Project, da mais antiga para a mais nova."
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskGraphEdge"
+            },
+            "description": "As dependências entre Tasks do Project."
+          }
+        },
+        "required": [
+          "projectId",
+          "nodes",
+          "edges"
+        ],
+        "description": "As Tasks de um Project e as dependências entre elas."
+      },
+      "TaskGraphNode": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TaskKind"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TaskStatus"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TaskPriority"
+          },
+          "parentTaskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Task mãe, quando este nó é uma subtarefa."
+          },
+          "workflowId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Workflow que os Runs deste nó seguem."
+          },
+          "hasOpenProposals": {
+            "type": "boolean",
+            "description": "Verdadeiro quando algum Run desta Task propôs trabalho ainda não decidido."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "kind",
+          "status",
+          "priority",
+          "parentTaskId",
+          "workflowId",
+          "hasOpenProposals"
+        ],
+        "description": "Uma Task como nó do grafo do Project."
+      },
+      "TaskGraphEdge": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A Task que precisa terminar antes."
+          },
+          "to": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A Task que espera por `from`."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TaskGraphEdgeKind"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "kind"
+        ],
+        "description": "Uma dependência, no sentido da execução."
+      },
+      "TaskGraphEdgeKind": {
+        "type": "string",
+        "enum": [
+          "dependency"
+        ],
+        "description": "Tipo de uma aresta do grafo. Hoje só dependência."
+      },
+      "ReplaceTaskDependencies": {
+        "type": "object",
+        "properties": {
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 100,
+            "description": "As Tasks das quais esta passa a depender. Vazio remove todas. Mesmo Project."
+          }
+        },
+        "required": [
+          "dependsOn"
+        ],
+        "description": "Corpo de `PUT /api/v1/tasks/{id}/dependencies`."
+      },
+      "ProposedTaskPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProposedTaskListItem"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de propostas, da mais recente para a mais antiga."
+      },
+      "ProposedTaskListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da proposta."
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Project da Task de origem. A Task aprovada nasce nele."
+          },
+          "originTaskId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A Task cujo Run encontrou este trabalho."
+          },
+          "originRunId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "O Run cujo resultado propôs este trabalho."
+          },
+          "title": {
+            "type": "string",
+            "description": "Título proposto pelo agente."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Descrição proposta pelo agente."
+          },
+          "rationale": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Por que o agente acha que ela precisa existir."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProposedTaskStatus"
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Quando a decisão foi gravada, em UTC. Nulo enquanto `PROPOSED`."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Justificativa de quem decidiu, sanitizada."
+          },
+          "createdTaskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "A Task criada pela aprovação. Nulo até aprovar, e sempre nulo numa recusa."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Gravação, em UTC (ISO 8601): o instante do desfecho do Run."
+          },
+          "originTaskTitle": {
+            "type": "string",
+            "description": "Título da Task de origem no momento da leitura."
+          },
+          "projectTitle": {
+            "type": "string",
+            "description": "Título do Project no momento da leitura."
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "originTaskId",
+          "originRunId",
+          "title",
+          "description",
+          "rationale",
+          "status",
+          "decidedAt",
+          "note",
+          "createdTaskId",
+          "createdAt",
+          "originTaskTitle",
+          "projectTitle"
+        ],
+        "description": "Uma ProposedTask com os títulos da Task de origem e do Project."
+      },
+      "ProposedTaskStatus": {
+        "type": "string",
+        "enum": [
+          "PROPOSED",
+          "APPROVED",
+          "REJECTED"
+        ],
+        "description": "Estado de uma ProposedTask."
+      },
+      "ProposedTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da proposta."
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Project da Task de origem. A Task aprovada nasce nele."
+          },
+          "originTaskId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A Task cujo Run encontrou este trabalho."
+          },
+          "originRunId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "O Run cujo resultado propôs este trabalho."
+          },
+          "title": {
+            "type": "string",
+            "description": "Título proposto pelo agente."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Descrição proposta pelo agente."
+          },
+          "rationale": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Por que o agente acha que ela precisa existir."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProposedTaskStatus"
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Quando a decisão foi gravada, em UTC. Nulo enquanto `PROPOSED`."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Justificativa de quem decidiu, sanitizada."
+          },
+          "createdTaskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "A Task criada pela aprovação. Nulo até aprovar, e sempre nulo numa recusa."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Gravação, em UTC (ISO 8601): o instante do desfecho do Run."
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "originTaskId",
+          "originRunId",
+          "title",
+          "description",
+          "rationale",
+          "status",
+          "decidedAt",
+          "note",
+          "createdTaskId",
+          "createdAt"
+        ],
+        "description": "Trabalho proposto pelo resultado de um Run."
+      },
+      "ApproveProposedTask": {
+        "type": "object",
+        "properties": {
+          "parentTaskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Task mãe da Task criada. Ausente usa a Task de origem da proposta; `null` cria uma Task sem mãe. Precisa pertencer ao mesmo Project e não estar em `INBOX`."
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 100,
+            "description": "Tasks que precisam terminar antes da Task criada poder ser enfileirada. Todas do mesmo Project. Escolhidas por quem aprova: nada é inferido."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "BUG",
+              "FEATURE",
+              "RESEARCH",
+              "CHORE"
+            ],
+            "description": "Natureza da Task criada. Padrão: `FEATURE`."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ],
+            "description": "Prioridade da Task criada. Padrão: `MEDIUM`."
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Workflow que os Runs da Task criada seguem. Ausente é o Run simples."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 5000,
+            "description": "Justificativa da aprovação. Fica na proposta."
+          }
+        },
+        "description": "Corpo de `POST /api/v1/proposed-tasks/{id}/approve`."
+      },
+      "RejectProposedTask": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 5000,
+            "description": "Por que a proposta foi recusada. Fica na proposta."
+          }
+        },
+        "description": "Corpo de `POST /api/v1/proposed-tasks/{id}/reject`."
+      },
+      "KnowledgeCandidatePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeCandidate"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de candidatos, do mais recente para o mais antigo."
+      },
+      "KnowledgeCandidate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do candidato."
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Project em cujo Grimório o candidato pode entrar."
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A Task cujo Run aprendeu isto."
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "O Run cujo resultado trouxe o candidato."
+          },
+          "title": {
+            "type": "string",
+            "description": "Título do que foi aprendido."
+          },
+          "content": {
+            "type": "string",
+            "description": "O aprendizado, escrito para ser lido depois."
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Classificação livre dada pelo agente: `convention`, `gotcha`, `howto`."
+          },
+          "status": {
+            "$ref": "#/components/schemas/KnowledgeCandidateStatus"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Gravação, em UTC (ISO 8601): o instante do desfecho do Run."
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "taskId",
+          "runId",
+          "title",
+          "content",
+          "kind",
+          "status",
+          "createdAt"
+        ],
+        "description": "Um candidato a item de conhecimento do Project."
+      },
+      "KnowledgeCandidateStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "PROMOTED",
+          "REJECTED"
+        ],
+        "description": "Estado de um KnowledgeCandidate no pipeline de destilação."
       },
       "HarnessList": {
         "type": "object",
@@ -3402,6 +3950,13 @@
                 },
                 "description": "O que o agente aprendeu. O step `knowledge` consolida isto."
               },
+              "discoveredTasks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DiscoveredTask"
+                },
+                "description": "Trabalho que o agente encontrou e não fez neste step. O resultado agregado do Run junta o de todos os steps, e é dali que as ProposedTasks nascem."
+              },
               "usage": {
                 "type": "object",
                 "properties": {
@@ -3628,6 +4183,26 @@
           "content"
         ],
         "description": "Candidato a item do Grimório do Project. Destilado na Fase 6."
+      },
+      "DiscoveredTask": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Título da Task proposta."
+          },
+          "description": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string",
+            "description": "Por que o agente acha que ela precisa existir."
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "description": "Trabalho que o agente encontrou pelo caminho e não fez. Vira Task na Fase 5."
       },
       "ValidationVerdict": {
         "type": "string",
@@ -8391,6 +8966,510 @@
           },
           "409": {
             "description": "A Task não está em `INBOX`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/task-graph": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "O grafo de Tasks do Project",
+        "description": "Os nós são as Tasks do Project, da mais antiga para a mais nova; as arestas são as dependências com as duas pontas no Project, no sentido da execução (`from` termina antes de `to`). A hierarquia vai em `parentTaskId` de cada nó. `hasOpenProposals` marca as Tasks cujos Runs propuseram trabalho ainda não decidido.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Project."
+            },
+            "required": true,
+            "description": "UUIDv7 do Project.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O grafo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskGraph"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Project com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/dependencies": {
+      "put": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Troca o conjunto inteiro de dependências",
+        "description": "Um `PUT` de verdade: o que saiu da lista é removido, o que entrou é inserido, o que ficou não gera fato. Idempotente. Toda dependência precisa estar no mesmo Project; uma Task de outro Project é `404`, porque não existe neste grafo. Ciclo, direto ou indireto, vira `409` com o caminho do impasse em `path`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da Task."
+            },
+            "required": true,
+            "description": "UUIDv7 da Task.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceTaskDependencies"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A Task com o conjunto novo de dependências.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A Task não existe, ou alguma dependência não existe neste Project.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Auto-dependência, ciclo (o caminho vem em `path`), ou Task na Inbox.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/proposed-tasks": {
+      "get": {
+        "tags": [
+          "proposals"
+        ],
+        "summary": "Lista as propostas de trabalho",
+        "description": "Da proposta mais recente para a mais antiga. `status=PROPOSED` é a caixa de entrada de propostas. Cada item traz o título da Task de origem e do Project por junção. `taskId` filtra pela Task de origem.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PROPOSED",
+                "APPROVED",
+                "REJECTED"
+              ],
+              "description": "Só as propostas neste estado."
+            },
+            "required": false,
+            "description": "Só as propostas neste estado.",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só as propostas deste Project."
+            },
+            "required": false,
+            "description": "Só as propostas deste Project.",
+            "name": "projectId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só as propostas cuja Task de origem é esta."
+            },
+            "required": false,
+            "description": "Só as propostas cuja Task de origem é esta.",
+            "name": "taskId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de propostas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposedTaskPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/proposed-tasks/{id}": {
+      "get": {
+        "tags": [
+          "proposals"
+        ],
+        "summary": "Uma proposta, com os títulos da origem",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da ProposedTask."
+            },
+            "required": true,
+            "description": "UUIDv7 da ProposedTask.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A proposta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposedTaskListItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe ProposedTask com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/proposed-tasks/{id}/approve": {
+      "post": {
+        "tags": [
+          "proposals"
+        ],
+        "summary": "Aprova a proposta e cria a Task",
+        "description": "Cria uma Task em `READY` no Project da proposta, filha da Task de origem por padrão (`parentTaskId: null` cria sem mãe), com as dependências de `dependsOn` — todas do mesmo Project, escolhidas por quem aprova; nada é inferido. Decisão por CAS transacional: se outra decisão chegou antes, a resposta é `409` com a proposta atual em `proposedTask`, e nada é sobrescrito. Na mesma transação saem `task.created`, as arestas, e `task.proposal.resolved` no stream.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da ProposedTask."
+            },
+            "required": true,
+            "description": "UUIDv7 da ProposedTask.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveProposedTask"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A proposta aprovada, com `createdTaskId` apontando para a Task criada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposedTask"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A proposta, a Task mãe, alguma dependência ou o Workflow informados não existem neste Project.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A proposta já foi decidida (a atual vem em `proposedTask`), o Project está arquivado, a mãe ou uma dependência está na Inbox, ou as dependências fechariam um ciclo (o caminho vem em `path`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/proposed-tasks/{id}/reject": {
+      "post": {
+        "tags": [
+          "proposals"
+        ],
+        "summary": "Recusa a proposta",
+        "description": "O mesmo CAS da aprovação, sem criar Task. Se outra decisão chegou antes, `409` com a proposta atual em `proposedTask`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da ProposedTask."
+            },
+            "required": true,
+            "description": "UUIDv7 da ProposedTask.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectProposedTask"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A proposta recusada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposedTask"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe ProposedTask com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A proposta já foi decidida; a atual vem em `proposedTask`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge-candidates": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Lista os candidatos a conhecimento",
+        "description": "Do candidato mais recente para o mais antigo. Gravados na transação do desfecho do Run; a destilação em itens do Grimório é da Fase 6, e por enquanto a rota é só leitura.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só os candidatos deste Project."
+            },
+            "required": false,
+            "description": "Só os candidatos deste Project.",
+            "name": "projectId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "PROMOTED",
+                "REJECTED"
+              ],
+              "description": "Só os candidatos neste estado."
+            },
+            "required": false,
+            "description": "Só os candidatos neste estado.",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só os candidatos desta Task."
+            },
+            "required": false,
+            "description": "Só os candidatos desta Task.",
+            "name": "taskId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só os candidatos deste Run."
+            },
+            "required": false,
+            "description": "Só os candidatos deste Run.",
+            "name": "runId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de candidatos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeCandidatePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
             "content": {
               "application/problem+json": {
                 "schema": {

@@ -28,3 +28,6 @@ export * from "./task-execution-result.js";
 export * from "./achievement.js";
 export * from "./workflow.js";
 export * from "./workflow-event.js";
+export * from "./proposed-task.js";
+export * from "./knowledge-candidate.js";
+export * from "./task-graph.js";

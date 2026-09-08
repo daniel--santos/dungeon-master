@@ -2,6 +2,7 @@ import type {
   ApprovalGateWriteFailure,
   DependencyWriteFailure,
   InboxFailure,
+  ProposedTaskWriteFailure,
   RegistryWriteFailure,
   RunStepWriteFailure,
   RunWriteFailure,
@@ -141,6 +142,14 @@ function workflowNotFoundProblem(workflowId: string): HttpProblem {
   });
 }
 
+/**
+ * Traduz as recusas de escrita de dependência.
+ *
+ * `DEPENDENCY_CYCLE` leva o caminho do impasse também em `path`, um membro de
+ * extensão do problem details: a tela do grafo destaca as arestas do ciclo em
+ * vez de reler o `detail`. Uma Task de outro Project é `404`, e não `409`: o
+ * grafo é do Project, e ela não existe nele.
+ */
 export function dependencyFailureProblem(failure: DependencyWriteFailure): HttpProblem {
   switch (failure.code) {
     case "SELF_DEPENDENCY":
@@ -166,7 +175,94 @@ export function dependencyFailureProblem(failure: DependencyWriteFailure): HttpP
         detail:
           "A dependência criaria um impasse em que nenhuma das Tasks poderia ser " +
           `enfileirada: ${listar(failure.path)}.`,
+        extensions: { path: [...failure.path] },
       });
+    case "DEPENDENCY_NOT_FOUND":
+      return dependencyNotInProjectProblem(failure.taskId, "não existe");
+    case "DEPENDENCY_IN_OTHER_PROJECT":
+      return dependencyNotInProjectProblem(failure.taskId, "pertence a outro Project");
+    case "DEPENDENCY_IN_INBOX":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Dependência na Inbox",
+        detail:
+          `A Task ${failure.taskId} está em INBOX e não participa do grafo de dependências. ` +
+          "Promova-a antes.",
+      });
+  }
+}
+
+function dependencyNotInProjectProblem(taskId: string, motivo: string): HttpProblem {
+  return new HttpProblem({
+    status: 404,
+    type: ProblemType.notFound,
+    title: "Dependência não encontrada no Project",
+    detail:
+      `A Task ${taskId} ${motivo}. Uma dependência precisa ser uma Task do mesmo Project: ` +
+      "o grafo é do Project.",
+  });
+}
+
+/**
+ * Traduz as recusas de decisão sobre uma proposta.
+ *
+ * `PROPOSAL_ALREADY_DECIDED` é o CAS perdido: o `409` leva a proposta como
+ * ficou em `proposedTask`, para a interface mostrar o que já foi decidido em
+ * vez de tentar de novo. As recusas de mãe e de dependência seguem as mesmas
+ * regras — e os mesmos textos — de `POST /tasks` e de `PUT /tasks/{id}/dependencies`.
+ */
+export function proposedTaskFailureProblem(failure: ProposedTaskWriteFailure): HttpProblem {
+  switch (failure.code) {
+    case "PROPOSAL_ALREADY_DECIDED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Proposta já decidida",
+        detail:
+          `A proposta já está em ${failure.proposedTask.status}` +
+          (failure.proposedTask.decidedAt === null
+            ? "."
+            : `, decidida em ${failure.proposedTask.decidedAt}.`) +
+          " Outra decisão chegou antes; nada foi sobrescrito.",
+        extensions: { proposedTask: failure.proposedTask },
+      });
+    case "PROJECT_ARCHIVED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Project arquivado",
+        detail: `O Project ${failure.projectId} está arquivado e não aceita Tasks novas. Desarquive-o antes.`,
+      });
+    case "PARENT_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Task mãe não encontrada",
+        detail: `Não existe Task com o id ${failure.parentTaskId} para ser a mãe desta.`,
+      });
+    case "PARENT_IN_OTHER_PROJECT":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Task mãe em outro Project",
+        detail: `A Task ${failure.parentTaskId} pertence a outro Project. Mãe e subtarefa vivem no mesmo Project.`,
+      });
+    case "PARENT_IN_INBOX":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Task mãe na Inbox",
+        detail: `A Task ${failure.parentTaskId} está em INBOX, e uma captura não tem subtarefas. Promova-a antes.`,
+      });
+    case "WORKFLOW_NOT_FOUND":
+      return workflowNotFoundProblem(failure.workflowId);
+    case "SELF_DEPENDENCY":
+    case "DEPENDENCY_CYCLE":
+    case "DEPENDENCY_NOT_FOUND":
+    case "DEPENDENCY_IN_OTHER_PROJECT":
+    case "DEPENDENCY_IN_INBOX":
+      return dependencyFailureProblem(failure);
   }
 }
 

@@ -17,6 +17,10 @@ import { registerInboxRoutes } from "./handlers/inbox.js";
 import { registerPreflightRoutes } from "./handlers/preflight.js";
 import { registerProjectRoutes } from "./handlers/projects.js";
 import {
+  registerKnowledgeCandidateRoutes,
+  registerProposedTaskRoutes,
+} from "./handlers/proposals.js";
+import {
   registerAgentRoutes,
   registerExecutionProfileRoutes,
   registerHarnessRoutes,
@@ -24,6 +28,7 @@ import {
   registerModelRoutes,
 } from "./handlers/registry.js";
 import { registerRunRoutes } from "./handlers/runs.js";
+import { registerTaskGraphRoutes } from "./handlers/task-graph.js";
 import { registerTaskRoutes } from "./handlers/tasks.js";
 import {
   registerApprovalGateRoutes,
@@ -295,6 +300,12 @@ export function createApp(options: CreateAppOptions) {
   registerTaskRoutes(app, options.work.tasks);
   registerInboxRoutes(app, options.work.inbox);
 
+  // ------------------------------------------- Propostas e grafo (Fase 5)
+
+  registerTaskGraphRoutes(app, { projects: options.work.projects, tasks: options.work.tasks });
+  registerProposedTaskRoutes(app, options.work.proposedTasks);
+  registerKnowledgeCandidateRoutes(app, options.work.knowledgeCandidates);
+
   // ------------------------------------------------------------- execução
 
   registerHarnessRoutes(app, options.execution.harnesses);
@@ -340,6 +351,14 @@ export function createApp(options: CreateAppOptions) {
       { name: "runs", description: "Runs: as tentativas concretas de realizar uma Task." },
       { name: "workflows", description: "Workflows: o processo de uma execução, como dados." },
       { name: "approvals", description: "ApprovalGates: as pausas humanas de um Run." },
+      {
+        name: "proposals",
+        description: "ProposedTasks: o trabalho que os Runs encontraram e não fizeram.",
+      },
+      {
+        name: "knowledge",
+        description: "KnowledgeCandidates: o que os Runs aprenderam, à espera da destilação.",
+      },
       {
         name: "achievements",
         description: "O catálogo versionado de Conquistas e a projeção de progresso.",

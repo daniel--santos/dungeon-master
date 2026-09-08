@@ -12,6 +12,7 @@ import {
   type TaskSummary,
 } from "@dungeon-master/contracts";
 import {
+  checkTaskDependencies,
   checkTaskTransition,
   type TaskDependencyEdge,
   type TaskTransitionRejection,
@@ -45,6 +46,7 @@ import {
   type Result,
 } from "./result.js";
 import { findProjectRow } from "./project.js";
+import { proposedTasks } from "./schema/proposed-task.js";
 import { taskDependencies, tasks, type TaskRow } from "./schema/task.js";
 import { findWorkflowRow } from "./workflow.js";
 
@@ -98,10 +100,21 @@ export type TaskWriteFailure =
   | { readonly code: "WORKFLOW_NOT_FOUND"; readonly workflowId: string }
   | { readonly code: "TRANSITION_REJECTED"; readonly rejection: TaskTransitionRejection };
 
+/**
+ * Por que uma escrita de dependência foi recusada.
+ *
+ * Os três primeiros são da rota por aresta; os demais entram com a troca do
+ * conjunto inteiro (`replaceTaskDependencies`), que exige toda dependência
+ * no mesmo Project — o grafo é do Project — e por isso pode não encontrar
+ * uma Task que existe, mas em outro lugar.
+ */
 export type DependencyWriteFailure =
-  | { readonly code: "SELF_DEPENDENCY" }
+  | { readonly code: "SELF_DEPENDENCY"; readonly taskId: string }
   | { readonly code: "TASK_IN_INBOX" }
-  | { readonly code: "DEPENDENCY_CYCLE"; readonly path: readonly string[] };
+  | { readonly code: "DEPENDENCY_CYCLE"; readonly path: readonly string[] }
+  | { readonly code: "DEPENDENCY_NOT_FOUND"; readonly taskId: string }
+  | { readonly code: "DEPENDENCY_IN_OTHER_PROJECT"; readonly taskId: string }
+  | { readonly code: "DEPENDENCY_IN_INBOX"; readonly taskId: string };
 
 // --------------------------------------------------------------------------
 // Leitura
@@ -328,6 +341,27 @@ async function loadDependents(
     .orderBy(asc(tasks.createdAt), asc(tasks.id));
 }
 
+/**
+ * Quantas propostas de trabalho vindas dos Runs desta Task ainda esperam
+ * decisão. Uma contagem só, sobre o índice `(origin_task_id, status)`.
+ */
+export async function countOpenProposalsForTask(
+  db: DatabaseExecutor,
+  input: { userId: string; taskId: string },
+): Promise<number> {
+  const [row] = await db
+    .select({ total: count() })
+    .from(proposedTasks)
+    .where(
+      and(
+        eq(proposedTasks.userId, input.userId),
+        eq(proposedTasks.originTaskId, input.taskId),
+        eq(proposedTasks.status, "PROPOSED"),
+      ),
+    );
+  return row?.total ?? 0;
+}
+
 export async function getTaskDetail(
   db: DatabaseExecutor,
   input: { userId: string; taskId: string },
@@ -335,14 +369,15 @@ export async function getTaskDetail(
   const row = await findTaskRow(db, input);
   if (row === null) return null;
 
-  // Em série, e não em `Promise.all`: dentro de uma transação as três consultas
+  // Em série, e não em `Promise.all`: dentro de uma transação as consultas
   // compartilham a mesma conexão, e o `pg` avisa (e vai passar a recusar) duas
   // consultas simultâneas no mesmo cliente.
   const children = await loadChildren(db, input);
   const dependencies = await loadDependencies(db, input);
   const dependents = await loadDependents(db, input);
+  const openProposalCount = await countOpenProposalsForTask(db, input);
 
-  return { ...toTask(row), children, dependencies, dependents };
+  return { ...toTask(row), children, dependencies, dependents, openProposalCount };
 }
 
 // --------------------------------------------------------------------------
@@ -357,7 +392,7 @@ export async function getTaskDetail(
  * `@dungeon-master/domain`, em vez de uma consulta recursiva escrita de novo em
  * SQL e nunca exercitada.
  */
-async function loadDependencyEdges(
+export async function loadDependencyEdges(
   db: DatabaseExecutor,
   userId: string,
 ): Promise<TaskDependencyEdge[]> {
@@ -394,7 +429,7 @@ async function loadParentEdges(
  * a checagem de cada uma respondia sobre um grafo que já não existia. A trava é
  * por usuário e é liberada no fim da transação.
  */
-async function lockTaskGraph(db: DatabaseExecutor, userId: string): Promise<void> {
+export async function lockTaskGraph(db: DatabaseExecutor, userId: string): Promise<void> {
   await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${userId}, 0))`);
 }
 
@@ -768,7 +803,7 @@ export async function addTaskDependency(
     if (task === null) return null;
 
     if (input.taskId === input.dependsOnTaskId) {
-      return failed<DependencyWriteFailure>({ code: "SELF_DEPENDENCY" });
+      return failed<DependencyWriteFailure>({ code: "SELF_DEPENDENCY", taskId: input.taskId });
     }
 
     const dependency = await findTaskRow(tx, {
@@ -867,5 +902,118 @@ export async function removeTaskDependency(
     }
 
     return await getTaskDetail(tx, input);
+  });
+}
+
+export interface ReplaceTaskDependenciesInput {
+  userId: string;
+  taskId: string;
+  /** O conjunto completo. Vazio remove todas. Repetições são ignoradas. */
+  dependsOn: readonly string[];
+}
+
+/**
+ * Troca o conjunto inteiro de dependências de uma Task (Fase 5, grafo
+ * editável).
+ *
+ * É um `PUT` de verdade: o que saiu da lista é removido, o que entrou é
+ * inserido, o que ficou não gera fato nenhum. Idempotente. Toda dependência
+ * precisa estar no **mesmo Project**, porque é o grafo do Project que está
+ * sendo editado; uma Task de outro Project é "não encontrada" aqui, e não um
+ * conflito — ela não existe neste grafo.
+ *
+ * A checagem de ciclo é feita sobre o grafo **sem** as arestas atuais desta
+ * Task mais o conjunto novo inteiro, de uma vez: uma troca não pode ser
+ * recusada por causa de uma aresta que está justamente removendo, e duas
+ * arestas novas que só fecham ciclo juntas não podem passar por serem
+ * checadas uma a uma. Devolve `null` quando a Task não existe.
+ */
+export async function replaceTaskDependencies(
+  db: Database,
+  input: ReplaceTaskDependenciesInput,
+): Promise<Result<TaskDetail, DependencyWriteFailure> | null> {
+  return await db.transaction(async (tx) => {
+    await lockTaskGraph(tx, input.userId);
+
+    const task = await findTaskRow(tx, input);
+    if (task === null) return null;
+
+    if (task.status === "INBOX" || task.projectId === null) {
+      return failed<DependencyWriteFailure>({ code: "TASK_IN_INBOX" });
+    }
+
+    const desired = [...new Set(input.dependsOn)];
+    const dependencies: TaskRow[] = [];
+    for (const dependsOnTaskId of desired) {
+      const row = await findTaskRow(tx, { userId: input.userId, taskId: dependsOnTaskId });
+      if (row === null) {
+        return failed<DependencyWriteFailure>({
+          code: "DEPENDENCY_NOT_FOUND",
+          taskId: dependsOnTaskId,
+        });
+      }
+      dependencies.push(row);
+    }
+
+    const edges = (await loadDependencyEdges(tx, input.userId)).filter(
+      (edge) => edge.taskId !== input.taskId,
+    );
+    const check = checkTaskDependencies({
+      taskId: input.taskId,
+      projectId: task.projectId,
+      dependencies: dependencies.map((row) => ({
+        id: row.id,
+        projectId: row.projectId,
+        status: row.status,
+      })),
+      edges,
+    });
+    if (!check.ok) return failed<DependencyWriteFailure>(check.rejection);
+
+    const current = new Set((await loadDependencies(tx, input)).map((dependency) => dependency.id));
+    const wanted = new Set(desired);
+
+    for (const dependsOnTaskId of current) {
+      if (wanted.has(dependsOnTaskId)) continue;
+
+      await tx
+        .delete(taskDependencies)
+        .where(
+          and(
+            eq(taskDependencies.userId, input.userId),
+            eq(taskDependencies.taskId, input.taskId),
+            eq(taskDependencies.dependsOnTaskId, dependsOnTaskId),
+          ),
+        );
+
+      await recordDomainEvent(tx, {
+        userId: input.userId,
+        projectId: task.projectId,
+        taskId: input.taskId,
+        taskTitle: task.title,
+        type: "task.dependency_removed",
+        payload: { taskId: input.taskId, dependsOnTaskId, projectId: task.projectId },
+      });
+    }
+
+    for (const dependsOnTaskId of desired) {
+      if (current.has(dependsOnTaskId)) continue;
+
+      await tx
+        .insert(taskDependencies)
+        .values({ userId: input.userId, taskId: input.taskId, dependsOnTaskId });
+
+      await recordDomainEvent(tx, {
+        userId: input.userId,
+        projectId: task.projectId,
+        taskId: input.taskId,
+        taskTitle: task.title,
+        type: "task.dependency_created",
+        payload: { taskId: input.taskId, dependsOnTaskId, projectId: task.projectId },
+      });
+    }
+
+    const detail = await getTaskDetail(tx, input);
+    return detail === null ? null : ok(detail);
   });
 }
