@@ -8,7 +8,7 @@
 // — e a ler o consumo de tokens de `message_end`. Verificado contra a CLI
 // 0.85.1 em 07/09/2026.
 
-import type { HarnessSignal } from "@dungeon-master/runtime";
+import type { HarnessSignal, ResolvedPermission } from "@dungeon-master/runtime";
 import { capabilities } from "@dungeon-master/runtime";
 import type { UsageSummary } from "@dungeon-master/contracts";
 
@@ -75,9 +75,11 @@ export const PI_CAPABILITIES = capabilities({
   toolEvents: true,
   tokenUsage: true,
   modelSelection: true,
-  // O Pi tem `--approve`/`--no-approve` para confiar em arquivos do projeto,
-  // mas não um modo de permissão por ferramenta. Chamar isso de permissão
-  // nativa seria mostrar uma proteção que não existe.
+  // `--tools` é uma allow-list de **ferramenta** de verdade, e o adapter a usa.
+  // Ainda assim isto é `false`: uma vez que `bash` está na lista, qualquer
+  // comando roda, e o Pi não tem como recusar `rm -rf` e aceitar `git status`.
+  // Prometer permissão nativa aqui mostraria na interface uma proteção por
+  // comando que não existe.
   nativePermissions: false,
   hostExecution: true,
   dockerExecution: false,
@@ -104,8 +106,17 @@ export function pi(options: PiOptions = {}) {
       if (options.thinking !== undefined) args.push("--thinking", options.thinking);
       // `--session <id>` resolve uma sessão existente e continua nela.
       if (request.resume !== undefined) args.push("--session", request.resume.harnessSessionId);
-      if (request.permission.mode === "BYPASS") args.push("--approve");
-      else if (request.permission.harnessMode === "no-approve") args.push("--no-approve");
+      if (request.permission.mode === "BYPASS") {
+        args.push("--approve");
+      } else if (request.permission.mode === "CONFIGURED") {
+        // `--tools` é o que o Pi expõe de mais próximo de uma allow-list: ele
+        // decide quais ferramentas existem, não quais comandos passam. É um
+        // degrau real — sem `bash` na lista o agente não executa nada — e é o
+        // motivo de `nativePermissions` continuar `false`.
+        const tools = piToolsFor(request.permission.grant);
+        if (tools.length > 0) args.push("--tools", tools.join(","));
+        if (request.permission.harnessMode === "no-approve") args.push("--no-approve");
+      }
 
       if (options.extraArgs !== undefined) args.push(...options.extraArgs);
       if (request.extraArgs !== undefined) args.push(...request.extraArgs);
@@ -123,6 +134,28 @@ export function pi(options: PiOptions = {}) {
   };
 
   return createCliHarnessAdapter(definition);
+}
+
+/**
+ * A concessão do domínio virando a allow-list de `--tools` do Pi.
+ *
+ * `grep`, `find` e `ls` vêm desligadas por padrão na CLI; quando a lista é
+ * passada explicitamente, elas precisam entrar, senão o agente perde a busca e
+ * volta a fazer tudo por `bash` — o oposto do que restringir ferramenta
+ * pretende.
+ *
+ * `powershell` acompanha `bash` porque no Windows é ela que o Pi usa; separar
+ * as duas deixaria a mesma política com efeitos diferentes por sistema.
+ */
+export function piToolsFor(grant: ResolvedPermission["grant"]): string[] {
+  if (grant === undefined) return [];
+
+  const tools = ["read", "grep", "find", "ls"];
+  if (grant.workspaceWrite) tools.push("edit", "write");
+  if (grant.commandExecution === "ALLOWLIST" && grant.allowedCommands.length > 0) {
+    tools.push("bash", "powershell");
+  }
+  return tools;
 }
 
 /** Traduz uma linha do `pi -p --mode json`. */
