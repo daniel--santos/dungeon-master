@@ -33,6 +33,7 @@ const TRANSICOES_VALIDAS: ReadonlyArray<readonly [RunStatus, RunStatus]> = [
   ["RUNNING", "CANCELLED"],
   ["RUNNING", "WAITING_APPROVAL"],
   ["WAITING_APPROVAL", "RUNNING"],
+  ["WAITING_APPROVAL", "QUEUED"],
   ["WAITING_APPROVAL", "CANCELLED"],
 ];
 

@@ -12,6 +12,7 @@ import {
   RUN_CREATION_TASK_STATUSES,
   taskAcceptsNewRun,
   taskStatusForRun,
+  taskStatusForRunTransition,
 } from "./run-task-coupling.js";
 import { canTransitionTask } from "./task-status.js";
 
@@ -186,6 +187,32 @@ describe("taskStatusForRun", () => {
  * máquina de Task não alcança viraria um `409` no meio de uma transação de
  * escrita de resultado terminal, que é o pior lugar para descobrir isso.
  */
+describe("taskStatusForRunTransition", () => {
+  it("não mexe na Task quando o gate devolve o Run à fila", () => {
+    expect(taskStatusForRunTransition({ from: "WAITING_APPROVAL", to: "QUEUED" })).toBeNull();
+  });
+
+  it("delega à tabela por destino em todo outro par", () => {
+    for (const from of RUN_STATUS_VALUES) {
+      for (const to of RUN_STATUS_VALUES) {
+        if (from === "WAITING_APPROVAL" && to === "QUEUED") continue;
+        for (const resultStatus of [null, ...RUN_RESULT_STATUS_VALUES]) {
+          expect(taskStatusForRunTransition({ from, to, resultStatus })).toBe(
+            taskStatusForRun(to, resultStatus),
+          );
+        }
+      }
+    }
+  });
+
+  it("a volta do gate cancelado leva a Task de RUNNING a READY", () => {
+    // Com a Task parada em RUNNING durante o gate, cancelar o Run precisa de
+    // uma aresta que a máquina de Task tem.
+    expect(taskStatusForRunTransition({ from: "WAITING_APPROVAL", to: "CANCELLED" })).toBe("READY");
+    expect(canTransitionTask("RUNNING", "READY")).toBe(true);
+  });
+});
+
 describe("as arestas que o acoplamento exige existem na máquina de Task", () => {
   const CAMINHOS: ReadonlyArray<readonly [TaskStatus, TaskStatus, string]> = [
     ["READY", "QUEUED", "criar Run a partir de READY"],

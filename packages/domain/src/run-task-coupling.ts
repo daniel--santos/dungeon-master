@@ -161,3 +161,29 @@ export function taskStatusForRun(
       return "READY";
   }
 }
+
+export interface RunTransitionInput {
+  readonly from: RunStatus;
+  readonly to: RunStatus;
+  /** O veredito que vai ficar gravado. Só é lido em `SUCCEEDED`. */
+  readonly resultStatus?: RunResultStatus | null;
+}
+
+/**
+ * Para onde a Task vai quando o Run **sai de `from` para `to`**.
+ *
+ * É `taskStatusForRun` com uma exceção: `WAITING_APPROVAL → QUEUED` não mexe
+ * na Task. A volta à fila depois de um gate de aprovação não é um
+ * enfileiramento novo — a Task nunca saiu de `RUNNING`, porque o gate é do
+ * Run e não do trabalho —, e `RUNNING → QUEUED` não existe na máquina de
+ * Task por bom motivo: trabalho em curso não volta para a fila sem um Run ter
+ * terminado. Quando o Worker reclamar o Run de novo, `PREPARING` encontra a
+ * Task já em `RUNNING` e não a move.
+ *
+ * Todo outro par delega à tabela por destino, que continua sendo a verdade
+ * para quem só conhece o estado de chegada.
+ */
+export function taskStatusForRunTransition(input: RunTransitionInput): TaskStatus | null {
+  if (input.from === "WAITING_APPROVAL" && input.to === "QUEUED") return null;
+  return taskStatusForRun(input.to, input.resultStatus ?? null);
+}

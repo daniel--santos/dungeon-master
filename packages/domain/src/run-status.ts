@@ -8,8 +8,16 @@ import type { RunStatus } from "@dungeon-master/contracts";
  * QUEUED           → PREPARING | CANCELLED
  * PREPARING        → RUNNING | FAILED | CANCELLED
  * RUNNING          → SUCCEEDED | FAILED | TIMED_OUT | CANCELLED | WAITING_APPROVAL
- * WAITING_APPROVAL → RUNNING | CANCELLED
+ * WAITING_APPROVAL → RUNNING | QUEUED | CANCELLED
  * ```
+ *
+ * `WAITING_APPROVAL → QUEUED` é a volta do gate de aprovação do Workflow
+ * (planejamento v0.4, Fase 4). O Run parado num ApprovalGate não tem Worker
+ * por trás — o motor soltou o Run para o processo poder reiniciar sem perder
+ * o gate —, então a decisão devolve o Run à fila e o Worker o reclama de novo,
+ * lê o gate e continua o grafo de onde parou. `WAITING_APPROVAL → RUNNING`
+ * continua existindo para o pedido de aprovação **nativo** do harness, que
+ * acontece com o processo vivo e é retomado no lugar.
  *
  * `PREPARING → FAILED` existe porque a preparação faz trabalho que pode dar
  * errado antes de qualquer processo de agente subir: preflight da CLI, criação
@@ -35,7 +43,7 @@ export const RUN_TRANSITIONS = {
   QUEUED: ["PREPARING", "CANCELLED"],
   PREPARING: ["RUNNING", "FAILED", "CANCELLED"],
   RUNNING: ["SUCCEEDED", "FAILED", "TIMED_OUT", "CANCELLED", "WAITING_APPROVAL"],
-  WAITING_APPROVAL: ["RUNNING", "CANCELLED"],
+  WAITING_APPROVAL: ["RUNNING", "QUEUED", "CANCELLED"],
   SUCCEEDED: [],
   FAILED: [],
   TIMED_OUT: [],
