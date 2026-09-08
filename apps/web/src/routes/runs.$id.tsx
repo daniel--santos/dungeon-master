@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ChevronRight, Clock, ExternalLink, Gem, GitBranch, ListChecks } from "lucide-react";
+import { ChevronRight, Clock, ExternalLink, Gem, GitBranch, ListChecks, Play } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { RunStatusChip } from "@/components/execution/chips";
@@ -8,6 +8,7 @@ import { Panel } from "@/components/panel";
 import { CancelRunDialog } from "@/components/run/cancel-run-dialog";
 import { FailurePanel } from "@/components/run/failure-panel";
 import { ResultPanel } from "@/components/run/result-panel";
+import { ResumeRunDialog } from "@/components/run/resume-run-dialog";
 import { RuntimeCard, SessionCard, TimeCard } from "@/components/run/runtime-column";
 import { Timeline } from "@/components/run/timeline";
 import { KindChip, PriorityText, StatusChip } from "@/components/task/chips";
@@ -18,7 +19,7 @@ import { isLiveRunStatus, WORKSPACE_STRATEGY } from "@/lib/execution-domain";
 import { useGlossary } from "@/lib/glossary";
 import { useProject } from "@/lib/projects";
 import { useRunEvents } from "@/lib/run-events";
-import { useRun } from "@/lib/runs";
+import { canResumeRun, useRun } from "@/lib/runs";
 import { runDetailSearchSchema } from "@/lib/search";
 import { useTask } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
@@ -74,7 +75,13 @@ function Cockpit({ run }: { run: RunRecord }) {
   const project = useProject(run.projectId);
 
   const [cancelling, setCancelling] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+
+  // Decisão de UX da Fase 2: retomar só aparece quando a Guilda declara
+  // `resume` e uma sessão foi capturada. Um botão que sempre existe e às vezes
+  // volta em `409` ensina o usuário a desconfiar de todos os botões.
+  const resumable = canResumeRun(run);
 
   useEffect(() => {
     if (!live) return;
@@ -139,6 +146,17 @@ function Cockpit({ run }: { run: RunRecord }) {
                 <span>{format("Abrir {task}", { task: t("entity.task") })}</span>
               </Link>
             </Button>
+            {resumable && (
+              <Button
+                onClick={() => {
+                  setResuming(true);
+                }}
+                size="sm"
+              >
+                <Play aria-hidden />
+                <span>{format("Retomar a {run}", { run: t("entity.run") })}</span>
+              </Button>
+            )}
           </div>
         </div>
 
@@ -251,9 +269,17 @@ function Cockpit({ run }: { run: RunRecord }) {
       </div>
 
       {run.status === "SUCCEEDED" && <ResultPanel run={run} />}
-      {(run.status === "FAILED" || run.status === "TIMED_OUT") && <FailurePanel run={run} />}
+      {(run.status === "FAILED" || run.status === "TIMED_OUT") && (
+        <FailurePanel
+          onResume={() => {
+            setResuming(true);
+          }}
+          run={run}
+        />
+      )}
 
       <CancelRunDialog onOpenChange={setCancelling} open={cancelling} run={run} />
+      <ResumeRunDialog onOpenChange={setResuming} open={resuming} run={run} />
     </>
   );
 }

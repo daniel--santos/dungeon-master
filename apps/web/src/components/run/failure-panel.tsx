@@ -1,9 +1,16 @@
-import { FolderOpen, Hourglass, RotateCcw, TriangleAlert } from "lucide-react";
+import { FolderOpen, Hourglass, Play, RotateCcw, TriangleAlert } from "lucide-react";
 
 import { Panel } from "@/components/panel";
 import { CopyRow } from "@/components/run/runtime-column";
+import { Button } from "@/components/ui/button";
 import type { RunRecord } from "@/lib/api-types";
 import { useGlossary } from "@/lib/glossary";
+
+export interface FailurePanelProps {
+  readonly run: RunRecord;
+  /** Abre o diálogo de retomada. O botão só aparece quando dá para retomar. */
+  readonly onResume: () => void;
+}
 
 /**
  * O que uma Expedição derrotada ou exausta deixa para trás.
@@ -12,11 +19,11 @@ import { useGlossary } from "@/lib/glossary";
  * parou, e onde está o trabalho. O worktree preservado é o segundo, e o caminho
  * é copiável porque a próxima coisa que alguém faz é abri-lo no editor.
  *
- * "Retomar a Expedição" tem o lugar reservado e ainda não age: retomar depende
- * de `resumeFromRunId` no contrato de criação de Run, que não existe. Um botão
- * que não retoma seria pior do que a explicação do que falta.
+ * O terceiro painel responde "e agora?": ou oferece a retomada, ou diz qual das
+ * duas condições falta — sessão capturada e `resume` nas capabilities. As duas
+ * são as mesmas que a API confere, então o botão só aparece quando ela aceitaria.
  */
-export function FailurePanel({ run }: { run: RunRecord }) {
+export function FailurePanel({ run, onResume }: FailurePanelProps) {
   const { t, format } = useGlossary();
   const timedOut = run.status === "TIMED_OUT";
   const canResume =
@@ -113,17 +120,22 @@ export function FailurePanel({ run }: { run: RunRecord }) {
             <>
               <p className="text-muted-foreground m-0 text-[12.5px] leading-4.75">
                 {format(
-                  "A sessão do harness foi capturada e a {harness} {name} declara resume nas suas capabilities. Retomar a partir dela ainda não é possível: falta o campo que diz de qual {run} a nova parte.",
+                  "A sessão do harness foi capturada e a {harness} {name} declara resume nas suas capabilities. Uma {run} nova pode continuar de onde esta parou, com {attempt} maior.",
                   {
                     harness: t("entity.harness"),
                     name: run.loadoutSnapshot.harness.name,
                     run: t("entity.run"),
+                    attempt: "attempt",
                   },
                 )}
               </p>
               {run.harnessSessionId !== null && (
                 <CopyRow label="Sessão capturada" value={run.harnessSessionId} />
               )}
+              <Button className="mt-0.5 w-fit" onClick={onResume} size="sm" variant="outline">
+                <Play aria-hidden />
+                <span>{format("Retomar a {run}", { run: t("entity.run") })}</span>
+              </Button>
             </>
           ) : (
             <p className="text-muted-foreground m-0 text-[12.5px] leading-4.75">
