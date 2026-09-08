@@ -82,12 +82,27 @@ export const PI_CAPABILITIES = capabilities({
   // comando que não existe.
   nativePermissions: false,
   hostExecution: true,
-  dockerExecution: false,
+  // Fase 2C: a credencial do Pi é a chave do provedor (`GEMINI_API_KEY` e
+  // irmãs), entregue por variável, que é exatamente a forma que o sanitizador
+  // de credenciais sabe redigir. Provado no spike do ADR 0001.
+  //
+  // `nativePermissions` continua `false` e não muda com o modo: o que o
+  // container acrescenta é o degrau `SANDBOX_ENFORCED`, calculado a partir do
+  // modo do perfil, e não uma permissão por ferramenta que o Pi não tem.
+  dockerExecution: true,
 });
 
-/** Adapter do Pi rodando no host. */
-export function pi(options: PiOptions = {}) {
-  const definition: CliHarnessDefinition = {
+/**
+ * A definição do Pi: argv, parser e capabilities.
+ *
+ * Mora separada do adapter porque os dois modos de execução a compartilham: no
+ * host ela vira `createCliHarnessAdapter`; no Docker, o mesmo `buildArgs` e o
+ * mesmo `parseLine` entram num `createDockerAdapter`. É o que garante que um
+ * `ToolCall` chega à interface igual nos dois modos — a exigência da seção 17 do
+ * documento técnico.
+ */
+export function piDefinition(options: PiOptions = {}): CliHarnessDefinition {
+  return {
     id: "pi@host",
     key: "PI",
     capabilities: PI_CAPABILITIES,
@@ -132,8 +147,11 @@ export function pi(options: PiOptions = {}) {
       };
     },
   };
+}
 
-  return createCliHarnessAdapter(definition);
+/** Adapter do Pi rodando no host. */
+export function pi(options: PiOptions = {}) {
+  return createCliHarnessAdapter(piDefinition(options));
 }
 
 /**
@@ -179,8 +197,24 @@ export function parsePiLine(line: string): readonly HarnessSignal[] {
     case "message_end": {
       const message = asRecord(obj["message"]);
       if (message?.["role"] !== "assistant") return [];
+
+      const signals: HarnessSignal[] = [];
       const usage = parsePiUsage(message["usage"]);
-      return usage === undefined ? [] : [{ kind: "usage", usage }];
+      if (usage !== undefined) signals.push({ kind: "usage", usage });
+
+      // Uma falha do provedor chega **aqui**, e não numa linha `error`: o Pi
+      // 0.85.1 fecha a mensagem com `stopReason: "error"` e o corpo da resposta
+      // HTTP em `errorMessage`. Sem esta tradução o Run termina `RunCompleted`
+      // com zero texto e o consumo zerado, que é a pior forma de falhar —
+      // sucesso aparente com trabalho nenhum feito.
+      //
+      // Encontrado com o Pi dentro do container, onde a configuração de provedor
+      // do host não existe e a chave usada bateu no limite de cota (HTTP 429).
+      // Vale igual no host: é o mesmo parser.
+      const erro = parsePiStopError(message);
+      if (erro !== undefined) signals.push(erro);
+
+      return signals;
     }
     case "tool_execution_start": {
       const name = asString(obj["toolName"]);
@@ -224,6 +258,57 @@ export function parsePiLine(line: string): readonly HarnessSignal[] {
     default:
       return [];
   }
+}
+
+/**
+ * A falha de provedor escondida num `message_end` do Pi.
+ *
+ * `errorMessage` é o corpo bruto da resposta HTTP, frequentemente um JSON
+ * aninhado dentro de outro. A mensagem legível é extraída quando dá, e o texto
+ * cru vira `detail` — o suficiente para alguém entender um 429 sem abrir o log.
+ */
+function parsePiStopError(message: Record<string, unknown>): HarnessSignal | undefined {
+  if (message["stopReason"] !== "error") return undefined;
+
+  const cru = asString(message["errorMessage"]) ?? "";
+  const texto = cru.trim();
+  if (texto.length === 0) {
+    return {
+      kind: "error",
+      message: "O Pi encerrou a mensagem com erro do provedor.",
+      retryable: true,
+    };
+  }
+
+  // Limite de taxa e cota voltam sozinhos; credencial e modelo inexistente não.
+  const retryable =
+    !/api key|unauthorized|unauthenticated|permission denied|unknown model|not found/i.test(texto);
+
+  return {
+    kind: "error",
+    message: `O provedor do Pi recusou a chamada: ${resumoDoErroDoPi(texto)}`,
+    retryable,
+  };
+}
+
+/** Tenta achar a frase legível dentro do JSON aninhado do `errorMessage`. */
+function resumoDoErroDoPi(cru: string): string {
+  let atual: unknown = parseJsonObject(cru) ?? cru;
+
+  // O corpo vem embrulhado em `{ error: { message: "<json como string>" } }`,
+  // às vezes duas vezes. Três voltas cobrem o que foi observado com folga.
+  for (let volta = 0; volta < 3; volta++) {
+    const registro = asRecord(atual);
+    if (registro === undefined) break;
+    const interno = asRecord(registro["error"]) ?? registro;
+    const mensagem = asString(interno["message"]);
+    if (mensagem === undefined) break;
+    const aninhado = parseJsonObject(mensagem);
+    if (aninhado === undefined) return mensagem.trim().slice(0, 500);
+    atual = aninhado;
+  }
+
+  return cru.slice(0, 500);
 }
 
 function parseAgentEnd(obj: Record<string, unknown>): readonly HarnessSignal[] {

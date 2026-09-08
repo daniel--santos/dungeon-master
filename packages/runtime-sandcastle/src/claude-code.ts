@@ -83,14 +83,27 @@ export const CLAUDE_CODE_CAPABILITIES = capabilities({
   agentSelection: true,
   nativePermissions: true,
   hostExecution: true,
-  // Fase 2C. Prometer aqui antes de existir seria o tipo de suposição que a
-  // matriz de capabilities existe para evitar.
-  dockerExecution: false,
+  // Fase 2C. Ligado depois do spike do ADR 0001, que provou os dois caminhos de
+  // credencial — `CLAUDE_CODE_OAUTH_TOKEN` e o `.credentials.json` montado
+  // read-only — com chamada real à API de dentro do container.
+  //
+  // A matriz é do **harness**, e não do adapter: os dois adapters do Claude Code
+  // (host e container) compartilham este objeto de propósito, porque duas
+  // matrizes para o mesmo harness divergiriam sem ninguém notar.
+  dockerExecution: true,
 });
 
-/** Adapter do Claude Code rodando no host. */
-export function claudeCode(options: ClaudeCodeOptions = {}) {
-  const definition: CliHarnessDefinition = {
+/**
+ * A definição do Claude Code: argv, parser e capabilities.
+ *
+ * Mora separada do adapter porque os dois modos de execução a compartilham: no
+ * host ela vira `createCliHarnessAdapter`; no Docker, o mesmo `buildArgs` e o
+ * mesmo `parseLine` entram num `createDockerAdapter`. É o que garante que um
+ * `ToolCall` chega à interface igual nos dois modos — a exigência da seção 17 do
+ * documento técnico.
+ */
+export function claudeCodeDefinition(options: ClaudeCodeOptions = {}): CliHarnessDefinition {
+  return {
     id: "claude-code@host",
     key: "CLAUDE_CODE",
     capabilities: CLAUDE_CODE_CAPABILITIES,
@@ -113,8 +126,11 @@ export function claudeCode(options: ClaudeCodeOptions = {}) {
       };
     },
   };
+}
 
-  return createCliHarnessAdapter(definition);
+/** Adapter do Claude Code rodando no host. */
+export function claudeCode(options: ClaudeCodeOptions = {}) {
+  return createCliHarnessAdapter(claudeCodeDefinition(options));
 }
 
 /**

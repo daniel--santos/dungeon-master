@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   MIN_SECRET_LENGTH,
+  SENSITIVE_ENV_VARS,
   sanitizeCredentials,
   sanitizeError,
   sanitizeJson,
@@ -122,5 +123,35 @@ describe("sanitizeJson", () => {
     for (let i = 0; i < 100; i += 1) deep = { deep };
 
     expect(() => JSON.stringify(sanitizeJson(deep, { env }))).not.toThrow();
+  });
+});
+
+describe("tokens de autenticação de harness", () => {
+  // O caso que o spike da Fase 2C reproduziu num container de verdade
+  // (`docs/adr/0001-autenticacao-em-docker.md`): a credencial entregue por
+  // variável ao agente reaparece no `tool_result`, no texto do assistente e no
+  // `result` final do mesmo Run. Se ela não estiver em `SENSITIVE_ENV_VARS`, o
+  // log append-only fica com o token para sempre.
+  const token = "sk-ant-oat01-EXEMPLO-DE-TOKEN-LONGO-0123456789";
+  const harnessEnv = { CLAUDE_CODE_OAUTH_TOKEN: token };
+
+  it("inclui as variáveis de autenticação dos três harnesses", () => {
+    expect(SENSITIVE_ENV_VARS).toContain("CLAUDE_CODE_OAUTH_TOKEN");
+    expect(SENSITIVE_ENV_VARS).toContain("ANTHROPIC_AUTH_TOKEN");
+    expect(SENSITIVE_ENV_VARS).toContain("CODEX_ACCESS_TOKEN");
+    expect(SENSITIVE_ENV_VARS).toContain("GEMINI_API_KEY");
+  });
+
+  it("redige o token nas três aparições de um stream de Run", () => {
+    const stream = [
+      { type: "ToolResult", ok: true, output: token },
+      { type: "TextDelta", text: `O comando imprimiu:\n\n${token}\n` },
+      { type: "RunCompleted", summary: `terminei; o token era ${token}` },
+    ];
+
+    const limpo = JSON.stringify(sanitizeJson(stream, { env: harnessEnv }));
+
+    expect(limpo).not.toContain(token);
+    expect(limpo.split("[REDACTED]")).toHaveLength(4);
   });
 });

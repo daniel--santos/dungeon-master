@@ -27,3 +27,5 @@ export * from "./workspace-resolver.js";
 export * from "./structured-output.js";
 export * from "./agent-runtime.js";
 export * from "./host-adapter.js";
+export * from "./docker.js";
+export * from "./docker-adapter.js";

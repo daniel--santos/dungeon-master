@@ -12,6 +12,7 @@
 export * from "./claude-code.js";
 export * from "./cli-adapter.js";
 export * from "./codex.js";
+export * from "./docker.js";
 export * from "./parse-utils.js";
 export * from "./pi.js";
 export * from "./resolve-cli.js";

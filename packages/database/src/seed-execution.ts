@@ -78,7 +78,12 @@ const HARNESS_SEEDS: readonly HarnessSeed[] = [
       agentSelection: false,
       nativePermissions: true,
       hostExecution: true,
-      dockerExecution: true,
+      // O ADR 0001 classificou o Codex em Docker como **experimental**: o único
+      // caminho de credencial provado nele é montar `~/.codex/auth.json`, cujo
+      // conteúdo o sanitizador de credenciais não sabe redigir. Não existe
+      // adapter `codex@docker`, e prometer aqui deixaria a interface oferecendo
+      // um Ambiente de Execução que o Run recusa na partida.
+      dockerExecution: false,
     },
   },
   {
@@ -150,9 +155,13 @@ export const OPEN_FIELD_ALLOWED_COMMANDS: readonly string[] = DEFAULT_TRUSTED_CO
  * dois. O que a interface nunca deixa sumir é o aviso de isolamento — "Campo
  * aberto" aparece sempre acompanhado de "sem isolamento" (CLAUDE.md, seção 2).
  *
- * "Masmorra selada" nasce **desligada**: o modo Docker só é implementado na
- * Fase 2C, e um perfil escolhível antes disso produziria um Run que o worker
- * não sabe executar.
+ * "Masmorra selada" nasce **ligada** desde a Fase 2C. Ela ficou desligada
+ * enquanto o modo `DOCKER` não existia — um perfil escolhível antes disso
+ * produziria um Run que o worker não sabe executar —, e o que a ligou foi o
+ * veredito do ADR `docs/adr/0001-autenticacao-em-docker.md`: pelo menos um
+ * harness (dois, na verdade) tem caminho de credencial provado dentro do
+ * container. Quem não tem é o Codex, e isso aparece onde é acionável, na matriz
+ * de capabilities dele (`dockerExecution: false`), e não num perfil desligado.
  */
 const EXECUTION_PROFILE_SEEDS: readonly ExecutionProfileSeed[] = [
   {
@@ -174,8 +183,23 @@ const EXECUTION_PROFILE_SEEDS: readonly ExecutionProfileSeed[] = [
     mode: "DOCKER",
     workspaceStrategy: "GIT_WORKTREE",
     enforcement: "SANDBOX_ENFORCED",
-    enabled: false,
+    enabled: true,
     isDefault: false,
+    // A allow-list de "Campo aberto" não se repete aqui de propósito. No modo
+    // `DOCKER` quem impõe a fronteira é o container, e não a CLI: o perfil pede
+    // `BYPASS`, o `AgentRuntime` concede porque `SANDBOX_ENFORCED` vale, e o
+    // agente trabalha sem ser interrompido dentro de um ambiente que ele não
+    // consegue deixar. Fora do container esse mesmo pedido seria rebaixado para
+    // `DEFAULT`, com `Diagnostic` — é a regra dos três degraus da Fase 2B, e é
+    // ela que torna este `BYPASS` honesto em vez de perigoso.
+    // `allowUnsafeBypass` fica **ausente** de propósito: ele é a porta de bypass
+    // *sem* isolamento, e aqui o isolamento existe. É `enforcement` que decide.
+    permissionPolicy: {
+      workspaceWrite: true,
+      commandExecution: "ALL",
+      allowedCommands: [],
+      deniedCommands: [],
+    },
   },
 ];
 

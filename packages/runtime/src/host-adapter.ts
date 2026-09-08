@@ -27,6 +27,7 @@ import type {
   PreflightResult,
 } from "./harness.js";
 import { startProcess, type RunningProcess } from "./process.js";
+import type { ExecutionMode } from "./types.js";
 
 /** `Omit` que distribui sobre a união, em vez de reduzi-la aos campos comuns. */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -97,6 +98,13 @@ export interface HostCommand {
 export interface HostAdapterDefinition {
   readonly id: string;
   readonly key: HarnessKey;
+  /**
+   * Modo declarado ao registry. Padrão: `HOST`.
+   *
+   * O backend de container reaproveita esta mesma base — o que muda entre os
+   * dois modos é o spawn — e por isso precisa poder dizer `DOCKER` aqui.
+   */
+  readonly executionMode?: ExecutionMode;
   readonly capabilities: HarnessCapabilities;
   readonly environmentKeys?: readonly string[];
   buildCommand(request: HarnessExecutionRequest): HostCommand | Promise<HostCommand>;
@@ -113,6 +121,21 @@ export interface HostAdapterDefinition {
   ): { readonly message: string; readonly retryable: boolean } | undefined;
   /** Teto da cauda de texto guardada. Padrão: o da `BoundedTail`. */
   readonly maxTailChars?: number;
+  /**
+   * Como encerrar a execução. Padrão: kill da árvore de processos pelo PID.
+   *
+   * O backend `DOCKER` troca isto por `docker rm -f` com confirmação: matar o
+   * cliente `docker run` no host não encosta no container, porque o processo do
+   * agente é filho do daemon e não do worker. É a mesma promessa da seção 13 do
+   * documento técnico — o desaparecimento é confirmado, nunca presumido — só
+   * que o "processo" a confirmar é outro.
+   */
+  terminate?(input: {
+    readonly executionId: string;
+    readonly process: RunningProcess;
+    readonly graceMs?: number;
+    readonly confirmMs?: number;
+  }): Promise<HarnessCancelResult>;
 }
 
 /**
@@ -317,6 +340,7 @@ export function createHostAdapter(definition: HostAdapterDefinition): HarnessAda
   return {
     id: definition.id,
     key: definition.key,
+    executionMode: definition.executionMode ?? "HOST",
     capabilities: definition.capabilities,
     ...(definition.environmentKeys === undefined
       ? {}
@@ -327,6 +351,9 @@ export function createHostAdapter(definition: HostAdapterDefinition): HarnessAda
       const child = running.get(executionId);
       if (child === undefined) {
         return { terminated: true, elapsedMs: 0, notRunning: true };
+      }
+      if (definition.terminate !== undefined) {
+        return definition.terminate({ executionId, process: child });
       }
       const result = await child.terminate();
       return { terminated: result.terminated, method: result.method, elapsedMs: result.elapsedMs };

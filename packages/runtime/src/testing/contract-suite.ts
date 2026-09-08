@@ -120,11 +120,21 @@ export function harnessContractSuite(options: HarnessContractSuiteOptions): void
       return `contract-${label}-${String(runSeq)}`;
     };
 
-    const profile: ExecutionProfileSnapshot = {
-      mode: "HOST",
+    /**
+     * O modo do perfil vem do **adapter**, e não é fixo em `HOST`.
+     *
+     * O registry resolve pelo par (harness, modo), então um perfil que dissesse
+     * `HOST` faria o runtime procurar `pi@host` mesmo quando a suíte foi montada
+     * com `pi@docker` — e todo caso falharia com "este harness não roda no modo
+     * HOST" em vez de exercitar o adapter que recebeu. É também o que faz
+     * `resolvePermission` calcular `SANDBOX_ENFORCED` no modo container, que é o
+     * degrau que a Fase 2C acrescenta.
+     */
+    const profileFor = (a: HarnessAdapter): ExecutionProfileSnapshot => ({
+      mode: a.executionMode ?? "HOST",
       workspaceStrategy: "CURRENT",
       permissionPolicy: { mode: "DEFAULT" },
-    };
+    });
 
     const buildRequest = (
       label: string,
@@ -136,7 +146,7 @@ export function harnessContractSuite(options: HarnessContractSuiteOptions): void
       harness: { key: adapter.key },
       ...(options.model === undefined ? {} : { model: options.model }),
       loadout: { harness: { key: adapter.key } },
-      executionProfile: profile,
+      executionProfile: profileFor(adapter),
       prompt: prompts.echo,
       timeouts: { completionMs, idleMs: Math.min(completionMs, 120_000) },
       ...overrides,
@@ -333,7 +343,7 @@ export function harnessContractSuite(options: HarnessContractSuiteOptions): void
       "reportsVersion",
       "o preflight informa instalação e versão",
       async () => {
-        const preflight = await adapter.preflight({ mode: "HOST" });
+        const preflight = await adapter.preflight({ mode: adapter.executionMode ?? "HOST" });
         expect(preflight.installed, JSON.stringify(preflight.problems)).toBe(true);
         expect(preflight.version).toBeTypeOf("string");
         expect((preflight.version ?? "").length).toBeGreaterThan(0);

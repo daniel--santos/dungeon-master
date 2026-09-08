@@ -156,6 +156,38 @@ export interface LoadoutSnapshot {
   readonly harnessArgs?: readonly string[];
 }
 
+/**
+ * Quanto de rede o Run enxerga.
+ *
+ * O eixo existe desde a 2A no contrato (`NetworkPolicy`), mas só o modo
+ * `DOCKER` consegue impor alguma coisa: no host, um agente com shell alcança a
+ * rede inteira independentemente do que o perfil diga. É por isso que a
+ * política viaja **resolvida**, com `enforceable` dizendo se ela é barreira ou
+ * intenção — a mesma distinção entre "policy requested" e "policy enforced" que
+ * a 2B já faz para permissões.
+ */
+export interface RuntimeNetworkPolicy {
+  readonly access: "NONE" | "ALLOWLIST" | "ALL";
+  /** Hosts liberados quando `access` é `ALLOWLIST`. */
+  readonly allowedHosts?: readonly string[];
+}
+
+/**
+ * Limites de recurso do container.
+ *
+ * Ainda **não** têm campo no `ExecutionProfile` do banco (contrato da 2A); vêm
+ * da configuração do worker, e existem aqui para que o dia em que virarem campo
+ * não exija mexer no backend.
+ */
+export interface RuntimeResourceLimits {
+  /** Fração de CPUs (`--cpus` do Docker). `2` são dois núcleos inteiros. */
+  readonly cpus?: number;
+  /** Memória em mebibytes. Vira `--memory <n>m`. */
+  readonly memoryMb?: number;
+  /** Teto de processos (`--pids-limit`). */
+  readonly pidsLimit?: number;
+}
+
 /** Snapshot do ExecutionProfile congelado no início do Run. */
 export interface ExecutionProfileSnapshot {
   readonly id?: string;
@@ -164,6 +196,8 @@ export interface ExecutionProfileSnapshot {
   readonly workspaceStrategy: WorkspaceStrategy;
   readonly permissionPolicy?: RuntimePermissionPolicy;
   readonly environmentPolicy?: RuntimeEnvironmentPolicy;
+  readonly networkPolicy?: RuntimeNetworkPolicy;
+  readonly resourceLimits?: RuntimeResourceLimits;
 }
 
 /**

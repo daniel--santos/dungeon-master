@@ -42,6 +42,7 @@ import type {
   HarnessExecutionRequest,
   HarnessFinishedEvent,
   PreflightResult,
+  ResolvedNetwork,
   ResolvedPermission,
 } from "./harness.js";
 import { isHarnessFinished, RuntimeRequestError } from "./harness.js";
@@ -178,7 +179,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     let usage: UsageSummary | undefined;
 
     try {
-      const adapter = options.registry.resolve(harnessKey);
+      const adapter = options.registry.resolve(harnessKey, request.executionProfile.mode);
       control.adapter = adapter;
 
       // ---------------------------------------------------------- capabilities
@@ -259,6 +260,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         ...(options.envSource === undefined ? {} : { source: options.envSource }),
       });
 
+      // ------------------------------------------------------------------ rede
+      const network = resolveNetwork(request.executionProfile);
+      for (const note of network.notes) {
+        yield diagnostic("WARN", note);
+      }
+
       const model = request.model ?? request.loadout.model;
       if (model !== undefined && !adapter.capabilities.modelSelection) {
         yield diagnostic(
@@ -306,6 +313,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
           ...(request.loadout.harnessArgs === undefined
             ? {}
             : { extraArgs: request.loadout.harnessArgs }),
+          network: network.resolved,
+          ...(request.executionProfile.resourceLimits === undefined
+            ? {}
+            : { resourceLimits: request.executionProfile.resourceLimits }),
         };
         control.executionId = harnessRequest.executionId;
 
@@ -734,6 +745,48 @@ interface PermissionNote {
 interface ResolvedPermissionWithNotes {
   readonly permission: ResolvedPermission;
   readonly notes: readonly PermissionNote[];
+}
+
+interface ResolvedNetworkWithNotes {
+  readonly resolved: ResolvedNetwork;
+  readonly notes: readonly string[];
+}
+
+/**
+ * Traduz a política de rede do perfil no que o ambiente consegue impor.
+ *
+ * A mesma disciplina das permissões, aplicada ao outro eixo: o que não é
+ * imponível vira aviso, nunca promessa. No modo `HOST` nada é imponível — um
+ * agente com shell alcança a rede toda —, e no `DOCKER` o que existe é ligar ou
+ * desligar a rede do container; filtrar por host precisaria de um proxy no meio,
+ * que a Fase 2 não tem.
+ */
+export function resolveNetwork(profile: ExecutionProfileSnapshot): ResolvedNetworkWithNotes {
+  const policy = profile.networkPolicy;
+  const access = policy?.access ?? "ALL";
+  const allowedHosts = policy?.allowedHosts ?? [];
+  const isolado = profile.mode === "DOCKER";
+  const notes: string[] = [];
+
+  const enforced = isolado && access !== "ALLOWLIST";
+
+  if (access === "ALLOWLIST") {
+    notes.push(
+      isolado
+        ? `A política pediu rede por allow-list (${allowedHosts.length === 0 ? "nenhum host" : allowedHosts.join(", ")}), e o Docker só sabe ligar ou desligar a rede do container. O Run roda com a rede liberada e a allow-list vale como intenção.`
+        : "A política pediu rede por allow-list, e o modo HOST não impõe rede nenhuma. A allow-list vale como intenção.",
+    );
+  } else if (access === "NONE" && !isolado) {
+    notes.push(
+      "A política pediu execução sem rede, e o modo HOST não consegue impor isso. O agente continua alcançando a rede.",
+    );
+  } else if (access === "NONE" && isolado) {
+    notes.push(
+      "O container sobe com `--network none`. O agente não alcança a API do modelo, e uma CLI que precise dela vai falhar na primeira chamada.",
+    );
+  }
+
+  return { resolved: { access, allowedHosts, enforced }, notes };
 }
 
 /**
