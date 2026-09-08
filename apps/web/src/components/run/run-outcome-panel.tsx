@@ -50,7 +50,7 @@ export function RunOutcomePanel({ run }: { run: RunRecord }) {
             params={{ id: run.projectId }}
             to="/projects/$id"
           >
-            <span>{format("Decidir na {project}", { project: t("entity.project") })}</span>
+            <span>{t("proposal.decideIn")}</span>
             <ArrowRight aria-hidden className="size-3" />
           </Link>
         )}

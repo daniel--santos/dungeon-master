@@ -78,10 +78,7 @@ function ProposalToast({ payload, onOpen }: { payload: ProposedPayload; onOpen: 
             : format(t("proposal.toast.many"), { n: payload.count })}
         </span>
         <span className="text-muted-foreground text-[12.5px] leading-4.5">
-          {format("Decida na {project}: cada uma pode virar {task}.", {
-            project: t("entity.project"),
-            task: t("entity.task"),
-          })}
+          {t("proposal.toast.body")}
         </span>
         <Link
           className="text-muted-foreground hover:text-foreground mt-0.5 flex w-fit items-center gap-1 text-[11.5px] underline-offset-2 hover:underline"
@@ -89,7 +86,7 @@ function ProposalToast({ payload, onOpen }: { payload: ProposedPayload; onOpen: 
           params={{ id: payload.projectId }}
           to="/projects/$id"
         >
-          <span>{format("Abrir a {project}", { project: t("entity.project") })}</span>
+          <span>{t("proposal.toast.open")}</span>
           <ArrowRight aria-hidden className="size-3" />
         </Link>
       </div>
