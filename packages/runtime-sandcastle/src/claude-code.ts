@@ -12,6 +12,7 @@
 import type {
   HarnessExecutionRequest,
   HarnessSignal,
+  McpServerSpec,
   ResolvedPermission,
 } from "@dungeon-master/runtime";
 import { capabilities, PERMISSION_DENIED_DIAGNOSTIC_CODE } from "@dungeon-master/runtime";
@@ -91,6 +92,13 @@ export const CLAUDE_CODE_CAPABILITIES = capabilities({
   // (host e container) compartilham este objeto de propósito, porque duas
   // matrizes para o mesmo harness divergiriam sem ninguém notar.
   dockerExecution: true,
+  // Fase 7. `--mcp-config <json> --strict-mcp-config` sobe os servidores do
+  // pedido em modo `--print`, o servidor herda o ambiente inteiro da CLI (é
+  // por onde `DATABASE_URL` chega, sem argv nem arquivo), e a chamada aparece
+  // no stream como `tool_use` de nome `mcp__<servidor>__<ferramenta>`. Medido
+  // contra a 2.1.263 em 08/09/2026, no host e dentro do container; provado
+  // pelo caso `usesMcpServer` das duas suítes de contrato.
+  mcpServers: true,
 });
 
 /**
@@ -163,12 +171,22 @@ export function buildClaudeCodeArgs(
       // primeiro Run desta fase terminar `blocked` sem conseguir commitar.
       args.push("--permission-mode", request.permission.harnessMode ?? "acceptEdits");
 
-      const permitidas = allowedToolsFor(request.permission.grant);
-      if (permitidas.length > 0) args.push("--allowedTools", permitidas.join(","));
-
       const negadas = deniedToolsFor(request.permission.grant);
       if (negadas.length > 0) args.push("--disallowedTools", negadas.join(","));
     }
+
+    // As ferramentas dos servidores MCP entram na mesma `--allowedTools` da
+    // concessão, e também no modo padrão: com `--permission-prompts none`, uma
+    // ferramenta MCP fora da allow-list é negada sem pergunta, e o agente
+    // ficaria com um servidor que ele vê e não consegue chamar. A flag é uma
+    // só porque a CLI não acumula duas ocorrências dela.
+    const permitidas = [
+      ...(request.permission.mode === "CONFIGURED"
+        ? allowedToolsFor(request.permission.grant)
+        : []),
+      ...mcpAllowedToolsFor(request.mcpServers),
+    ];
+    if (permitidas.length > 0) args.push("--allowedTools", permitidas.join(","));
 
     // Sem ninguém para responder, o que fosse perguntar é **negado**, e não
     // fica esperando. É a diferença entre um Run que falha dizendo o que
@@ -180,6 +198,9 @@ export function buildClaudeCodeArgs(
     args.push("--resume", request.resume.harnessSessionId);
     if (request.resume.fork === true) args.push("--fork-session");
   }
+
+  const mcp = mcpArgsFor(request.mcpServers);
+  args.push(...mcp.args);
 
   if (options.extraArgs !== undefined) args.push(...options.extraArgs);
   if (request.extraArgs !== undefined) args.push(...request.extraArgs);
@@ -285,6 +306,69 @@ export function describePermissionDenied(input: {
   ];
 }
 
+/**
+ * A configuração de servidores MCP no formato do `--mcp-config` do Claude Code.
+ *
+ * Só comando, argumentos e URL. Nenhum bloco `env`: o servidor herda o ambiente
+ * inteiro da CLI (medido na 2.1.263 — o processo filho recebe as mesmas ~100
+ * variáveis), e é por essa herança que `DATABASE_URL` chega sem nunca ser
+ * escrita em argv nem em arquivo. Um `env` aqui seria o valor do segredo dentro
+ * de um JSON que vai para a linha de comando.
+ */
+export function claudeMcpConfig(servers: readonly McpServerSpec[]): {
+  readonly mcpServers: Readonly<Record<string, unknown>>;
+} {
+  const mcpServers: Record<string, unknown> = {};
+  for (const server of servers) {
+    mcpServers[server.name] =
+      server.transport === "STDIO"
+        ? { type: "stdio", command: server.command, args: [...server.args] }
+        : { type: "http", url: server.url };
+  }
+  return { mcpServers };
+}
+
+/**
+ * Os nomes de ferramenta MCP para a `--allowedTools`.
+ *
+ * `mcp__<servidor>__<ferramenta>` quando o servidor declara as suas; só
+ * `mcp__<servidor>` — o servidor inteiro — quando não declara, que é o caso
+ * dos servidores do Loadout, cujas ferramentas ninguém listou.
+ */
+export function mcpAllowedToolsFor(servers: readonly McpServerSpec[] | undefined): string[] {
+  const tools: string[] = [];
+  for (const server of servers ?? []) {
+    if (server.tools === undefined || server.tools.length === 0) {
+      tools.push(`mcp__${server.name}`);
+      continue;
+    }
+    for (const tool of server.tools) tools.push(`mcp__${server.name}__${tool}`);
+  }
+  return tools;
+}
+
+/**
+ * Os argumentos que ligam os servidores MCP do pedido.
+ *
+ * A configuração vai como **string JSON no argv**, e não como arquivo
+ * temporário: a CLI aceita as duas formas ("JSON files or strings"), a string
+ * não deixa nada para limpar no fim do Run, e é a mesma nos dois modos de
+ * execução — dentro do container não haveria como apontar para um arquivo do
+ * host. O JSON só carrega comando, argumentos e ids; nunca um segredo.
+ *
+ * `--strict-mcp-config` desliga o que o usuário tiver configurado na conta
+ * dele: o Run recebe exatamente os servidores do pedido, e o diário mostra só
+ * ferramentas que o Loadout ou o Grimório ofereceram.
+ */
+export function mcpArgsFor(servers: readonly McpServerSpec[] | undefined): {
+  readonly args: readonly string[];
+} {
+  if (servers === undefined || servers.length === 0) return { args: [] };
+  return {
+    args: ["--mcp-config", JSON.stringify(claudeMcpConfig(servers)), "--strict-mcp-config"],
+  };
+}
+
 /** Os prefixos negados, que ganham do que a allow-list liberou. */
 export function deniedToolsFor(grant: ResolvedPermission["grant"]): string[] {
   if (grant === undefined) return [];
@@ -320,8 +404,29 @@ export function parseClaudeLine(line: string): readonly HarnessSignal[] {
 
 function parseSystem(obj: Record<string, unknown>): readonly HarnessSignal[] {
   if (obj["subtype"] === "init") {
+    const signals: HarnessSignal[] = [];
     const sessionId = asString(obj["session_id"]);
-    return sessionId === undefined ? [] : [{ kind: "session", id: sessionId }];
+    if (sessionId !== undefined) signals.push({ kind: "session", id: sessionId });
+    // A linha de init diz se cada servidor MCP conectou. Um que não conectou
+    // vira aviso no diário — senão o Run seguiria "sem o Grimório" e ninguém
+    // saberia por que o agente não achou o que estava lá.
+    const servers = obj["mcp_servers"];
+    if (Array.isArray(servers)) {
+      for (const entry of servers) {
+        const server = asRecord(entry);
+        const name = asString(server?.["name"]);
+        const status = asString(server?.["status"]);
+        if (name === undefined || status === undefined || status === "connected") continue;
+        signals.push({
+          kind: "diagnostic",
+          level: "WARN",
+          code: "MCP_SERVER_NOT_CONNECTED",
+          message: `O servidor MCP ${name} não conectou: ${status}.`,
+          detail: "As ferramentas dele não existem neste Run. Veja o stderr do harness.",
+        });
+      }
+    }
+    return signals;
   }
   if (obj["subtype"] === "permission_denied") {
     return describePermissionDenied({

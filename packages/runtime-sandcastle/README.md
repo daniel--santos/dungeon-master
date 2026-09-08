@@ -192,6 +192,32 @@ duas vezes.
 
 ---
 
+## Servidores MCP (Fase 7)
+
+`ExecutionRequest.mcpServers` chega ao adapter só quando a matriz diz
+`mcpServers: true`; o resto é tradução por CLI. Tudo abaixo foi medido em
+08/09/2026 com um servidor de sondagem que só relata que variáveis enxerga.
+
+| Harness     | `mcpServers` | Como                                                                                                                                                                                                                                                                            |
+| ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code | `true`       | `--mcp-config '<json>' --strict-mcp-config`, mais `mcp__<servidor>__<tool>` na `--allowedTools`. O servidor herda o ambiente inteiro da CLI (~100 variáveis): `DATABASE_URL` chega sem argv nem arquivo. A chamada vem como `tool_use` de nome `mcp__<servidor>__<tool>`.       |
+| Codex       | `true`       | `-c mcp_servers.<nome>.command/args/env_vars/enabled_tools` e `default_tools_approval_mode="approve"`. Sem `env_vars` o servidor recebe só ~20 variáveis; sem `approve` a chamada morre como "user cancelled MCP tool call" em `approval_policy="never"`. Item `mcp_tool_call`. |
+| Pi          | `false`      | "No MCP" é decisão de projeto do Pi (README da 0.85.1): sem flag, sem arquivo, sem variável. Só uma extensão (`-e`) traria MCP, e isso é assunto da Fase 8.                                                                                                                     |
+
+A configuração do Claude Code vai como **string JSON no argv**, e não como
+arquivo temporário: a CLI aceita as duas formas, a string não deixa nada para
+limpar e é a mesma nos dois modos — dentro do container não haveria como
+apontar para um arquivo do host. O JSON carrega comando, argumentos e ids;
+nunca um segredo. `--strict-mcp-config` deixa de fora o que o usuário tiver na
+conta dele: o diário mostra só ferramentas que o Loadout ou o Grimório
+ofereceram.
+
+No modo `DOCKER`, o adapter de container monta o arquivo do servidor read-only,
+troca o comando pelo de dentro da imagem, reescreve `DATABASE_URL` para
+`host.docker.internal` (o valor no ambiente do cliente, `-e NOME` no argv) e
+liga `--add-host host.docker.internal:host-gateway`. O `buildArgs` do Claude
+Code é o mesmo dos dois modos; o que muda é a lista que ele recebe.
+
 ## Testes
 
 ```bash
@@ -202,9 +228,12 @@ pnpm --filter @dungeon-master/runtime-sandcastle test
   07/09/2026, contra os parsers.
 - `resolve-cli.test.ts` roda sempre, com os casos de Windows e de POSIX
   separados por `describe.runIf`.
-- `contract.test.ts` roda os onze casos da Fase 3E com as CLIs **reais**, e some
-  quando a CLI não está instalada ou quando `CI` está definida. `DM_HARNESS_CONTRACT=1`
-  força a execução. No CI, quem cobre os mesmos onze casos é o harness falso, em
+- `mcp-args.test.ts` roda sempre: a tradução dos servidores MCP para o argv de
+  cada CLI, com a prova de que o segredo não está nele.
+- `contract.test.ts` roda os onze casos da Fase 3E, mais o `usesMcpServer` da
+  Fase 7, com as CLIs **reais**, e some quando a CLI não está instalada ou quando
+  `CI` está definida. `DM_HARNESS_CONTRACT=1` força a execução. No CI, quem cobre
+  os mesmos casos é o harness falso, em
   `packages/runtime/src/testing/fake-harness.test.ts`.
 
 ## Demonstração

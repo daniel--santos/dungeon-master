@@ -90,6 +90,12 @@ export const PI_CAPABILITIES = capabilities({
   // container acrescenta é o degrau `SANDBOX_ENFORCED`, calculado a partir do
   // modo do perfil, e não uma permissão por ferramenta que o Pi não tem.
   dockerExecution: true,
+  // Fase 7. O Pi **não tem MCP** por decisão de projeto — o README da 0.85.1
+  // diz "No MCP" e manda escrever uma extensão (`-e <arquivo.js>`) para quem
+  // quiser. Não há flag, nem arquivo de configuração, nem variável: um
+  // `ExecutionRequest.mcpServers` não tem para onde ir, e o runtime avisa no
+  // diário e segue. Uma extensão nossa que fale MCP é assunto da Fase 8.
+  mcpServers: false,
 });
 
 /**
