@@ -11,7 +11,7 @@ import { buildKnowledgeSection } from "./sections/knowledge.js";
 import { buildLineageSection } from "./sections/lineage.js";
 import { buildSkillsSection } from "./sections/skills.js";
 import { buildSummarySection } from "./sections/summary.js";
-import { fastEstimateMessages } from "./token-estimate.js";
+import { fastEstimateTokens } from "./token-estimate.js";
 import type { AssembleRunContextInput, SectionDraft } from "./types.js";
 
 /**
@@ -127,8 +127,11 @@ function finish(
     excluded: [...outcome.excluded],
     budget: outcome.budget,
     usage: {
-      estimatedTokens:
-        text.length === 0 ? 0 : fastEstimateMessages([{ role: "user", content: text }]),
+      // A mesma conta com que o teto foi aplicado. `fastEstimateMessages`
+      // serializa em JSON antes de estimar e dava um número diferente do
+      // orçamento (uns 7% a mais no texto do quadro, e para menos em outros):
+      // o painel podia passar de 100% sem o orçamento ter sido estourado.
+      estimatedTokens: fastEstimateTokens(text),
       itemCount,
       excludedCount: outcome.excluded.length,
     },
