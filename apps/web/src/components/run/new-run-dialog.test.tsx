@@ -10,10 +10,17 @@ import {
   HARNESS,
   HOST_PROFILE,
   LOADOUT,
-  RUN,
   TASK,
   ok,
 } from "@/test/execution-fixtures";
+import {
+  DOCKER_BLOCKER,
+  MCP_WARNING,
+  PREFLIGHT_BLOCKED,
+  PREFLIGHT_OK,
+  PREFLIGHT_WARNINGS,
+  RUN_CREATED,
+} from "@/test/registry-fixtures";
 import { renderInRouter } from "@/test/router";
 
 /**
@@ -38,6 +45,9 @@ const RESPONSES: Record<string, unknown> = {
   "/api/v1/models": { items: [] },
   "/api/v1/execution-profiles": { items: [HOST_PROFILE, DOCKER_PROFILE] },
   "/api/v1/settings": { "ui.theme": "dnd", "execution.hostAcknowledged": false },
+  // O preflight do Equipamento roda antes de partir (Fase 8C): sem ele a
+  // partida ficaria esperando a verificação.
+  "/api/v1/loadouts/{id}/preflight": PREFLIGHT_OK,
 };
 
 afterEach(() => {
@@ -84,7 +94,7 @@ describe("diálogo Nova Expedição", () => {
   });
 
   it("com o aceite marcado, parte com o prompt montado da Task", async () => {
-    client.POST.mockResolvedValue(ok(RUN) as never);
+    client.POST.mockResolvedValue(ok(RUN_CREATED) as never);
     client.PUT.mockResolvedValue(
       ok({ "ui.theme": "dnd", "execution.hostAcknowledged": true }) as never,
     );
@@ -112,7 +122,7 @@ describe("diálogo Nova Expedição", () => {
   });
 
   it("lembra o aceite em user_setting, para não perguntar de novo", async () => {
-    client.POST.mockResolvedValue(ok(RUN) as never);
+    client.POST.mockResolvedValue(ok(RUN_CREATED) as never);
     client.PUT.mockResolvedValue(
       ok({ "ui.theme": "dnd", "execution.hostAcknowledged": true }) as never,
     );
@@ -212,5 +222,107 @@ describe("diálogo Nova Expedição", () => {
     expect(document.querySelector('[data-mode-option="DOCKER"]')?.textContent).not.toContain(
       "sem perfil",
     );
+  });
+});
+
+/**
+ * O preflight antes de partir (Fase 8C): um bloqueio desabilita "Partir" com
+ * a lista, um aviso deixa partir, e o `409` da API com `blockers[]` fica no
+ * diálogo em vez de virar toast.
+ */
+describe("o preflight do Equipamento antes de partir", () => {
+  async function abrirCom(preflight: unknown): Promise<void> {
+    client.GET.mockImplementation(((path: string) =>
+      Promise.resolve(
+        ok(path === "/api/v1/loadouts/{id}/preflight" ? preflight : (RESPONSES[path] ?? {})),
+      )) as never);
+    client.PUT.mockResolvedValue(
+      ok({ "ui.theme": "dnd", "execution.hostAcknowledged": true }) as never,
+    );
+    renderInRouter(<NewRunDialog onOpenChange={vi.fn()} open task={TASK} />);
+    await screen.findAllByText(LOADOUT.name);
+    fireEvent.click(screen.getByLabelText(`Aceito executar ${dnd["env.host.warning"]}`));
+  }
+
+  it("um bloqueio desabilita a partida e lista o motivo pelo código", async () => {
+    await abrirCom(PREFLIGHT_BLOCKED);
+
+    const block = await waitFor(() => {
+      const element = document.querySelector('[data-run-preflight="blocked"]');
+      expect(element).not.toBeNull();
+      return element as HTMLElement;
+    });
+    expect(block.textContent).toContain(dnd["run.preflight.blocked"]);
+
+    const issue = block.querySelector(`[data-capability-issue="${DOCKER_BLOCKER.code}"]`);
+    expect(issue).not.toBeNull();
+    expect(issue?.getAttribute("data-capability-severity")).toBe("BLOCKER");
+    expect(issue?.textContent).toContain(dnd["capability.code.dockerUnsupported"]);
+    expect(issue?.textContent).toContain(DOCKER_BLOCKER.message);
+
+    const depart = screen.getByRole("button", { name: "Partir" }) as HTMLButtonElement;
+    expect(depart.disabled).toBe(true);
+    fireEvent.click(depart);
+    expect(client.POST).not.toHaveBeenCalled();
+  });
+
+  it("um aviso aparece e deixa partir", async () => {
+    client.POST.mockResolvedValue(ok(RUN_CREATED) as never);
+    await abrirCom(PREFLIGHT_WARNINGS);
+
+    const block = await waitFor(() => {
+      const element = document.querySelector('[data-run-preflight="warnings"]');
+      expect(element).not.toBeNull();
+      return element as HTMLElement;
+    });
+    expect(block.textContent).toContain(dnd["run.preflight.warnings"]);
+    expect(
+      block
+        .querySelector(`[data-capability-issue="${MCP_WARNING.code}"]`)
+        ?.getAttribute("data-capability-severity"),
+    ).toBe("WARNING");
+
+    const depart = screen.getByRole("button", { name: "Partir" }) as HTMLButtonElement;
+    await waitFor(() => {
+      expect(depart.disabled).toBe(false);
+    });
+    fireEvent.click(depart);
+    await waitFor(() => {
+      expect(client.POST).toHaveBeenCalled();
+    });
+  });
+
+  it("o 409 com blockers da API fica no diálogo, com os mesmos itens", async () => {
+    client.POST.mockResolvedValue({
+      data: undefined,
+      error: {
+        type: "about:blank",
+        title: "O Harness não sustenta o que o Loadout pede",
+        status: 409,
+        detail: DOCKER_BLOCKER.message,
+        blockers: [DOCKER_BLOCKER],
+      },
+      response: new Response(null, { status: 409 }),
+    } as never);
+    await abrirCom(PREFLIGHT_OK);
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-run-preflight="ready"]')).not.toBeNull();
+    });
+    const depart = screen.getByRole("button", { name: "Partir" }) as HTMLButtonElement;
+    await waitFor(() => {
+      expect(depart.disabled).toBe(false);
+    });
+    fireEvent.click(depart);
+
+    const block = await waitFor(() => {
+      const element = document.querySelector('[data-run-preflight="rejected"]');
+      expect(element).not.toBeNull();
+      return element as HTMLElement;
+    });
+    expect(block.textContent).toContain(dnd["run.preflight.rejected"]);
+    expect(block.querySelector(`[data-capability-issue="${DOCKER_BLOCKER.code}"]`)).not.toBeNull();
+    // O diálogo continua aberto e a partida, desabilitada.
+    expect(depart.disabled).toBe(true);
   });
 });
