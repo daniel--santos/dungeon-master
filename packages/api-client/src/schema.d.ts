@@ -2390,6 +2390,8 @@ export interface paths {
                 query?: {
                     /** @description Só os Models deste Harness. */
                     harnessId?: string;
+                    /** @description Só os Models deste Provider. */
+                    providerId?: string;
                 };
                 header?: never;
                 path?: never;
@@ -3069,7 +3071,7 @@ export interface paths {
         put?: never;
         /**
          * Cria um Loadout
-         * @description Nasce em `version: 1`. Agent, Harness e ExecutionProfile precisam existir e estar ligados.
+         * @description Nasce em `version: 1`. Agent, Harness e ExecutionProfile precisam existir e estar ligados. Skills, Tools e servidores MCP entram por referência (`skillRefs`, `toolIds`, `mcpServerIds`) ou na forma curta (`skills`, `tools`, `mcpServers`), resolvida pelo nome; as duas formas na mesma coleção são recusadas.
          */
         post: {
             parameters: {
@@ -3111,7 +3113,7 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
-                /** @description Nome já usado, Harness ou perfil desligado, ou Model de outro Harness. */
+                /** @description Nome já usado, Harness ou perfil desligado, Model de outro Harness, pin para versão inexistente, ou as duas formas de referência na mesma coleção. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -3275,6 +3277,207 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/loadouts/{id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * As versões guardadas do Loadout
+         * @description Da mais recente para a mais antiga. Cada uma traz a definição por referências daquele número: ids, pins e políticas, nunca conteúdo.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                };
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de versões. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LoadoutVersionPage"];
+                    };
+                };
+                /** @description Paginação inválida. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Loadout com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/loadouts/{id}/versions/{version}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restaura uma versão do Loadout
+         * @description Cria uma versão **nova** com a definição da antiga; nunca reescreve. Se a definição já for a atual, nada muda e a versão não sobe. As referências são conferidas de novo.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Loadout. */
+                    id: string;
+                    /** @description O número da versão a restaurar. */
+                    version: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O Loadout na versão nova (ou na atual, se nada mudou). */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Loadout"];
+                    };
+                };
+                /** @description Não existe Loadout com este id, ou alguma referência da versão sumiu. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A versão não existe, ou uma referência dela está desligada ou em conflito. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/loadouts/{id}/preflight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * O preflight do Loadout: tudo o que dá para saber antes de partir
+         * @description Junta o relatório de capabilities (o Loadout resolvido contra a matriz do Harness), o preflight da CLI no modo do perfil — no host, o `--version` e a checagem de credencial do adapter; em `DOCKER`, daemon, imagem e a CLI dentro do container — e o estado da credencial do Provider, sem chamar modelo nenhum: variável presente no ambiente da API ou o que a CLI respondeu. `executionProfileId` sobrepõe o perfil como `POST /runs` permite; `resume=true` avalia a intenção de retomar. Mede na chamada; nunca no boot.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Sobrepõe o ExecutionProfile do Loadout, como `POST /runs` permite. */
+                    executionProfileId?: string;
+                    /** @description `true` avalia a intenção de retomar uma sessão. */
+                    resume?: "true" | "false";
+                };
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O preflight, mesmo com blockers: eles vêm no corpo. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LoadoutPreflight"];
+                    };
+                };
+                /** @description Parâmetro inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Loadout com este id, ou o perfil informado não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description O Loadout aponta para um Agent ou Harness que não existe mais. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/preflights/docker": {
         parameters: {
             query?: never;
@@ -3314,6 +3517,1108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista as Skills */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de Skills, em ordem alfabética. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SkillPage"];
+                    };
+                };
+                /** @description Paginação inválida. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria uma Skill na versão 1
+         * @description O nome é único por usuário. O conteúdo vai para a versão 1; publicar de novo é `POST /skills/{id}/versions`, nunca um PATCH no conteúdo.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateSkill"];
+                };
+            };
+            responses: {
+                /** @description Skill criada, com a versão 1. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SkillDetail"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Já existe uma Skill com este nome. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skills/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Uma Skill, com a versão mais recente */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A Skill e o conteúdo da versão mais recente. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SkillDetail"];
+                    };
+                };
+                /** @description Não existe Skill com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /**
+         * Apaga a Skill e as versões dela
+         * @description Recusa enquanto algum Loadout a referencia. Runs antigos não impedem: o snapshot deles carrega o conteúdo da versão efetiva.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Skill apagada. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Não existe Skill com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Algum Loadout ainda referencia esta Skill. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Edita nome e descrição da Skill
+         * @description O conteúdo não se edita: publique uma versão nova.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateSkill"];
+                };
+            };
+            responses: {
+                /** @description A Skill depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Skill"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Skill com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Já existe uma Skill com este nome. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/skills/{id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * As versões da Skill
+         * @description Da mais recente para a mais antiga, cada uma com o conteúdo e o changelog.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                };
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de versões. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SkillVersionPage"];
+                    };
+                };
+                /** @description Paginação inválida. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Skill com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Publica a versão seguinte da Skill
+         * @description Append-only: cria `latestVersion + 1` e nunca reescreve uma versão. Com `expectedLatestVersion`, recusa com `409` se outra publicação chegou antes (CAS).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PublishSkillVersion"];
+                };
+            };
+            responses: {
+                /** @description A versão publicada. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SkillVersion"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Skill com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A versão mais recente já não é a esperada. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista as Tools */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                    /** @description Só as Tools desta espécie. */
+                    kind?: "COMMAND" | "MCP_TOOL";
+                    /** @description Só as ferramentas deste servidor MCP. */
+                    mcpServerId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de Tools, em ordem alfabética. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ToolPage"];
+                    };
+                };
+                /** @description Filtro ou paginação inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria uma Tool
+         * @description `COMMAND` leva um prefixo de argv, no formato da allow-list do ExecutionProfile (`git add`). `MCP_TOOL` leva o servidor do registro e o nome que ele anuncia.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateTool"];
+                };
+            };
+            responses: {
+                /** @description Tool criada. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Tool"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description O servidor MCP informado não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Já existe uma Tool com este nome. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tools/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Uma Tool */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A Tool. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Tool"];
+                    };
+                };
+                /** @description Não existe Tool com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /**
+         * Apaga a Tool
+         * @description Recusa enquanto algum Loadout a referencia.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Tool apagada. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Não existe Tool com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Algum Loadout ainda referencia esta Tool. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Edita a Tool
+         * @description `kind` não muda. Um campo da outra espécie é recusado com `409`.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateTool"];
+                };
+            };
+            responses: {
+                /** @description A Tool depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Tool"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Tool com este id, ou o servidor informado não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Nome já usado, ou campo que não pertence à espécie da Tool. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/mcp-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista os servidores MCP */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de servidores, em ordem alfabética. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["McpServerPage"];
+                    };
+                };
+                /** @description Paginação inválida. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria um servidor MCP
+         * @description `STDIO` leva comando e argumentos separados; `HTTP` leva a URL, sem credencial. Segredos entram por `envKeys`, que são nomes de variáveis de ambiente.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateMcpServer"];
+                };
+            };
+            responses: {
+                /** @description Servidor criado. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["McpServer"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Já existe um servidor com este nome. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-servers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Um servidor MCP */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O servidor. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["McpServer"];
+                    };
+                };
+                /** @description Não existe servidor MCP com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /**
+         * Apaga o servidor MCP
+         * @description Um `builtIn` nunca se apaga. Os demais recusam enquanto uma Tool ou um Loadout os referenciam.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Servidor apagado. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Não existe servidor MCP com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Servidor `builtIn`, ou ainda referenciado por Tool ou Loadout. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Edita o servidor MCP
+         * @description `transport` não muda. Num `builtIn` só `description` é editável; o resto é do Worker.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateMcpServer"];
+                };
+            };
+            responses: {
+                /** @description O servidor depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["McpServer"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe servidor MCP com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Nome já usado, campo do outro transporte, ou servidor `builtIn`. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista os Providers */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                    /** @description Só os Providers que este Harness usa. */
+                    harnessKey?: "CLAUDE_CODE" | "CODEX" | "PI" | "ANTIGRAVITY";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de Providers, em ordem alfabética. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProviderPage"];
+                    };
+                };
+                /** @description Filtro ou paginação inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria um Provider
+         * @description `authEnvKeys` são nomes de variáveis de ambiente; o valor nunca é gravado. O preflight só olha se a variável existe no ambiente da API.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateProvider"];
+                };
+            };
+            responses: {
+                /** @description Provider criado. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Provider"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Já existe um Provider com este nome. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Um Provider */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O Provider. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Provider"];
+                    };
+                };
+                /** @description Não existe Provider com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /**
+         * Apaga o Provider
+         * @description Recusa enquanto algum Model aponta para ele.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Provider apagado. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Não existe Provider com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Algum Model ainda aponta para este Provider. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Edita o Provider */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateProvider"];
+                };
+            };
+            responses: {
+                /** @description O Provider depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Provider"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Provider com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Já existe um Provider com este nome. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/tasks/{id}/runs": {
         parameters: {
             query?: never;
@@ -3328,6 +4633,8 @@ export interface paths {
          * @description Cria o Run em `QUEUED`, com o Loadout e o ExecutionProfile congelados em snapshot, e leva a Task a `QUEUED` na mesma transação. Sem `prompt`, ele é montado a partir do título e da descrição da Task. Exige Task em `READY` ou `FAILED` (retentativa), dependências `COMPLETED` e um Project com `workspacePath`.
          *
          *     Com `resumeFromRunId`, o Run continua a sessão do harness de um Run anterior: Loadout e ExecutionProfile são herdados dele quando não vierem no corpo, e o Run de origem precisa ter `harnessSessionId` capturado e um Harness que declare a capability `resume`. A retomada é sempre um Run novo, com `attempt` maior.
+         *
+         *     Antes de enfileirar, o capability matching (Fase 8A) compara o Loadout resolvido com a matriz do Harness: um blocker recusa com `409` e a lista em `blockers[]`; os avisos voltam em `warnings[]` junto do Run, e o Worker os grava no diário como `Diagnostic`.
          */
         post: {
             parameters: {
@@ -3345,13 +4652,13 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Run criado e enfileirado. */
+                /** @description Run criado e enfileirado, com os avisos de capability. */
                 201: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Run"];
+                        "application/json": components["schemas"]["RunCreated"];
                     };
                 };
                 /** @description Corpo inválido. */
@@ -3372,7 +4679,7 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
-                /** @description A Task não aceita Run agora, o Project não tem workspace, há dependência pendente, ou o Harness/perfil está desligado. */
+                /** @description A Task não aceita Run agora, o Project não tem workspace, há dependência pendente, o Harness/perfil está desligado, ou o capability matching achou um blocker (`blockers[]` no corpo). */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -5958,6 +7265,8 @@ export interface components {
             structuredOutput: boolean;
             /** @description Retoma uma sessão anterior a partir de `harnessSessionId`. */
             resume: boolean;
+            /** @description Retoma criando uma sessão nova em vez de mutar a original (fork). */
+            forkSession: boolean;
             /** @description Mantém um processo vivo por vários turnos. */
             multiTurnProcess: boolean;
             /** @description Publica chamadas de ferramenta como eventos. */
@@ -5974,6 +7283,8 @@ export interface components {
             hostExecution: boolean;
             /** @description Roda dentro de container. */
             dockerExecution: boolean;
+            /** @description Sobe os servidores MCP declarados por Run, em modo headless (Fase 7). */
+            mcpServers: boolean;
         };
         /** @description Corpo de `PATCH /api/v1/harnesses/{id}`. */
         UpdateHarness: {
@@ -5997,6 +7308,11 @@ export interface components {
              * @description Harness dono da chave.
              */
             harnessId: string;
+            /**
+             * Format: uuid
+             * @description Provider que serve o modelo (Fase 8A). Nulo quando ninguém o associou; o preflight então procura um Provider pelo Harness.
+             */
+            providerId: string | null;
             /** @description Identificador que o harness aceita na linha de comando. */
             key: string;
             /** @description Nome exibido. */
@@ -6015,6 +7331,11 @@ export interface components {
              * @description Harness dono da chave.
              */
             harnessId: string;
+            /**
+             * Format: uuid
+             * @description Provider que serve o modelo. Padrão: nenhum.
+             */
+            providerId?: string | null;
             /** @description Identificador aceito pelo harness. Único dentro do Harness. */
             key: string;
             name: string;
@@ -6023,6 +7344,11 @@ export interface components {
         };
         /** @description Corpo de `PATCH /api/v1/models/{id}`. */
         UpdateModel: {
+            /**
+             * Format: uuid
+             * @description `null` desassocia o Provider.
+             */
+            providerId?: string | null;
             key?: string;
             name?: string;
             isDefault?: boolean;
@@ -6222,10 +7548,17 @@ export interface components {
             modelId: string | null;
             /** Format: uuid */
             executionProfileId: string;
-            /** @description Nomes de skills oferecidas ao agente. */
+            /** @description As Skills, na ordem do Loadout. */
+            skillRefs: components["schemas"]["LoadoutSkillRef"][];
+            /** @description As Tools, na ordem do Loadout. */
+            toolRefs: components["schemas"]["LoadoutToolRef"][];
+            /** @description Os servidores MCP, na ordem do Loadout. */
+            mcpServerRefs: components["schemas"]["LoadoutMcpServerRef"][];
+            /** @description Forma curta: os nomes das Skills de `skillRefs`, na mesma ordem. */
             skills: string[];
-            /** @description Nomes de ferramentas liberadas. */
+            /** @description Forma curta: os nomes das Tools de `toolRefs`. */
             tools: string[];
+            /** @description Forma curta: os servidores de `mcpServerRefs`, com comando e argumentos juntos. */
             mcpServers: components["schemas"]["McpServerRef"][];
             knowledgePolicy: components["schemas"]["KnowledgePolicy"];
             contextPolicy: components["schemas"]["ContextPolicy"];
@@ -6238,7 +7571,43 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        /** @description Um servidor MCP oferecido ao agente. */
+        /** @description Uma Skill referenciada, com o pin. */
+        LoadoutSkillRef: {
+            /** Format: uuid */
+            skillId: string;
+            /** @description Nome da Skill no momento da leitura. */
+            name: string;
+            /** @description A versão pinada. Nulo usa a mais recente na hora de congelar o Run. */
+            pinnedVersion: number | null;
+            /** @description A mais recente publicada. */
+            latestVersion: number;
+        };
+        /** @description Uma Tool referenciada. */
+        LoadoutToolRef: {
+            /** Format: uuid */
+            toolId: string;
+            name: string;
+            kind: components["schemas"]["ToolKind"];
+        };
+        /**
+         * @description `COMMAND` é um prefixo de argv liberado; `MCP_TOOL` é a ferramenta de um servidor MCP.
+         * @enum {string}
+         */
+        ToolKind: "COMMAND" | "MCP_TOOL";
+        /** @description Um servidor MCP referenciado. */
+        LoadoutMcpServerRef: {
+            /** Format: uuid */
+            mcpServerId: string;
+            name: string;
+            transport: components["schemas"]["McpTransport"];
+            builtIn: boolean;
+        };
+        /**
+         * @description Como o servidor MCP é alcançado.
+         * @enum {string}
+         */
+        McpTransport: "STDIO" | "HTTP";
+        /** @description Um servidor MCP oferecido ao agente, na forma curta. */
         McpServerRef: {
             /** @description Nome pelo qual o harness registra o servidor. */
             name: string;
@@ -6246,11 +7615,6 @@ export interface components {
             /** @description Comando, para `STDIO`; URL, para `HTTP`. Nunca montado por concatenação. */
             target: string;
         };
-        /**
-         * @description Como o servidor MCP é alcançado.
-         * @enum {string}
-         */
-        McpTransport: "STDIO" | "HTTP";
         /** @description Quanto do Grimório do Project entra no contexto. Efetiva a partir da Fase 6. */
         KnowledgePolicy: {
             /** @description Injeta o resumo do Project no contexto. */
@@ -6283,15 +7647,35 @@ export interface components {
             modelId?: string | null;
             /** Format: uuid */
             executionProfileId: string;
-            /** @description Padrão: vazio. */
+            /** @description Skills por id, com pin opcional. */
+            skillRefs?: components["schemas"]["SkillPin"][];
+            /** @description Tools por id. */
+            toolIds?: string[];
+            /** @description Servidores MCP por id. */
+            mcpServerIds?: string[];
+            /** @description Forma curta: nomes de Skills, resolvidos ou criados pelo nome. */
             skills?: string[];
-            /** @description Padrão: vazio. */
+            /** @description Forma curta: nomes de Tools, resolvidos ou criados pelo nome como `COMMAND`. */
             tools?: string[];
-            /** @description Padrão: vazio. */
-            mcpServers?: components["schemas"]["McpServerRef"][];
+            /** @description Forma curta: servidores inline, resolvidos ou criados pelo nome. */
+            mcpServers?: components["schemas"]["McpServerInput"][];
             knowledgePolicy?: components["schemas"]["KnowledgePolicy"];
             contextPolicy?: components["schemas"]["ContextPolicy"];
             isDefault?: boolean;
+        };
+        /** @description Uma Skill a referenciar, com ou sem pin. */
+        SkillPin: {
+            /** Format: uuid */
+            skillId: string;
+            /** @description Ausente ou nulo segue a versão mais recente. */
+            pinnedVersion?: number | null;
+        };
+        /** @description Um servidor MCP na forma curta, para escrita. */
+        McpServerInput: {
+            name: string;
+            transport: components["schemas"]["McpTransport"];
+            /** @description Comando com argumentos, para `STDIO`; URL, para `HTTP`. */
+            target: string;
         };
         /** @description Corpo de `PATCH /api/v1/loadouts/{id}`. Toda edição que muda algo incrementa `version`. */
         UpdateLoadout: {
@@ -6304,13 +7688,196 @@ export interface components {
             modelId?: string | null;
             /** Format: uuid */
             executionProfileId?: string;
+            /** @description Skills por id, com pin opcional. */
+            skillRefs?: components["schemas"]["SkillPin"][];
+            /** @description Tools por id. */
+            toolIds?: string[];
+            /** @description Servidores MCP por id. */
+            mcpServerIds?: string[];
+            /** @description Forma curta: nomes de Skills, resolvidos ou criados pelo nome. */
             skills?: string[];
+            /** @description Forma curta: nomes de Tools, resolvidos ou criados pelo nome como `COMMAND`. */
             tools?: string[];
-            mcpServers?: components["schemas"]["McpServerRef"][];
+            /** @description Forma curta: servidores inline, resolvidos ou criados pelo nome. */
+            mcpServers?: components["schemas"]["McpServerInput"][];
             knowledgePolicy?: components["schemas"]["KnowledgePolicy"];
             contextPolicy?: components["schemas"]["ContextPolicy"];
             isDefault?: boolean;
         };
+        /** @description Uma página de versões do Loadout, da mais recente para a mais antiga. */
+        LoadoutVersionPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["LoadoutVersion"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Uma versão guardada do Loadout. Imutável. */
+        LoadoutVersion: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            loadoutId: string;
+            version: number;
+            definition: components["schemas"]["LoadoutDefinition"];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description O Loadout numa versão, só por referências. */
+        LoadoutDefinition: {
+            name: string;
+            /** Format: uuid */
+            agentId: string;
+            /** Format: uuid */
+            harnessId: string;
+            /** Format: uuid */
+            modelId: string | null;
+            /** Format: uuid */
+            executionProfileId: string;
+            skillRefs: {
+                /** Format: uuid */
+                skillId: string;
+                pinnedVersion: number | null;
+            }[];
+            toolIds: string[];
+            mcpServerIds: string[];
+            knowledgePolicy: components["schemas"]["KnowledgePolicy"];
+            contextPolicy: components["schemas"]["ContextPolicy"];
+            isDefault: boolean;
+        };
+        /** @description Tudo o que dá para saber antes de partir: matriz, CLI, credencial e o relatório de capabilities. */
+        LoadoutPreflight: {
+            /** Format: uuid */
+            loadoutId: string;
+            loadoutVersion: number;
+            /**
+             * Format: date-time
+             * @description Instante em que a checagem começou, em UTC.
+             */
+            checkedAt: string;
+            durationMs: number;
+            harness: {
+                /** Format: uuid */
+                id: string;
+                key: components["schemas"]["HarnessKey"];
+                name: string;
+                enabled: boolean;
+                capabilities: components["schemas"]["HarnessCapabilities"];
+                /** @description O que o Worker gravou no último preflight de boot. */
+                installedVersion: string | null;
+                /** Format: date-time */
+                checkedAt: string | null;
+            };
+            executionProfile: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                mode: components["schemas"]["ExecutionMode"];
+                enforcement: components["schemas"]["EnforcementLevel"];
+                enabled: boolean;
+            };
+            /** @description O Model efetivo: o do Loadout, ou o padrão do Harness. */
+            model: {
+                /** Format: uuid */
+                id: string;
+                key: string;
+                name: string;
+            } | null;
+            /** @description O Provider do Model, ou o primeiro que declara o Harness. Nulo quando não há nenhum. */
+            provider: {
+                /** Format: uuid */
+                providerId: string;
+                name: string;
+                kind: components["schemas"]["ProviderKind"];
+                /** @description As variáveis que o Provider declara. */
+                authEnvKeys: string[];
+                /** @description As que existem no ambiente da API. Só os nomes: o valor nunca sai daqui. */
+                presentEnvKeys: string[];
+                status: components["schemas"]["ProviderAuthStatus"];
+                docsUrl: string | null;
+            } | null;
+            /** @description Nulo quando a API não tem adapter registrado para o par Harness/modo. */
+            cli: {
+                mode: components["schemas"]["ExecutionMode"];
+                /** @description Identificador do adapter, com o ambiente: `claude-code@host`. */
+                adapterId: string;
+                installed: boolean;
+                version: string | null;
+                /** @description Resultado da checagem de credencial do adapter. Nulo quando ela não existe. */
+                authenticated: boolean | null;
+                /** @description O adapter não respondeu dentro do teto. */
+                timedOut: boolean;
+                problems: components["schemas"]["PreflightProblem"][];
+            } | null;
+            /** @description Só em perfil `DOCKER`: daemon e imagem, medidos na chamada. */
+            docker: {
+                daemonReachable: boolean;
+                serverVersion: string | null;
+                imageName: string;
+                imagePresent: boolean;
+                problems: components["schemas"]["PreflightProblem"][];
+            } | null;
+            capabilities: components["schemas"]["CapabilityReport"];
+            /** @description Sem blocker de capability, sem problema fatal de CLI, com Harness e perfil ligados. */
+            ready: boolean;
+        };
+        /**
+         * @description `SUBSCRIPTION` autentica pela CLI (login); `API_KEY` por variável de ambiente; `LOCAL` não autentica.
+         * @enum {string}
+         */
+        ProviderKind: "SUBSCRIPTION" | "API_KEY" | "LOCAL";
+        /**
+         * @description O estado da credencial do Provider, sem nenhuma chamada ao modelo.
+         * @enum {string}
+         */
+        ProviderAuthStatus: "ENV_KEY_PRESENT" | "CLI_AUTHENTICATED" | "CLI_NOT_AUTHENTICATED" | "NOT_REQUIRED" | "UNKNOWN";
+        /** @description Um problema encontrado no preflight. */
+        PreflightProblem: {
+            code: components["schemas"]["PreflightProblemCode"];
+            /** @description O que falta e como resolver, em português. */
+            message: string;
+            /** @description Um problema fatal impede a execução; os demais viram aviso. */
+            fatal: boolean;
+        };
+        /**
+         * @description Código estável de um problema encontrado no preflight.
+         * @enum {string}
+         */
+        PreflightProblemCode: "NOT_INSTALLED" | "VERSION_UNREADABLE" | "NOT_AUTHENTICATED" | "UNSUPPORTED_MODE" | "UNSUPPORTED_PLATFORM";
+        /** @description O resultado do capability matching entre um Loadout e o Harness dele. */
+        CapabilityReport: {
+            /** @description Impedem a partida. Vazio é obrigatório. */
+            blockers: components["schemas"]["CapabilityIssue"][];
+            /** @description Seguem, registrados no diário do Run. */
+            warnings: components["schemas"]["CapabilityIssue"][];
+        };
+        /** @description Um descompasso entre o pedido e o Harness. */
+        CapabilityIssue: {
+            code: components["schemas"]["CapabilityIssueCode"];
+            severity: components["schemas"]["CapabilityIssueSeverity"];
+            /**
+             * @description A capability que o Harness não declara.
+             * @enum {string}
+             */
+            capability: "streaming" | "structuredOutput" | "resume" | "forkSession" | "multiTurnProcess" | "toolEvents" | "tokenUsage" | "modelSelection" | "agentSelection" | "nativePermissions" | "hostExecution" | "dockerExecution" | "mcpServers";
+            /** @description A mensagem canônica, em português, escrita pelo domínio. */
+            message: string;
+            /** @description O que no Loadout ou no pedido provocou o descompasso: nomes de servidores MCP, de Tools, a chave do Model, o modo de execução. */
+            causedBy: string[];
+        };
+        /**
+         * @description Código estável de um descompasso entre o Loadout e a matriz do Harness.
+         * @enum {string}
+         */
+        CapabilityIssueCode: "DOCKER_UNSUPPORTED" | "HOST_UNSUPPORTED" | "STRUCTURED_OUTPUT_REQUIRED" | "MCP_UNSUPPORTED" | "MODEL_SELECTION_UNSUPPORTED" | "COMMAND_TOOLS_ADVISORY" | "RESUME_UNSUPPORTED";
+        /**
+         * @description `BLOCKER` impede a partida; `WARNING` segue e vira `Diagnostic`.
+         * @enum {string}
+         */
+        CapabilityIssueSeverity: "BLOCKER" | "WARNING";
         /** @description O preflight do backend Docker, medido na chamada. */
         DockerPreflight: {
             /**
@@ -6343,19 +7910,6 @@ export interface components {
             /** @description Um por adapter de container registrado. Sem daemon ou sem imagem, nenhum é verificado e todos saem com `installed: false`. */
             harnesses: components["schemas"]["DockerHarnessPreflight"][];
         };
-        /** @description Um problema encontrado no preflight. */
-        PreflightProblem: {
-            code: components["schemas"]["PreflightProblemCode"];
-            /** @description O que falta e como resolver, em português. */
-            message: string;
-            /** @description Um problema fatal impede a execução; os demais viram aviso. */
-            fatal: boolean;
-        };
-        /**
-         * @description Código estável de um problema encontrado no preflight.
-         * @enum {string}
-         */
-        PreflightProblemCode: "NOT_INSTALLED" | "VERSION_UNREADABLE" | "NOT_AUTHENTICATED" | "UNSUPPORTED_MODE" | "UNSUPPORTED_PLATFORM";
         /** @description O preflight de um harness dentro do container: versão e credencial. */
         DockerHarnessPreflight: {
             harnessKey: components["schemas"]["HarnessKey"];
@@ -6371,8 +7925,321 @@ export interface components {
             timedOut: boolean;
             problems: components["schemas"]["PreflightProblem"][];
         };
-        /** @description Uma tentativa concreta de realizar uma Task. */
-        Run: {
+        /** @description Uma página de Skills, em ordem alfabética. */
+        SkillPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["Skill"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Instruções versionadas oferecidas ao agente. */
+        Skill: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da Skill.
+             */
+            id: string;
+            /** @description Nome da Skill. Único por usuário. */
+            name: string;
+            /** @description Nota livre para quem monta o Loadout. */
+            description: string | null;
+            /** @description A versão mais recente. É a efetiva quando o Loadout não pina nenhuma. */
+            latestVersion: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A Skill com a versão mais recente resolvida. */
+        SkillDetail: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da Skill.
+             */
+            id: string;
+            /** @description Nome da Skill. Único por usuário. */
+            name: string;
+            /** @description Nota livre para quem monta o Loadout. */
+            description: string | null;
+            /** @description A versão mais recente. É a efetiva quando o Loadout não pina nenhuma. */
+            latestVersion: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description A versão mais recente, com o conteúdo. */
+            latest: {
+                /**
+                 * Format: uuid
+                 * @description UUIDv7 da versão.
+                 */
+                id: string;
+                /** Format: uuid */
+                skillId: string;
+                /** @description Número sequencial, a partir de 1. Imutável. */
+                version: number;
+                /** @description O markdown que o agente recebe. */
+                content: string;
+                /** @description O que mudou nesta versão, para quem escolhe o pin. */
+                changelog: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            };
+        };
+        /** @description Corpo de `POST /api/v1/skills`. Nasce na versão 1. */
+        CreateSkill: {
+            name: string;
+            description?: string | null;
+            /** @description O conteúdo da versão 1. Padrão: vazio. */
+            content?: string;
+            /** @description Nota da versão 1. */
+            changelog?: string | null;
+        };
+        /** @description Corpo de `PATCH /api/v1/skills/{id}`. */
+        UpdateSkill: {
+            name?: string;
+            description?: string | null;
+        };
+        /** @description Uma página de versões, da mais recente para a mais antiga. */
+        SkillVersionPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["SkillVersion"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Uma versão imutável do conteúdo de uma Skill. */
+        SkillVersion: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da versão.
+             */
+            id: string;
+            /** Format: uuid */
+            skillId: string;
+            /** @description Número sequencial, a partir de 1. Imutável. */
+            version: number;
+            /** @description O markdown que o agente recebe. */
+            content: string;
+            /** @description O que mudou nesta versão, para quem escolhe o pin. */
+            changelog: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description Corpo de `POST /api/v1/skills/{id}/versions`. Append-only: cria a versão seguinte. */
+        PublishSkillVersion: {
+            content: string;
+            changelog?: string | null;
+            /** @description CAS opcional: recusa com `409` se a versão mais recente já não for esta. Quem edita a partir de uma versão que leu não sobrescreve o que outra aba publicou. */
+            expectedLatestVersion?: number;
+        };
+        /** @description Uma página de Tools, em ordem alfabética. */
+        ToolPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["Tool"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Uma ferramenta do registro: comando liberado ou ferramenta MCP. */
+        Tool: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da Tool.
+             */
+            id: string;
+            /** @description Nome da Tool. Único por usuário. */
+            name: string;
+            kind: components["schemas"]["ToolKind"];
+            /** @description Só em `COMMAND`: o prefixo de argv. */
+            command: string | null;
+            /**
+             * Format: uuid
+             * @description Só em `MCP_TOOL`: o servidor do registro.
+             */
+            mcpServerId: string | null;
+            /** @description Só em `MCP_TOOL`: o nome anunciado pelo servidor. */
+            toolName: string | null;
+            description: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description Corpo de `POST /api/v1/tools`. A forma depende de `kind`. */
+        CreateTool: {
+            /** @enum {string} */
+            kind: "COMMAND";
+            name: string;
+            /** @description Prefixo de argv liberado, como `git add`. Sem shell: palavras separadas por espaço. */
+            command: string;
+            description?: string | null;
+        } | {
+            /** @enum {string} */
+            kind: "MCP_TOOL";
+            name: string;
+            /**
+             * Format: uuid
+             * @description Um servidor MCP do registro.
+             */
+            mcpServerId: string;
+            /** @description O nome da ferramenta como o servidor MCP a anuncia (`search_knowledge`). */
+            toolName: string;
+            description?: string | null;
+        };
+        /** @description Corpo de `PATCH /api/v1/tools/{id}`. */
+        UpdateTool: {
+            name?: string;
+            /** @description Prefixo de argv liberado, como `git add`. Sem shell: palavras separadas por espaço. */
+            command?: string;
+            /** Format: uuid */
+            mcpServerId?: string;
+            /** @description O nome da ferramenta como o servidor MCP a anuncia (`search_knowledge`). */
+            toolName?: string;
+            description?: string | null;
+        };
+        /** @description Uma página de servidores MCP, em ordem alfabética. */
+        McpServerPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["McpServer"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Um servidor MCP do registro, com a forma de subi-lo. */
+        McpServer: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do servidor.
+             */
+            id: string;
+            /** @description Nome canônico, único por usuário. É a chave que a CLI registra. */
+            name: string;
+            transport: components["schemas"]["McpTransport"];
+            /** @description Só em `STDIO`. */
+            command: string | null;
+            /** @description Só em `STDIO`; vazio em `HTTP`. */
+            args: string[];
+            /** @description Só em `HTTP`. */
+            url: string | null;
+            /** @description Nomes de variáveis de ambiente, nunca valores. */
+            envKeys: string[];
+            /** @description O servidor só lê. É informação para quem monta o Loadout e para a interface. */
+            readOnly: boolean;
+            /** @description Nasce com o sistema e o Worker sabe subi-lo (o `knowledge` do Grimório). Não se apaga. */
+            builtIn: boolean;
+            description: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description Corpo de `POST /api/v1/mcp-servers`. A forma depende de `transport`. */
+        CreateMcpServer: {
+            /** @enum {string} */
+            transport: "STDIO";
+            name: string;
+            /** @description Executável do servidor `STDIO`, sem argumentos e sem shell. */
+            command: string;
+            /** @description Argumentos, um por posição. Nunca um segredo: o argv é público na máquina. */
+            args?: string[];
+            /** @description Nomes de variáveis que o servidor precisa enxergar. Só nomes; o valor fica no ambiente. */
+            envKeys?: string[];
+            /** @description Padrão: `false`. */
+            readOnly?: boolean;
+            description?: string | null;
+        } | {
+            /** @enum {string} */
+            transport: "HTTP";
+            name: string;
+            /** @description Endereço do servidor `HTTP`. Credenciais vão por `envKeys`, nunca na URL. */
+            url: string;
+            /** @description Nomes de variáveis que o servidor precisa enxergar. Só nomes; o valor fica no ambiente. */
+            envKeys?: string[];
+            /** @description Padrão: `false`. */
+            readOnly?: boolean;
+            description?: string | null;
+        };
+        /** @description Corpo de `PATCH /api/v1/mcp-servers/{id}`. */
+        UpdateMcpServer: {
+            name?: string;
+            /** @description Executável do servidor `STDIO`, sem argumentos e sem shell. */
+            command?: string;
+            /** @description Argumentos, um por posição. Nunca um segredo: o argv é público na máquina. */
+            args?: string[];
+            /** @description Endereço do servidor `HTTP`. Credenciais vão por `envKeys`, nunca na URL. */
+            url?: string;
+            /** @description Nomes de variáveis que o servidor precisa enxergar. Só nomes; o valor fica no ambiente. */
+            envKeys?: string[];
+            readOnly?: boolean;
+            description?: string | null;
+        };
+        /** @description Uma página de Providers, em ordem alfabética. */
+        ProviderPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["Provider"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Quem serve os modelos e como se autentica nele. */
+        Provider: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do Provider.
+             */
+            id: string;
+            /** @description Nome do Provider. Único por usuário. */
+            name: string;
+            kind: components["schemas"]["ProviderKind"];
+            /** @description Nomes das variáveis que carregam a credencial. Qualquer uma presente basta. */
+            authEnvKeys: string[];
+            /** @description Os Harnesses que usam este Provider. */
+            harnessKeys: components["schemas"]["HarnessKey"][];
+            /** @description Onde está explicado como autenticar. */
+            docsUrl: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description Corpo de `POST /api/v1/providers`. */
+        CreateProvider: {
+            name: string;
+            kind: components["schemas"]["ProviderKind"];
+            /** @description Padrão: nenhuma. */
+            authEnvKeys?: string[];
+            /** @description Padrão: nenhum. */
+            harnessKeys?: components["schemas"]["HarnessKey"][];
+            docsUrl?: string | null;
+        };
+        /** @description Corpo de `PATCH /api/v1/providers/{id}`. */
+        UpdateProvider: {
+            name?: string;
+            kind?: components["schemas"]["ProviderKind"];
+            /** @description Nomes de variáveis que o servidor precisa enxergar. Só nomes; o valor fica no ambiente. */
+            authEnvKeys?: string[];
+            harnessKeys?: components["schemas"]["HarnessKey"][];
+            docsUrl?: string | null;
+        };
+        /** @description O Run recém-criado e os avisos de capability. */
+        RunCreated: {
             /**
              * Format: uuid
              * @description UUIDv7 do Run.
@@ -6444,13 +8311,15 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /** @description Descompassos que não impedem a partida. O Worker os registra no diário. */
+            warnings: components["schemas"]["CapabilityIssue"][];
         };
         /**
          * @description Estado de um Run na máquina de estados.
          * @enum {string}
          */
         RunStatus: "CREATED" | "QUEUED" | "PREPARING" | "RUNNING" | "WAITING_APPROVAL" | "SUCCEEDED" | "FAILED" | "TIMED_OUT" | "CANCELLED";
-        /** @description O Loadout como estava quando o Run foi criado, com Agent e Harness resolvidos. */
+        /** @description O Loadout como estava quando o Run foi criado, com tudo resolvido. */
         LoadoutSnapshot: {
             /** Format: uuid */
             loadoutId: string;
@@ -6479,9 +8348,15 @@ export interface components {
             } | null;
             /** Format: uuid */
             executionProfileId: string;
+            /** @description Os nomes das Skills, na ordem do Loadout. */
             skills: string[];
+            /** @description Os nomes das Tools, na ordem do Loadout. */
             tools: string[];
-            mcpServers: components["schemas"]["McpServerRef"][];
+            mcpServers: components["schemas"]["McpServerSnapshot"][];
+            /** @description As Skills resolvidas, com conteúdo. Ausente em Runs anteriores à Fase 8. */
+            skillVersions?: components["schemas"]["SkillVersionSnapshot"][];
+            /** @description As Tools resolvidas. Ausente em Runs anteriores à Fase 8. */
+            toolDefinitions?: components["schemas"]["ToolSnapshot"][];
             knowledgePolicy: components["schemas"]["KnowledgePolicy"];
             contextPolicy: components["schemas"]["ContextPolicy"];
             /**
@@ -6489,6 +8364,52 @@ export interface components {
              * @description Instante da captura, em UTC (ISO 8601).
              */
             capturedAt: string;
+        };
+        /** @description Um servidor MCP congelado no Run, com a forma curta e a definição. */
+        McpServerSnapshot: {
+            /** @description Nome pelo qual o harness registra o servidor. */
+            name: string;
+            transport: components["schemas"]["McpTransport"];
+            /** @description Comando, para `STDIO`; URL, para `HTTP`. Nunca montado por concatenação. */
+            target: string;
+            /** Format: uuid */
+            mcpServerId?: string;
+            /** @description Só em `STDIO`. */
+            command?: string | null;
+            /** @description Só em `STDIO`. */
+            args?: string[];
+            /** @description Só em `HTTP`. */
+            url?: string | null;
+            /** @description Nomes de variáveis; nunca valores. */
+            envKeys?: string[];
+            readOnly?: boolean;
+            /** @description O Worker é quem sabe subi-lo. */
+            builtIn?: boolean;
+        };
+        /** @description Uma Skill resolvida na versão efetiva, com o conteúdo. */
+        SkillVersionSnapshot: {
+            /** Format: uuid */
+            skillId: string;
+            name: string;
+            /** @description A versão efetiva: a pinada, ou a mais recente. */
+            version: number;
+            /** @description Verdadeiro quando o Loadout pinava esta versão. */
+            pinned: boolean;
+            /** @description O markdown exatamente como foi congelado. */
+            content: string;
+        };
+        /** @description Uma Tool resolvida, com a definição. */
+        ToolSnapshot: {
+            /** Format: uuid */
+            toolId: string;
+            name: string;
+            kind: components["schemas"]["ToolKind"];
+            /** @description Só em `COMMAND`. */
+            command: string | null;
+            /** @description Só em `MCP_TOOL`: o nome do servidor. */
+            mcpServerName: string | null;
+            /** @description Só em `MCP_TOOL`. */
+            toolName: string | null;
         };
         /** @description O ExecutionProfile como estava quando o Run foi criado. */
         ExecutionProfileSnapshot: {
@@ -6647,6 +8568,80 @@ export interface components {
             updatedAt: string;
             /** @description Título da Task no momento da leitura. Vem por junção. */
             taskTitle: string;
+        };
+        /** @description Uma tentativa concreta de realizar uma Task. */
+        Run: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do Run.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description A Task que este Run tenta realizar.
+             */
+            taskId: string;
+            /**
+             * Format: uuid
+             * @description Project da Task no momento da leitura. Vem por junção, não é coluna do Run.
+             */
+            projectId: string | null;
+            status: components["schemas"]["RunStatus"];
+            /**
+             * @description Harness escolhido, copiado do Loadout.
+             * @enum {string}
+             */
+            harnessKey: "CLAUDE_CODE" | "CODEX" | "PI" | "ANTIGRAVITY";
+            /** @description Versão da CLI descoberta no preflight. Nula até o Run preparar. */
+            harnessVersion: string | null;
+            /** @description Id de sessão emitido pelo harness, guardado junto do harness emissor: as semânticas de resume diferem entre Claude Code, Codex, Pi e Antigravity. */
+            harnessSessionId: string | null;
+            /** @description Chave do Model usada, copiada do Loadout. */
+            modelKey: string | null;
+            executionMode: components["schemas"]["ExecutionMode"];
+            /** @description Caminho do checkout usado. É a base da trava por caminho. */
+            workspacePath: string | null;
+            /**
+             * Format: uuid
+             * @description Captura congelada do Workflow da Task no instante da criação. Nulo no Run simples, de um agente só. Os steps ficam em `GET /runs/{id}/steps`.
+             */
+            workflowVersionId: string | null;
+            /**
+             * Format: uuid
+             * @description Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero.
+             */
+            resumedFromRunId: string | null;
+            /** Format: uuid */
+            loadoutId: string;
+            /** @description Versão do Loadout no instante da criação. */
+            loadoutVersion: number;
+            loadoutSnapshot: components["schemas"]["LoadoutSnapshot"];
+            executionProfileSnapshot: components["schemas"]["ExecutionProfileSnapshot"];
+            /** @description O prompt enviado ao harness. */
+            prompt: string;
+            /** @description N-ésimo Run desta Task, começando em 1. */
+            attempt: number;
+            /**
+             * Format: date-time
+             * @description Entrada em `RUNNING`, em UTC (ISO 8601).
+             */
+            startedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Entrada em estado terminal, em UTC.
+             */
+            finishedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Instante do pedido de cancelamento. Marcar aqui não muda o status: quem transiciona é quem confirma o término da árvore de processos.
+             */
+            cancelRequestedAt: string | null;
+            result: components["schemas"]["RunResult"];
+            error: components["schemas"]["RunError"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         /** @description O contexto montado para um Run, com o registro. */
         RunContext: {
