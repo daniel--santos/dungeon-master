@@ -516,6 +516,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       });
       return;
     } finally {
+      // Quem mata a árvore quando este gerador é abandonado é o `finally` do
+      // `runAttempt` (post-mortem #12), que roda antes deste: é lá que o
+      // processo do agente existe. Aqui só se solta o que é do Run.
       request.signal?.removeEventListener("abort", onAbort);
       runs.delete(request.runId);
       control.settleFinished();
@@ -585,6 +588,10 @@ interface RunAttemptOptions {
  * teto total e o pedido de cancelamento. Perder a corrida não é motivo para
  * largar o `next()` pendente: ele é drenado depois do kill, e é durante essa
  * drenagem que o id de sessão de um agente morto ainda costuma aparecer.
+ *
+ * **Toda saída daqui passa pelo `finally`**, inclusive a que ninguém pediu: um
+ * consumidor que abandona o `for await` fecha este gerador, e é aqui — e não no
+ * `finally` do `execute` — que existe processo vivo para matar.
  */
 async function* runAttempt(options: RunAttemptOptions): AsyncGenerator<AttemptStep> {
   const { adapter, request, timeouts, clock, control } = options;
@@ -598,6 +605,14 @@ async function* runAttempt(options: RunAttemptOptions): AsyncGenerator<AttemptSt
     yield { kind: "outcome", outcome: { kind: "ERROR", error: toError(error) } };
     return;
   }
+
+  /**
+   * A árvore de processos já teve um desfecho: ou o kill rodou, ou o adapter
+   * relatou que o processo saiu sozinho. Enquanto for `false`, sair daqui —
+   * por `return`, por exceção ou porque o consumidor abandonou o gerador —
+   * deixa processo de agente vivo, e é o `finally` que trata isso.
+   */
+  let arvoreTratada = false;
 
   let pending: Promise<IteratorResult<HarnessEvent>> | undefined;
 
@@ -630,86 +645,112 @@ async function* runAttempt(options: RunAttemptOptions): AsyncGenerator<AttemptSt
     ...(info.reason === undefined ? {} : { reason: info.reason }),
   }));
 
-  for (;;) {
-    if (pending === undefined) pending = iterator.next();
+  try {
+    for (;;) {
+      if (pending === undefined) pending = iterator.next();
 
-    const idleLimit = timeouts.idleMs;
-    const remainingCompletion = Math.max(0, completionDeadline - clock.now());
-    const waitMs = Math.min(idleLimit, remainingCompletion);
+      const idleLimit = timeouts.idleMs;
+      const remainingCompletion = Math.max(0, completionDeadline - clock.now());
+      const waitMs = Math.min(idleLimit, remainingCompletion);
 
-    const timer = createTimer(waitMs);
-    let winner: RaceWinner;
-    try {
-      winner = await Promise.race([
-        pending.then(
-          (result): RaceWinner => ({ kind: "next", result }),
-          (error): RaceWinner => ({ kind: "failed", error: toError(error) }),
-        ),
-        timer.promise.then((): RaceWinner => ({ kind: "timeout" })),
-        cancelledWinner,
-      ]);
-    } finally {
-      timer.cancel();
-    }
-
-    if (winner.kind === "cancelled") {
-      const cancel = await kill();
-      yield {
-        kind: "outcome",
-        outcome: {
-          kind: "CANCELLED",
-          ...(winner.reason === undefined ? {} : { reason: winner.reason }),
-          cancel,
-        },
-      };
-      return;
-    }
-
-    if (winner.kind === "timeout") {
-      const elapsed = clock.now() - attemptStartedAt;
-      const timeoutKind: RuntimeTimeoutKind =
-        remainingCompletion <= idleLimit ? "COMPLETION" : "IDLE";
-      const cancel = await kill();
-      yield {
-        kind: "outcome",
-        outcome: {
-          kind: "TIMEOUT",
-          timeoutKind,
-          elapsedMs: elapsed,
-          limitMs: timeoutKind === "COMPLETION" ? timeouts.completionMs : idleLimit,
-          cancel,
-        },
-      };
-      return;
-    }
-
-    if (winner.kind === "failed") {
-      pending = undefined;
-      yield { kind: "outcome", outcome: { kind: "ERROR", error: winner.error } };
-      return;
-    }
-
-    pending = undefined;
-    const { result } = winner;
-    if (result.done === true) {
-      yield {
-        kind: "outcome",
-        outcome: {
-          kind: "ERROR",
-          error: new Error(
-            `O adapter ${adapter.id} encerrou o stream sem emitir HarnessFinished. Todo adapter precisa fechar com um desfecho.`,
+      const timer = createTimer(waitMs);
+      let winner: RaceWinner;
+      try {
+        winner = await Promise.race([
+          pending.then(
+            (result): RaceWinner => ({ kind: "next", result }),
+            (error): RaceWinner => ({ kind: "failed", error: toError(error) }),
           ),
-        },
-      };
-      return;
-    }
+          timer.promise.then((): RaceWinner => ({ kind: "timeout" })),
+          cancelledWinner,
+        ]);
+      } finally {
+        timer.cancel();
+      }
 
-    const event = result.value;
-    if (isHarnessFinished(event)) {
-      yield { kind: "outcome", outcome: { kind: "FINISHED", finished: event } };
-      return;
+      if (winner.kind === "cancelled") {
+        const cancel = await kill();
+        arvoreTratada = true;
+        yield {
+          kind: "outcome",
+          outcome: {
+            kind: "CANCELLED",
+            ...(winner.reason === undefined ? {} : { reason: winner.reason }),
+            cancel,
+          },
+        };
+        return;
+      }
+
+      if (winner.kind === "timeout") {
+        const elapsed = clock.now() - attemptStartedAt;
+        const timeoutKind: RuntimeTimeoutKind =
+          remainingCompletion <= idleLimit ? "COMPLETION" : "IDLE";
+        const cancel = await kill();
+        arvoreTratada = true;
+        yield {
+          kind: "outcome",
+          outcome: {
+            kind: "TIMEOUT",
+            timeoutKind,
+            elapsedMs: elapsed,
+            limitMs: timeoutKind === "COMPLETION" ? timeouts.completionMs : idleLimit,
+            cancel,
+          },
+        };
+        return;
+      }
+
+      if (winner.kind === "failed") {
+        // O stream do adapter rejeitou: o processo pode ter ficado de pé, e
+        // quem o mataria é o `finally` — `arvoreTratada` continua `false`.
+        pending = undefined;
+        yield { kind: "outcome", outcome: { kind: "ERROR", error: winner.error } };
+        return;
+      }
+
+      pending = undefined;
+      const { result } = winner;
+      if (result.done === true) {
+        yield {
+          kind: "outcome",
+          outcome: {
+            kind: "ERROR",
+            error: new Error(
+              `O adapter ${adapter.id} encerrou o stream sem emitir HarnessFinished. Todo adapter precisa fechar com um desfecho.`,
+            ),
+          },
+        };
+        return;
+      }
+
+      const event = result.value;
+      if (isHarnessFinished(event)) {
+        // O adapter só emite `HarnessFinished` depois de o processo sair.
+        arvoreTratada = true;
+        yield { kind: "outcome", outcome: { kind: "FINISHED", finished: event } };
+        return;
+      }
+      yield { kind: "event", event };
     }
-    yield { kind: "event", event };
+  } finally {
+    // post-mortem #12 (08/09/2026): quando o consumidor saía do `for await` por
+    // exceção — no Worker, uma queda do PostgreSQL no meio do laço que grava
+    // eventos —, o JS chamava `return()` no gerador de `execute`, cujo `finally`
+    // só soltava o worktree. Este gerador não tinha `finally` nenhum, então nem
+    // `return()` chegava ao iterador do adapter: o `claude`/`codex`/`agy` e os
+    // filhos dele seguiam vivos no worktree, e `runtime.cancel(runId)` já era
+    // no-op porque o Run tinha saído do mapa. Sair daqui sem a árvore tratada
+    // agora mata e confirma, como um cancelamento normal.
+    if (!arvoreTratada) {
+      await kill();
+    } else {
+      try {
+        await iterator.return?.(undefined);
+      } catch {
+        // Um adapter que rejeita no fechamento não muda o desfecho já decidido.
+      }
+    }
   }
 }
 

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { ExecutionEvent } from "@dungeon-master/contracts";
-import { processExists, waitUntilGone } from "@dungeon-master/platform";
+import { processExists, terminateProcessTree, waitUntilGone } from "@dungeon-master/platform";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -244,6 +244,42 @@ describe("createAgentRuntime", () => {
     expect(await waitUntilGone(() => processExists(grandchildPid as number), 5_000)).toBe(true);
     // E o kill usou a política do pedido, não o padrão do `packages/platform`.
     expect(recebidos).toEqual([{ graceMs: 1_000, confirmMs: 5_000 }]);
+  });
+
+  it("abandonar o stream mata a árvore em vez de deixá-la órfã", async () => {
+    // O caminho real está no Worker: o corpo do `for await` faz I/O de banco, e
+    // uma queda do PostgreSQL no meio do Run sai do laço por exceção. Sem o
+    // kill no desenrolar do gerador, o agente continua rodando no worktree e
+    // `runtime.cancel(runId)` já virou no-op — o Run saiu do mapa.
+    const runtime = runtimeFor(fakeHarness());
+    const req = request("abandonado", {
+      // O sono é curto de propósito: se este teste falhar, o agente falso
+      // sobrevive por ele, e não por dez minutos.
+      prompt: "@@fake:ignore-signals\n@@fake:spawn-child\n@@fake:sleep 30000",
+      timeouts: { idleMs: 60_000, completionMs: 60_000, killGraceMs: 1_000, killConfirmMs: 5_000 },
+    });
+
+    let netoPid: number | undefined;
+    for await (const event of runtime.execute(req)) {
+      if (event.type !== "TextDelta") continue;
+      const match = /^neto (\d+)$/.exec(event.text.trim());
+      if (match?.[1] === undefined) continue;
+      netoPid = Number(match[1]);
+      break; // é isto que o teste exercita: sair do laço sem evento terminal.
+    }
+
+    expect(netoPid, "o agente falso não anunciou o neto").toBeTypeOf("number");
+    try {
+      expect(await waitUntilGone(() => processExists(netoPid as number), 10_000)).toBe(true);
+    } finally {
+      // Um teste que falha não pode deixar processo de pé para a suíte
+      // seguinte; o pid é o do processo que este teste subiu (CLAUDE.md, seção 6).
+      if (netoPid !== undefined && processExists(netoPid)) {
+        await terminateProcessTree(netoPid, { graceMs: 1_000, confirmMs: 5_000 }).catch(
+          () => undefined,
+        );
+      }
+    }
   });
 
   it("timeout ocioso e de conclusão são distinguidos", async () => {
