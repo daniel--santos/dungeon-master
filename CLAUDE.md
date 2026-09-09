@@ -31,14 +31,22 @@ Esse vocabulário existe apenas como **label da interface**, vindo de
 
 Convenções por camada:
 
-| Camada                    | Convenção                     | Exemplo                                 |
-| ------------------------- | ----------------------------- | --------------------------------------- |
-| Tipos e schemas Zod       | `PascalCase` singular         | `RunEvent`, `TaskKind`                  |
-| Campos de contrato e JSON | `camelCase`                   | `harnessSessionId`, `executionMode`     |
-| Tabelas e colunas         | `snake_case` singular         | `run_event`, `harness_session_id`       |
-| Enums de domínio          | `SCREAMING_SNAKE_CASE`        | `RUNNING`, `WAITING_APPROVAL`, `BUG`    |
-| Nomes de evento           | `PascalCase`                  | `RunSucceeded`, `ProcessTreeTerminated` |
-| Rotas                     | `/api/v1/<recurso-no-plural>` | `/api/v1/tasks`                         |
+| Camada                    | Convenção                     | Exemplo                               |
+| ------------------------- | ----------------------------- | ------------------------------------- |
+| Tipos e schemas Zod       | `PascalCase` singular         | `RunEvent`, `TaskKind`                |
+| Campos de contrato e JSON | `camelCase`                   | `harnessSessionId`, `executionMode`   |
+| Tabelas e colunas         | `snake_case` singular         | `run_event`, `harness_session_id`     |
+| Enums de domínio          | `SCREAMING_SNAKE_CASE`        | `RUNNING`, `WAITING_APPROVAL`, `BUG`  |
+| Nomes de `ExecutionEvent` | `PascalCase`                  | `RunCompleted`, `RunTimedOut`         |
+| Nomes de evento de painel | `recurso.acao` em snake_case  | `task.proposed`, `hero_stats.updated` |
+| Rotas                     | `/api/v1/<recurso-no-plural>` | `/api/v1/tasks`                       |
+
+São duas famílias de evento, e cada uma tem a sua convenção. `ExecutionEvent`
+(`packages/contracts/src/execution-event.ts`) é o que sai de um agente em execução, em
+`PascalCase`. O evento de painel (`packages/contracts/src/dashboard-event.ts`) é o que a
+web escuta pelo SSE e filtra por string: `recurso.acao` em snake_case, nos 26 tipos, e
+gravado assim na coluna `dashboard_event.type`. Ao acrescentar um evento, siga a
+convenção da família dele; não misture as duas no mesmo enum.
 
 O idioma da interface é português; os identificadores de código são em inglês. Comentários
 e mensagens de erro voltadas ao usuário podem ser em português.
