@@ -303,7 +303,20 @@ export async function applyRunStatus(
       ...(patch.harnessVersion === undefined ? {} : { harnessVersion: patch.harnessVersion }),
       ...(patch.harnessSessionId === undefined ? {} : { harnessSessionId: patch.harnessSessionId }),
       ...(patch.workspacePath === undefined ? {} : { workspacePath: patch.workspacePath }),
-      ...(patch.result === undefined ? {} : { result: patch.result }),
+      // post-mortem #8 (08/09/2026): `result` era gravado cru enquanto `error`
+      // logo abaixo já passava pelo sanitizador, e o irmão
+      // `applyRunStepTransition` sanitizava os dois. O `summary` do agente é
+      // exatamente onde um token aparece por acidente (eco de um `git remote
+      // -v`, de um `curl`, de um `env`), e daqui ele circula: volta em
+      // `GET /runs/{id}`, é reinjetado no prompt de todo Run seguinte da Task
+      // por `latestResultSummary` e entra no prompt do Distiller por
+      // `loadRunTranscripts`. A coluna é append-only na prática: uma
+      // credencial que entrar fica.
+      ...(patch.result === undefined
+        ? {}
+        : {
+            result: patch.result === null ? null : (sanitizeJson(patch.result) as RunResult),
+          }),
       ...(patch.error === undefined
         ? {}
         : { error: patch.error === null ? null : (sanitizeJson(patch.error) as RunError) }),
@@ -917,7 +930,12 @@ export async function writeRunTerminalStatus(
           runId: row.id,
           taskId: row.taskId,
           projectId: task.projectId,
-          result: input.result,
+          // O que alimenta o domínio é o resultado **já gravado**, que
+          // `applyRunStatus` sanitizou (post-mortem #8), e não o cru que
+          // chegou: senão a mesma credencial que sai da coluna `run.result`
+          // entraria de novo pelo texto das ProposedTasks e dos
+          // KnowledgeCandidates.
+          result: aplicado.value.result ?? input.result,
           ...(input.logger === undefined ? {} : { logger: input.logger }),
         });
       }
