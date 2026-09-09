@@ -1,7 +1,12 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { NO_CAPABILITIES } from "./capabilities.js";
 import type { DockerCli } from "./docker.js";
+import type { HarnessEvent } from "./harness.js";
 import {
   createDockerAdapter,
   defaultContainerUser,
@@ -195,5 +200,70 @@ describe("createDockerAdapter", () => {
 
     expect(r.terminated).toBe(true);
     expect(calls.some((c) => c[0] === "rm" && c.includes("dm-run-x"))).toBe(true);
+  });
+
+  it("o aviso do preparo do container sai mesmo quando o desfecho é o primeiro evento", async () => {
+    // Um checkout cujo `.git` o runtime não reconheceu roda, mas `git status`
+    // falha lá dentro e o agente não commita. Se a CLI morre logo — imagem sem
+    // credencial, `docker run` recusado —, o único evento é o `HarnessFinished`,
+    // e o Run terminaria "com sucesso aparente e espólio nenhum" sem a linha que
+    // explica por quê.
+    const checkout = await mkdtemp(join(tmpdir(), "dm-docker-adapter-"));
+    await writeFile(join(checkout, ".git"), "isto não é a linha gitdir:\n");
+    try {
+      const { cli } = fakeDocker(roteiroFeliz);
+      const adapter = createDockerAdapter(
+        {
+          ...definicao,
+          // Recusar o argv derruba `buildCommand`, e o adapter de host devolve
+          // o `HarnessFinished` de erro como primeiro e único evento.
+          buildArgs: () => {
+            throw new Error("argv recusado");
+          },
+        },
+        { docker: cli },
+      );
+
+      const eventos: HarnessEvent[] = [];
+      for await (const evento of adapter.execute({
+        executionId: "aviso",
+        cwd: checkout,
+        prompt: "irrelevante",
+        env: {},
+        permission: { mode: "DEFAULT", enforcement: "ADVISORY" },
+      })) {
+        eventos.push(evento);
+        // O `break` é o que o `runAttempt` faz ao ver o desfecho; sem ele o
+        // teste consumiria o gerador até o fim e não veria o defeito.
+        if (evento.type === "HarnessFinished") break;
+      }
+
+      const aviso = eventos.find((evento) => evento.type === "Diagnostic");
+      expect(aviso, "o aviso do preparo do container sumiu").toBeDefined();
+      if (aviso?.type === "Diagnostic") {
+        expect(aviso.code).toBe("DOCKER_CONTAINER_PREPARATION");
+        expect(aviso.message).toContain("gitdir");
+      }
+      expect(eventos.at(-1)?.type).toBe("HarnessFinished");
+    } finally {
+      await rm(checkout, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
+
+  it("o teto de confirmação do pedido ganha do padrão do adapter", async () => {
+    // O container que não some é o caso em que o número importa: com o padrão
+    // de 10 s, um Run que pediu 30 ms esperaria dez segundos para descobrir o
+    // mesmo `terminated: false`.
+    const { cli, calls } = fakeDocker((args) =>
+      args[0] === "ps" ? { code: 0, stdout: "dm-run-x\n" } : { code: 0 },
+    );
+    const adapter = createDockerAdapter(definicao, { docker: cli });
+
+    const r = await adapter.cancel("x", { confirmMs: 30 });
+
+    expect(r.terminated).toBe(false);
+    // Duas perguntas: a primeira dentro do teto, a segunda já fora dele. Com os
+    // 10 s do padrão seriam cinquenta.
+    expect(calls.filter((c) => c[0] === "ps")).toHaveLength(2);
   });
 });

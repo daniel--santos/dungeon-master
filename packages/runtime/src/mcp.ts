@@ -14,7 +14,9 @@
  *    das variáveis que precisa; o runtime as põe na allow-list do ambiente do
  *    harness, e é o harness quem as repassa ao processo do servidor (o Claude
  *    Code herda o ambiente inteiro; o Codex recebe a lista em `env_vars`).
- *    O valor nunca aparece em linha de comando nem em arquivo.
+ *    O valor nunca aparece em linha de comando nem em arquivo. A URL de um
+ *    servidor `HTTP` é a exceção que precisa de guarda, porque ela **é** argv:
+ *    veja {@link mcpUrlExposure} e {@link McpHttpServerSpec.url}.
  * 2. **Comando em array, nunca string de shell.** `command` e `args` viajam
  *    separados e chegam à CLI como JSON ou TOML, sem concatenação.
  * 3. **O container tem o seu próprio comando.** Um servidor que roda no host
@@ -88,9 +90,44 @@ export interface McpStdioServerSpec {
 export interface McpHttpServerSpec {
   readonly name: string;
   readonly transport: "HTTP";
+  /**
+   * Endereço do servidor. **Vai inteiro para a linha de comando do harness**
+   * (`--mcp-config` no Claude Code, `-c mcp_servers.<nome>.url` no Codex), e a
+   * linha de comando de um processo é legível por qualquer processo da máquina.
+   * Uma URL com `usuário:senha@` é recusada pelo runtime; um token na query
+   * segue, com aviso, porque não há como distingui-lo de um parâmetro comum.
+   */
   readonly url: string;
   readonly tools?: readonly string[];
   readonly instruction?: string;
+}
+
+/** O que a URL de um servidor `HTTP` deixaria visível na linha de comando. */
+export type McpUrlExposure =
+  /** Credencial embutida (`https://token@host/`). O runtime recusa o servidor. */
+  | "USERINFO"
+  /** Query, que pode ou não carregar token. O runtime avisa e segue. */
+  | "QUERY";
+
+/**
+ * Olha a URL de um servidor `HTTP` procurando o que não deveria virar argv.
+ *
+ * A regra 1 do cabeçalho deste arquivo — segredo nunca no argv — valia para o
+ * `STDIO`, que separa nomes de variáveis do valor, e não valia para o `HTTP`,
+ * cuja forma usual de autenticar sem cabeçalho é justamente pôr o token na URL.
+ * Uma URL ilegível devolve `undefined`: quem recusa URL malformada é o Worker,
+ * na hora de montar a lista.
+ */
+export function mcpUrlExposure(url: string): McpUrlExposure | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+  if (parsed.username !== "" || parsed.password !== "") return "USERINFO";
+  if (parsed.search !== "") return "QUERY";
+  return undefined;
 }
 
 export type McpServerSpec = McpStdioServerSpec | McpHttpServerSpec;

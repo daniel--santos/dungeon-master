@@ -171,8 +171,44 @@ describe("servidores MCP no runtime", () => {
     const r = resolveMcpServers([servidor, { ...servidor, name: "docs" }], adapter);
 
     expect(r.servers).toBeUndefined();
-    expect(r.note).toContain("knowledge, docs");
-    expect(resolveMcpServers([], adapter)).toEqual({ servers: undefined });
+    expect(r.notes.join(" ")).toContain("knowledge, docs");
+    expect(resolveMcpServers([], adapter)).toEqual({ servers: undefined, notes: [] });
     expect(resolveMcpServers([servidor], fakeHarness()).servers).toEqual([servidor]);
+  });
+
+  it("recusa um servidor HTTP cuja URL leva credencial para o argv", () => {
+    // A URL de um servidor `HTTP` é escrita na linha de comando do harness
+    // (`--mcp-config` no Claude Code, `-c mcp_servers.x.url` no Codex), e a
+    // linha de comando de um processo é legível por qualquer processo da
+    // máquina — é a razão de existir da regra `-e NOME` do modo Docker.
+    const comSegredo: McpServerSpec = {
+      name: "remoto",
+      transport: "HTTP",
+      url: "https://tok_ab12cd:x@mcp.exemplo.com/sse",
+    };
+
+    const r = resolveMcpServers([servidor, comSegredo], fakeHarness());
+
+    expect(r.servers).toEqual([servidor]);
+    expect(r.notes).toHaveLength(1);
+    expect(r.notes[0]).toContain("remoto");
+    // O aviso não pode repetir o que ele acusa.
+    expect(r.notes.join(" ")).not.toContain("tok_ab12cd");
+  });
+
+  it("avisa quando a URL de um servidor HTTP tem query, que também vai ao argv", () => {
+    const comQuery: McpServerSpec = {
+      name: "remoto",
+      transport: "HTTP",
+      url: "https://mcp.exemplo.com/sse?tenant=acme",
+    };
+
+    const r = resolveMcpServers([comQuery], fakeHarness());
+
+    // O servidor segue: uma query não é prova de segredo. O que o diário passa
+    // a dizer é que ela fica visível.
+    expect(r.servers).toEqual([comQuery]);
+    expect(r.notes).toHaveLength(1);
+    expect(r.notes[0]).toContain("remoto");
   });
 });

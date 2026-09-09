@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { ExecutionEvent } from "@dungeon-master/contracts";
-import { processExists, waitUntilGone } from "@dungeon-master/platform";
+import { processExists, terminateProcessTree, waitUntilGone } from "@dungeon-master/platform";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -11,7 +11,7 @@ import { collectExecutionResult, createAgentRuntime, resolvePermission } from ".
 import { capabilities } from "./capabilities.js";
 import { buildGitEnv } from "./env.js";
 import type { ExecutionRequest } from "./execution-request.js";
-import type { HarnessAdapter } from "./harness.js";
+import type { HarnessAdapter, HarnessCancelOptions } from "./harness.js";
 import { collectProcess } from "./process.js";
 import { createHarnessRegistry } from "./registry.js";
 import { fakeHarness } from "./testing/fake-harness.js";
@@ -191,8 +191,21 @@ describe("createAgentRuntime", () => {
     expect(events.at(-1)?.type).toBe("RunFailed");
   });
 
-  it("mata a árvore inteira: o neto some junto", async () => {
-    const adapter = fakeHarness();
+  it("mata a árvore inteira: o neto some junto, com o tempo que o pedido definiu", async () => {
+    // O dublê de `cancel` existe porque passar `killGraceMs`/`killConfirmMs` no
+    // pedido e conferir só que a árvore sumiu não prova nada: os padrões do
+    // `packages/platform` dão conta do agente falso sozinhos, e foi assim que
+    // este teste passou por uma fase inteira sem que os dois números saíssem do
+    // `resolveTimeouts`.
+    const recebidos: (HarnessCancelOptions | undefined)[] = [];
+    const base = fakeHarness();
+    const adapter: HarnessAdapter = {
+      ...base,
+      cancel: (executionId, cancelOptions) => {
+        recebidos.push(cancelOptions);
+        return base.cancel(executionId, cancelOptions);
+      },
+    };
     const runtime = runtimeFor(adapter);
     const req = request("arvore", {
       prompt: "@@fake:ignore-signals\n@@fake:spawn-child\n@@fake:sleep 600000",
@@ -229,6 +242,44 @@ describe("createAgentRuntime", () => {
     // O kill de árvore alcança a descendência; a prova é o polling, não o
     // código de saída do comando (CLAUDE.md, seção 8).
     expect(await waitUntilGone(() => processExists(grandchildPid as number), 5_000)).toBe(true);
+    // E o kill usou a política do pedido, não o padrão do `packages/platform`.
+    expect(recebidos).toEqual([{ graceMs: 1_000, confirmMs: 5_000 }]);
+  });
+
+  it("abandonar o stream mata a árvore em vez de deixá-la órfã", async () => {
+    // O caminho real está no Worker: o corpo do `for await` faz I/O de banco, e
+    // uma queda do PostgreSQL no meio do Run sai do laço por exceção. Sem o
+    // kill no desenrolar do gerador, o agente continua rodando no worktree e
+    // `runtime.cancel(runId)` já virou no-op — o Run saiu do mapa.
+    const runtime = runtimeFor(fakeHarness());
+    const req = request("abandonado", {
+      // O sono é curto de propósito: se este teste falhar, o agente falso
+      // sobrevive por ele, e não por dez minutos.
+      prompt: "@@fake:ignore-signals\n@@fake:spawn-child\n@@fake:sleep 30000",
+      timeouts: { idleMs: 60_000, completionMs: 60_000, killGraceMs: 1_000, killConfirmMs: 5_000 },
+    });
+
+    let netoPid: number | undefined;
+    for await (const event of runtime.execute(req)) {
+      if (event.type !== "TextDelta") continue;
+      const match = /^neto (\d+)$/.exec(event.text.trim());
+      if (match?.[1] === undefined) continue;
+      netoPid = Number(match[1]);
+      break; // é isto que o teste exercita: sair do laço sem evento terminal.
+    }
+
+    expect(netoPid, "o agente falso não anunciou o neto").toBeTypeOf("number");
+    try {
+      expect(await waitUntilGone(() => processExists(netoPid as number), 10_000)).toBe(true);
+    } finally {
+      // Um teste que falha não pode deixar processo de pé para a suíte
+      // seguinte; o pid é o do processo que este teste subiu (CLAUDE.md, seção 6).
+      if (netoPid !== undefined && processExists(netoPid)) {
+        await terminateProcessTree(netoPid, { graceMs: 1_000, confirmMs: 5_000 }).catch(
+          () => undefined,
+        );
+      }
+    }
   });
 
   it("timeout ocioso e de conclusão são distinguidos", async () => {
@@ -355,6 +406,37 @@ describe("resultado estruturado", () => {
     if (completed?.type === "RunCompleted") {
       expect(completed.output).toEqual({ answer: "corrigido" });
     }
+  });
+
+  it("completionMs é o teto do Run inteiro, e não de cada tentativa", async () => {
+    // O tipo promete "teto absoluto da execução inteira", e é esse número que a
+    // interface mostra. Com o teto recomeçando a cada tentativa, um Run com
+    // `maxRetries: 1` ocupava duas vezes o que o usuário autorizou.
+    const adapter = fakeHarness({ retryScript: "@@fake:hang" });
+    const completionMs = 3_000;
+
+    const inicio = Date.now();
+    const events = await collect(
+      adapter,
+      request("teto-do-run", {
+        prompt: '@@fake:sleep 2500\n@@fake:block {"answer":123}',
+        outputSchema: { schema, maxRetries: 1 },
+        timeouts: { idleMs: 30_000, completionMs },
+      }),
+    );
+    const decorrido = Date.now() - inicio;
+
+    const last = events.at(-1);
+    expect(last?.type).toBe("RunTimedOut");
+    if (last?.type === "RunTimedOut") {
+      expect(last.kind).toBe("COMPLETION");
+      expect(last.limitMs).toBe(completionMs);
+      // O tempo relatado é o do Run, e não o da segunda tentativa.
+      expect(last.elapsedMs).toBeGreaterThanOrEqual(completionMs);
+    }
+    // A folga cobre dois spawns de Node; o que ela não cobre é um segundo teto
+    // inteiro, que é o defeito.
+    expect(decorrido).toBeLessThan(completionMs + 2_000);
   });
 
   it("sem correção, falha sem retentativa e guarda o texto bruto", async () => {

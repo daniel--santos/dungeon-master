@@ -46,7 +46,13 @@ import type {
   ResolvedPermission,
 } from "./harness.js";
 import { isHarnessFinished, RuntimeRequestError } from "./harness.js";
-import { applyMcpInstruction, mcpEnv, mcpEnvKeys, type McpServerSpec } from "./mcp.js";
+import {
+  applyMcpInstruction,
+  mcpEnv,
+  mcpEnvKeys,
+  mcpUrlExposure,
+  type McpServerSpec,
+} from "./mcp.js";
 import type { HarnessRegistry } from "./registry.js";
 import type { StructuredOutputResult } from "./structured-output.js";
 import {
@@ -248,7 +254,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       // servidor MCP em modo headless perde as ferramentas e ganha um aviso no
       // diário. Nunca uma falha — o Run sem Grimório ainda é o Run pedido.
       const mcpServers = resolveMcpServers(request.mcpServers, adapter);
-      if (mcpServers.note !== undefined) yield diagnostic("WARN", mcpServers.note);
+      for (const note of mcpServers.notes) yield diagnostic("WARN", note);
 
       // ------------------------------------------------------------- ambiente
       // `AGENT_GIT_ENV_KEYS` entra em todo harness, e não só nos que declaram
@@ -516,6 +522,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       });
       return;
     } finally {
+      // Quem mata a árvore quando este gerador é abandonado é o `finally` do
+      // `runAttempt` (post-mortem #12), que roda antes deste: é lá que o
+      // processo do agente existe. Aqui só se solta o que é do Run.
       request.signal?.removeEventListener("abort", onAbort);
       runs.delete(request.runId);
       control.settleFinished();
@@ -575,6 +584,7 @@ interface RunAttemptOptions {
   readonly timeouts: Required<ExecutionTimeouts>;
   readonly clock: Clock;
   readonly control: RunControl;
+  /** Início do **Run**, não desta tentativa: é dele que sai o teto de conclusão. */
   readonly startedAt: number;
 }
 
@@ -585,11 +595,19 @@ interface RunAttemptOptions {
  * teto total e o pedido de cancelamento. Perder a corrida não é motivo para
  * largar o `next()` pendente: ele é drenado depois do kill, e é durante essa
  * drenagem que o id de sessão de um agente morto ainda costuma aparecer.
+ *
+ * **Toda saída daqui passa pelo `finally`**, inclusive a que ninguém pediu: um
+ * consumidor que abandona o `for await` fecha este gerador, e é aqui — e não no
+ * `finally` do `execute` — que existe processo vivo para matar.
  */
 async function* runAttempt(options: RunAttemptOptions): AsyncGenerator<AttemptStep> {
   const { adapter, request, timeouts, clock, control } = options;
-  const attemptStartedAt = clock.now();
-  const completionDeadline = attemptStartedAt + timeouts.completionMs;
+  // O teto de conclusão conta do início do **Run**, e não desta tentativa: o
+  // contrato de `ExecutionTimeouts` promete "o teto absoluto da execução
+  // inteira", e é esse número que a interface mostra. Recomeçá-lo a cada
+  // tentativa daria a um Run com `maxRetries: n` até `(n+1)` vezes o tempo de
+  // máquina que o usuário autorizou.
+  const completionDeadline = options.startedAt + timeouts.completionMs;
 
   let iterator: AsyncIterator<HarnessEvent>;
   try {
@@ -599,12 +617,27 @@ async function* runAttempt(options: RunAttemptOptions): AsyncGenerator<AttemptSt
     return;
   }
 
+  /**
+   * A árvore de processos já teve um desfecho: ou o kill rodou, ou o adapter
+   * relatou que o processo saiu sozinho. Enquanto for `false`, sair daqui —
+   * por `return`, por exceção ou porque o consumidor abandonou o gerador —
+   * deixa processo de agente vivo, e é o `finally` que trata isso.
+   */
+  let arvoreTratada = false;
+
   let pending: Promise<IteratorResult<HarnessEvent>> | undefined;
 
   const kill = async (): Promise<HarnessCancelResult> => {
     let result: HarnessCancelResult;
     try {
-      result = await adapter.cancel(request.executionId);
+      // post-mortem #11 (08/09/2026): a política de kill do pedido não era
+      // repassada, e o `Diagnostic` de `RunTimedOut` citava `killConfirmMs`
+      // enquanto o kill rodava com o padrão do `packages/platform`. Um
+      // diagnóstico que mente sobre o que o sistema fez é pior que nenhum.
+      result = await adapter.cancel(request.executionId, {
+        graceMs: timeouts.killGraceMs,
+        confirmMs: timeouts.killConfirmMs,
+      });
     } catch (error) {
       result = { terminated: false, elapsedMs: 0, method: describeError(error) };
     }
@@ -623,86 +656,114 @@ async function* runAttempt(options: RunAttemptOptions): AsyncGenerator<AttemptSt
     ...(info.reason === undefined ? {} : { reason: info.reason }),
   }));
 
-  for (;;) {
-    if (pending === undefined) pending = iterator.next();
+  try {
+    for (;;) {
+      if (pending === undefined) pending = iterator.next();
 
-    const idleLimit = timeouts.idleMs;
-    const remainingCompletion = Math.max(0, completionDeadline - clock.now());
-    const waitMs = Math.min(idleLimit, remainingCompletion);
+      const idleLimit = timeouts.idleMs;
+      const remainingCompletion = Math.max(0, completionDeadline - clock.now());
+      const waitMs = Math.min(idleLimit, remainingCompletion);
 
-    const timer = createTimer(waitMs);
-    let winner: RaceWinner;
-    try {
-      winner = await Promise.race([
-        pending.then(
-          (result): RaceWinner => ({ kind: "next", result }),
-          (error): RaceWinner => ({ kind: "failed", error: toError(error) }),
-        ),
-        timer.promise.then((): RaceWinner => ({ kind: "timeout" })),
-        cancelledWinner,
-      ]);
-    } finally {
-      timer.cancel();
-    }
-
-    if (winner.kind === "cancelled") {
-      const cancel = await kill();
-      yield {
-        kind: "outcome",
-        outcome: {
-          kind: "CANCELLED",
-          ...(winner.reason === undefined ? {} : { reason: winner.reason }),
-          cancel,
-        },
-      };
-      return;
-    }
-
-    if (winner.kind === "timeout") {
-      const elapsed = clock.now() - attemptStartedAt;
-      const timeoutKind: RuntimeTimeoutKind =
-        remainingCompletion <= idleLimit ? "COMPLETION" : "IDLE";
-      const cancel = await kill();
-      yield {
-        kind: "outcome",
-        outcome: {
-          kind: "TIMEOUT",
-          timeoutKind,
-          elapsedMs: elapsed,
-          limitMs: timeoutKind === "COMPLETION" ? timeouts.completionMs : idleLimit,
-          cancel,
-        },
-      };
-      return;
-    }
-
-    if (winner.kind === "failed") {
-      pending = undefined;
-      yield { kind: "outcome", outcome: { kind: "ERROR", error: winner.error } };
-      return;
-    }
-
-    pending = undefined;
-    const { result } = winner;
-    if (result.done === true) {
-      yield {
-        kind: "outcome",
-        outcome: {
-          kind: "ERROR",
-          error: new Error(
-            `O adapter ${adapter.id} encerrou o stream sem emitir HarnessFinished. Todo adapter precisa fechar com um desfecho.`,
+      const timer = createTimer(waitMs);
+      let winner: RaceWinner;
+      try {
+        winner = await Promise.race([
+          pending.then(
+            (result): RaceWinner => ({ kind: "next", result }),
+            (error): RaceWinner => ({ kind: "failed", error: toError(error) }),
           ),
-        },
-      };
-      return;
-    }
+          timer.promise.then((): RaceWinner => ({ kind: "timeout" })),
+          cancelledWinner,
+        ]);
+      } finally {
+        timer.cancel();
+      }
 
-    const event = result.value;
-    if (isHarnessFinished(event)) {
-      yield { kind: "outcome", outcome: { kind: "FINISHED", finished: event } };
-      return;
+      if (winner.kind === "cancelled") {
+        const cancel = await kill();
+        arvoreTratada = true;
+        yield {
+          kind: "outcome",
+          outcome: {
+            kind: "CANCELLED",
+            ...(winner.reason === undefined ? {} : { reason: winner.reason }),
+            cancel,
+          },
+        };
+        return;
+      }
+
+      if (winner.kind === "timeout") {
+        // `elapsedMs` e `limitMs` andam juntos no contrato do `RunTimedOut`, e
+        // por isso medem a mesma coisa: o tempo do Run.
+        const elapsed = clock.now() - options.startedAt;
+        const timeoutKind: RuntimeTimeoutKind =
+          remainingCompletion <= idleLimit ? "COMPLETION" : "IDLE";
+        const cancel = await kill();
+        arvoreTratada = true;
+        yield {
+          kind: "outcome",
+          outcome: {
+            kind: "TIMEOUT",
+            timeoutKind,
+            elapsedMs: elapsed,
+            limitMs: timeoutKind === "COMPLETION" ? timeouts.completionMs : idleLimit,
+            cancel,
+          },
+        };
+        return;
+      }
+
+      if (winner.kind === "failed") {
+        // O stream do adapter rejeitou: o processo pode ter ficado de pé, e
+        // quem o mataria é o `finally` — `arvoreTratada` continua `false`.
+        pending = undefined;
+        yield { kind: "outcome", outcome: { kind: "ERROR", error: winner.error } };
+        return;
+      }
+
+      pending = undefined;
+      const { result } = winner;
+      if (result.done === true) {
+        yield {
+          kind: "outcome",
+          outcome: {
+            kind: "ERROR",
+            error: new Error(
+              `O adapter ${adapter.id} encerrou o stream sem emitir HarnessFinished. Todo adapter precisa fechar com um desfecho.`,
+            ),
+          },
+        };
+        return;
+      }
+
+      const event = result.value;
+      if (isHarnessFinished(event)) {
+        // O adapter só emite `HarnessFinished` depois de o processo sair.
+        arvoreTratada = true;
+        yield { kind: "outcome", outcome: { kind: "FINISHED", finished: event } };
+        return;
+      }
+      yield { kind: "event", event };
     }
-    yield { kind: "event", event };
+  } finally {
+    // post-mortem #12 (08/09/2026): quando o consumidor saía do `for await` por
+    // exceção — no Worker, uma queda do PostgreSQL no meio do laço que grava
+    // eventos —, o JS chamava `return()` no gerador de `execute`, cujo `finally`
+    // só soltava o worktree. Este gerador não tinha `finally` nenhum, então nem
+    // `return()` chegava ao iterador do adapter: o `claude`/`codex`/`agy` e os
+    // filhos dele seguiam vivos no worktree, e `runtime.cancel(runId)` já era
+    // no-op porque o Run tinha saído do mapa. Sair daqui sem a árvore tratada
+    // agora mata e confirma, como um cancelamento normal.
+    if (!arvoreTratada) {
+      await kill();
+    } else {
+      try {
+        await iterator.return?.(undefined);
+      } catch {
+        // Um adapter que rejeita no fechamento não muda o desfecho já decidido.
+      }
+    }
   }
 }
 
@@ -951,7 +1012,8 @@ function adapterEnvKeys(adapter: HarnessAdapter): readonly string[] {
 interface ResolvedMcpServers {
   /** A lista que vai ao adapter; `undefined` quando não há o que subir. */
   readonly servers: readonly McpServerSpec[] | undefined;
-  readonly note?: string;
+  /** O que o usuário precisa saber sobre o que sobrou da lista pedida. */
+  readonly notes: readonly string[];
 }
 
 /**
@@ -961,20 +1023,55 @@ interface ResolvedMcpServers {
  * aviso, nunca promessa. Um pedido com servidores para um adapter sem a
  * capability produz um `Diagnostic` que nomeia os servidores perdidos, e o
  * Run segue com o que a CLI sabe fazer.
+ *
+ * A outra guarda é de credencial. A URL de um servidor `HTTP` é escrita na
+ * linha de comando do harness, que qualquer processo da máquina lê — é a mesma
+ * exposição que a regra `-e NOME` do modo Docker existe para evitar (CLAUDE.md,
+ * seção 8). Uma URL com `usuário:senha@` é recusada aqui, e não no adapter,
+ * porque a regra vale para os três harnesses e não para a CLI de um deles.
  */
 export function resolveMcpServers(
   requested: readonly McpServerSpec[] | undefined,
   adapter: HarnessAdapter,
 ): ResolvedMcpServers {
-  if (requested === undefined || requested.length === 0) return { servers: undefined };
-  if (adapter.capabilities.mcpServers) return { servers: requested };
-  const nomes = requested.map((server) => server.name).join(", ");
-  return {
-    servers: undefined,
-    note:
-      `O adapter ${adapter.id} não sobe servidores MCP em modo headless; o Run segue sem ` +
-      `as ferramentas de: ${nomes}. Veja a matriz de capabilities do harness.`,
-  };
+  if (requested === undefined || requested.length === 0) {
+    return { servers: undefined, notes: [] };
+  }
+  if (!adapter.capabilities.mcpServers) {
+    const nomes = requested.map((server) => server.name).join(", ");
+    return {
+      servers: undefined,
+      notes: [
+        `O adapter ${adapter.id} não sobe servidores MCP em modo headless; o Run segue sem ` +
+          `as ferramentas de: ${nomes}. Veja a matriz de capabilities do harness.`,
+      ],
+    };
+  }
+
+  const notes: string[] = [];
+  const servers: McpServerSpec[] = [];
+  for (const server of requested) {
+    // A mensagem nunca repete a URL: um aviso que imprime a credencial que
+    // acusa a copia do argv para o Diário, que é persistido.
+    const exposicao = server.transport === "HTTP" ? mcpUrlExposure(server.url) : undefined;
+    if (exposicao === "USERINFO") {
+      notes.push(
+        `O servidor MCP ${server.name} foi recusado: a URL dele embute usuário e senha, e ela ` +
+          "vai inteira para a linha de comando do harness, que qualquer processo da máquina " +
+          "lê. Cadastre a URL sem `usuário:senha@` e entregue a credencial por cabeçalho.",
+      );
+      continue;
+    }
+    if (exposicao === "QUERY") {
+      notes.push(
+        `A URL do servidor MCP ${server.name} tem query, e ela vai para a linha de comando do ` +
+          "harness, onde qualquer processo da máquina a lê. Se houver token ali, ele está exposto.",
+      );
+    }
+    servers.push(server);
+  }
+
+  return { servers: servers.length === 0 ? undefined : servers, notes };
 }
 
 function lastNonEmptyText(text: string): string {

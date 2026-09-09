@@ -314,6 +314,24 @@ describe("buildContainerEnv", () => {
     expect(env).toEqual({ CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-x" });
   });
 
+  it("corta as GIT_CONFIG_* do host, que apontam para arquivos que não existem lá", () => {
+    // `AGENT_GIT_ENV_KEYS` entra na allow-list de todo harness para que o agente
+    // ache a identidade do git no **host**. Dentro do container, o mesmo valor
+    // faz o git ler um caminho do Windows em vez do `/home/agent/.gitconfig` da
+    // imagem: some a identidade e `git commit` falha com "Author identity
+    // unknown" — a mesma falha que `AGENT_GIT_ENV_KEYS` corrigiu no host.
+    const env = buildContainerEnv({
+      GIT_CONFIG_GLOBAL: "C:\\Users\\ana\\.gitconfig",
+      GIT_CONFIG_SYSTEM: "C:\\Program Files\\Git\\etc\\gitconfig",
+      GIT_EXEC_PATH: "C:\\Program Files\\Git\\mingw64\\libexec\\git-core",
+      GIT_TEMPLATE_DIR: "C:\\Program Files\\Git\\share\\git-core\\templates",
+      GIT_AUTHOR_NAME: "Dungeon Master",
+    });
+
+    // O nome do autor é valor, e não caminho: ele atravessa.
+    expect(env).toEqual({ GIT_AUTHOR_NAME: "Dungeon Master" });
+  });
+
   it("deixa passar a variável que a política do perfil declarou", () => {
     // `buildContainerEnv` recebe o ambiente **inteiro** que o runtime montou por
     // allow-list, e não só as chaves de credencial do adapter: é assim que uma

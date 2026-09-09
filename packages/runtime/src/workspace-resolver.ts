@@ -105,7 +105,12 @@ export function createWorkspaceResolver(options: WorkspaceResolverOptions): Work
         release: async (status) => {
           if (status !== "SUCCEEDED" || keepOnSuccess) return NO_OP_RELEASE;
           try {
-            return await manager.remove(worktree.path, { keepIfDirty: true });
+            return await manager.remove(worktree.path, {
+              keepIfDirty: true,
+              // O repositório pai já está em mãos: é para lá que vai o
+              // `worktree prune` se a remoção cair no fallback.
+              repoPath: worktree.repoPath,
+            });
           } catch (error) {
             return {
               removed: false,

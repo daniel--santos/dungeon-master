@@ -36,6 +36,7 @@ import {
 } from "./docker.js";
 import type {
   HarnessAdapter,
+  HarnessCancelOptions,
   HarnessCancelResult,
   HarnessContext,
   HarnessEvent,
@@ -397,6 +398,12 @@ export function createDockerAdapter(
     return command;
   };
 
+  /** O teto de confirmação que vale: o do pedido, senão o do adapter. */
+  const confirmarEm = (confirmMs: number | undefined): { confirmMs?: number } => {
+    const escolhido = confirmMs ?? options.cancelConfirmMs;
+    return escolhido === undefined ? {} : { confirmMs: escolhido };
+  };
+
   const inner = createHostAdapter({
     id: definition.id,
     key: definition.key,
@@ -411,11 +418,14 @@ export function createDockerAdapter(
     parseLine: definition.parseLine,
     ...(definition.describeExit === undefined ? {} : { describeExit: definition.describeExit }),
     ...(definition.maxTailChars === undefined ? {} : { maxTailChars: definition.maxTailChars }),
-    terminate: async ({ executionId }) =>
+    // O `confirmMs` do pedido ganha do padrão do adapter: quem sabe quanto um
+    // container demora a sumir nesta máquina é quem configurou o Run. `graceMs`
+    // não tem correspondente aqui — `docker rm --force` não pede licença.
+    terminate: async ({ executionId, confirmMs }) =>
       removeContainer({
         docker,
         containerName: containerNameFor(executionId),
-        ...(options.cancelConfirmMs === undefined ? {} : { confirmMs: options.cancelConfirmMs }),
+        ...confirmarEm(confirmMs),
       }),
   });
 
@@ -434,11 +444,13 @@ export function createDockerAdapter(
     execute: async function* (request: HarnessExecutionRequest): AsyncIterable<HarnessEvent> {
       try {
         for await (const event of inner.execute(request)) {
-          yield event;
           // Os avisos do preparo do container só existem depois de
-          // `buildCommand`, que roda dentro de `inner.execute`. Emiti-los logo
-          // após o primeiro evento os coloca no Diário antes de qualquer coisa
-          // que o agente tenha feito sem git ou sem o servidor.
+          // `buildCommand`, que roda dentro de `inner.execute` antes do primeiro
+          // evento. Eles saem **antes** do evento, e não depois: quem consome
+          // fecha o gerador assim que vê o `HarnessFinished` (é o que o
+          // `runAttempt` faz), e um container que morreu no `docker run` tem o
+          // desfecho como primeiro e único evento — era justamente o caso em que
+          // o aviso se perdia, deixando um Run sem espólio e sem explicação.
           const pendentes = avisos.get(request.executionId);
           if (pendentes !== undefined) {
             avisos.delete(request.executionId);
@@ -454,14 +466,18 @@ export function createDockerAdapter(
               };
             }
           }
+          yield event;
         }
       } finally {
         avisos.delete(request.executionId);
         await limparTemp(request.executionId);
       }
     },
-    cancel: async (executionId: string): Promise<HarnessCancelResult> => {
-      const resultado = await inner.cancel(executionId);
+    cancel: async (
+      executionId: string,
+      cancelOptions?: HarnessCancelOptions,
+    ): Promise<HarnessCancelResult> => {
+      const resultado = await inner.cancel(executionId, cancelOptions);
       if (resultado.notRunning === true) {
         // Nenhum processo cliente vivo não quer dizer nenhum container vivo: o
         // `docker run` pode ter morrido sem levar o container junto. Confirmar é
@@ -469,7 +485,7 @@ export function createDockerAdapter(
         const confirmado = await removeContainer({
           docker,
           containerName: containerNameFor(executionId),
-          ...(options.cancelConfirmMs === undefined ? {} : { confirmMs: options.cancelConfirmMs }),
+          ...confirmarEm(cancelOptions?.confirmMs),
         });
         await limparTemp(executionId);
         return confirmado;

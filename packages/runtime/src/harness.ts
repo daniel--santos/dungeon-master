@@ -206,6 +206,22 @@ export interface HarnessCancelResult {
 }
 
 /**
+ * Quanto o cancelamento pode gastar, vindo do `ExecutionTimeouts` do Run.
+ *
+ * Existe porque o teto de um kill é decisão de quem pediu a execução, e não do
+ * adapter nem do sistema operacional: numa máquina onde o `taskkill /T /F` leva
+ * segundos para andar a árvore, o padrão do `packages/platform` reporta
+ * `terminated: false` num término que teria sido confirmado com mais espera.
+ * Ausente, valem os padrões de quem executa o kill.
+ */
+export interface HarnessCancelOptions {
+  /** Espera pelo término gracioso antes de escalar o kill. */
+  readonly graceMs?: number;
+  /** Espera pela confirmação de que a árvore (ou o container) sumiu. */
+  readonly confirmMs?: number;
+}
+
+/**
  * Um problema encontrado no preflight.
  *
  * O código vem do enum de `@dungeon-master/contracts`, que é o que a API expõe
@@ -275,7 +291,7 @@ export interface HarnessAdapter {
   readonly environmentKeys?: readonly string[];
   preflight(context: HarnessContext): Promise<PreflightResult>;
   execute(request: HarnessExecutionRequest): AsyncIterable<HarnessEvent>;
-  cancel(executionId: string): Promise<HarnessCancelResult>;
+  cancel(executionId: string, options?: HarnessCancelOptions): Promise<HarnessCancelResult>;
 }
 
 /**

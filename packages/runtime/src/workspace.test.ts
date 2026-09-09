@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -18,6 +18,15 @@ import type { ExecutionRequest } from "./execution-request.js";
 
 let sandbox: string;
 let repo: string;
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function git(args: readonly string[], cwd: string): Promise<string> {
   const result = await collectProcess("git", args, { cwd, env: buildGitEnv(), timeoutMs: 60_000 });
@@ -126,6 +135,29 @@ describe("createWorkspaceManager", () => {
 
     const forced = await manager.remove(dirty.path, { keepIfDirty: false });
     expect(forced.removed).toBe(true);
+  });
+
+  it("o fallback que apaga a árvore limpa o registro do worktree", async () => {
+    // `git worktree remove` falha quando o registro e a árvore discordam — no
+    // Windows ele também falha porque o próprio `git` roda com `cwd` igual ao
+    // diretório que está apagando. Sem `prune`, `.git/worktrees/` acumula
+    // entradas mortas e `git worktree list` passa a listar diretórios que não
+    // existem. Aqui o `.git` do worktree é destruído para provocar a falha.
+    const manager = createWorkspaceManager();
+    const handle = await manager.create({ repoPath: repo, runId: "run-orfao" });
+    const registro = join(repo, ".git", "worktrees", "run-orfao");
+    expect(await pathExists(registro)).toBe(true);
+
+    await rm(join(handle.path, ".git"), { force: true });
+
+    const resultado = await manager.remove(handle.path, {
+      keepIfDirty: false,
+      repoPath: repo,
+    });
+
+    expect(resultado.removed).toBe(true);
+    expect(await pathExists(handle.path)).toBe(false);
+    expect(await pathExists(registro), "o registro do worktree ficou para trás").toBe(false);
   });
 
   it("coleta os commits feitos no worktree depois da base", async () => {
