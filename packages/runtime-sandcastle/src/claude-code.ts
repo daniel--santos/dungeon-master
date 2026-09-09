@@ -259,11 +259,35 @@ export function allowedToolsFor(grant: ResolvedPermission["grant"]): string[] {
     for (const comando of grant.allowedCommands) {
       const prefixo = comando.trim();
       if (prefixo.length === 0) continue;
+      assertNoComma(prefixo, "allowedCommands");
       for (const shell of SHELL_TOOLS) tools.push(`${shell}(${prefixo}:*)`);
     }
   }
 
   return tools;
+}
+
+/**
+ * Um prefixo com vírgula não cabe nas flags da CLI, e o Run é recusado.
+ *
+ * `--allowedTools` e `--disallowedTools` recebem a lista inteira numa flag só,
+ * separada por vírgula. `Bash(docker run --rm,ignore:*)` sai de lá como
+ * `Bash(docker run --rm` e `ignore:*)` — dois padrões que não casam com nada.
+ * No `--allowedTools` isso nega o que deveria liberar, e o agente reclama; no
+ * `--disallowedTools` a **negação desaparece** e o comando volta a ser
+ * permitido pelo que a allow-list liberou, sem nada no diário.
+ *
+ * Recusar é a saída honesta: uma barreira recusada é visível e o usuário
+ * corrige o perfil; uma barreira que some sem avisar não é.
+ */
+function assertNoComma(prefixo: string, lista: "allowedCommands" | "deniedCommands"): void {
+  if (!prefixo.includes(",")) return;
+  throw new Error(
+    `O prefixo "${prefixo}", de ${lista}, tem vírgula. O Claude Code recebe as ferramentas ` +
+      "liberadas e as negadas numa flag só, separadas por vírgula, e um prefixo com vírgula " +
+      "seria cortado em dois padrões que não casam com nada — no caso de uma negação, a " +
+      "barreira sumiria em silêncio. Reescreva o prefixo sem vírgula no ExecutionProfile.",
+  );
 }
 
 /**
@@ -373,13 +397,20 @@ export function mcpArgsFor(servers: readonly McpServerSpec[] | undefined): {
   };
 }
 
-/** Os prefixos negados, que ganham do que a allow-list liberou. */
+/**
+ * Os prefixos negados, que ganham do que a allow-list liberou.
+ *
+ * Um prefixo com vírgula é recusado aqui: veja {@link assertNoComma}.
+ */
 export function deniedToolsFor(grant: ResolvedPermission["grant"]): string[] {
   if (grant === undefined) return [];
   return grant.deniedCommands
     .map((comando) => comando.trim())
     .filter((comando) => comando.length > 0)
-    .flatMap((comando) => SHELL_TOOLS.map((shell) => `${shell}(${comando}:*)`));
+    .flatMap((comando) => {
+      assertNoComma(comando, "deniedCommands");
+      return SHELL_TOOLS.map((shell) => `${shell}(${comando}:*)`);
+    });
 }
 
 /** Traduz uma linha do `--output-format stream-json` do Claude Code. */
