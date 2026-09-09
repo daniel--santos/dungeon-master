@@ -960,6 +960,25 @@ Verificação final na `main` integrada: `lint`, `typecheck` 37/37, `test` 37/37
 `gen:check` sem diff, `db:check` em dia, `format:check` limpo e **19/19 no e2e**. CI verde no
 Windows e no macOS.
 
+## Fechamento da Fase 8 (09/09/2026)
+
+**Critério de conclusão da Fase 8 cumprido**: Skills, Tools, servidores MCP, Models e Providers são registros versionados; o Equipamento é montado por referência, com pin de versão e histórico restaurável; e o capability matching com preflight decide antes de partir. Provado com Claude Code real: uma Habilidade pinada na v1 fez o resultado começar por "## Relatório" e o mesmo Equipamento sem pin, pela v2, por "## Boletim"; um Item de comando liberou `pnpm --version` que a allow-list do perfil negava; uma Relíquia do registro subiu por comando e argumentos separados e foi chamada no diário; uma Expedição com Pi partiu com os avisos de MCP e de comandos como diagnósticos; uma com Antigravity em Masmorra selada terminou `FAILED` por `CAPABILITY_BLOCKED` sem subir a CLI nem criar worktree; e o Worker logou no boot as quatro Guildas autenticadas com o motivo medido.
+
+O que entrou, em três ondas:
+
+- **8A, registros**: tabelas `skill` e `skill_version` (versões imutáveis, publicação append-only com CAS), `tool` (`COMMAND` com prefixo de argv ou `MCP_TOOL`), `mcp_server` (comando e argumentos separados, `envKeys` só com nomes, `readOnly`, `builtIn` para o Grimório), `provider` e `model.provider_id`; junções `loadout_skill` com pin, `loadout_tool` e `loadout_mcp` no lugar dos JSONB, e `loadout_version` com o snapshot de cada versão; migração `0015` com a parte de dados à mão, provada por teste que aplica o schema antigo e só então migra; `matchCapabilities` puro no domínio com sete códigos; rotas de `/skills`, `/tools`, `/mcp-servers`, `/providers`, versões e restauração do Equipamento, `GET /loadouts/{id}/preflight` e `POST /runs` recusando bloqueios com 409; `HarnessCapabilities` completo no contrato e o preflight do Worker mesclando a matriz em vez de substituir.
+- **8B, aplicação**: o Run usa só o snapshot congelado; Habilidades com conteúdo e orçamento, sempre inteiras, fora do bloco de contexto e mesmo com o contexto desligado; Itens de comando somando à allow-list do perfil; Relíquias do snapshot como servidores do Run; matching de novo na reclamação com a matriz medida neste Worker, divergência registrada e `CAPABILITY_BLOCKED` tipado; credencial por Guilda medida no boot com o comando local de cada CLI, sem chamar o modelo e sem saída bruta no log (migração `0016`: `auth_status`, `auth_checked_at`, `auth_reason`), servida em `GET /harnesses` e no preflight do Equipamento.
+- **8C, web**: Arsenal com Habilidades (versões, publicação com changelog, diff próprio), Itens, Relíquias e Patronatos só com nomes de variáveis; Equipamento por referência com pin, painel de Compatibilidade, histórico com o que mudou e restaurar; Nova Expedição bloqueada quando há impedimento e avisos como toast; cockpit com o Equipamento congelado; 22 testes de ponta a ponta.
+
+Pendências que ficam registradas:
+
+- Estado de credencial por Provider só existe pelo preflight de um Equipamento; o modo `DOCKER` não é medido no boot; o preflight `DOCKER` não mede o Antigravity.
+- `Harness.auth*` deve virar obrigatório no contrato quando as fixtures da web o conhecerem; `ProviderAuth` e `CliPreflight` sem schema nomeado na spec; um servidor MCP `HTTP` do registro não tem para onde levar `envKeys`; `MODEL_SELECTION_UNSUPPORTED` avisa também quando o Model é só o padrão da Guilda.
+- Suíte de contrato `pi@host` oscila sob carga das outras suítes; `contract-docker` depende da cota do Gemini; desligamento gracioso do Worker segue sem prova manual.
+- ADR 0003 (renomear `hero_stats` e reescrever a regra de vocabulário) continua aguardando decisão.
+
+**Fases 0 a 8 concluídas.** A Fase 9 (Autonomia e Agent-to-Agent) aguarda decisão.
+
 ## Andamento anterior da Fase 2 (histórico)
 
 Mergeadas e verdes no CI: 2A (modelo, banco, API), 2B (runtime e adapters de host; ADR em `packages/runtime-sandcastle/README.md`: os adapters não dependem do Sandcastle em runtime), o Worker (laço, reconciliação, cancelamento confirmado, shutdown gracioso, `resumeFromRunId`, marca d'água do poller) e as telas (cadastros, Nova Expedição com aceite do modo host, Expedições, Cristal de Visão com diário ao vivo e AlertDialog de cancelamento).
