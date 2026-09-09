@@ -633,3 +633,84 @@ describe("escopo e Projects novos", () => {
     expect(desbloqueadas.items.length).toBe(todas.counts.unlocked);
   });
 });
+
+describe("índices que sustentam o drain do projetor", () => {
+  async function definicaoDoIndice(nome: string): Promise<string | null> {
+    const result = await handle.pool.query<{ indexdef: string }>(
+      "select indexdef from pg_indexes where schemaname = 'public' and indexname = $1",
+      [nome],
+    );
+    return result.rows[0]?.indexdef ?? null;
+  }
+
+  // O Worker chama `projetar()` a cada tique de 1 s, e as duas consultas de
+  // drain filtram por `user_id` e ordenam por `(created_at, id)`. Sem um índice
+  // que lidere por essas colunas, cada tique custa dois seq scans mais dois
+  // sorts — um deles sobre `run_event`, a maior tabela do sistema — e o custo
+  // cresce com o histórico, não com o trabalho pendente. A terceira fonte,
+  // `dashboard_event`, ganhou o índice equivalente exatamente por isso.
+  it("activity é lida por (user_id, created_at, id)", async () => {
+    expect(await definicaoDoIndice("activity_user_created_idx")).toContain(
+      "(user_id, created_at, id)",
+    );
+  });
+
+  it("run_event é lida por (user_id, created_at, id), só onde type = 'Usage'", async () => {
+    const definicao = await definicaoDoIndice("run_event_user_created_idx");
+
+    expect(definicao).toContain("(user_id, created_at, id)");
+    // Parcial: `Usage` é o único tipo que o drain lê, e a tabela inteira teria
+    // uma ordem de grandeza a mais de linhas para indexar sem uso.
+    expect(definicao).toContain("WHERE (type = 'Usage'");
+  });
+
+  /**
+   * Existir não basta: o índice precisa **servir** à consulta que o drain faz.
+   *
+   * O `enable_seqscan = off` tira do planejador a saída que ele prefere numa
+   * tabela pequena de teste e obriga a dizer qual índice ele usaria; com a
+   * ordem de colunas errada ele cairia num índice qualquer mais um sort, e o
+   * plano diria isso.
+   */
+  async function planoDoDrain(consulta: string, parametros: unknown[]): Promise<string> {
+    const client = await handle.pool.connect();
+    try {
+      await client.query("set local enable_seqscan = off");
+      const result = await client.query<{ "QUERY PLAN": string }>(
+        `explain ${consulta}`,
+        parametros,
+      );
+      return result.rows.map((linha) => linha["QUERY PLAN"]).join("\n");
+    } finally {
+      client.release();
+    }
+  }
+
+  it("o drain de activity é servido pelo índice, sem sort", async () => {
+    const plano = await planoDoDrain(
+      `select a.id, a.created_at from activity a
+        where a.user_id = $1 and a.created_at <= $2::timestamptz
+          and (a.created_at, a.id) > ($2::timestamptz, $3::uuid)
+        order by a.created_at, a.id
+        limit 200`,
+      [USER, new Date().toISOString(), "00000000-0000-0000-0000-000000000000"],
+    );
+
+    expect(plano).toContain("activity_user_created_idx");
+    expect(plano).not.toContain("Sort");
+  });
+
+  it("o drain de run_event é servido pelo índice parcial, sem sort", async () => {
+    const plano = await planoDoDrain(
+      `select e.id, e.created_at from run_event e
+        where e.user_id = $1 and e.type = 'Usage' and e.created_at <= $2::timestamptz
+          and (e.created_at, e.id) > ($2::timestamptz, $3::uuid)
+        order by e.created_at, e.id
+        limit 200`,
+      [USER, new Date().toISOString(), "00000000-0000-0000-0000-000000000000"],
+    );
+
+    expect(plano).toContain("run_event_user_created_idx");
+    expect(plano).not.toContain("Sort");
+  });
+});

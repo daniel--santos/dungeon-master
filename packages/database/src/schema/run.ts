@@ -163,6 +163,18 @@ export const runEvents = pgTable(
   (table) => [
     unique("run_event_run_sequence_uq").on(table.runId, table.sequence),
     check("run_event_sequence_positive_ck", sql`"sequence" > 0`),
+    // O drain do projetor de Conquistas lê "do usuário X, na ordem em que
+    // aconteceu, depois deste par", e só os eventos `Usage`. O único índice
+    // desta tabela é o `UNIQUE (run_id, sequence)`, que não lidera por
+    // nenhuma dessas colunas: sem este, cada tique de 1 s do Worker é um seq
+    // scan mais um sort da **maior tabela do sistema** — uma linha por
+    // `TextDelta` de toda execução.
+    //
+    // Parcial porque `Usage` é o único tipo que o drain lê: indexar o resto
+    // custaria uma ordem de grandeza a mais de linhas sem nenhum leitor.
+    index("run_event_user_created_idx")
+      .on(table.userId, table.createdAt, table.id)
+      .where(sql`type = 'Usage'`),
   ],
 );
 
