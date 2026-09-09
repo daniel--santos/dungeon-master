@@ -145,6 +145,10 @@ export function registerRunRoutes(
     // Pede um a mais do que o limite para saber se há continuação sem contar a
     // tabela inteira: num Run longo, um `count(*)` por página custaria uma
     // varredura por leitura, e a tela não usa o total.
+    //
+    // post-mortem #10 (08/09/2026): a linha-sonda só chega porque o repositório
+    // aceita `RUN_EVENT_PAGE_LIMIT + 1`. Enquanto ele cortava no teto público,
+    // este `hasMore` era falso sempre que `limit` era o teto — o caso padrão.
     const items = await runs.events(id, { afterSequence, limit: limit + 1 });
     const hasMore = items.length > limit;
     const pagina = hasMore ? items.slice(0, limit) : items;

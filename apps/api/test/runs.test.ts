@@ -7,6 +7,7 @@ import {
   ProjectSchema,
   RunEventListSchema,
   RunEventSchema,
+  RUN_EVENT_PAGE_LIMIT,
   RunPageSchema,
   RunSchema,
   type Task,
@@ -487,6 +488,54 @@ describe(`GET ${API_BASE_PATH}/runs/{id}/events`, () => {
 
     expect(segunda.items.map((evento) => evento.sequence)).toEqual([3, 4, 5]);
     expect(segunda.hasMore).toBe(false);
+  });
+
+  it("no limite padrão, ainda avisa que há continuação", async () => {
+    // O limite padrão **é** o teto público, e é o único caso que os testes de
+    // `limit=2` e `limit=10` não alcançam: se o repositório cortar o pedido de
+    // "um a mais" no mesmo teto, `hasMore` fica preso em `false` e o consumidor
+    // que pagina por ele para na primeira página com o resto do log invisível.
+    const runId = await comEventos(RUN_EVENT_PAGE_LIMIT + 1);
+
+    const primeira = RunEventListSchema.parse(
+      await (
+        await pedir({ app, method: "GET", path: `${API_BASE_PATH}/runs/${runId}/events` })
+      ).json(),
+    );
+
+    expect(primeira.items).toHaveLength(RUN_EVENT_PAGE_LIMIT);
+    expect(primeira.lastSequence).toBe(RUN_EVENT_PAGE_LIMIT);
+    expect(primeira.hasMore).toBe(true);
+
+    const segunda = RunEventListSchema.parse(
+      await (
+        await pedir({
+          app,
+          method: "GET",
+          path: `${API_BASE_PATH}/runs/${runId}/events?after=${String(primeira.lastSequence)}`,
+        })
+      ).json(),
+    );
+
+    expect(segunda.items.map((evento) => evento.sequence)).toEqual([RUN_EVENT_PAGE_LIMIT + 1]);
+    expect(segunda.hasMore).toBe(false);
+  });
+
+  it("um limite acima do teto é reduzido e continua avisando que há mais", async () => {
+    const runId = await comEventos(RUN_EVENT_PAGE_LIMIT + 1);
+
+    const lista = RunEventListSchema.parse(
+      await (
+        await pedir({
+          app,
+          method: "GET",
+          path: `${API_BASE_PATH}/runs/${runId}/events?limit=9999`,
+        })
+      ).json(),
+    );
+
+    expect(lista.items).toHaveLength(RUN_EVENT_PAGE_LIMIT);
+    expect(lista.hasMore).toBe(true);
   });
 
   it("404 para um Run que não existe, em vez de página vazia", async () => {

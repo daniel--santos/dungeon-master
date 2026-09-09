@@ -4,6 +4,7 @@ import {
   type PingEventResponse,
   USER_SETTING_VALUE_SCHEMAS,
 } from "@dungeon-master/contracts";
+import { DASHBOARD_EVENT_PAGE_LIMIT } from "@dungeon-master/database";
 import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
@@ -64,8 +65,15 @@ import { HonoSseWriter } from "./sse/hono-writer.js";
 
 export type { DatabaseProbe } from "./ports.js";
 
-/** Páginas de replay ao abrir o stream. Igual ao teto do repositório. */
-const REPLAY_PAGE_SIZE = 500;
+/**
+ * Páginas de replay ao abrir o stream.
+ *
+ * Vem do repositório que serve o replay, e não de um `500` escrito aqui: um
+ * número copiado é uma segunda verdade que diverge no dia em que a primeira
+ * mudar — e um `REPLAY_PAGE_SIZE` colado foi exatamente o que escondeu a
+ * paginação de `GET /runs/{id}/events` (post-mortem #10).
+ */
+const REPLAY_PAGE_SIZE = DASHBOARD_EVENT_PAGE_LIMIT;
 
 export interface CreateAppOptions {
   /** Checagem de banco injetada, para que a app possa ser criada sem conexão. */
