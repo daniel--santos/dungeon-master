@@ -2,7 +2,12 @@ import { getGlossary, format, type GlossaryKey } from "@dungeon-master/glossary"
 import { describe, expect, it } from "vitest";
 
 import type { RunEvent } from "@/lib/run-events";
-import { buildTimeline, countByFilter, type TimelineLabels } from "@/lib/run-timeline";
+import {
+  buildTimeline,
+  countByFilter,
+  hasWorkflowEventAfter,
+  type TimelineLabels,
+} from "@/lib/run-timeline";
 
 /**
  * O Diário mostra o mesmo conteúdo do log, com outra densidade.
@@ -279,5 +284,37 @@ describe("eventos do motor de Workflow", () => {
     expect(rows[1]?.title).toBe(`${getGlossary("dnd")["approval.status.rejected"]} · plan`);
     expect(rows[1]?.detail).toBeNull();
     expect(countByFilter(rows.map((row, i) => event(i + 1, row.type, {}))).workflow).toBe(2);
+  });
+});
+
+/**
+ * O cockpit relê os passos e os Selos quando o motor do Ritual se mexe.
+ *
+ * O que se prova aqui é que a varredura é sobre tudo que chegou desde a última
+ * releitura: no replay, um lote inteiro entra na mesma renderização, e olhar só
+ * o último evento perde o `StepFinished` que veio antes de um `TextDelta`.
+ */
+describe("hasWorkflowEventAfter", () => {
+  it("enxerga o evento do motor no meio do lote, e não só o último", () => {
+    const lote = [
+      event(1, "RunStarted", {}),
+      event(2, "StepFinished", { stepKey: "analyze" }),
+      event(3, "TextDelta", { text: "seguindo…" }),
+    ];
+
+    expect(hasWorkflowEventAfter(lote, 0)).toBe(true);
+  });
+
+  it("um lote sem evento do motor não provoca releitura", () => {
+    const lote = [event(1, "TextDelta", { text: "oi" }), event(2, "Usage", {})];
+
+    expect(hasWorkflowEventAfter(lote, 0)).toBe(false);
+  });
+
+  it("o que já foi processado não conta de novo", () => {
+    const lote = [event(1, "StepFinished", { stepKey: "analyze" }), event(2, "TextDelta", {})];
+
+    expect(hasWorkflowEventAfter(lote, 1)).toBe(false);
+    expect(hasWorkflowEventAfter(lote, 0)).toBe(true);
   });
 });

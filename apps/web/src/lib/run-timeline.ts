@@ -354,6 +354,21 @@ export function countByFilter(events: readonly RunEvent[]): Record<EventFilterId
   return counts;
 }
 
+/**
+ * Se algum evento do motor de Workflow chegou depois de `sequence`.
+ *
+ * O cockpit usa isto para reler passos e Selos assim que o motor se mexe. A
+ * varredura é sobre tudo que entrou desde a última releitura, e não sobre o
+ * último evento: no replay (`acceptMany`) um lote inteiro entra na mesma
+ * renderização, e um `StepFinished` seguido de um `TextDelta` do agente ficaria
+ * invisível.
+ */
+export function hasWorkflowEventAfter(events: readonly RunEvent[], sequence: number): boolean {
+  return events.some(
+    (event) => event.sequence > sequence && eventPresentation(event.type).group === "workflow",
+  );
+}
+
 export function buildTimeline(
   events: readonly RunEvent[],
   { labels, filter = "all" }: BuildTimelineOptions,
