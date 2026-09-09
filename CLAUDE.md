@@ -73,8 +73,9 @@ Aplicadas pelo ESLint em `eslint.config.mjs`. Quebrar qualquer uma falha em `pnp
   direto. Código de teste (`**/*.test.*`, `test/`, `e2e/`) está fora da regra.
 - **`packages/domain`** não importa banco, ORM, HTTP, logger, runtime de agente nem
   builtins do Node. O domínio computa; a infraestrutura entra por injeção de contrato.
-- **`packages/runtime`** (quando existir) não importa `packages/database`; recebe o store
-  por contrato.
+- **`packages/runtime`**, e os adapters `runtime-sandcastle` e `runtime-antigravity`, não
+  importam `packages/database`, ORM, HTTP nem logger; o store entra por injeção de
+  contrato.
 - **`packages/workflow`** segue a mesma linha do runtime: não importa `packages/database`
   nem `packages/events`; persistência, runtime de agente, executor de processo e relógio
   entram pelas portas de `ports.ts`, e o Worker faz a fiação com os repositórios reais.
