@@ -272,7 +272,18 @@ export async function startTestPostgres(
     );
     // No Windows, arquivos de um processo que acabou de sair podem ficar
     // travados por alguns milissegundos; as tentativas cobrem isso.
-    rmSync(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    //
+    // post-mortem #25 (2026-09-09): no runner do Windows o diretório de dados
+    // continuou travado (EPERM) depois das tentativas, o `rmSync` lançou dentro
+    // do teardown do vitest e a suíte do Worker saiu com código 1 com todos os
+    // testes verdes. Apagar o temporário é cortesia, não contrato: a falha vira
+    // aviso e nunca reprova uma suíte que passou.
+    try {
+      rmSync(dataDir, { recursive: true, force: true, maxRetries: 25, retryDelay: 200 });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[test-postgres] não consegui apagar ${dataDir}: ${message}`);
+    }
   };
 
   try {
