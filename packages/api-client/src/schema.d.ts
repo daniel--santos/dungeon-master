@@ -7247,6 +7247,18 @@ export interface components {
              * @description Último preflight, em UTC (ISO 8601). Nulo enquanto ninguém checou.
              */
             checkedAt: string | null;
+            /**
+             * @description A credencial da CLI nesta máquina, pelo último boot do Worker.
+             * @enum {string|null}
+             */
+            authStatus?: "AUTHENTICATED" | "NOT_AUTHENTICATED" | "UNKNOWN" | null;
+            /**
+             * Format: date-time
+             * @description Quando a credencial foi medida, em UTC. Nulo enquanto nenhum Worker mediu.
+             */
+            authCheckedAt?: string | null;
+            /** @description Como o estado foi medido, numa frase sem segredo: o comando e o que respondeu. */
+            authReason?: string | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -7770,6 +7782,14 @@ export interface components {
                 installedVersion: string | null;
                 /** Format: date-time */
                 checkedAt: string | null;
+                /**
+                 * @description A credencial da CLI no host, gravada pelo Worker no último boot (Fase 8B). Nulo enquanto nenhum Worker mediu; é o complemento de `cli`, que é medido na chamada.
+                 * @enum {string|null}
+                 */
+                authStatus: "AUTHENTICATED" | "NOT_AUTHENTICATED" | "UNKNOWN" | null;
+                /** Format: date-time */
+                authCheckedAt: string | null;
+                authReason: string | null;
             };
             executionProfile: {
                 /** Format: uuid */
@@ -7808,6 +7828,8 @@ export interface components {
                 version: string | null;
                 /** @description Resultado da checagem de credencial do adapter. Nulo quando ela não existe. */
                 authenticated: boolean | null;
+                /** @description Como o adapter chegou a `authenticated`, numa frase sem segredo (Fase 8B): o comando local e o que ele respondeu. Nulo quando não houve checagem. */
+                authReason: string | null;
                 /** @description O adapter não respondeu dentro do teto. */
                 timedOut: boolean;
                 problems: components["schemas"]["PreflightProblem"][];
@@ -8680,7 +8702,7 @@ export interface components {
             createdAt: string;
         };
         /**
-         * @description `ASSEMBLED` tem texto; `EMPTY` montou e não achou nada; `DISABLED` a configuração `context.enabled` estava desligada; `FAILED` a montagem falhou e o Run seguiu sem contexto.
+         * @description `ASSEMBLED` tem texto; `EMPTY` montou e não achou nada; `DISABLED` a configuração `context.enabled` estava desligada e o Loadout não tinha Habilidades (com Habilidades elas entram, e o registro é `ASSEMBLED` com `policy.enabled` falso); `FAILED` a montagem falhou e o Run seguiu sem contexto do Grimório — só com as Habilidades, quando há.
          * @enum {string}
          */
         RunContextStatus: "ASSEMBLED" | "EMPTY" | "DISABLED" | "FAILED";
@@ -8704,7 +8726,7 @@ export interface components {
         ContextSectionKind: "SUMMARY" | "DECISIONS" | "KNOWLEDGE" | "LINEAGE" | "ARTIFACTS" | "SKILLS";
         /** @description Um item incluído no contexto, com o motivo. */
         ContextItem: {
-            /** @description Id da origem: o KnowledgeItem, a Task, `<runId>:<posição>` do artefato ou o nome da skill. */
+            /** @description Id da origem: o KnowledgeItem, a Task, `<runId>:<posição>` do artefato ou a Skill (o nome, em Runs anteriores à Fase 8). */
             id: string;
             kind: components["schemas"]["ContextItemKind"];
             /** @description Título, já sanitizado, como aparece no texto. */
