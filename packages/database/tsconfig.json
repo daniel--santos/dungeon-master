@@ -2,7 +2,12 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": ".",
-    "outDir": "dist"
+    "outDir": "dist",
+    // post-mortem #23 (08/09/2026): mesmo caso de `apps/api/tsconfig.json`. Aqui
+    // os builtins são `node:url` (`src/migrate.ts`), `process.env` (`src/env.ts`)
+    // e `node:child_process`/`node:crypto`/`node:fs`/`node:module`
+    // (`src/testing/embedded-postgres.ts`). Não remova.
+    "types": ["node"]
   },
   "include": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts", "drizzle.config.ts"]
 }
