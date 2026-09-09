@@ -59,8 +59,14 @@ export function useDockerPreflight(): UseQueryResult<DockerPreflightRecord> {
   });
 }
 
-/** Tudo que um Loadout referencia muda o que a tela de Equipamentos mostra. */
-function invalidateExecution(queryClient: ReturnType<typeof useQueryClient>): void {
+/**
+ * Tudo que um Loadout referencia muda o que a tela de Equipamentos mostra.
+ *
+ * Exportada porque o despachante do SSE (`lib/live.ts`) precisa exatamente
+ * deste conjunto quando um cadastro muda em outra aba: duas listas de chaves
+ * divergiriam na primeira adição.
+ */
+export function invalidateExecution(queryClient: ReturnType<typeof useQueryClient>): void {
   for (const key of Object.values(executionKeys)) {
     void queryClient.invalidateQueries({ queryKey: key });
   }
