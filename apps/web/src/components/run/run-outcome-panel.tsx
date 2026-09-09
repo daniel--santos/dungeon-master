@@ -41,7 +41,12 @@ export function RunOutcomePanel({ run }: { run: RunRecord }) {
   const learned = candidates.data?.items ?? [];
   const learnedTotal = candidates.data?.total ?? 0;
 
-  if (mine.length === 0 && learnedTotal === 0) return null;
+  // Esconder o painel é uma afirmação: "esta Expedição não propôs nada e não
+  // aprendeu nada". Com a leitura falhando, as duas listas também chegam
+  // vazias, e a afirmação vira mentira — então o erro é dito, como fazem os
+  // painéis vizinhos.
+  const failed = proposals.isError || candidates.isError;
+  if (!failed && mine.length === 0 && learnedTotal === 0) return null;
 
   return (
     <Panel className="flex flex-col gap-3 px-5 py-4" data-run-outcome>
@@ -63,6 +68,18 @@ export function RunOutcomePanel({ run }: { run: RunRecord }) {
           </Link>
         )}
       </div>
+
+      {proposals.isError && (
+        <p className="text-destructive m-0 text-[12.5px]" data-run-outcome-error="proposals">
+          {proposals.error.message}
+        </p>
+      )}
+
+      {candidates.isError && (
+        <p className="text-destructive m-0 text-[12.5px]" data-run-outcome-error="candidates">
+          {candidates.error.message}
+        </p>
+      )}
 
       {mine.length > 0 && (
         <div className="flex flex-col gap-1.5" data-run-outcome-proposals={mine.length}>
