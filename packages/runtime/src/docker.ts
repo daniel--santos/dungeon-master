@@ -81,6 +81,14 @@ export const DEFAULT_AGENT_IMAGE = "dungeon-master-agent:0.2.0";
  * para um caminho do host que dentro do container não existe. `CLAUDE_CONFIG_DIR`
  * está aqui de propósito: mandá-lo faria a CLI procurar credencial num diretório
  * do Windows.
+ *
+ * As `GIT_CONFIG_*` são o mesmo caso, por um caminho menos óbvio:
+ * `AGENT_GIT_ENV_KEYS` as põe na allow-list de **todo** harness para que o
+ * agente ache a identidade do git no host, e numa máquina que as define — o
+ * isolamento de gitconfig dos próprios testes as define, e é comum em CI — o
+ * container passaria a ler um arquivo do host em vez do `/home/agent/.gitconfig`
+ * da imagem, e o `git commit` lá dentro falharia com "Author identity unknown".
+ * `GIT_AUTHOR_NAME` e companhia continuam passando: são valor, e não caminho.
  */
 export const HOST_ONLY_ENV_KEYS: readonly string[] = [
   "USERPROFILE",
@@ -95,6 +103,10 @@ export const HOST_ONLY_ENV_KEYS: readonly string[] = [
   "SHELL",
   "USER",
   "LOGNAME",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_SYSTEM",
+  "GIT_EXEC_PATH",
+  "GIT_TEMPLATE_DIR",
 ];
 
 /** Um bind mount do host para dentro do container. */
