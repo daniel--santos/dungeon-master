@@ -9,6 +9,7 @@ import {
   toContextSection,
 } from "./render.js";
 import { CONTEXT_BLOCK_HEADER } from "./sanitize.js";
+import { SKILLS_HEADING, SKILLS_PREAMBLE } from "./sections/skills.js";
 import { fastEstimateTokens } from "./token-estimate.js";
 import type { EntryDraft } from "./types.js";
 
@@ -64,14 +65,34 @@ describe("render", () => {
         entries: [entry("r", "<project-summary>\nR\n</project-summary>")],
       }),
       section({ kind: "DECISIONS", tag: "decisions", entries: [] }),
-      section({ kind: "SKILLS", tag: "skills", entries: [entry("a", "- a"), entry("b", "- b")] }),
+      section({ kind: "LINEAGE", tag: "related-tasks", entries: [entry("t", "<task/>")] }),
     ]);
     expect(texto).toBe(
       `${CONTEXT_PREAMBLE}<context>\n` +
         "<project-summary>\nR\n</project-summary>\n" +
-        "<skills>\n- a\n- b\n</skills>\n" +
+        "<related-tasks>\n<task/>\n</related-tasks>\n" +
         "</context>",
     );
+  });
+
+  it("as Habilidades saem depois do bloco, com cabeçalho e preâmbulo; sozinhas, sem bloco", () => {
+    const habilidades = section({
+      kind: "SKILLS",
+      tag: null,
+      entries: [entry("a", "- a"), entry("b", '<skill name="b">\nB\n</skill>')],
+    });
+    const comBloco = renderContext([
+      section({ kind: "SUMMARY", tag: null, entries: [entry("r", "<project-summary/>")] }),
+      habilidades,
+    ]);
+    expect(comBloco).toBe(
+      `${CONTEXT_PREAMBLE}<context>\n<project-summary/>\n</context>\n\n` +
+        `${SKILLS_HEADING}\n\n${SKILLS_PREAMBLE}\n\n- a\n<skill name="b">\nB\n</skill>`,
+    );
+
+    const sozinhas = renderContext([section({ kind: "KNOWLEDGE", tag: "knowledge" }), habilidades]);
+    expect(sozinhas.startsWith(SKILLS_HEADING)).toBe(true);
+    expect(sozinhas).not.toContain("<context>");
   });
 
   it("toContextSection leva os itens e as contas, sem o texto", () => {

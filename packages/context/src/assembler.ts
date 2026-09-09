@@ -12,7 +12,7 @@ import { buildLineageSection } from "./sections/lineage.js";
 import { buildSkillsSection } from "./sections/skills.js";
 import { buildSummarySection } from "./sections/summary.js";
 import { fastEstimateTokens } from "./token-estimate.js";
-import type { AssembleRunContextInput, SectionDraft } from "./types.js";
+import type { AssembleRunContextInput, SectionDraft, SkillSource } from "./types.js";
 
 /**
  * O montador (planejamento v0.4, Fase 7: `ContextAssembler`).
@@ -23,13 +23,21 @@ import type { AssembleRunContextInput, SectionDraft } from "./types.js";
  * produz o mesmo `RunContext`, e o mesmo texto.
  *
  * As seções entram na ordem fixa — resumo, decisões, páginas, linhagem,
- * artefatos, skills — e só as que a política permite são consultadas. As
+ * artefatos, Habilidades — e só as que a política permite são consultadas. As
  * portas são lidas em série: dentro de uma transação elas partilhariam a
  * mesma conexão, e o `pg` não aceita duas consultas ao mesmo tempo nela.
  *
  * **Nunca lança.** Uma porta que falha vira `FAILED`, com o erro no registro
- * e o texto vazio: o Run segue sem contexto, e o diário diz por quê. Um
- * contexto parcial em silêncio seria pior que nenhum.
+ * e sem nenhuma seção que veio de porta: o Run segue sem contexto do
+ * Grimório, e o diário diz por quê. Um contexto parcial em silêncio seria
+ * pior que nenhum.
+ *
+ * **As Habilidades não vêm de porta** (Fase 8B): são o conteúdo congelado no
+ * snapshot do Loadout, montadas antes de qualquer consulta. Por isso elas
+ * entram mesmo com o Context Engine desligado — o registro sai `ASSEMBLED`
+ * com `policy.enabled` falso e só a seção delas — e mesmo quando uma porta
+ * falha. Um interruptor de recuperação e uma queda do banco não podem apagar
+ * uma instrução que o usuário prendeu ao Loadout.
  */
 export async function assembleRunContext(
   input: AssembleRunContextInput,
@@ -37,26 +45,34 @@ export async function assembleRunContext(
 ): Promise<RunContext> {
   const policy = resolveContextPolicy(input);
   const base = baseRecord(input, policy);
+  const budget = { totalTokens: policy.budgetTokens, frameTokens: frameTokens() };
+  const skills = buildSkillsSection(skillSources(input.loadout));
 
   if (!policy.enabled) {
-    return { ...base, status: "DISABLED" };
+    if (skills.entries.length === 0) return { ...base, status: "DISABLED" };
+    return finish(base, null, applyBudget([skills], budget));
   }
 
   try {
     const query = buildFtsQuery(`${input.task.title}\n${input.task.description ?? ""}`);
     const drafts = await collectSections(input, policy, query, store);
-    const outcome = applyBudget(drafts, {
-      totalTokens: policy.budgetTokens,
-      frameTokens: frameTokens(),
-    });
+    const outcome = applyBudget([...drafts, skills], budget);
     return finish(base, query, outcome);
   } catch (error) {
+    const mensagem = error instanceof Error ? error.message : String(error);
+    if (skills.entries.length === 0) return { ...base, status: "FAILED", error: mensagem };
     return {
-      ...base,
+      ...finish(base, null, applyBudget([skills], budget)),
       status: "FAILED",
-      error: error instanceof Error ? error.message : String(error),
+      error: mensagem,
     };
   }
+}
+
+/** As Habilidades com conteúdo quando o snapshot as tem; só os nomes quando não. */
+function skillSources(loadout: AssembleRunContextInput["loadout"]): readonly SkillSource[] {
+  if (loadout.skillVersions !== undefined) return loadout.skillVersions;
+  return loadout.skills.map((name) => ({ name }));
 }
 
 async function collectSections(
@@ -65,7 +81,7 @@ async function collectSections(
   query: string | null,
   store: ContextStore,
 ): Promise<SectionDraft[]> {
-  const { task, run, loadout } = input;
+  const { task, run } = input;
   const drafts: SectionDraft[] = [];
 
   if (policy.includeProjectSummary) {
@@ -104,8 +120,6 @@ async function collectSections(
       }),
     );
   }
-  drafts.push(buildSkillsSection(loadout.skills));
-
   return drafts;
 }
 

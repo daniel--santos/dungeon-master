@@ -135,25 +135,48 @@ describe("applyBudget — corte por prioridade", () => {
     expect([...posicoes].sort((a, b) => a - b)).toEqual(posicoes);
     expect(excluded.every((e) => e.reason === "TOTAL_BUDGET")).toBe(true);
 
-    // Skills nunca saem; o resumo só encolhe depois de tudo o mais.
+    // O corte parou antes das Habilidades e do resumo: as seções que vêm
+    // antes na ordem bastaram para caber.
     expect(sections.find((s) => s.kind === "SKILLS")?.entries).toHaveLength(1);
     const resumo = sections.find((s) => s.kind === "SUMMARY");
     expect(resumo?.entries).toHaveLength(1);
     expect(budget.sections.SUMMARY).toBe(SUMMARY_MIN_TOKENS);
   });
 
-  it("encolhe o resumo até o piso, e para ali mesmo que o total continue acima", () => {
+  it("as Habilidades saem por último entre as seções, inteiras e da última para a primeira", () => {
     const drafts: SectionDraft[] = [
       section("SUMMARY", [entry("resumo", 290, true)], null),
-      section("SKILLS", [entry("s1", 50)]),
+      section("SKILLS", [entry("s1", 20), entry("s2", 20)], null),
     ];
-    // Total 320 com moldura 0: o resumo (290) cabe no teto dele (o piso, 300),
-    // as skills cabem no delas, e a soma passa de 320. O corte chegaria ao
-    // resumo, mas ele já está abaixo do piso: nada sai, e o piso vence.
+    // Total 320 com moldura 0: o resumo (290) cabe no teto dele (o piso, 300)
+    // e as duas Habilidades cabem no delas, mas a soma, com o cabeçalho das
+    // Habilidades, passa de 320. O corte esvazia as Habilidades da última
+    // para a primeira, uma por vez, até caber — e o resumo fica inteiro.
     const { sections, excluded } = applyBudget(drafts, { totalTokens: 320, frameTokens: 0 });
-    expect(excluded).toEqual([]);
+    expect(excluded.map((e) => [e.section, e.item.id, e.reason])).toEqual([
+      ["SKILLS", "s2", "TOTAL_BUDGET"],
+      ["SKILLS", "s1", "TOTAL_BUDGET"],
+    ]);
     expect(sections.find((s) => s.kind === "SUMMARY")?.entries[0]?.item.tokens).toBe(290);
-    expect(sections.find((s) => s.kind === "SKILLS")?.entries).toHaveLength(1);
+    const habilidades = sections.find((s) => s.kind === "SKILLS");
+    expect(habilidades?.entries).toEqual([]);
+    expect(habilidades?.tokens).toBe(0);
+    expect(habilidades?.truncated).toBe(true);
+  });
+
+  it("uma Habilidade que não cabe no teto da seção sai inteira, e as seguintes com ela", () => {
+    const drafts: SectionDraft[] = [
+      section("SKILLS", [entry("s1", 100), entry("s2", 5_000), entry("s3", 10)], null),
+    ];
+    const { sections, excluded } = applyBudget(drafts, { totalTokens: 6_000, frameTokens: 0 });
+    // Teto das Habilidades: 15% de 6000 = 900. A segunda não cabe e não é
+    // cortada (`truncatable: false`); a terceira fica de fora pela posição.
+    expect(sections[0]?.entries.map((e) => e.item.id)).toEqual(["s1"]);
+    expect(sections[0]?.entries[0]?.item.truncated).toBe(false);
+    expect(excluded.map((e) => [e.item.id, e.reason])).toEqual([
+      ["s2", "SECTION_BUDGET"],
+      ["s3", "SECTION_BUDGET"],
+    ]);
   });
 });
 
