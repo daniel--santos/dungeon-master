@@ -46,6 +46,8 @@ export const HARNESS: HarnessRecord = {
     nativePermissions: true,
     hostExecution: true,
     dockerExecution: true,
+    forkSession: true,
+    mcpServers: true,
   },
   installedVersion: "claude 2.1.263",
   checkedAt: NOW,
@@ -94,6 +96,19 @@ export const LOADOUT: LoadoutRecord = {
   harnessId: HARNESS.id,
   modelId: null,
   executionProfileId: HOST_PROFILE.id,
+  skillRefs: [
+    {
+      skillId: "0199aaaa-0000-7000-8000-000000000001",
+      name: "Testes de plataforma",
+      pinnedVersion: null,
+      latestVersion: 1,
+    },
+  ],
+  toolRefs: [
+    { toolId: "0199bbbb-0000-7000-8000-000000000001", name: "Ler", kind: "COMMAND" },
+    { toolId: "0199bbbb-0000-7000-8000-000000000002", name: "Editar", kind: "COMMAND" },
+  ],
+  mcpServerRefs: [],
   skills: ["Testes de plataforma"],
   tools: ["Ler", "Editar"],
   mcpServers: [],

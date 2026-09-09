@@ -459,6 +459,7 @@ export const dnd: Record<GlossaryKey, string> = {
   "harness.capability.streaming": "Saída incremental",
   "harness.capability.structuredOutput": "Saída estruturada",
   "harness.capability.resume": "Retomar",
+  "harness.capability.forkSession": "Retomar em ramo novo",
   "harness.capability.multiTurnProcess": "Processo de vários turnos",
   "harness.capability.toolEvents": "Eventos de Item",
   "harness.capability.tokenUsage": "Uso de tokens",
@@ -472,6 +473,7 @@ export const dnd: Record<GlossaryKey, string> = {
   // fica e nenhuma tela consegue mostrar "Campo aberto" sem o aviso.
   "harness.capability.hostExecution": `Campo aberto (${SEM_ISOLAMENTO})`,
   "harness.capability.dockerExecution": "Masmorra selada",
+  "harness.capability.mcpServers": "Relíquias por Expedição",
 
   // ------------------------------------------------------------------ hero
   "hero.xp": "Experiência",

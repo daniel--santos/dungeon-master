@@ -100,6 +100,8 @@ const LOADOUT = {
       nativePermissions: true,
       hostExecution: true,
       dockerExecution: true,
+      forkSession: true,
+      mcpServers: true,
     },
   },
   model: null,

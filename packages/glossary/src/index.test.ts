@@ -102,8 +102,8 @@ describe("decisões de UX da Fase 2", () => {
     }
   });
 
-  it("cobre os onze campos de HarnessCapabilities", () => {
-    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("harness.capability."))).toHaveLength(11);
+  it("cobre os treze campos de HarnessCapabilities", () => {
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("harness.capability."))).toHaveLength(13);
   });
 
   it("cobre as três estratégias de workspace", () => {
