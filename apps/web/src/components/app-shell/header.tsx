@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 
 import { PALETTE_SHORTCUT } from "@/components/app-shell/command-palette";
-import { NAV_ITEMS } from "@/components/app-shell/navigation";
+import { navItemFor } from "@/components/app-shell/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,7 +35,7 @@ export interface HeaderProps {
 export function Header({ onOpenPalette }: HeaderProps) {
   const { t } = useGlossary();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const current = NAV_ITEMS.find((item) => item.to !== "/" && pathname.startsWith(item.to));
+  const current = navItemFor(pathname);
   const user = t("entity.user");
 
   return (

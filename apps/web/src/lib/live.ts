@@ -3,6 +3,7 @@ import { useEffect } from "react";
 
 import { useEventsStore } from "@/lib/events";
 import { invalidateExecution } from "@/lib/execution";
+import { invalidateRegistry } from "@/lib/registry";
 
 /**
  * Os prefixos de `RegistryEventType` que não são de Workflow.
@@ -75,6 +76,15 @@ export function useLiveQueries(): void {
         // Criar, editar ou apagar um Workflow muda a lista, o detalhe e as
         // escolhas que a Task oferece.
         void queryClient.invalidateQueries({ queryKey: ["workflows"] });
+        return;
+      }
+
+      if (event.type === "registry.changed") {
+        // Os quatro registros da Fase 8A saem num tipo só, com `kind` no
+        // payload. A invalidação é dos quatro de uma vez, mais os cadastros
+        // de execução: um Loadout mostra o nome e o `latestVersion` de cada
+        // Skill, e uma Skill publicada muda o que o pin oferece.
+        invalidateRegistry(queryClient);
         return;
       }
 

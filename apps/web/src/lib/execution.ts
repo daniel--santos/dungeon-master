@@ -38,6 +38,15 @@ export const executionKeys = {
 };
 
 /**
+ * O prefixo das versões de Loadout (Fase 8A), que moram em `lib/registry.ts`.
+ *
+ * Definido aqui, e não lá, porque salvar um Loadout grava uma versão nova e
+ * `invalidateExecution` precisa derrubar o histórico junto — e `registry.ts`
+ * importa este arquivo, não o contrário.
+ */
+export const LOADOUT_VERSIONS_KEY = ["registry", "loadout-versions"] as const;
+
+/**
  * O preflight do backend Docker, sob demanda.
  *
  * Desligado até alguém chamar `refetch`: a API mede na hora, subindo um
@@ -70,6 +79,7 @@ export function invalidateExecution(queryClient: ReturnType<typeof useQueryClien
   for (const key of Object.values(executionKeys)) {
     void queryClient.invalidateQueries({ queryKey: key });
   }
+  void queryClient.invalidateQueries({ queryKey: LOADOUT_VERSIONS_KEY });
 }
 
 /* -------------------------------------------------------------- Agents */
