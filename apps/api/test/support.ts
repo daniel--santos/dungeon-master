@@ -1,4 +1,8 @@
-import { type DatabaseHandle, LOCAL_USER_ID } from "@dungeon-master/database";
+import {
+  type DatabaseHandle,
+  LOCAL_USER_ID,
+  seedExecutionRegistry,
+} from "@dungeon-master/database";
 
 import { type App, createApp } from "../src/app.js";
 import {
@@ -7,7 +11,7 @@ import {
   createRunEventsRuntime,
 } from "../src/composition.js";
 import { createWorkPort } from "../src/composition.js";
-import { createSpecPorts } from "../src/ports.js";
+import { createSpecPorts, type LoadoutPreflightPort } from "../src/ports.js";
 
 /**
  * Fiação compartilhada dos testes de Project, Task, Inbox e execução.
@@ -27,7 +31,10 @@ import { createSpecPorts } from "../src/ports.js";
  * A verificação de que a mudança e o `dashboard_event` saem na mesma transação
  * é feita lendo a tabela, e não pelo stream: é a tabela que prova o COMMIT.
  */
-export function criarApp(handle: DatabaseHandle): App {
+export function criarApp(
+  handle: DatabaseHandle,
+  options: { loadoutPreflight?: LoadoutPreflightPort } = {},
+): App {
   const inertes = createSpecPorts();
 
   const runEvents = createRunEventsRuntime({
@@ -43,7 +50,14 @@ export function criarApp(handle: DatabaseHandle): App {
     events: inertes.events,
     settings: inertes.settings,
     work: createWorkPort({ db: handle.db, userId: LOCAL_USER_ID }),
-    execution: createExecutionPort({ db: handle.db, userId: LOCAL_USER_ID, runEvents }),
+    execution: createExecutionPort({
+      db: handle.db,
+      userId: LOCAL_USER_ID,
+      runEvents,
+      ...(options.loadoutPreflight === undefined
+        ? {}
+        : { loadoutPreflight: options.loadoutPreflight }),
+    }),
     achievements: inertes.achievements,
     hall: createAchievementsPort({ db: handle.db, userId: LOCAL_USER_ID }),
     pingEnabled: false,
@@ -55,7 +69,9 @@ export function criarApp(handle: DatabaseHandle): App {
  *
  * `harness` e `execution_profile` ficam: são semente do `db:seed`, não massa de
  * teste, e apagá-los deixaria os testes seguintes sem o vocabulário que a
- * aplicação precisa para criar um Loadout.
+ * aplicação precisa para criar um Loadout. Os registros da Fase 8A são apagados
+ * inteiros e semeados de novo pela mesma função do `db:seed`: parte é semente
+ * (as Tools de git, os Providers, o `knowledge` builtIn) e parte é massa.
  *
  * SQL cru pelo pool, e não Drizzle: `apps/api` não importa o ORM — quem fala
  * com ele é `@dungeon-master/database`, e um import de `drizzle-orm` aqui só
@@ -87,10 +103,16 @@ export async function limparTudo(handle: DatabaseHandle): Promise<void> {
     "workflow_version",
     "workflow",
     "project",
+    "skill_version",
+    "skill",
+    "tool",
+    "mcp_server",
+    "provider",
     "dashboard_event",
   ]) {
     await handle.pool.query(`delete from ${tabela} where user_id = $1`, [LOCAL_USER_ID]);
   }
+  await seedExecutionRegistry(handle.db, { userId: LOCAL_USER_ID });
 }
 
 /** Os tipos dos eventos de dashboard gravados, na ordem da `sequence`. */

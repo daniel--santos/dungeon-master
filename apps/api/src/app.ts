@@ -16,7 +16,9 @@ import { API_BASE_PATH, API_VERSION } from "./config.js";
 import { registerAchievementRoutes } from "./handlers/achievements.js";
 import { registerInboxRoutes } from "./handlers/inbox.js";
 import { registerKnowledgeRoutes } from "./handlers/knowledge.js";
+import { registerMcpServerRoutes } from "./handlers/mcp-servers.js";
 import { registerPreflightRoutes } from "./handlers/preflight.js";
+import { registerProviderRoutes } from "./handlers/providers.js";
 import { registerProjectRoutes } from "./handlers/projects.js";
 import {
   registerKnowledgeCandidateRoutes,
@@ -30,8 +32,10 @@ import {
   registerModelRoutes,
 } from "./handlers/registry.js";
 import { registerRunRoutes, resolveStreamCursor } from "./handlers/runs.js";
+import { registerSkillRoutes } from "./handlers/skills.js";
 import { registerTaskGraphRoutes } from "./handlers/task-graph.js";
 import { registerTaskRoutes } from "./handlers/tasks.js";
+import { registerToolRoutes } from "./handlers/tools.js";
 import {
   registerApprovalGateRoutes,
   registerRunWorkflowRoutes,
@@ -349,6 +353,14 @@ export function createApp(options: CreateAppOptions) {
   registerExecutionProfileRoutes(app, options.execution.executionProfiles);
   registerLoadoutRoutes(app, options.execution.loadouts);
   registerPreflightRoutes(app, options.execution.dockerPreflight);
+
+  // -------------------------------------------- Registros da Fase 8A
+
+  registerSkillRoutes(app, options.execution.skills);
+  registerToolRoutes(app, options.execution.tools);
+  registerMcpServerRoutes(app, options.execution.mcpServers);
+  registerProviderRoutes(app, options.execution.providers);
+
   registerRunRoutes(app, options.execution.runs, logger === undefined ? {} : { logger });
 
   // ------------------------------------------------------------- Workflow
@@ -382,6 +394,11 @@ export function createApp(options: CreateAppOptions) {
       {
         name: "execution",
         description: "Cadastros de execução: Harness, Model, Agent, ExecutionProfile e Loadout.",
+      },
+      {
+        name: "registry",
+        description:
+          "Registros versionados da Fase 8A: Skill (com versões), Tool, servidor MCP e Provider.",
       },
       { name: "runs", description: "Runs: as tentativas concretas de realizar uma Task." },
       { name: "workflows", description: "Workflows: o processo de uma execução, como dados." },

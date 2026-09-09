@@ -44,6 +44,9 @@ importers:
       '@dungeon-master/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@dungeon-master/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@dungeon-master/events':
         specifier: workspace:*
         version: link:../../packages/events
@@ -53,6 +56,9 @@ importers:
       '@dungeon-master/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
+      '@dungeon-master/runtime-antigravity':
+        specifier: workspace:*
+        version: link:../../packages/runtime-antigravity
       '@dungeon-master/runtime-sandcastle':
         specifier: workspace:*
         version: link:../../packages/runtime-sandcastle

@@ -10,7 +10,11 @@ import {
   HarnessListSchema,
   HarnessSchema,
   LoadoutListSchema,
+  LoadoutPreflightQuerySchema,
+  LoadoutPreflightSchema,
   LoadoutSchema,
+  LoadoutVersionListQuerySchema,
+  LoadoutVersionPageSchema,
   ModelListQuerySchema,
   ModelListSchema,
   ModelSchema,
@@ -43,6 +47,14 @@ const problem = (description: string) => ({
 
 export const IdParamSchema = z.object({
   id: z.uuid().describe("UUIDv7 do registro."),
+});
+
+export const LoadoutVersionParamSchema = z.object({
+  id: z.uuid().describe("UUIDv7 do Loadout."),
+  version: z
+    .string()
+    .regex(/^[1-9]\d{0,8}$/, "A versão é um inteiro positivo em base decimal.")
+    .describe("O número da versão a restaurar."),
 });
 
 // ------------------------------------------------------------------ harnesses
@@ -364,7 +376,10 @@ export const loadoutsCreateRoute = createRoute({
   tags: ["execution"],
   summary: "Cria um Loadout",
   description:
-    "Nasce em `version: 1`. Agent, Harness e ExecutionProfile precisam existir e estar ligados.",
+    "Nasce em `version: 1`. Agent, Harness e ExecutionProfile precisam existir e estar ligados. " +
+    "Skills, Tools e servidores MCP entram por referência (`skillRefs`, `toolIds`, " +
+    "`mcpServerIds`) ou na forma curta (`skills`, `tools`, `mcpServers`), resolvida pelo nome; " +
+    "as duas formas na mesma coleção são recusadas.",
   request: {
     body: { required: true, content: { "application/json": { schema: CreateLoadoutSchema } } },
   },
@@ -375,7 +390,10 @@ export const loadoutsCreateRoute = createRoute({
     },
     400: problem("Corpo inválido."),
     404: problem("Alguma das referências informadas não existe."),
-    409: problem("Nome já usado, Harness ou perfil desligado, ou Model de outro Harness."),
+    409: problem(
+      "Nome já usado, Harness ou perfil desligado, Model de outro Harness, pin para versão " +
+        "inexistente, ou as duas formas de referência na mesma coleção.",
+    ),
   },
 });
 
@@ -416,5 +434,67 @@ export const loadoutsDeleteRoute = createRoute({
     204: { description: "Loadout apagado." },
     404: problem("Não existe Loadout com este id."),
     409: problem("Algum Run ainda referencia este Loadout."),
+  },
+});
+
+export const loadoutVersionsListRoute = createRoute({
+  method: "get",
+  path: `${API_BASE_PATH}/loadouts/{id}/versions`,
+  tags: ["execution"],
+  summary: "As versões guardadas do Loadout",
+  description:
+    "Da mais recente para a mais antiga. Cada uma traz a definição por referências daquele " +
+    "número: ids, pins e políticas, nunca conteúdo.",
+  request: { params: IdParamSchema, query: LoadoutVersionListQuerySchema },
+  responses: {
+    200: {
+      description: "Uma página de versões.",
+      content: { "application/json": { schema: LoadoutVersionPageSchema } },
+    },
+    400: problem("Paginação inválida."),
+    404: problem("Não existe Loadout com este id."),
+  },
+});
+
+export const loadoutVersionsRestoreRoute = createRoute({
+  method: "post",
+  path: `${API_BASE_PATH}/loadouts/{id}/versions/{version}/restore`,
+  tags: ["execution"],
+  summary: "Restaura uma versão do Loadout",
+  description:
+    "Cria uma versão **nova** com a definição da antiga; nunca reescreve. Se a definição já " +
+    "for a atual, nada muda e a versão não sobe. As referências são conferidas de novo.",
+  request: { params: LoadoutVersionParamSchema },
+  responses: {
+    200: {
+      description: "O Loadout na versão nova (ou na atual, se nada mudou).",
+      content: { "application/json": { schema: LoadoutSchema } },
+    },
+    404: problem("Não existe Loadout com este id, ou alguma referência da versão sumiu."),
+    409: problem("A versão não existe, ou uma referência dela está desligada ou em conflito."),
+  },
+});
+
+export const loadoutPreflightRoute = createRoute({
+  method: "get",
+  path: `${API_BASE_PATH}/loadouts/{id}/preflight`,
+  tags: ["execution"],
+  summary: "O preflight do Loadout: tudo o que dá para saber antes de partir",
+  description:
+    "Junta o relatório de capabilities (o Loadout resolvido contra a matriz do Harness), o " +
+    "preflight da CLI no modo do perfil — no host, o `--version` e a checagem de credencial " +
+    "do adapter; em `DOCKER`, daemon, imagem e a CLI dentro do container — e o estado da " +
+    "credencial do Provider, sem chamar modelo nenhum: variável presente no ambiente da API " +
+    "ou o que a CLI respondeu. `executionProfileId` sobrepõe o perfil como `POST /runs` " +
+    "permite; `resume=true` avalia a intenção de retomar. Mede na chamada; nunca no boot.",
+  request: { params: IdParamSchema, query: LoadoutPreflightQuerySchema },
+  responses: {
+    200: {
+      description: "O preflight, mesmo com blockers: eles vêm no corpo.",
+      content: { "application/json": { schema: LoadoutPreflightSchema } },
+    },
+    400: problem("Parâmetro inválido."),
+    404: problem("Não existe Loadout com este id, ou o perfil informado não existe."),
+    409: problem("O Loadout aponta para um Agent ou Harness que não existe mais."),
   },
 });

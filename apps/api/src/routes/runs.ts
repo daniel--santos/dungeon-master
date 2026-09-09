@@ -4,6 +4,7 @@ import {
   RunContextSchema,
   RunEventListQuerySchema,
   RunEventListSchema,
+  RunCreatedSchema,
   RunListQuerySchema,
   RunPageSchema,
   RunSchema,
@@ -42,21 +43,25 @@ export const runsCreateRoute = createRoute({
     "anterior: Loadout e ExecutionProfile são herdados dele quando não vierem " +
     "no corpo, e o Run de origem precisa ter `harnessSessionId` capturado e um " +
     "Harness que declare a capability `resume`. A retomada é sempre um Run " +
-    "novo, com `attempt` maior.",
+    "novo, com `attempt` maior.\n\n" +
+    "Antes de enfileirar, o capability matching (Fase 8A) compara o Loadout resolvido com a " +
+    "matriz do Harness: um blocker recusa com `409` e a lista em `blockers[]`; os avisos " +
+    "voltam em `warnings[]` junto do Run, e o Worker os grava no diário como `Diagnostic`.",
   request: {
     params: TaskIdParamSchema,
     body: { required: true, content: { "application/json": { schema: CreateRunSchema } } },
   },
   responses: {
     201: {
-      description: "Run criado e enfileirado.",
-      content: { "application/json": { schema: RunSchema } },
+      description: "Run criado e enfileirado, com os avisos de capability.",
+      content: { "application/json": { schema: RunCreatedSchema } },
     },
     400: problem("Corpo inválido."),
     404: problem("A Task, o Loadout ou o ExecutionProfile informados não existem."),
     409: problem(
-      "A Task não aceita Run agora, o Project não tem workspace, " +
-        "há dependência pendente, ou o Harness/perfil está desligado.",
+      "A Task não aceita Run agora, o Project não tem workspace, há dependência pendente, " +
+        "o Harness/perfil está desligado, ou o capability matching achou um blocker " +
+        "(`blockers[]` no corpo).",
     ),
   },
 });

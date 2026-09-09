@@ -396,6 +396,122 @@ export function registryFailureProblem(failure: RegistryWriteFailure): HttpProbl
           "Estes Runs referenciam o Loadout e o histórico deles ficaria sem o fio que " +
           `liga a execução ao equipamento: ${listar(failure.runIds)}.`,
       });
+    case "SKILL_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Skill não encontrada",
+        detail: `Não existe Skill com o id ${failure.skillId}.`,
+      });
+    case "SKILL_VERSION_NOT_FOUND":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Versão da Skill não existe",
+        detail:
+          `A Skill ${failure.skillId} não tem a versão ${String(failure.version)}: a mais ` +
+          `recente é a ${String(failure.latestVersion)}. Pine uma versão que exista, ou nenhuma.`,
+      });
+    case "SKILL_VERSION_CONFLICT":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Outra versão chegou antes",
+        detail:
+          `Você publicou a partir da versão ${String(failure.expectedLatestVersion)}, mas a ` +
+          `mais recente já é a ${String(failure.latestVersion)}. Releia e publique de novo; ` +
+          "nada foi sobrescrito.",
+        extensions: { latestVersion: failure.latestVersion },
+      });
+    case "TOOL_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Tool não encontrada",
+        detail: `Não existe Tool com o id ${failure.toolId}.`,
+      });
+    case "TOOL_SHAPE_INVALID":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Campo de outra espécie de Tool",
+        detail:
+          `O campo \`${failure.field}\` não pertence a uma Tool \`${failure.kind}\`. ` +
+          "A espécie não muda: apague e crie de novo para trocá-la.",
+      });
+    case "MCP_SERVER_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Servidor MCP não encontrado",
+        detail: `Não existe servidor MCP com o id ${failure.mcpServerId}.`,
+      });
+    case "MCP_SERVER_SHAPE_INVALID":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Campo de outro transporte",
+        detail:
+          `O campo \`${failure.field}\` não pertence a um servidor \`${failure.transport}\`. ` +
+          "O transporte não muda: apague e crie de novo para trocá-lo.",
+      });
+    case "MCP_SERVER_DEFINITION_MISMATCH":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Servidor MCP já existe com outra definição",
+        detail:
+          `O servidor \`${failure.name}\` já está no registro (${failure.mcpServerId}) com outro ` +
+          "comando ou URL. Referencie-o por id em `mcpServerIds`, ou edite-o em " +
+          "PATCH /api/v1/mcp-servers/{id}.",
+        extensions: { mcpServerId: failure.mcpServerId },
+      });
+    case "BUILT_IN_PROTECTED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Servidor MCP do sistema",
+        detail:
+          `O servidor \`${failure.name}\` nasce com o sistema e é o Worker quem sabe subi-lo: ` +
+          "não se apaga nem se redefine. Só a descrição é editável.",
+      });
+    case "PROVIDER_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Provider não encontrado",
+        detail: `Não existe Provider com o id ${failure.providerId}.`,
+      });
+    case "IN_USE_BY_MODEL":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Provider em uso",
+        detail: `Estes Models ainda apontam para o Provider: ${listar(failure.modelIds)}.`,
+      });
+    case "IN_USE_BY_TOOL":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Servidor MCP em uso",
+        detail: `Estas Tools ainda apontam para o servidor: ${listar(failure.toolIds)}.`,
+      });
+    case "REFERENCE_FORMS_MIXED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Duas formas de referência",
+        detail:
+          `A coleção \`${failure.collection}\` veio na forma por id e na forma curta ao mesmo ` +
+          "tempo. Use uma só.",
+      });
+    case "LOADOUT_VERSION_NOT_FOUND":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Versão do Loadout não existe",
+        detail: `O Loadout ${failure.loadoutId} não tem a versão ${String(failure.version)}.`,
+      });
   }
 }
 
@@ -513,6 +629,17 @@ export function runFailureProblem(failure: RunWriteFailure): HttpProblem {
         detail:
           `A Task aponta para o Workflow ${failure.workflowId}, que não existe mais. ` +
           "Troque ou remova o Workflow em PATCH /api/v1/tasks/{id} antes de executar.",
+      });
+    case "CAPABILITY_BLOCKED":
+      // A lista inteira vai em `blockers`, membro de extensão do problem
+      // details: a tela mostra cada um pelo código e pela mensagem canônica do
+      // domínio, sem reler o `detail`.
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "O Harness não sustenta o que o Loadout pede",
+        detail: failure.blockers.map((issue) => issue.message).join(" "),
+        extensions: { blockers: [...failure.blockers] },
       });
   }
 }

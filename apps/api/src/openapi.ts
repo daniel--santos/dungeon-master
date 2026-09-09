@@ -34,6 +34,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         name: "execution",
         description: "Cadastros de execução: Harness, Model, Agent, ExecutionProfile e Loadout.",
       },
+      {
+        name: "registry",
+        description:
+          "Registros versionados da Fase 8A: Skill (com versões), Tool, servidor MCP e Provider.",
+      },
       { name: "runs", description: "Runs: as tentativas concretas de realizar uma Task." },
       { name: "workflows", description: "Workflows: o processo de uma execução, como dados." },
       { name: "approvals", description: "ApprovalGates: as pausas humanas de um Run." },
