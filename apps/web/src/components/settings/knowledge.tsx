@@ -1,5 +1,5 @@
 import { BookOpen } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { NumberField } from "@/components/settings/number-field";
@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useHarnesses, useLoadouts } from "@/lib/execution";
 import { useGlossary } from "@/lib/glossary";
+import { useHydratedForm } from "@/lib/hydrated-form";
 import { useSettings } from "@/lib/settings";
 
 /** O Radix recusa `value=""`, então "o semeado" precisa de um valor próprio. */
@@ -65,23 +66,24 @@ export function KnowledgeSection() {
   const harnesses = useHarnesses();
 
   const settings = query.data;
-  const [form, setForm] = useState<KnowledgeForm | null>(null);
 
-  // Hidrata do servidor na primeira leitura e a cada mudança que chegar de
-  // fora (outra aba), sem sobrescrever o que está sendo digitado.
-  useEffect(() => {
-    if (settings === undefined) return;
-    setForm((current) =>
-      current !== null && mutation.isPending
-        ? current
+  // post-mortem #15 (08/09/2026): mesma raiz do bloco das Provisões — a
+  // hidratação por efeito reescrevia as cadências que estavam sendo digitadas
+  // a cada releitura de `settings`, viesse ela de outro bloco da tela, de
+  // outra aba ou do `settings.changed` que o próprio hook assina.
+  const server = useMemo<KnowledgeForm | undefined>(
+    () =>
+      settings === undefined
+        ? undefined
         : {
             humanReview: settings["knowledge.humanReview"],
             loadoutId: settings["knowledge.loadoutId"],
             every: String(settings["knowledge.distillEveryMinutes"]),
             forgeEvery: String(settings["achievements.forgeEveryNRuns"]),
           },
-    );
-  }, [settings, mutation.isPending]);
+    [settings],
+  );
+  const { value: form, set: setForm } = useHydratedForm(server);
 
   const structuredOutput = useMemo(() => {
     const byId = new Map<string, boolean>();

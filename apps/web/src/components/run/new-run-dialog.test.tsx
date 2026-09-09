@@ -1,5 +1,5 @@
 import { dnd } from "@dungeon-master/glossary";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NewRunDialog } from "@/components/run/new-run-dialog";
@@ -128,6 +128,45 @@ describe("diálogo Nova Expedição", () => {
         body: { value: true },
       });
     });
+  });
+
+  it("o prompt reescrito sobrevive à recusa da partida", async () => {
+    client.PUT.mockResolvedValue(
+      ok({ "ui.theme": "dnd", "execution.hostAcknowledged": true }) as never,
+    );
+    // A primeira partida da máquina costuma esbarrar num `409`: Campanha sem
+    // workspace, dependência pendente, perfil desligado.
+    client.POST.mockResolvedValue({
+      data: undefined,
+      error: {
+        type: "about:blank",
+        title: "Conflito",
+        status: 409,
+        detail: "A Campanha não tem workspace configurado.",
+      },
+      response: new Response(null, { status: 409 }),
+    } as never);
+
+    await abrir();
+
+    const prompt = screen.getByLabelText("Prompt") as HTMLTextAreaElement;
+    fireEvent.change(prompt, { target: { value: "Reescrevi o prompt inteiro." } });
+    fireEvent.click(screen.getByLabelText(`Aceito executar ${dnd["env.host.warning"]}`));
+    fireEvent.click(screen.getByRole("button", { name: "Partir" }));
+
+    // O aceite é gravado antes do POST: a resposta do `PUT` vira `settings` no
+    // cache e `execution.hostAcknowledged` passa de false a true.
+    await waitFor(() => {
+      expect(client.PUT).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(client.POST).toHaveBeenCalled();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(prompt.value).toBe("Reescrevi o prompt inteiro.");
   });
 
   it("a masmorra selada fica desabilitada enquanto nenhum perfil dela está ligado", async () => {

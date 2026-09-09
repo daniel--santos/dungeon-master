@@ -1,5 +1,6 @@
 import { dnd } from "@dungeon-master/glossary";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { WorkflowEditorDialog } from "@/components/workflow/workflow-editor-dialog";
@@ -169,6 +170,32 @@ describe("editor de Ritual", () => {
         body: WORKFLOW.definition,
       });
     });
+  });
+
+  it("uma releitura do Workflow não reescreve o texto em edição", async () => {
+    client.GET.mockResolvedValue(
+      ok({ items: [WORKFLOW], page: 1, pageSize: 100, total: 1 }) as never,
+    );
+
+    // A tela de detalhe passa o registro vivo: um `workflow.*` do SSE invalida
+    // `["workflows"]` e `useWorkflow(id)` devolve outro objeto.
+    let relerNoServidor = (workflow: typeof WORKFLOW) => {
+      void workflow;
+    };
+    function Detalhe() {
+      const [workflow, setWorkflow] = useState(WORKFLOW);
+      relerNoServidor = setWorkflow;
+      return <WorkflowEditorDialog onOpenChange={vi.fn()} open workflow={workflow} />;
+    }
+
+    renderInRouter(<Detalhe />);
+    fireEvent.change(textarea(), { target: { value: YAML } });
+
+    act(() => {
+      relerNoServidor({ ...WORKFLOW, updatedAt: "2026-09-08T12:00:00.000Z" });
+    });
+
+    expect(textarea().value).toBe(YAML);
   });
 
   it("o exemplo preenche o texto e pode ser salvo como está", async () => {

@@ -1,5 +1,5 @@
 import type { WorkspaceKind } from "@dungeon-master/contracts";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { ProjectRecord } from "@/lib/api-types";
 import { useGlossary } from "@/lib/glossary";
+import { useHydratedForm } from "@/lib/hydrated-form";
 import { useCreateProject, useUpdateProject } from "@/lib/projects";
 import { looksAbsolutePath, WORKSPACE_KIND, WORKSPACE_KINDS } from "@/lib/workspace";
 
@@ -47,20 +48,30 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
   const create = useCreateProject();
   const update = useUpdateProject();
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [workspaceKind, setWorkspaceKind] = useState<WorkspaceKind>("GIT_REPO");
-  const [workspacePath, setWorkspacePath] = useState("");
   const [pathError, setPathError] = useState<string | null>(null);
 
+  // A hidratação é da **abertura**, e não da identidade do registro: na tela de
+  // detalhe o Project chega vivo, e qualquer evento do SSE que invalide
+  // `["projects"]` devolve outro objeto (contagens e `updatedAt` mudam sozinhos)
+  // enquanto o usuário digita o caminho do workspace.
+  const server = useMemo(
+    () => ({
+      title: project?.title ?? "",
+      description: project?.description ?? "",
+      workspaceKind: project?.workspaceKind ?? ("GIT_REPO" as WorkspaceKind),
+      workspacePath: project?.workspacePath ?? "",
+    }),
+    [project?.title, project?.description, project?.workspaceKind, project?.workspacePath],
+  );
+  const { value, set: setForm } = useHydratedForm(
+    server,
+    open ? (project?.id ?? "novo") : "closed",
+  );
+  const { title, description, workspaceKind, workspacePath } = value ?? server;
+
   useEffect(() => {
-    if (!open) return;
-    setTitle(project?.title ?? "");
-    setDescription(project?.description ?? "");
-    setWorkspaceKind(project?.workspaceKind ?? "GIT_REPO");
-    setWorkspacePath(project?.workspacePath ?? "");
-    setPathError(null);
-  }, [open, project]);
+    if (open) setPathError(null);
+  }, [open]);
 
   const editing = project != null;
   const pending = create.isPending || update.isPending;
@@ -137,7 +148,8 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
               id="project-title"
               maxLength={200}
               onChange={(event) => {
-                setTitle(event.target.value);
+                const next = event.target.value;
+                setForm((current) => ({ ...current, title: next }));
               }}
               value={title}
             />
@@ -148,7 +160,8 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
             <Textarea
               id="project-description"
               onChange={(event) => {
-                setDescription(event.target.value);
+                const next = event.target.value;
+                setForm((current) => ({ ...current, description: next }));
               }}
               rows={4}
               value={description}
@@ -164,7 +177,7 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
                 <Select
                   value={workspaceKind}
                   onValueChange={(next) => {
-                    setWorkspaceKind(next as WorkspaceKind);
+                    setForm((current) => ({ ...current, workspaceKind: next as WorkspaceKind }));
                   }}
                 >
                   <SelectTrigger aria-label="Tipo" id="project-workspace-kind">
@@ -197,7 +210,8 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
                   id="project-workspace-path"
                   maxLength={4000}
                   onChange={(event) => {
-                    setWorkspacePath(event.target.value);
+                    const next = event.target.value;
+                    setForm((current) => ({ ...current, workspacePath: next }));
                     setPathError(null);
                   }}
                   placeholder="D:\Dev\meu-projeto"

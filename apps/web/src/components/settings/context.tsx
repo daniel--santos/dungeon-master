@@ -1,5 +1,5 @@
 import { Backpack } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useMemo, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { NumberField } from "@/components/settings/number-field";
@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { CONTEXT_COLOR } from "@/lib/context";
 import { useGlossary } from "@/lib/glossary";
+import { useHydratedForm } from "@/lib/hydrated-form";
 import { useSettings } from "@/lib/settings";
 
 /**
@@ -55,15 +56,16 @@ export function ContextSection() {
   const { query, mutation } = useSettings();
 
   const settings = query.data;
-  const [form, setForm] = useState<ContextForm | null>(null);
 
-  // Hidrata do servidor na primeira leitura e a cada mudança que chegar de
-  // fora (outra aba), sem sobrescrever o que está sendo digitado.
-  useEffect(() => {
-    if (settings === undefined) return;
-    setForm((current) =>
-      current !== null && mutation.isPending
-        ? current
+  // post-mortem #15 (08/09/2026): a hidratação era um efeito guardado por
+  // `mutation.isPending`, e cada `useSettings()` cria a sua mutação — salvar
+  // no bloco do Grimório (ou qualquer releitura de `settings`) reescrevia os
+  // cinco campos daqui por cima do que estava sendo digitado. Agora a decisão
+  // é do `useHydratedForm`: edição pendente ganha da releitura.
+  const server = useMemo<ContextForm | undefined>(
+    () =>
+      settings === undefined
+        ? undefined
         : {
             enabled: settings["context.enabled"],
             budgetTokens: String(settings["context.budgetTokens"]),
@@ -71,8 +73,9 @@ export function ContextSection() {
             maxDecisions: String(settings["context.maxDecisions"]),
             maxArtifacts: String(settings["context.maxArtifacts"]),
           },
-    );
-  }, [settings, mutation.isPending]);
+    [settings],
+  );
+  const { value: form, set: setForm } = useHydratedForm(server);
 
   if (query.isError) {
     return <p className="text-destructive text-sm">{query.error.message}</p>;

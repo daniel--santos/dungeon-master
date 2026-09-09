@@ -1,5 +1,5 @@
 import { Sparkles, TriangleAlert } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormatToggle } from "@/components/workflow/format-toggle";
 import type { WorkflowRecord } from "@/lib/api-types";
 import { useGlossary } from "@/lib/glossary";
+import { useHydratedForm } from "@/lib/hydrated-form";
 import {
   convertDefinitionText,
   describeIssueLocation,
@@ -65,21 +66,38 @@ export function WorkflowEditorDialog({
   const create = useCreateWorkflow();
   const update = useUpdateWorkflow();
 
-  const [format, setFormat] = useState<DefinitionFormat>("yaml");
-  const [text, setText] = useState("");
   const [parseError, setParseError] = useState<string | null>(null);
   const [issues, setIssues] = useState<readonly DefinitionIssue[]>([]);
 
   const editing = workflow !== undefined;
   const pending = create.isPending || update.isPending;
 
+  // O texto nasce na abertura, e não a cada identidade nova do Workflow: com o
+  // diálogo aberto sobre a tela de detalhe, qualquer invalidação de
+  // `["workflows"]` relê o registro, e reescrever a `<textarea>` apagaria uma
+  // definição inteira digitada à mão.
+  const server = useMemo(
+    () => ({
+      format: "yaml" as DefinitionFormat,
+      text: workflow === undefined ? "" : stringifyDefinition(workflow.definition, "yaml"),
+    }),
+    [workflow],
+  );
+  const { value, set: setForm } = useHydratedForm(
+    server,
+    open ? (workflow?.id ?? "novo") : "closed",
+  );
+  const { format, text } = value ?? server;
+
   useEffect(() => {
     if (!open) return;
-    setFormat("yaml");
-    setText(workflow === undefined ? "" : stringifyDefinition(workflow.definition, "yaml"));
     setParseError(null);
     setIssues([]);
-  }, [open, workflow]);
+  }, [open]);
+
+  function setText(next: string) {
+    setForm((current) => ({ ...current, text: next }));
+  }
 
   function changeFormat(next: DefinitionFormat) {
     const converted = convertDefinitionText(text, format, next);
@@ -89,11 +107,11 @@ export function WorkflowEditorDialog({
       setParseError(
         `O texto não pôde ser convertido: ele não é ${format.toUpperCase()} válido. O formato foi trocado sem converter.`,
       );
+      setForm((current) => ({ ...current, format: next }));
     } else {
-      setText(converted);
+      setForm({ format: next, text: converted });
       setParseError(null);
     }
-    setFormat(next);
   }
 
   function fillExample() {

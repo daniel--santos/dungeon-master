@@ -1,12 +1,13 @@
 import { dnd } from "@dungeon-master/glossary";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { KnowledgeSection } from "@/components/settings/knowledge";
 import { Toaster } from "@/components/ui/sonner";
 import { api } from "@/lib/api";
+import { useSettings } from "@/lib/settings";
 import { HARNESS, LOADOUT, ok } from "@/test/execution-fixtures";
 
 /**
@@ -15,16 +16,32 @@ import { HARNESS, LOADOUT, ok } from "@/test/execution-fixtures";
  * de verdade quando o Loadout volta ao semeado.
  */
 
-const mocks = vi.hoisted(() => ({
-  fetchSettings: vi.fn(),
-  updateSetting: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  const listeners = new Set<(event: { type: string }) => void>();
+  return {
+    fetchSettings: vi.fn(),
+    updateSetting: vi.fn(),
+    listeners,
+    // Identidade estável: `useSettings` inscreve o ouvinte num efeito com
+    // `addListener` na dependência.
+    addListener: (listener: (event: { type: string }) => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+});
 
 vi.mock("@dungeon-master/api-client", () => ({
   createApiClient: () => ({}),
   EVENTS_STREAM_PATH: "/api/v1/events/stream",
   fetchSettings: mocks.fetchSettings,
   updateSetting: mocks.updateSetting,
+}));
+
+/** O stream de eventos, para o teste poder empurrar um `settings.changed`. */
+vi.mock("@/lib/events", () => ({
+  useEventsStore: (selector: (state: { addListener: typeof mocks.addListener }) => unknown) =>
+    selector({ addListener: mocks.addListener }),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -93,9 +110,23 @@ function montar(settings = SETTINGS) {
   return render(
     <Wrapper>
       <KnowledgeSection />
+      <Sonda />
     </Wrapper>,
   );
 }
+
+/**
+ * Lê a mesma query da seção, para o teste saber quando a releitura chegou.
+ *
+ * Sem isso, esperar pela chamada de `fetchSettings` é uma corrida: a chamada
+ * acontece antes de a resposta virar dado no cache.
+ */
+function Sonda() {
+  const { query } = useSettings();
+  return <span data-sonda>{String(query.data?.["achievements.forgeEveryNRuns"] ?? "")}</span>;
+}
+
+const sonda = () => document.querySelector("[data-sonda]");
 
 const field = (name: string) =>
   document.querySelector(`[data-knowledge-field="${name}"]`) as HTMLInputElement;
@@ -162,6 +193,28 @@ describe("bloco do Grimório em Settings", () => {
       ]);
     });
     expect(await screen.findByText(dnd["settings.knowledge.saved"])).toBeTruthy();
+  });
+
+  it("não apaga a cadência que está sendo digitada quando uma releitura chega", async () => {
+    montar();
+    await waitFor(() => {
+      expect(field("every").value).toBe("10");
+    });
+
+    fireEvent.change(field("every"), { target: { value: "45" } });
+
+    // O bloco das Provisões salvou: o `PUT` devolve o objeto inteiro e o
+    // `settings.changed` invalida a query desta seção.
+    mocks.fetchSettings.mockResolvedValue({ ...SETTINGS, "achievements.forgeEveryNRuns": 99 });
+    act(() => {
+      for (const listener of mocks.listeners) listener({ type: "settings.changed" });
+    });
+
+    // A releitura chegou ao cache: é agora que o efeito de hidratação decide.
+    await waitFor(() => {
+      expect(sonda()?.textContent).toBe("99");
+    });
+    expect(field("every").value).toBe("45");
   });
 
   it("voltar ao Loadout semeado grava null, e não string vazia", async () => {

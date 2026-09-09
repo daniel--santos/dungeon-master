@@ -35,6 +35,7 @@ import {
   useModels,
 } from "@/lib/execution";
 import { useGlossary } from "@/lib/glossary";
+import { useHydratedForm } from "@/lib/hydrated-form";
 import { useCreateRun } from "@/lib/runs";
 import { useHostAcknowledgement } from "@/lib/settings";
 import { cn } from "@/lib/utils";
@@ -78,9 +79,29 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
       : (workflows.data?.items.find((item) => item.id === task.workflowId) ?? null);
 
   const [loadoutId, setLoadoutId] = useState("");
-  const [mode, setMode] = useState<ExecutionMode>("HOST");
-  const [prompt, setPrompt] = useState("");
-  const [accepted, setAccepted] = useState(false);
+
+  // O prompt e as escolhas nascem a cada abertura: reabrir sobre outra Task
+  // com o texto da anterior mandaria o agente para o lugar errado.
+  //
+  // post-mortem #16 (08/09/2026): a hidratação era um efeito com
+  // `host.acknowledged` na dependência. Ao gravar o aceite, `depart()` virava
+  // esse valor de false para true e o efeito reescrevia o prompt com o texto
+  // montado do título — justamente quando o `409` deixava o diálogo aberto e o
+  // usuário precisava do texto que tinha escrito. Agora a hidratação acontece
+  // na abertura, e a edição pendente sobrevive à mudança do aceite.
+  const server = useMemo(
+    () => ({
+      prompt:
+        task.description === null || task.description === ""
+          ? task.title
+          : `${task.title}\n\n${task.description}`,
+      mode: "HOST" as ExecutionMode,
+      accepted: host.acknowledged,
+    }),
+    [host.acknowledged, task.description, task.title],
+  );
+  const { value, set: setForm } = useHydratedForm(server, open ? task.id : "closed");
+  const { prompt, mode, accepted } = value ?? server;
 
   const loadoutItems = loadouts.data?.items ?? [];
   const loadout = loadoutItems.find((item) => item.id === loadoutId);
@@ -97,19 +118,6 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
   const agent = (agents.data?.items ?? []).find((item) => item.id === loadout?.agentId);
   const harness = (harnesses.data?.items ?? []).find((item) => item.id === loadout?.harnessId);
   const model = (models.data?.items ?? []).find((item) => item.id === loadout?.modelId);
-
-  // O prompt e as escolhas nascem a cada abertura: reabrir sobre outra Task com
-  // o texto da anterior mandaria o agente para o lugar errado.
-  useEffect(() => {
-    if (!open) return;
-    setPrompt(
-      task.description === null || task.description === ""
-        ? task.title
-        : `${task.title}\n\n${task.description}`,
-    );
-    setMode("HOST");
-    setAccepted(host.acknowledged);
-  }, [host.acknowledged, open, task.description, task.title]);
 
   useEffect(() => {
     if (!open || loadoutId !== "") return;
@@ -260,7 +268,7 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
             description="Mais rápido, sem custo de partida. O agente roda direto na sua máquina."
             mode="HOST"
             onSelect={() => {
-              setMode("HOST");
+              setForm((current) => ({ ...current, mode: "HOST" }));
             }}
           />
           <ModeOption
@@ -274,7 +282,7 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
             mode="DOCKER"
             {...(dockerProfile === undefined ? { note: "sem perfil" } : {})}
             onSelect={() => {
-              setMode("DOCKER");
+              setForm((current) => ({ ...current, mode: "DOCKER" }));
             }}
           />
         </fieldset>
@@ -289,7 +297,7 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
               checked={accepted}
               className="mt-0.5"
               onCheckedChange={(checked) => {
-                setAccepted(checked === true);
+                setForm((current) => ({ ...current, accepted: checked === true }));
               }}
             />
             <span className="flex flex-col gap-1.25">
@@ -321,7 +329,8 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
             id="run-prompt"
             maxLength={100_000}
             onChange={(event) => {
-              setPrompt(event.target.value);
+              const next = event.target.value;
+              setForm((current) => ({ ...current, prompt: next }));
             }}
             rows={6}
             value={prompt}
