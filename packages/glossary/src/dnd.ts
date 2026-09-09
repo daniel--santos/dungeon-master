@@ -1,14 +1,22 @@
 import type { GlossaryKey } from "./keys.js";
 
 /**
+ * O aviso do modo sem isolamento, numa constante: uma frase, um lugar só de
+ * onde ela sai. É o valor de `env.host.warning` e o que vai dentro do rótulo
+ * onde não existe um lugar ao lado para ele.
+ */
+const SEM_ISOLAMENTO = "sem isolamento";
+
+/**
  * Glossário `dnd` — o tema Dungeon Master ligado (planejamento v0.4, seção 14).
  *
  * Regra de segurança da seção 14: "Campo aberto" nunca aparece sozinho.
  * `env.host.warning` acompanha sempre, e `env.host.canonical` mantém o texto
- * canônico do badge ao lado, idêntico nos dois glossários. Por isso o rótulo
- * existe num lugar só — `env.host`, que tem o aviso ao lado —, e o teste varre
- * os dois glossários atrás de um segundo: a lista de capabilities de Harness
- * já foi esse segundo lugar.
+ * canônico do badge ao lado, idêntico nos dois glossários. Onde o rótulo
+ * aparece fora do badge, o aviso vai **dentro** do próprio valor — é o que
+ * torna impossível um ponto de renderização exibir um sem o outro, sem
+ * depender de cada tela lembrar da regra. O teste varre os dois glossários
+ * atrás de um "Campo aberto" desacompanhado, nas duas formas.
  */
 export const dnd: Record<GlossaryKey, string> = {
   // ---------------------------------------------------------------- system
@@ -426,7 +434,7 @@ export const dnd: Record<GlossaryKey, string> = {
 
   // ------------------------------------------------------------------- env
   "env.host": "Campo aberto",
-  "env.host.warning": "sem isolamento",
+  "env.host.warning": SEM_ISOLAMENTO,
   "env.host.canonical": "HOST · UNISOLATED",
   "env.docker": "Masmorra selada",
   "env.docker.canonical": "DOCKER · ISOLATED",
@@ -457,13 +465,13 @@ export const dnd: Record<GlossaryKey, string> = {
   "harness.capability.modelSelection": "Escolha de Patrono",
   "harness.capability.agentSelection": "Escolha de sub-Herói",
   "harness.capability.nativePermissions": "Permissões próprias",
-  // Iguais ao `plain`, de propósito: a capability é a lista do que o Harness
-  // sabe fazer, e não o badge do modo de execução — não há lugar para o aviso
-  // "sem isolamento" ao lado dela. Tematizar "Campo aberto" aqui era mostrar o
-  // rótulo bonito sozinho, contra a regra da seção 2 do CLAUDE.md. Isolamento é
-  // informação de segurança, como `enforcement.*`, que já não é tematizado.
-  "harness.capability.hostExecution": "Host",
-  "harness.capability.dockerExecution": "Docker",
+  // O aviso vai dentro do valor: a lista de capabilities é uma linha de
+  // rótulos curtos, um `<span>` por capability, sem lugar para um segundo
+  // texto ao lado como o badge de ambiente tem. Aqui o rótulo aparecia
+  // sozinho, e a regra da seção 2 do CLAUDE.md não abre exceção. Assim o tema
+  // fica e nenhuma tela consegue mostrar "Campo aberto" sem o aviso.
+  "harness.capability.hostExecution": `Campo aberto (${SEM_ISOLAMENTO})`,
+  "harness.capability.dockerExecution": "Masmorra selada",
 
   // ------------------------------------------------------------------ hero
   "hero.xp": "Experiência",
