@@ -29,6 +29,7 @@ import {
   asString,
   createCliHarnessAdapter,
   describeToolInput,
+  interpretAgyModels,
   parseJsonObject,
   parseSemverish,
   type CliArgs,
@@ -157,6 +158,12 @@ export function antigravityDefinition(options: AntigravityOptions = {}): CliHarn
     parseVersion: (stdout, stderr) => parseSemverish(stdout, stderr),
     parseLine: parseAntigravityLine,
     buildArgs: (request): CliArgs => buildAntigravityArgs(request, options),
+    // `agy models` (1.1.27): lista com código 0 quando há sessão no cofre do
+    // sistema, "Please sign in" com 1 quando não há. Um ou dois segundos, com
+    // rede, sem gastar token — o preflight não interativo do ADR 0002. A
+    // allow-list de ambiente deste adapter deixa `AGY_ADC_AUTH` de fora, e é
+    // isso que impede o falso negativo descrito lá.
+    detectAuthentication: async ({ run }) => interpretAgyModels(await run(["models"])),
     describeExit: (exitCode, stderrTail) => {
       const tail = stderrTail.trim();
       if (tail.length === 0) return undefined;

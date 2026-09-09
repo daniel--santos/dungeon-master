@@ -248,6 +248,14 @@ export interface PreflightResult {
   /** Caminho do executável resolvido, para o log e para a mensagem de erro. */
   readonly executablePath?: string;
   readonly authenticated?: boolean;
+  /**
+   * Como o adapter chegou a `authenticated` (Fase 8B): o comando local que
+   * rodou e o que ele respondeu, numa frase. Presente também quando a resposta
+   * é "não sei", para o operador ver por quê. **Nunca** carrega segredo nem a
+   * saída bruta da CLI — `claude auth status`, por exemplo, imprime o e-mail e
+   * a organização do usuário, e isto vai para o log e para a tela.
+   */
+  readonly authReason?: string;
   readonly problems: readonly PreflightProblem[];
 }
 

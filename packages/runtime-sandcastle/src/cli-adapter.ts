@@ -26,6 +26,7 @@ import { createHostAdapter } from "@dungeon-master/runtime";
 import type { HarnessCapabilities } from "@dungeon-master/runtime";
 import type { HarnessKey } from "@dungeon-master/contracts";
 
+import type { AuthDetection, AuthDetectionInput } from "./auth-check.js";
 import { CliResolutionError, resolveCli, type ResolvedCli } from "./resolve-cli.js";
 
 /** Quanto tempo um preflight aprovado vale. */
@@ -60,11 +61,15 @@ export interface CliHarnessDefinition {
   /** Frase mostrada quando a CLI não está instalada. */
   readonly installHint: string;
   /**
-   * Checagem barata de autenticação. Só implemente quando existir um comando
-   * local que responda sem chamar a API; um `undefined` honesto vale mais que
-   * um `false` que trava execuções que funcionariam.
+   * Checagem barata de autenticação (Fase 8B; ADR 0001, decisão 5).
+   *
+   * Só implemente quando existir um comando local que responda sem chamar o
+   * modelo; um `undefined` honesto vale mais que um `false` que trava
+   * execuções que funcionariam. `run` sobe a CLI resolvida com o ambiente do
+   * Run e o teto do preflight; o motivo devolvido vai para o log e para a
+   * tela, e por isso nunca carrega a saída bruta.
    */
-  detectAuthentication?(env: Record<string, string>): Promise<boolean | undefined>;
+  detectAuthentication?(input: AuthDetectionInput): Promise<AuthDetection>;
 }
 
 export function createCliHarnessAdapter(definition: CliHarnessDefinition): HarnessAdapter {
@@ -133,11 +138,29 @@ export function createCliHarnessAdapter(definition: CliHarnessDefinition): Harne
       });
     }
 
-    const authenticated = await definition.detectAuthentication?.(env);
-    if (authenticated === false) {
+    const timeoutMs = context.timeoutMs ?? VERSION_TIMEOUT_MS;
+    const auth = await detectAuthentication(definition, {
+      env,
+      run: async (args) => {
+        const saida = await collectProcess(resolved.command, [...resolved.argsPrefix, ...args], {
+          cwd: context.cwd ?? process.cwd(),
+          env,
+          timeoutMs,
+        });
+        return {
+          code: saida.code,
+          stdout: saida.stdout,
+          stderr: saida.stderr,
+          ...(saida.timedOut ? { timedOut: true } : {}),
+        };
+      },
+    });
+    if (auth?.authenticated === false) {
       problems.push({
         code: "NOT_AUTHENTICATED",
-        message: `${definition.binary} parece não estar autenticado. A execução vai falhar na primeira chamada.`,
+        message:
+          `${definition.binary} parece não estar autenticado (${auth.reason}). ` +
+          "A execução vai falhar na primeira chamada.",
         fatal: false,
       });
     }
@@ -146,7 +169,8 @@ export function createCliHarnessAdapter(definition: CliHarnessDefinition): Harne
       installed: true,
       ...(version === undefined ? {} : { version }),
       executablePath: resolved.resolvedPath,
-      ...(authenticated === undefined ? {} : { authenticated }),
+      ...(auth?.authenticated === undefined ? {} : { authenticated: auth.authenticated }),
+      ...(auth === undefined ? {} : { authReason: auth.reason }),
       problems,
     };
 
@@ -178,6 +202,28 @@ export function createCliHarnessAdapter(definition: CliHarnessDefinition): Harne
       };
     },
   });
+}
+
+/**
+ * A checagem de credencial da definição, sem deixar um defeito dela derrubar o
+ * preflight: a CLI está instalada e a versão foi lida, e um `throw` aqui viraria
+ * "harness ausente" na tela. O erro vira "não sei", com o motivo.
+ */
+async function detectAuthentication(
+  definition: CliHarnessDefinition,
+  input: AuthDetectionInput,
+): Promise<AuthDetection | undefined> {
+  if (definition.detectAuthentication === undefined) return undefined;
+  try {
+    return await definition.detectAuthentication(input);
+  } catch (error) {
+    return {
+      authenticated: undefined,
+      reason:
+        `a checagem de credencial de ${definition.binary} falhou: ` +
+        (error instanceof Error ? error.message : String(error)),
+    };
+  }
 }
 
 /** Primeira sequência que parece uma versão semântica na saída de `--version`. */

@@ -18,6 +18,7 @@ import type {
 import { capabilities, PERMISSION_DENIED_DIAGNOSTIC_CODE } from "@dungeon-master/runtime";
 import type { UsageSummary } from "@dungeon-master/contracts";
 
+import { interpretClaudeAuthStatus } from "./auth-check.js";
 import {
   createCliHarnessAdapter,
   parseSemverish,
@@ -122,6 +123,10 @@ export function claudeCodeDefinition(options: ClaudeCodeOptions = {}): CliHarnes
     parseVersion: (stdout, stderr) => parseSemverish(stdout, stderr),
     parseLine: parseClaudeLine,
     buildArgs: (request): CliArgs => buildClaudeCodeArgs(request, options),
+    // `claude auth status` (2.1.263): JSON local com `loggedIn`, sem chamada
+    // ao modelo, uns 200 ms. É o preflight de credencial do ADR 0001.
+    detectAuthentication: async ({ run }) =>
+      interpretClaudeAuthStatus(await run(["auth", "status"])),
     describeExit: (exitCode, stderrTail) => {
       const tail = stderrTail.trim();
       if (tail.length === 0) return undefined;

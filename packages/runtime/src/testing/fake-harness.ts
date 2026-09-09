@@ -44,6 +44,11 @@ export interface FakeHarnessOptions {
   /** Faz o preflight reprovar, para exercitar o caminho de CLI ausente. */
   readonly preflightProblem?: { readonly code: "NOT_INSTALLED"; readonly message: string };
   /**
+   * O que o preflight responde sobre a credencial (Fase 8B). Ausente, o falso
+   * não sabe dizer — como uma CLI sem checagem barata.
+   */
+  readonly authenticated?: boolean;
+  /**
    * Roteiro usado quando o prompt é o da retentativa de resultado estruturado.
    *
    * O prompt da retentativa é gerado pelo runtime e não carrega diretivas; sem
@@ -106,7 +111,20 @@ export function fakeHarness(options: FakeHarnessOptions = {}): HarnessAdapter {
     preflight: (_context: HarnessContext): Promise<PreflightResult> =>
       Promise.resolve(
         options.preflightProblem === undefined
-          ? { installed: true, version, executablePath: FAKE_AGENT_SCRIPT, problems: [] }
+          ? {
+              installed: true,
+              version,
+              executablePath: FAKE_AGENT_SCRIPT,
+              ...(options.authenticated === undefined
+                ? {}
+                : {
+                    authenticated: options.authenticated,
+                    authReason: `o harness falso foi configurado como ${
+                      options.authenticated ? "autenticado" : "não autenticado"
+                    }`,
+                  }),
+              problems: [],
+            }
           : {
               installed: false,
               problems: [{ ...options.preflightProblem, fatal: true }],

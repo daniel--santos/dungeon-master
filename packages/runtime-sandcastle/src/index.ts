@@ -9,6 +9,7 @@
  * O nome do pacote e a relação com o Sandcastle estão no ADR do `README.md`.
  */
 
+export * from "./auth-check.js";
 export * from "./claude-code.js";
 export * from "./cli-adapter.js";
 export * from "./codex.js";
