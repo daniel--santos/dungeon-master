@@ -25,8 +25,11 @@ puras e testadas):
 | Pi          | `pi auth check --provider <p> --json`          | `status: ready` / `not_ready`, por provedor | ~0,35 s por provedor      |
 | Antigravity | `agy models` (no pacote `runtime-antigravity`) | código `0`; `1` com "Please sign in"        | ~2,6 s (0,9 s sem sessão) |
 
-O Pi exige `--provider`; com o provedor fixado no adapter é uma checagem, sem
-ele são três (`google`, `anthropic`, `openai`), e uma pronta basta. O resultado
+O Pi exige `--provider`; com o provedor fixado no adapter é uma checagem, e
+`not_ready` nela é "não"; sem ele são três (`google`, `anthropic`, `openai`),
+uma pronta basta, e `not_ready` nas três é "não sei" — o provedor padrão do Pi
+pode ser outro (medido: sem `GEMINI_API_KEY` as três respondiam `not_ready` e
+a CLI rodava por `opencode-go`). O resultado
 sai em `PreflightResult.authenticated` com `authReason`, uma frase com o comando
 e o que ele respondeu — nunca a saída bruta, porque o JSON do `claude auth
 status` traz o e-mail e a organização do usuário. Qualquer resposta que não dá

@@ -174,22 +174,31 @@ export function interpretPiAuthCheck(
 /**
  * Junta as checagens do Pi por provedor num veredito só.
  *
- * Quando o adapter configura o provedor, é um só. Sem provedor configurado a
- * checagem é feita contra {@link PI_AUTH_PROBE_PROVIDERS}, e vale a regra do
- * Pi: uma chave de qualquer provedor faz a CLI funcionar. `true` se algum está
- * `ready`; `false` se todos responderam `not_ready`; `undefined` se algum não
- * respondeu e nenhum estava pronto.
+ * Quando o adapter fixa o provedor (`--provider` vai no argv do Run), é uma
+ * checagem só, e `not_ready` nela é prova de ausência: é esse provedor que o
+ * Run vai usar. Sem provedor fixado a checagem é feita contra
+ * {@link PI_AUTH_PROBE_PROVIDERS}, e aí `ready` em qualquer um prova presença,
+ * mas `not_ready` em todos **não** prova ausência: o Pi usa o provedor padrão
+ * que o usuário configurou, que pode ser outro — medido em 09/09/2026, sem
+ * `GEMINI_API_KEY` no ambiente os três respondiam `not_ready` e a CLI rodava
+ * por `opencode-go`. Um `false` sem prova viraria `Diagnostic` em todo Run que
+ * funciona; a resposta honesta é "não sei".
  */
 export function combinePiAuthChecks(
   checks: ReadonlyArray<{ readonly provider: string; readonly status: PiAuthStatus }>,
+  options: { readonly fixedProvider?: boolean } = {},
 ): AuthDetection {
   const resumo = checks.map((check) => `${check.provider}=${check.status}`).join(", ");
   const reason = `\`pi auth check --json\` por provedor: ${resumo}`;
   if (checks.some((check) => check.status === "ready")) return { authenticated: true, reason };
-  if (checks.length > 0 && checks.every((check) => check.status === "not_ready")) {
-    return { authenticated: false, reason };
-  }
-  return { authenticated: undefined, reason };
+  const todosNotReady = checks.length > 0 && checks.every((check) => check.status === "not_ready");
+  if (todosNotReady && options.fixedProvider === true) return { authenticated: false, reason };
+  return {
+    authenticated: undefined,
+    reason: todosNotReady
+      ? `${reason}; o provedor padrão do Pi pode ser outro, e a checagem não o conhece`
+      : reason,
+  };
 }
 
 /** Os provedores sondados quando o adapter do Pi não fixa um. */

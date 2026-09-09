@@ -136,7 +136,7 @@ export function piDefinition(options: PiOptions = {}): CliHarnessDefinition {
         const probe = await run(["auth", "check", "--provider", provider, "--json"]);
         checks.push({ provider, status: interpretPiAuthCheck(provider, probe).status });
       }
-      return combinePiAuthChecks(checks);
+      return combinePiAuthChecks(checks, { fixedProvider: options.provider !== undefined });
     },
     buildArgs: (request): CliArgs => {
       const args = ["-p", "--mode", "json"];

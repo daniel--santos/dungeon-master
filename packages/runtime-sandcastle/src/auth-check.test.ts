@@ -122,7 +122,7 @@ describe("interpretPiAuthCheck e combinePiAuthChecks", () => {
     ).toBe("unknown");
   });
 
-  it("um provedor pronto basta; todos not_ready é não; unknown no meio é não sei", () => {
+  it("um provedor pronto basta; todos not_ready só é não com o provedor fixado; unknown é não sei", () => {
     expect(
       combinePiAuthChecks([
         { provider: "google", status: "not_ready" },
@@ -132,11 +132,24 @@ describe("interpretPiAuthCheck e combinePiAuthChecks", () => {
       authenticated: true,
       reason: "`pi auth check --json` por provedor: google=not_ready, anthropic=ready",
     });
+    // Sondando a lista curta, `not_ready` em todos não prova ausência: o
+    // provedor padrão do Pi pode ser outro (medido: a CLI rodou por
+    // `opencode-go` com os três `not_ready`).
     expect(
       combinePiAuthChecks([
         { provider: "google", status: "not_ready" },
         { provider: "openai", status: "not_ready" },
-      ]).authenticated,
+      ]),
+    ).toEqual({
+      authenticated: undefined,
+      reason:
+        "`pi auth check --json` por provedor: google=not_ready, openai=not_ready; o provedor " +
+        "padrão do Pi pode ser outro, e a checagem não o conhece",
+    });
+    // Com o provedor fixado no adapter, é esse que o Run usa: `not_ready` é não.
+    expect(
+      combinePiAuthChecks([{ provider: "google", status: "not_ready" }], { fixedProvider: true })
+        .authenticated,
     ).toBe(false);
     expect(
       combinePiAuthChecks([
