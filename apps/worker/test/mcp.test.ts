@@ -216,6 +216,7 @@ describe("buildRunMcpServers", () => {
       expect.stringContaining('"docs" do Loadout foi ignorado: o nome já está em uso'),
       expect.stringContaining("não é uma URL http(s)"),
       expect.stringContaining("comando está vazio"),
+      "Servidores MCP do Loadout oferecidos ao agente: filesystem (STDIO), docs (HTTP).",
     ]);
   });
 

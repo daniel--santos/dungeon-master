@@ -22,6 +22,7 @@ import {
 import type { Pool } from "pg";
 
 import type { AchievementProjector } from "./achievements.js";
+import { measureCapabilitiesFrom, type MeasureCapabilities } from "./capability-check.js";
 import { executeRun } from "./execute-run.js";
 import { startIdleLoop, type IdleLoop } from "./idle-loop.js";
 import type { Logger } from "./logger.js";
@@ -141,6 +142,13 @@ export function createWorker(options: CreateWorkerOptions): Worker {
     maxConcurrent: config.maxConcurrentRuns,
     ...(logger === undefined ? {} : { logger }),
   });
+
+  /**
+   * A matriz do adapter registrado para o par, para o capability matching da
+   * reclamação (Fase 8B). É a mesma lista que o `HarnessRegistry` do runtime
+   * recebeu, e a mesma que o preflight de boot grava no banco.
+   */
+  const measureCapabilities: MeasureCapabilities = measureCapabilitiesFrom(options.adapters);
 
   /** Runs reclamados e ainda não terminados. É o teto do claim e a lista do observador. */
   const emVoo = new Map<string, ClaimedRun>();
@@ -378,6 +386,7 @@ export function createWorker(options: CreateWorkerOptions): Worker {
           },
           cancelReasons,
           signal: controller.signal,
+          measureCapabilities,
           ...(options.databaseUrl === undefined ? {} : { databaseUrl: options.databaseUrl }),
           ...(logger === undefined ? {} : { logger }),
         },

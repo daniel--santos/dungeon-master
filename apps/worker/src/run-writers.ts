@@ -22,7 +22,16 @@ import { toRunEventInput, workerDiagnostic, workerRunFailed } from "./run-events
  */
 export interface RunOutcomeWriter {
   append(event: RunEventPayload): Promise<void>;
-  diagnostic(level: "INFO" | "WARN" | "ERROR", message: string, detail?: string): Promise<void>;
+  /**
+   * Um `Diagnostic` do Worker. `code` é o código estável para o que a interface
+   * reconhece sem ler a frase — os do capability matching, por exemplo.
+   */
+  diagnostic(
+    level: "INFO" | "WARN" | "ERROR",
+    message: string,
+    detail?: string,
+    code?: string,
+  ): Promise<void>;
   /**
    * Fecha o Run sem que nenhum processo tenha subido: `PREPARING → FAILED`.
    *
@@ -76,13 +85,14 @@ export function createRunOutcomeWriter(input: {
       });
     },
 
-    diagnostic: async (level, message, detail) => {
+    diagnostic: async (level, message, detail, code) => {
       await writer.append(
         workerDiagnostic({
           harness,
           level,
           message,
           ...(detail === undefined ? {} : { detail }),
+          ...(code === undefined ? {} : { code }),
         }),
       );
     },

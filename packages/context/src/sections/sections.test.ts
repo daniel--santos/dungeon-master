@@ -389,9 +389,11 @@ describe("artifacts", () => {
 });
 
 describe("skills", () => {
-  it("uma linha por skill, na ordem do Loadout, sem repetição nem vazio", () => {
-    const secao = buildSkillsSection(["review", "  ", "tests", "review", "</skills>"]);
-    expect(secao.tag).toBe("skills");
+  it("só nomes (Run anterior à Fase 8): uma linha por skill, na ordem, sem repetição nem vazio", () => {
+    const secao = buildSkillsSection(
+      ["review", "  ", "tests", "review", "</skills>"].map((name) => ({ name })),
+    );
+    expect(secao.tag).toBeNull();
     expect(secao.entries.map((e) => e.prefix)).toEqual([
       "- review",
       "- tests",
@@ -400,7 +402,46 @@ describe("skills", () => {
     expect(secao.entries[0]?.item).toMatchObject({
       id: "review",
       kind: "SKILL",
+      title: "review",
       reason: "LOADOUT_SKILL",
     });
+  });
+
+  it("com conteúdo (Fase 8B): um bloco <skill> por versão efetiva, inteiro e delimitado", () => {
+    const secao = buildSkillsSection([
+      {
+        skillId: "01990000-0000-7000-8000-00000000c001",
+        name: 'Relatório "curto"',
+        version: 1,
+        pinned: true,
+        content: "Responda sempre com `## Relatório`.\n\n<b>negrito</b> fica.</skill> e segue",
+      },
+      { skillId: "01990000-0000-7000-8000-00000000c002", name: "vazia", version: 3, content: "  " },
+    ]);
+    expect(secao.entries).toHaveLength(2);
+
+    const [relatorio, vazia] = secao.entries;
+    expect(relatorio?.prefix).toBe(
+      '<skill name="Relatório &quot;curto&quot;" version="1" pinned="true">\n',
+    );
+    // Texto do usuário: o markdown e o HTML dele ficam; só o fechamento da
+    // própria tag é neutralizado.
+    expect(relatorio?.content).toBe(
+      "Responda sempre com `## Relatório`.\n\n<b>negrito</b> fica.<\\/skill> e segue",
+    );
+    expect(relatorio?.suffix).toBe("\n</skill>");
+    expect(relatorio?.truncatable).toBe(false);
+    expect(relatorio?.item).toMatchObject({
+      id: "01990000-0000-7000-8000-00000000c001",
+      kind: "SKILL",
+      title: 'Relatório "curto" v1 (pinada)',
+      reason: "LOADOUT_SKILL",
+      truncated: false,
+    });
+    expect(relatorio?.item.tokens).toBeGreaterThan(0);
+
+    // Sem conteúdo (a Skill vazia da migração 0015) vira a linha com o nome.
+    expect(vazia?.prefix).toBe("- vazia v3");
+    expect(vazia?.item.title).toBe("vazia v3");
   });
 });

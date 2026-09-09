@@ -20,6 +20,7 @@ import {
 import type { AgentRuntime, ExecutionRequest, WorkspaceManager } from "@dungeon-master/runtime";
 import { PERMISSION_DENIED_DIAGNOSTIC_CODE } from "@dungeon-master/runtime";
 
+import type { MeasureCapabilities } from "./capability-check.js";
 import { executeWorkflowRun } from "./execute-workflow-run.js";
 import type { Logger } from "./logger.js";
 import { buildRunMcpServers } from "./mcp-servers.js";
@@ -74,6 +75,12 @@ export interface ExecuteRunDeps {
    * diário diz isso.
    */
   readonly databaseUrl?: string;
+  /**
+   * A matriz de capabilities do adapter registrado para um par
+   * `(harness, modo)` neste Worker (Fase 8B). É contra ela que o capability
+   * matching roda na reclamação; ausente, vale a do snapshot.
+   */
+  readonly measureCapabilities?: MeasureCapabilities;
   /**
    * Motivo do cancelamento, quando quem pediu foi o próprio Worker.
    *
@@ -171,15 +178,20 @@ async function executeSimpleRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Prom
       databaseUrl: deps.databaseUrl,
     });
     for (const nota of mcp.notes) {
-      await writer.diagnostic(nota.level === "DEBUG" ? "INFO" : nota.level, nota.message);
+      await writer.diagnostic(
+        nota.level === "DEBUG" ? "INFO" : nota.level,
+        nota.message,
+        nota.detail,
+        nota.code,
+      );
     }
 
     // O schema só é pedido a quem sabe produzi-lo: o `AgentRuntime` recusa o
     // pedido inteiro quando o adapter não declara `structuredOutput`, e recusar
     // um Run por causa de uma capability seria pior que aceitar o texto final e
-    // sintetizar o desfecho a partir dele. A matriz lida é a do snapshot, que o
-    // preflight de partida atualiza com a do adapter.
-    const querSchema = run.loadoutSnapshot.harness.capabilities.structuredOutput;
+    // sintetizar o desfecho a partir dele. A matriz é a que valeu no matching:
+    // a do adapter deste Worker, ou a do snapshot quando não há adapter.
+    const querSchema = prep.prepared.capabilities.structuredOutput;
     if (!querSchema) {
       await writer.diagnostic(
         "WARN",

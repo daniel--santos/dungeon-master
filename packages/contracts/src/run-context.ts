@@ -21,7 +21,9 @@ export const RunContextStatusSchema = z.enum(RUN_CONTEXT_STATUS_VALUES).meta({
   id: "RunContextStatus",
   description:
     "`ASSEMBLED` tem texto; `EMPTY` montou e não achou nada; `DISABLED` a configuração " +
-    "`context.enabled` estava desligada; `FAILED` a montagem falhou e o Run seguiu sem contexto.",
+    "`context.enabled` estava desligada e o Loadout não tinha Habilidades (com Habilidades " +
+    "elas entram, e o registro é `ASSEMBLED` com `policy.enabled` falso); `FAILED` a montagem " +
+    "falhou e o Run seguiu sem contexto do Grimório — só com as Habilidades, quando há.",
 });
 
 export type RunContextStatus = z.infer<typeof RunContextStatusSchema>;
@@ -90,7 +92,8 @@ export const ContextItemSchema = z
     id: z
       .string()
       .describe(
-        "Id da origem: o KnowledgeItem, a Task, `<runId>:<posição>` do artefato ou o nome da skill.",
+        "Id da origem: o KnowledgeItem, a Task, `<runId>:<posição>` do artefato ou a Skill " +
+          "(o nome, em Runs anteriores à Fase 8).",
       ),
     kind: ContextItemKindSchema,
     title: z.string().describe("Título, já sanitizado, como aparece no texto."),

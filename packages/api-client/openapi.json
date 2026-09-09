@@ -2638,6 +2638,34 @@
             "format": "date-time",
             "description": "Último preflight, em UTC (ISO 8601). Nulo enquanto ninguém checou."
           },
+          "authStatus": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "AUTHENTICATED",
+              "NOT_AUTHENTICATED",
+              "UNKNOWN",
+              null
+            ],
+            "description": "A credencial da CLI nesta máquina, pelo último boot do Worker."
+          },
+          "authCheckedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Quando a credencial foi medida, em UTC. Nulo enquanto nenhum Worker mediu."
+          },
+          "authReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Como o estado foi medido, numa frase sem segredo: o comando e o que respondeu."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -4101,6 +4129,32 @@
                   "null"
                 ],
                 "format": "date-time"
+              },
+              "authStatus": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "AUTHENTICATED",
+                  "NOT_AUTHENTICATED",
+                  "UNKNOWN",
+                  null
+                ],
+                "description": "A credencial da CLI no host, gravada pelo Worker no último boot (Fase 8B). Nulo enquanto nenhum Worker mediu; é o complemento de `cli`, que é medido na chamada."
+              },
+              "authCheckedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "authReason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -4110,7 +4164,10 @@
               "enabled",
               "capabilities",
               "installedVersion",
-              "checkedAt"
+              "checkedAt",
+              "authStatus",
+              "authCheckedAt",
+              "authReason"
             ]
           },
           "executionProfile": {
@@ -4245,6 +4302,13 @@
                 ],
                 "description": "Resultado da checagem de credencial do adapter. Nulo quando ela não existe."
               },
+              "authReason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Como o adapter chegou a `authenticated`, numa frase sem segredo (Fase 8B): o comando local e o que ele respondeu. Nulo quando não houve checagem."
+              },
               "timedOut": {
                 "type": "boolean",
                 "description": "O adapter não respondeu dentro do teto."
@@ -4262,6 +4326,7 @@
               "installed",
               "version",
               "authenticated",
+              "authReason",
               "timedOut",
               "problems"
             ],
@@ -6717,7 +6782,7 @@
           "DISABLED",
           "FAILED"
         ],
-        "description": "`ASSEMBLED` tem texto; `EMPTY` montou e não achou nada; `DISABLED` a configuração `context.enabled` estava desligada; `FAILED` a montagem falhou e o Run seguiu sem contexto."
+        "description": "`ASSEMBLED` tem texto; `EMPTY` montou e não achou nada; `DISABLED` a configuração `context.enabled` estava desligada e o Loadout não tinha Habilidades (com Habilidades elas entram, e o registro é `ASSEMBLED` com `policy.enabled` falso); `FAILED` a montagem falhou e o Run seguiu sem contexto do Grimório — só com as Habilidades, quando há."
       },
       "ContextSection": {
         "type": "object",
@@ -6777,7 +6842,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Id da origem: o KnowledgeItem, a Task, `<runId>:<posição>` do artefato ou o nome da skill."
+            "description": "Id da origem: o KnowledgeItem, a Task, `<runId>:<posição>` do artefato ou a Skill (o nome, em Runs anteriores à Fase 8)."
           },
           "kind": {
             "$ref": "#/components/schemas/ContextItemKind"

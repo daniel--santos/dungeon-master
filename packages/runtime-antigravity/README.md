@@ -335,13 +335,18 @@ no host não existe: uma variável deixada no ambiente para um experimento de
 container derrubaria todo Run de host, sem nada no log ligando as duas coisas.
 Há teste para isso em `args.test.ts`.
 
-Não há checagem barata de autenticação: o preflight roda `--version`, que
-responde sem falar com a rede, e deixa `authenticated` indefinido — um `false`
-sem prova travaria execuções que funcionariam. `agy models` **detecta**
-credencial, e é o que o ADR 0002 usa como preflight dentro do container, mas não
-serve aqui: ele fala com a rede e, sem credencial, gasta 60 s fixos que
-`--print-timeout` não controla. Sessenta segundos por Run é caro demais para
-saber o que a primeira chamada diria de graça.
+A checagem barata de autenticação (Fase 8B) é `agy models`, a mesma que o ADR
+0002 usa dentro do container: lista os modelos com código `0` quando há sessão
+no cofre, e responde "Please sign in" com código `1` quando não há. Medido em
+09/09/2026 na 1.1.27: 2,6 s autenticado (a lista vem da rede, sem chamada de
+modelo nem token gasto) e 0,9 s sem credencial — a espera de 60 s sem credencial
+é de um Run com `-p`, não desta listagem. O preflight roda a checagem uma vez
+por boot do Worker (o resultado aprovado é cacheado por cinco minutos) e sob
+demanda no preflight do Loadout; o motivo gravado é só o comando e o código de
+saída, e qualquer outra resposta — rede fora, teto estourado — deixa
+`authenticated` indefinido, porque um `false` sem prova travaria execuções que
+funcionariam. A allow-list de ambiente deste adapter deixa `AGY_ADC_AUTH` de
+fora, e é isso que evita o falso negativo descrito acima.
 
 ### O que existe e não foi usado
 

@@ -5,6 +5,7 @@ import type {
   ContextSectionKind,
 } from "@dungeon-master/contracts";
 
+import { skillsFrame } from "./sections/skills.js";
 import { fastEstimateTokens } from "./token-estimate.js";
 import type { EntryDraft, SectionDraft } from "./types.js";
 
@@ -21,32 +22,34 @@ import type { EntryDraft, SectionDraft } from "./types.js";
  *    cortado em vez de excluído, e a fatia dele nunca fica abaixo do piso.
  * 2. **Corte por prioridade.** Se, mesmo assim, o total passa do orçamento,
  *    as seções são esvaziadas nesta ordem: artefatos, páginas, linhagem,
- *    decisões, e só então o resumo, que é encolhido até o piso e nunca
- *    abaixo dele. As skills não são cortadas: são configuração do Loadout,
- *    não texto escrito por modelo, e cabem em poucas linhas.
+ *    decisões, Habilidades, e só então o resumo, que é encolhido até o piso
+ *    e nunca abaixo dele. As Habilidades (Fase 8B) carregam o conteúdo da
+ *    versão efetiva e por isso passaram a contar: saem por último entre as
+ *    seções, inteiras — uma instrução cortada ao meio pode dizer o contrário
+ *    do que dizia —, da última do Loadout para a primeira.
  *
  * Tudo o que sai fica registrado com o motivo.
  */
 
 /** A fatia de cada seção sobre o que sobra do total depois da moldura. */
 export const SECTION_SHARES: Readonly<Record<ContextSectionKind, number>> = {
-  SUMMARY: 0.35,
-  DECISIONS: 0.15,
-  KNOWLEDGE: 0.3,
-  LINEAGE: 0.12,
+  SUMMARY: 0.3,
+  DECISIONS: 0.12,
+  KNOWLEDGE: 0.28,
+  LINEAGE: 0.1,
   ARTIFACTS: 0.05,
-  SKILLS: 0.03,
+  SKILLS: 0.15,
 };
 
 /** O piso do resumo: o corte por prioridade nunca o leva abaixo disto. */
 export const SUMMARY_MIN_TOKENS = 300;
 
 /**
- * O piso das skills: com um orçamento pequeno, a fatia de 3% não pagaria nem
- * a tag envolvente, e as skills são configuração do Loadout, não texto
- * escrito por modelo — elas cabem em poucas linhas e não são cortadas.
+ * O piso das Habilidades: com um orçamento pequeno, a fatia de 15% não pagaria
+ * nem o cabeçalho com o preâmbulo, e uma Habilidade curta — "responda sempre
+ * com um cabeçalho" — é o caso mais comum e o que o usuário mais sente faltar.
  */
-export const SKILLS_MIN_TOKENS = 120;
+export const SKILLS_MIN_TOKENS = 400;
 
 /** A ordem em que o corte por prioridade esvazia as seções. */
 export const CUT_ORDER: readonly ContextSectionKind[] = [
@@ -54,6 +57,7 @@ export const CUT_ORDER: readonly ContextSectionKind[] = [
   "KNOWLEDGE",
   "LINEAGE",
   "DECISIONS",
+  "SKILLS",
   "SUMMARY",
 ];
 
@@ -99,14 +103,24 @@ export function measureEntry(entry: Omit<EntryDraft, "item"> & { item: ContextIt
   return { ...entry, item: { ...entry.item, tokens: fastEstimateTokens(entryText(entry)) } };
 }
 
-function wrapperTokens(tag: string | null): number {
-  return tag === null ? 0 : fastEstimateTokens(`<${tag}>\n</${tag}>`);
+type SectionShape = Pick<SectionDraft, "kind" | "tag">;
+
+/**
+ * O custo da moldura de uma seção: a tag envolvente ou, nas Habilidades, o
+ * cabeçalho e o preâmbulo que saem fora do bloco `<context>`.
+ */
+export function wrapperTokens(section: SectionShape): number {
+  if (section.kind === "SKILLS") {
+    const frame = skillsFrame();
+    return fastEstimateTokens(`${frame.open}${frame.close}`);
+  }
+  return section.tag === null ? 0 : fastEstimateTokens(`<${section.tag}>\n</${section.tag}>`);
 }
 
-function sectionTokens(tag: string | null, entries: readonly EntryDraft[]): number {
+function sectionTokens(section: SectionShape, entries: readonly EntryDraft[]): number {
   if (entries.length === 0) return 0;
   // Cada trecho é seguido de uma quebra de linha no texto final.
-  return wrapperTokens(tag) + entries.reduce((soma, entry) => soma + entry.item.tokens + 1, 0);
+  return wrapperTokens(section) + entries.reduce((soma, entry) => soma + entry.item.tokens + 1, 0);
 }
 
 /**
@@ -166,7 +180,7 @@ export function applyBudget(drafts: readonly SectionDraft[], input: BudgetInput)
     const cap = caps[draft.kind];
     const mantidos: EntryDraft[] = [];
     let truncated = false;
-    let corrente = wrapperTokens(draft.tag);
+    let corrente = wrapperTokens(draft);
     let fechou = false;
 
     for (const entry of draft.entries) {
@@ -198,7 +212,7 @@ export function applyBudget(drafts: readonly SectionDraft[], input: BudgetInput)
       title: draft.title,
       tag: draft.tag,
       entries: mantidos,
-      tokens: sectionTokens(draft.tag, mantidos),
+      tokens: sectionTokens(draft, mantidos),
       budgetTokens: cap,
       truncated,
     };
@@ -231,7 +245,7 @@ export function applyBudget(drafts: readonly SectionDraft[], input: BudgetInput)
       secoes[posicao] = {
         ...secao,
         entries: [cortado],
-        tokens: sectionTokens(secao.tag, [cortado]),
+        tokens: sectionTokens(secao, [cortado]),
         truncated: true,
       };
       // O resumo é o último da ordem: depois dele não há mais o que cortar.
@@ -246,7 +260,7 @@ export function applyBudget(drafts: readonly SectionDraft[], input: BudgetInput)
     secoes[posicao] = {
       ...secao,
       entries: restantes,
-      tokens: sectionTokens(secao.tag, restantes),
+      tokens: sectionTokens(secao, restantes),
       truncated: true,
     };
     excesso = somaTotal() - total;

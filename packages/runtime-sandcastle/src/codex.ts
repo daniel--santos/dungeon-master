@@ -13,6 +13,7 @@ import type { HarnessSignal, McpServerSpec } from "@dungeon-master/runtime";
 import { capabilities } from "@dungeon-master/runtime";
 import type { UsageSummary } from "@dungeon-master/contracts";
 
+import { interpretCodexLoginStatus } from "./auth-check.js";
 import {
   createCliHarnessAdapter,
   parseSemverish,
@@ -96,6 +97,11 @@ export function codexDefinition(options: CodexOptions = {}): CliHarnessDefinitio
     installHint: "Instale com `npm i -g @openai/codex` e autentique com `codex login`.",
     parseVersion: (stdout, stderr) => parseSemverish(stdout, stderr),
     parseLine: parseCodexLine,
+    // `codex login status` (0.147.0): sai 0 autenticado, 1 com "Not logged in",
+    // sem rede. Sem ele um Run mal autenticado repete 401 até o timeout de
+    // ociosidade (ADR 0001, seção 2).
+    detectAuthentication: async ({ run }) =>
+      interpretCodexLoginStatus(await run(["login", "status"])),
     buildArgs: (request): CliArgs => {
       const args = ["exec"];
 

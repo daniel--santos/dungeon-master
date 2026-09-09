@@ -13,6 +13,11 @@ import { capabilities } from "@dungeon-master/runtime";
 import type { UsageSummary } from "@dungeon-master/contracts";
 
 import {
+  combinePiAuthChecks,
+  interpretPiAuthCheck,
+  PI_AUTH_PROBE_PROVIDERS,
+} from "./auth-check.js";
+import {
   createCliHarnessAdapter,
   parseSemverish,
   type CliArgs,
@@ -119,6 +124,20 @@ export function piDefinition(options: PiOptions = {}): CliHarnessDefinition {
       "Instale com `npm i -g @earendil-works/pi-coding-agent` e configure um provedor com `pi auth`.",
     parseVersion: (stdout, stderr) => parseSemverish(stdout, stderr),
     parseLine: parsePiLine,
+    // `pi auth check --provider <p> --json` (0.85.1): por provedor, sem rede,
+    // uns 350 ms cada. Com o provedor fixado no adapter é uma checagem; sem
+    // ele, a lista curta de `PI_AUTH_PROBE_PROVIDERS`, porque uma chave de
+    // qualquer provedor faz o Pi funcionar (ADR 0001, seção 3).
+    detectAuthentication: async ({ run }) => {
+      const provedores =
+        options.provider === undefined ? PI_AUTH_PROBE_PROVIDERS : [options.provider];
+      const checks = [];
+      for (const provider of provedores) {
+        const probe = await run(["auth", "check", "--provider", provider, "--json"]);
+        checks.push({ provider, status: interpretPiAuthCheck(provider, probe).status });
+      }
+      return combinePiAuthChecks(checks);
+    },
     buildArgs: (request): CliArgs => {
       const args = ["-p", "--mode", "json"];
 

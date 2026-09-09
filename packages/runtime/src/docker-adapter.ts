@@ -314,6 +314,7 @@ export function createDockerAdapter(
     }
 
     let authenticated: boolean | undefined;
+    let authReason: string | undefined;
     if (definition.authCheck !== undefined) {
       const hostEnv = context.env ?? {};
       const credenciais = definition.credentialMounts?.(hostEnv) ?? [];
@@ -345,6 +346,12 @@ export function createDockerAdapter(
         { timeoutMs: context.timeoutMs ?? VERSION_TIMEOUT_MS, env },
       );
       authenticated = definition.authCheck.interpret(check);
+      // Só o comando e o código: a saída de `claude auth status` traz o e-mail
+      // do usuário, e o motivo vai para o log e para a tela.
+      authReason =
+        `\`${definition.binary} ${definition.authCheck.args.join(" ")}\` dentro de ${image} ` +
+        `saiu com código ${String(check.code)}` +
+        (authenticated === undefined ? " sem resposta legível" : "");
       if (authenticated === false) {
         problems.push({
           code: "NOT_AUTHENTICATED",
@@ -363,6 +370,7 @@ export function createDockerAdapter(
       ...(version === undefined ? {} : { version }),
       executablePath: `${image}:${definition.binary}`,
       ...(authenticated === undefined ? {} : { authenticated }),
+      ...(authReason === undefined ? {} : { authReason }),
       problems,
     };
 

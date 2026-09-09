@@ -135,7 +135,12 @@ export async function executeWorkflowRun(deps: ExecuteRunDeps, claimed: ClaimedR
       databaseUrl: deps.databaseUrl,
     });
     for (const nota of mcp.notes) {
-      await writer.diagnostic(nota.level === "DEBUG" ? "INFO" : nota.level, nota.message);
+      await writer.diagnostic(
+        nota.level === "DEBUG" ? "INFO" : nota.level,
+        nota.message,
+        nota.detail,
+        nota.code,
+      );
     }
 
     const agent = createStepAgentRuntime({
@@ -144,6 +149,7 @@ export async function executeWorkflowRun(deps: ExecuteRunDeps, claimed: ClaimedR
       repoPath,
       checkoutPath,
       policies,
+      capabilities: prep.prepared.capabilities,
       defaultTimeouts: deps.timeouts,
       onHarnessVersion: (version) => {
         writer.harnessVersion = version;

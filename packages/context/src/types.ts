@@ -69,6 +69,20 @@ export interface ArtifactSource {
   readonly summary: string | null;
 }
 
+/**
+ * Uma Habilidade do Loadout: o nome e, desde a Fase 8, a versão efetiva com o
+ * conteúdo congelado no snapshot do Run. Só o nome é o que um Run anterior à
+ * Fase 8 tem.
+ */
+export interface SkillSource {
+  readonly skillId?: string;
+  readonly name: string;
+  readonly version?: number;
+  readonly pinned?: boolean;
+  /** O markdown da versão efetiva. Texto do usuário: não passa por sanitização de modelo. */
+  readonly content?: string;
+}
+
 /** O que a montagem recebe do Worker. */
 export interface AssembleRunContextInput {
   readonly run: { readonly id: string };
@@ -82,7 +96,10 @@ export interface AssembleRunContextInput {
   readonly loadout: {
     readonly id: string;
     readonly version: number;
+    /** Os nomes, na ordem do Loadout. É o que vale quando `skillVersions` falta. */
     readonly skills: readonly string[];
+    /** As Skills resolvidas com conteúdo (Fase 8B). Ausente em Runs anteriores à Fase 8. */
+    readonly skillVersions?: readonly SkillSource[];
     readonly knowledgePolicy: KnowledgePolicy;
     readonly contextPolicy: ContextPolicy;
   };

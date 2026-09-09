@@ -1525,7 +1525,7 @@ Loadout
 - [x] Tool registry, MCP registry, Model registry, Provider registry (8A)
 - [x] Loadout versioning (8A)
 - [x] Capability matching e preflight (8A, lado de contratos, domínio, banco e API)
-- [ ] 8B — Worker consome o snapshot resolvido e grava os avisos como `Diagnostic`
+- [x] 8B — Worker consome o snapshot resolvido e grava os avisos como `Diagnostic`
 - [ ] 8C — interface dos registros, do pin e do preflight
 
 ## Andamento da Fase 8A (09/09/2026)
@@ -1608,6 +1608,102 @@ interface ainda escreve pela forma curta e não mostra pin, versões nem preflig
 `MODEL_SELECTION_UNSUPPORTED` avisa também quando o Model é só o padrão do Harness; o
 preflight da API não mede a CLI do Antigravity em `DOCKER` porque não há adapter de
 container para ele.
+
+## Andamento da Fase 8B (09/09/2026)
+
+Entregue na branch `feat/fase8-aplicacao`: o Worker e o runtime consomem o que a 8A
+congelou. **O Run usa só o snapshot**: Skills, Tools e servidores vêm de
+`run.loadout_snapshot`, e nada é relido dos registros durante a execução — a retomada e os
+passos de agente do Ritual usam o mesmo snapshot.
+
+**Habilidades no prompt.** A seção `skills` de `packages/context` passou a carregar o
+conteúdo da versão efetiva de cada Skill (`skillVersions`), contado no `run_context` como as
+outras seções — fatia de 15% com piso de 400 tokens, cortada por prioridade depois das
+decisões e antes do resumo, sempre inteira, porque uma instrução pela metade pode dizer o
+contrário do que dizia. Ela rende **fora** do bloco `<context>`, depois dele, como
+"# Habilidades" com um preâmbulo fixo e cada Skill delimitada em
+`<skill name version pinned>`: o preâmbulo do bloco diz que o que está dentro dele é dado, e
+uma Skill é instrução escrita pelo usuário — por isso o conteúdo não passa pela sanitização
+de modelo (só `</skill>` é neutralizado). Uma Skill vazia, como as que a migração `0015`
+criou a partir de nomes, entra pelo nome. Decisão registrada: as Habilidades **não vêm de
+porta**, então entram mesmo com `context.enabled` desligado (o registro sai `ASSEMBLED` com
+`policy.enabled` falso e só a seção delas) e mesmo quando uma porta do montador falha
+(`FAILED`, só com elas no texto). Um interruptor de recuperação e uma queda do banco não
+apagam uma instrução presa ao Loadout. O prompt fica instruções do Agent → `<context>` →
+`# Habilidades` → pedido (e `# Tarefa` no Ritual).
+
+**Tools.** As `COMMAND` somam o prefixo à allow-list do perfil por Run — união, sem repetir,
+na ordem perfil → Tools — e passam pela mesma tradução por harness; um perfil com
+`commandExecution: NONE` não ganha comando por Tool (aviso). As `MCP_TOOL` são conferidas
+contra os servidores do Run: servidor ausente ou ferramenta não anunciada vira `Diagnostic`
+`WARN` (`MCP_TOOL_SERVER_MISSING`, `MCP_TOOL_UNKNOWN`); as que casam ficam numa linha de
+confirmação.
+
+**Servidores MCP.** `command` e `args` vêm separados do snapshot (o `target` quebrado por
+espaço só sobrevive para Runs anteriores à Fase 8), `envKeys` só com nomes entram na
+allow-list do runtime, `readOnly` fica no diário, e o `builtIn` `knowledge` é o Grimório que
+o Worker já sobe — referenciá-lo no Loadout o oferece mesmo com a política de conhecimento
+desligada, e nunca duas vezes.
+
+**Capability matching na reclamação.** `matchCapabilities` roda de novo, antes da trava e
+do worktree, com a matriz do adapter registrado **neste** Worker; a divergência com o
+snapshot fica no diário (`CAPABILITY_DIVERGENCE`, chave a chave) e vale a medida, porque é
+ela que executa. Um par `(harness, modo)` sem adapter aqui, mas com o outro modo, é medido
+como "não roda neste modo" — sem isso um Run em `DOCKER` de um harness só de host morreria
+no registry do runtime, depois de trava e worktree, com erro genérico. Blocker fecha o Run
+como `FAILED` com o erro tipado `CAPABILITY_BLOCKED` (`blockers[]`,
+`capabilitiesSource`), sem subir agente; cada aviso vira `Diagnostic` `WARN` com o código do
+domínio. Vale para o Run simples e para os passos de agente do Ritual, que compartilham a
+preparação.
+
+**Autenticação por Provider.** Cada adapter mede a credencial barato e sem chamar modelo,
+com o comando local não interativo dos ADRs 0001 e 0002: `claude auth status` (JSON com
+`loggedIn`), `codex login status` (código de saída), `pi auth check --provider <p> --json`
+(um provedor fixado ou a lista curta `google`, `anthropic`, `openai`; uma pronta basta) e
+`agy models` (o único com rede; 2,6 s autenticado, 0,9 s sem sessão — o README do
+Antigravity dizia 60 s, que é o tempo de um Run com `-p`). O `PreflightResult` ganha
+`authReason`, uma frase com o comando e o que ele respondeu, nunca a saída bruta (o JSON do
+Claude traz o e-mail e a organização do usuário). O Worker grava, por Harness, `auth_status`
+(`AUTHENTICATED | NOT_AUTHENTICATED | UNKNOWN`), `auth_checked_at` e `auth_reason` —
+migração **`0016`**, colunas próprias porque a matriz diz o que o código sabe fazer e a
+credencial é um estado medido, com instante — e loga o estado por Guilda no boot;
+`GET /harnesses` e o bloco `harness` de `GET /loadouts/{id}/preflight` servem os três
+campos, e `cli.authReason` traz o motivo medido na chamada. `UNKNOWN` é a resposta honesta
+para CLI ausente ou checagem que não respondeu; um `false` sem prova travaria Runs que
+funcionariam. O modo `DOCKER` não é medido no boot: a credencial dentro do container é o
+caminho dos ADRs, e o preflight sob demanda da API é quem sobe o container descartável.
+
+**Contrato para a 8C.** `Harness.authStatus`, `authCheckedAt` e `authReason` (opcionais no
+contrato só porque as fixtures da web ainda não os conhecem; a API sempre os devolve, nulos
+enquanto nenhum Worker mediu), `CliPreflight.authReason`, `LoadoutPreflight.harness.auth*`;
+`Diagnostic.code` com os códigos do capability matching, `CAPABILITY_DIVERGENCE`,
+`MCP_TOOL_SERVER_MISSING` e `MCP_TOOL_UNKNOWN`; `run.error.code = CAPABILITY_BLOCKED` com
+`blockers[]`; no `run_context`, a seção `SKILLS` com um item por Skill (`id` é o id da Skill,
+`title` "nome vN (pinada)") e o texto com "# Habilidades" depois de `</context>`; o preâmbulo
+do bloco `<context>` deixou de citar as habilidades.
+
+**Prova manual** (banco separado `dm_fase8b`, API na 3388, Worker desta branch, Claude Code
+2.1.266, Pi 0.85.1, Antigravity 1.1.28): Skill `relatorio` com v1 "## Relatório" e v2
+"## Boletim"; Loadout `01a087a6-ca66-7448-a26f-2a5d480c8b9d` pinado na v1 com a Tool
+`pnpm --version` e o servidor STDIO do registro `grimorio-espelho` (o próprio
+`knowledge-mcp.mjs`, caminho com `node.exe` e argumentos separados) — Run
+`01a087a7-6eaa-76c6-8422-a1adad694dee` `SUCCEEDED` com o texto final começando por
+"## Relatório", `pnpm --version` executado (10.18.0) pela allow-list ampliada e
+`mcp__grimorio-espelho__get_project_summary` chamado, tudo no diário; Loadout sem pin
+`01a087a6-cac4-76cd-b321-1343045f66ff` → Run `01a087a8-8045-7712-b529-3808ddde00d2` começando
+por "## Boletim"; Pi `01a087a8-80d5-76b0-b5d7-c6c00b51ef56` `SUCCEEDED` com
+`MCP_UNSUPPORTED` e `COMMAND_TOOLS_ADVISORY` como `Diagnostic` `WARN` antes do `RunStarted`;
+Antigravity em "Masmorra selada" `01a087a8-81f6-735e-81dd-51516a89b7af` `FAILED` com
+`CAPABILITY_BLOCKED` (`DOCKER_UNSUPPORTED`), `CAPABILITY_DIVERGENCE` no diário, sem
+`RunStarted` nem worktree; boot do Worker com as quatro Guildas `AUTHENTICATED` e o motivo.
+
+**Pendências.** A suíte de contrato `pi@host` de `runtime-sandcastle` reprovou uma vez no
+`pnpm test` completo (um `Diagnostic` antes do `RunStarted`, sob carga das outras suítes) e
+passou 12/12 isolada; `contract-docker` continua dependendo da cota do Gemini. O
+`Harness.auth*` deve virar obrigatório quando a 8C ajustar as fixtures. Um servidor MCP
+`HTTP` do registro não tem `envKeys` para onde ir. O Worker não mede a credencial em
+`DOCKER` no boot. Falta desligamento gracioso testado à mão nesta rodada (o Worker da prova
+foi derrubado pelo PID).
 
 ---
 

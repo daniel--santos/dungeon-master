@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { assembleRunContext } from "./assembler.js";
 import { CONTEXT_PREAMBLE } from "./render.js";
 import { CONTEXT_BLOCK_HEADER } from "./sanitize.js";
+import { SKILLS_HEADING, SKILLS_PREAMBLE } from "./sections/skills.js";
 import {
   createMemoryContextStore,
   type MemoryContextStoreOptions,
@@ -183,8 +184,11 @@ describe("assembleRunContext", () => {
     expect(contexto.text).toContain(
       "- `docs/widgets.md` — Desenho [Run 01990000-0000-7000-8000-000000000099, Task mãe]",
     );
-    expect(contexto.text).toContain("<skills>\n- review\n</skills>");
-    expect(contexto.text.endsWith("</context>")).toBe(true);
+    // As Habilidades vêm depois do bloco, e o bloco fecha antes delas.
+    expect(contexto.text).toContain(
+      `</context>\n\n${SKILLS_HEADING}\n\n${SKILLS_PREAMBLE}\n\n- review`,
+    );
+    expect(contexto.text.endsWith("- review")).toBe(true);
     // As portas foram consultadas em série, uma por seção, na ordem das seções.
     expect(store.calls).toEqual([
       "loadProjectSummary",
@@ -235,10 +239,13 @@ describe("assembleRunContext", () => {
     expect(store.calls).toEqual(["loadProjectSummary", "loadTaskLineage", "listPriorArtifacts"]);
   });
 
-  it("desligado, devolve DISABLED sem consultar nada", async () => {
+  it("desligado e sem Habilidades, devolve DISABLED sem consultar nada", async () => {
     const store = createMemoryContextStore(GRIMORIO);
     const contexto = await assembleRunContext(
-      input({ settings: { ...input().settings, enabled: false } }),
+      input({
+        settings: { ...input().settings, enabled: false },
+        loadout: { ...input().loadout, skills: [] },
+      }),
       store,
     );
     expect(contexto.status).toBe("DISABLED");
@@ -246,6 +253,87 @@ describe("assembleRunContext", () => {
     expect(contexto.sections).toEqual([]);
     expect(contexto.policy.enabled).toBe(false);
     expect(store.calls).toEqual([]);
+    expect(RunContextSchema.parse(contexto)).toEqual(contexto);
+  });
+
+  it("desligado com Habilidades, só elas entram: ASSEMBLED com policy.enabled falso", async () => {
+    const store = createMemoryContextStore(GRIMORIO);
+    const contexto = await assembleRunContext(
+      input({
+        settings: { ...input().settings, enabled: false },
+        loadout: {
+          ...input().loadout,
+          skillVersions: [
+            {
+              skillId: "s-1",
+              name: "relatorio",
+              version: 1,
+              pinned: true,
+              content: "## Relatório",
+            },
+          ],
+        },
+      }),
+      store,
+    );
+    expect(contexto.status).toBe("ASSEMBLED");
+    expect(contexto.policy.enabled).toBe(false);
+    expect(contexto.query).toBeNull();
+    expect(contexto.sections.map((s) => [s.kind, s.items.map((i) => i.id)])).toEqual([
+      ["SKILLS", ["s-1"]],
+    ]);
+    expect(contexto.text).toBe(
+      `${SKILLS_HEADING}\n\n${SKILLS_PREAMBLE}\n\n` +
+        '<skill name="relatorio" version="1" pinned="true">\n## Relatório\n</skill>',
+    );
+    expect(contexto.text).not.toContain("<context>");
+    expect(store.calls).toEqual([]);
+    expect(RunContextSchema.parse(contexto)).toEqual(contexto);
+  });
+
+  it("as Habilidades com conteúdo entram inteiras, com o pin, e uma grande demais fica registrada", async () => {
+    const grande = "linha de instrução que não acaba mais\n".repeat(400);
+    const contexto = await assembleRunContext(
+      input({
+        loadout: {
+          ...input().loadout,
+          skills: ["relatorio", "enorme", "commits"],
+          skillVersions: [
+            {
+              skillId: "s-1",
+              name: "relatorio",
+              version: 2,
+              pinned: true,
+              content: "## Relatório",
+            },
+            { skillId: "s-2", name: "enorme", version: 1, pinned: false, content: grande },
+            {
+              skillId: "s-3",
+              name: "commits",
+              version: 1,
+              pinned: false,
+              content: "Commits em pt-BR.",
+            },
+          ],
+        },
+      }),
+      createMemoryContextStore(GRIMORIO),
+    );
+    expect(contexto.status).toBe("ASSEMBLED");
+    const habilidades = contexto.sections.find((s) => s.kind === "SKILLS");
+    // A enorme não cabe no teto da seção e sai inteira; a que vem depois dela
+    // sai pela posição, para a inclusão não depender do tamanho de cada uma.
+    expect(habilidades?.items.map((i) => i.title)).toEqual(["relatorio v2 (pinada)"]);
+    expect(habilidades?.truncated).toBe(true);
+    expect(contexto.excluded.map((e) => [e.item.id, e.reason])).toEqual([
+      ["s-2", "SECTION_BUDGET"],
+      ["s-3", "SECTION_BUDGET"],
+    ]);
+    expect(contexto.text).toContain(
+      '<skill name="relatorio" version="2" pinned="true">\n## Relatório\n</skill>',
+    );
+    expect(contexto.text).not.toContain("Commits em pt-BR.");
+    expect(contexto.usage.estimatedTokens).toBe(fastEstimateTokens(contexto.text));
     expect(RunContextSchema.parse(contexto)).toEqual(contexto);
   });
 
@@ -267,12 +355,31 @@ describe("assembleRunContext", () => {
       ...GRIMORIO,
       failOn: { loadTaskLineage: new Error("banco caiu") },
     });
-    const contexto = await assembleRunContext(input(), store);
+    const contexto = await assembleRunContext(
+      input({ loadout: { ...input().loadout, skills: [] } }),
+      store,
+    );
     expect(contexto.status).toBe("FAILED");
     expect(contexto.error).toBe("banco caiu");
     expect(contexto.text).toBe("");
     expect(contexto.sections).toEqual([]);
     expect(contexto.policy.enabled).toBe(true);
+    expect(RunContextSchema.parse(contexto)).toEqual(contexto);
+  });
+
+  it("uma porta que falha com Habilidades no Loadout: FAILED, e só elas no texto", async () => {
+    const store = createMemoryContextStore({
+      ...GRIMORIO,
+      failOn: { loadTaskLineage: new Error("banco caiu") },
+    });
+    const contexto = await assembleRunContext(input(), store);
+    expect(contexto.status).toBe("FAILED");
+    expect(contexto.error).toBe("banco caiu");
+    // Nenhuma seção que veio de porta — nem as que responderam antes da falha.
+    expect(contexto.sections.map((s) => s.kind)).toEqual(["SKILLS"]);
+    expect(contexto.text.startsWith(SKILLS_HEADING)).toBe(true);
+    expect(contexto.text).not.toContain("<context>");
+    expect(contexto.text).toContain("- review");
     expect(RunContextSchema.parse(contexto)).toEqual(contexto);
   });
 

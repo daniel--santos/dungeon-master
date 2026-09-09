@@ -1,4 +1,9 @@
-import type { ExecutionEvent, Run, TaskExecutionResult } from "@dungeon-master/contracts";
+import type {
+  ExecutionEvent,
+  HarnessCapabilities,
+  Run,
+  TaskExecutionResult,
+} from "@dungeon-master/contracts";
 import {
   TaskExecutionResultSchema,
   TASK_EXECUTION_RESULT_INSTRUCTION,
@@ -120,6 +125,11 @@ export interface StepAgentRuntimeInput {
   readonly repoPath: string;
   readonly checkoutPath: string;
   readonly policies: ResolvedRunPolicies;
+  /**
+   * A matriz que valeu no capability matching (Fase 8B). Ausente, a do
+   * snapshot — é o que decide se o passo pede resultado estruturado.
+   */
+  readonly capabilities?: Pick<HarnessCapabilities, "structuredOutput">;
   readonly defaultTimeouts: { readonly idleMs: number; readonly completionMs: number };
   /** Versão do harness vista no preflight de cada passo. Vai para o Run. */
   readonly onHarnessVersion: (harnessVersion: string) => void;
@@ -152,7 +162,8 @@ export function createStepAgentRuntime(input: StepAgentRuntimeInput): StepAgentR
   const { run, policies } = input;
   const harness = run.harnessKey;
   const model = run.loadoutSnapshot.model;
-  const querSchema = run.loadoutSnapshot.harness.capabilities.structuredOutput;
+  const querSchema = (input.capabilities ?? run.loadoutSnapshot.harness.capabilities)
+    .structuredOutput;
 
   return {
     async *execute(request): AsyncIterable<ExecutionEvent> {
