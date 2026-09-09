@@ -96,6 +96,14 @@ export interface CreateWorktreeOptions {
 export interface RemoveWorktreeOptions {
   /** Preserva o worktree quando há mudança não commitada. Padrão: `true`. */
   readonly keepIfDirty?: boolean;
+  /**
+   * Repositório pai, para o `git worktree prune` do caminho de fallback.
+   *
+   * Quem tem o `WorktreeHandle` já sabe o caminho e evita uma pergunta ao git.
+   * Sem ele, a remoção descobre o repositório antes de apagar a árvore —
+   * depois do `rm` não há mais a quem perguntar.
+   */
+  readonly repoPath?: string;
 }
 
 export interface RemoveWorktreeResult {
@@ -233,6 +241,24 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions = {}): W
     return status.trim().length > 0;
   };
 
+  /**
+   * O repositório pai de um worktree, perguntado ao próprio git.
+   *
+   * `--git-common-dir` é o `.git` compartilhado — o do repositório principal —,
+   * e não o `.git/worktrees/<nome>` desta árvore. Devolve `undefined` quando o
+   * git não sabe responder: é o caso em que o `.git` do worktree se perdeu, e
+   * quem chama já tratou isso como "não dá para limpar o registro daqui".
+   */
+  const mainRepoOf = async (worktree: string): Promise<string | undefined> => {
+    const saida = await git(
+      ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+      worktree,
+    ).catch(() => undefined);
+    const commonDir = saida?.trim() ?? "";
+    if (commonDir.length === 0) return undefined;
+    return basename(commonDir) === ".git" ? dirname(commonDir) : commonDir;
+  };
+
   return {
     worktreePathFor,
     branchFor,
@@ -331,15 +357,31 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions = {}): W
         return { removed: false, keptBecauseDirty: true };
       }
 
+      // Onde mora o registro deste worktree, perguntado **antes** de qualquer
+      // remoção: depois do `rm` não há mais a quem perguntar.
+      const repo =
+        removeOptions?.repoPath === undefined
+          ? await mainRepoOf(target)
+          : normalizeAbsolutePath(removeOptions.repoPath);
+
       // `worktree remove` roda de dentro do próprio worktree: o repositório
       // principal pode ter sido movido, e o worktree sabe achar o `.git` dele.
       // `--force` porque o agente pode ter deixado arquivo não rastreado, e
       // aqui a decisão de descartar já foi tomada acima.
       await git(["worktree", "remove", "--force", target], target).catch(async (error: unknown) => {
-        // Um worktree cujo registro o git perdeu (repositório re-clonado, por
-        // exemplo) não sai por `worktree remove`. Apagar o diretório é o
-        // fallback honesto, e o `prune` limpa o registro depois.
+        // Um worktree cujo registro e árvore discordam não sai por
+        // `worktree remove` — e no Windows ele também falha porque o próprio
+        // `git` roda com `cwd` igual ao diretório que está apagando. Apagar o
+        // diretório é o fallback honesto, mas o registro em
+        // `<repo>/.git/worktrees/<runId>` fica para trás: ao longo de muitos
+        // Runs, `git worktree list` passa a listar diretórios que não existem.
+        // O `prune` é a segunda metade do fallback, e roda no repositório pai —
+        // o worktree, a essa altura, já não existe.
         await rm(target, { recursive: true, force: true });
+        if (repo !== undefined) {
+          // Limpeza de registro nunca derruba a remoção que já aconteceu.
+          await git(["worktree", "prune"], repo).catch(() => undefined);
+        }
         if (!(error instanceof GitCommandError)) throw error;
       });
 
