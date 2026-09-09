@@ -378,6 +378,9 @@ importers:
       '@dungeon-master/knowledge':
         specifier: workspace:*
         version: link:../knowledge
+      '@dungeon-master/platform':
+        specifier: workspace:*
+        version: link:../platform
       dotenv:
         specifier: 17.4.2
         version: 17.4.2

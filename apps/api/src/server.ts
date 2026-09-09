@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./load-env.js";
 
 import type { Server as HttpServer } from "node:http";
 

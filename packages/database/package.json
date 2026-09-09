@@ -42,6 +42,7 @@
     "@dungeon-master/domain": "workspace:*",
     "@dungeon-master/events": "workspace:*",
     "@dungeon-master/knowledge": "workspace:*",
+    "@dungeon-master/platform": "workspace:*",
     "dotenv": "17.4.2",
     "drizzle-orm": "0.45.2",
     "pg": "8.23.0",

@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./load-env.js";
 
 import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/database";
 import {

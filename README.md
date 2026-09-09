@@ -39,7 +39,19 @@ corepack enable
 pnpm install
 ```
 
-### 2. Banco de desenvolvimento
+### 2. Build dos pacotes
+
+```bash
+pnpm build
+```
+
+API, Worker e Web consomem os pacotes compilados. Os scripts de banco do passo
+seguinte também: `db:migrate` e `db:seed` importam `@dungeon-master/contracts` e
+`@dungeon-master/achievements`, que resolvem para `dist/`, e `dist/` não é versionado.
+Num clone novo, sem este passo, o primeiro comando de banco morre com
+`ERR_MODULE_NOT_FOUND`. O primeiro build é obrigatório, e vem antes de tudo.
+
+### 3. Banco de desenvolvimento
 
 O PostgreSQL 17 sobe em container; é a única peça em Docker.
 
@@ -76,14 +88,6 @@ em `QUEUED` ou `RUNNING`, que só passam a significar algo com o runtime da Fase
 O comando é idempotente: a chave estável é o título, então rodar duas vezes não duplica
 nada e o que já existe é reaproveitado, sem reaplicar transições. Ele também não remove
 nada — para começar do zero, `docker compose down -v` apaga o volume.
-
-### 3. Build dos pacotes
-
-API, Worker e Web consomem os pacotes compilados, então o primeiro build é obrigatório.
-
-```bash
-pnpm build
-```
 
 ### 4. Processos
 
@@ -153,6 +157,11 @@ estruturado; `knowledge.loadoutId` em Settings escolhe outro.
 Todas têm padrão sensato para desenvolvimento local. Os arquivos `.env.example` de
 `apps/api` e `apps/worker` listam o conjunto completo; copie para um `.env` na raiz se
 quiser mudar algo.
+
+Cada ponto de entrada (API, Worker, `pnpm dm`, `db:migrate` e `db:seed`) lê **dois**
+arquivos: o `.env` do próprio pacote e o `.env` da raiz do monorepo, nessa ordem de
+precedência — quem define a variável primeiro vence, então o do pacote sobrepõe o da
+raiz. Na prática, ponha tudo na raiz e use o `.env` do pacote só para exceções.
 
 | Variável                                     | Padrão                                                       | Onde                   |
 | -------------------------------------------- | ------------------------------------------------------------ | ---------------------- |
