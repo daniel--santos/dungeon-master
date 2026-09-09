@@ -207,7 +207,10 @@ export function harnessContractSuite(options: HarnessContractSuiteOptions): void
       }, caseTimeout);
 
       testCase(options, "canRunPrompt", "roda um prompt e termina em evento terminal", () => {
-        expect(events.at(0)?.type).toBe("RunStarted");
+        // A lista inteira na mensagem: um `Diagnostic` antes do `RunStarted` é
+        // um problema não fatal do preflight, e sem o texto dele a falha só
+        // diz "esperava RunStarted".
+        expect(events.at(0)?.type, describeEvents(events)).toBe("RunStarted");
         const last = events.at(-1);
         expect(last?.type, describeEvents(events)).toBe("RunCompleted");
       });
