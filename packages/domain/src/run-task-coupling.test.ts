@@ -6,6 +6,7 @@ import {
 } from "@dungeon-master/contracts";
 import { describe, expect, it } from "vitest";
 
+import { allowedRunTransitions, isTerminalRunStatus } from "./run-status.js";
 import {
   checkRunCreation,
   type RunCreationInput,
@@ -14,6 +15,7 @@ import {
   taskStatusForRun,
   taskStatusForRunTransition,
 } from "./run-task-coupling.js";
+import { checkTaskTransition, type TaskNode } from "./task-rules.js";
 import { canTransitionTask } from "./task-status.js";
 
 const BASE: RunCreationInput = {
@@ -210,6 +212,107 @@ describe("taskStatusForRunTransition", () => {
     // uma aresta que a máquina de Task tem.
     expect(taskStatusForRunTransition({ from: "WAITING_APPROVAL", to: "CANCELLED" })).toBe("READY");
     expect(canTransitionTask("RUNNING", "READY")).toBe(true);
+  });
+});
+
+/**
+ * A costura de baixo prova a **forma** do grafo; esta prova a **vizinhança**,
+ * que é a metade que faltava.
+ *
+ * Uma Task mãe com subtarefa aberta chega a `RUNNING` como qualquer outra, e
+ * `checkTaskTransition` recusa `RUNNING → COMPLETED` com `CHILDREN_NOT_SETTLED`.
+ * Como a recusa acontece antes da primeira escrita da transação de desfecho, o
+ * Run não fecha, `run.result` não é gravado e as propostas daquele resultado se
+ * perdem. Pedir um destino que o próprio domínio recusa é o defeito; o teste
+ * mora aqui porque é o acoplamento que escolhe o destino.
+ */
+describe("o desfecho de um Run de Task mãe com subtarefa aberta", () => {
+  const FILHA_ABERTA: readonly TaskNode[] = [{ id: "T-filha", status: "READY" }];
+  const FILHAS_ASSENTADAS: readonly TaskNode[] = [
+    { id: "T-feita", status: "COMPLETED" },
+    { id: "T-descartada", status: "CANCELLED" },
+  ];
+
+  it("com filha aberta, não pede COMPLETED: pede um destino que a máquina aceita", () => {
+    const alvo = taskStatusForRunTransition({
+      from: "RUNNING",
+      to: "SUCCEEDED",
+      resultStatus: "completed",
+      children: FILHA_ABERTA,
+    });
+
+    expect(alvo).toBe("BLOCKED");
+    if (alvo === null) return;
+    expect(checkTaskTransition({ from: "RUNNING", to: alvo, children: FILHA_ABERTA })).toEqual({
+      ok: true,
+    });
+  });
+
+  it("com as filhas assentadas, o veredito completed continua concluindo a mãe", () => {
+    const alvo = taskStatusForRunTransition({
+      from: "RUNNING",
+      to: "SUCCEEDED",
+      resultStatus: "completed",
+      children: FILHAS_ASSENTADAS,
+    });
+
+    expect(alvo).toBe("COMPLETED");
+    if (alvo === null) return;
+    expect(checkTaskTransition({ from: "RUNNING", to: alvo, children: FILHAS_ASSENTADAS })).toEqual(
+      {
+        ok: true,
+      },
+    );
+  });
+
+  it("sem filhas, o destino é o da tabela, como sempre foi", () => {
+    expect(taskStatusForRunTransition({ from: "RUNNING", to: "SUCCEEDED" })).toBe("FAILED");
+    expect(
+      taskStatusForRunTransition({ from: "RUNNING", to: "SUCCEEDED", resultStatus: "completed" }),
+    ).toBe("COMPLETED");
+    expect(
+      taskStatusForRunTransition({
+        from: "RUNNING",
+        to: "SUCCEEDED",
+        resultStatus: "completed",
+        children: [],
+      }),
+    ).toBe("COMPLETED");
+  });
+
+  it("só COMPLETED é afetado: os outros vereditos passam intactos", () => {
+    for (const resultStatus of RUN_RESULT_STATUS_VALUES) {
+      const comFilha = taskStatusForRunTransition({
+        from: "RUNNING",
+        to: "SUCCEEDED",
+        resultStatus,
+        children: FILHA_ABERTA,
+      });
+
+      if (resultStatus === "completed") continue;
+      expect(comFilha, resultStatus).toBe(taskStatusForRun("SUCCEEDED", resultStatus));
+    }
+  });
+
+  it("todo desfecho de um Run em voo cabe na máquina, com filha aberta", () => {
+    const desfechos = allowedRunTransitions("RUNNING").filter(isTerminalRunStatus);
+
+    for (const to of desfechos) {
+      for (const resultStatus of [null, ...RUN_RESULT_STATUS_VALUES]) {
+        const alvo = taskStatusForRunTransition({
+          from: "RUNNING",
+          to,
+          resultStatus,
+          children: FILHA_ABERTA,
+        });
+        if (alvo === null || alvo === "RUNNING") continue;
+
+        expect(
+          checkTaskTransition({ from: "RUNNING", to: alvo, children: FILHA_ABERTA }),
+          `${to} + ${resultStatus ?? "sem resultado"} → ${alvo}`,
+        ).toEqual({ ok: true });
+      }
+    }
   });
 });
 

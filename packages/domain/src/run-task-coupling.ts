@@ -5,7 +5,7 @@ import type {
   TaskStatus,
 } from "@dungeon-master/contracts";
 
-import { type TaskNode, uncompletedDependencies } from "./task-rules.js";
+import { type TaskNode, uncompletedDependencies, unsettledChildren } from "./task-rules.js";
 
 /**
  * As regras que ligam Task e Run.
@@ -24,6 +24,10 @@ import { type TaskNode, uncompletedDependencies } from "./task-rules.js";
  * Run FAILED | TIMED_OUT        → Task FAILED
  * Run CANCELLED                 → Task READY
  * ```
+ *
+ * A única linha com exceção é a primeira de `SUCCEEDED`: uma Task mãe com
+ * subtarefa aberta não pode ser concluída (`CHILDREN_NOT_SETTLED`), e o desfecho
+ * a leva a `BLOCKED` em vez de `COMPLETED` — veja `taskStatusForRunTransition`.
  */
 
 /**
@@ -131,6 +135,10 @@ export function checkRunCreation(input: RunCreationInput): RunCreationCheck {
  * "a execução correu bem?" é o `RunStatus`; "o trabalho ficou pronto?" é o
  * veredito do agente. Um Run pode terminar impecavelmente e reportar que a
  * Task ficou bloqueada.
+ *
+ * É a tabela por destino, e só ela: a vizinhança da Task — filhas abertas — é
+ * assunto de `taskStatusForRunTransition`, que é o que quem escreve o desfecho
+ * chama.
  */
 export function taskStatusForRun(
   status: RunStatus,
@@ -167,23 +175,56 @@ export interface RunTransitionInput {
   readonly to: RunStatus;
   /** O veredito que vai ficar gravado. Só é lido em `SUCCEEDED`. */
   readonly resultStatus?: RunResultStatus | null;
+  /**
+   * Subtarefas diretas da Task do Run. Ausente é o mesmo que nenhuma.
+   *
+   * Lidas na mesma transação em que o desfecho vai ser escrito, como toda regra
+   * de vizinhança do domínio.
+   */
+  readonly children?: readonly TaskNode[];
 }
 
 /**
  * Para onde a Task vai quando o Run **sai de `from` para `to`**.
  *
- * É `taskStatusForRun` com uma exceção: `WAITING_APPROVAL → QUEUED` não mexe
- * na Task. A volta à fila depois de um gate de aprovação não é um
- * enfileiramento novo — a Task nunca saiu de `RUNNING`, porque o gate é do
- * Run e não do trabalho —, e `RUNNING → QUEUED` não existe na máquina de
- * Task por bom motivo: trabalho em curso não volta para a fila sem um Run ter
- * terminado. Quando o Worker reclamar o Run de novo, `PREPARING` encontra a
- * Task já em `RUNNING` e não a move.
+ * É `taskStatusForRun` com duas exceções.
+ *
+ * A primeira: `WAITING_APPROVAL → QUEUED` não mexe na Task. A volta à fila
+ * depois de um gate de aprovação não é um enfileiramento novo — a Task nunca
+ * saiu de `RUNNING`, porque o gate é do Run e não do trabalho —, e
+ * `RUNNING → QUEUED` não existe na máquina de Task por bom motivo: trabalho em
+ * curso não volta para a fila sem um Run ter terminado. Quando o Worker
+ * reclamar o Run de novo, `PREPARING` encontra a Task já em `RUNNING` e não a
+ * move.
+ *
+ * A segunda: uma Task mãe com subtarefa aberta não vai a `COMPLETED`, vai a
+ * `BLOCKED`. `checkTaskTransition` recusa **toda** chegada a `COMPLETED` com
+ * filha não assentada, e o acoplamento não pode pedir um destino que o próprio
+ * domínio recusa. `BLOCKED` diz a verdade — o trabalho da mãe terminou, mas ela
+ * não fecha enquanto as filhas não assentarem —, não é terminal, e `BLOCKED →
+ * READY` deixa a saída na mão do usuário. O veredito do agente continua inteiro
+ * em `run.result`: quem quiser saber que a execução deu `completed` lê de lá.
  *
  * Todo outro par delega à tabela por destino, que continua sendo a verdade
  * para quem só conhece o estado de chegada.
  */
 export function taskStatusForRunTransition(input: RunTransitionInput): TaskStatus | null {
   if (input.from === "WAITING_APPROVAL" && input.to === "QUEUED") return null;
-  return taskStatusForRun(input.to, input.resultStatus ?? null);
+
+  const alvo = taskStatusForRun(input.to, input.resultStatus ?? null);
+
+  // post-mortem #7 (08/09/2026): um Run bem-sucedido de Task mãe com subtarefa
+  // aberta pedia `COMPLETED`, e `checkTaskTransition` o recusava com
+  // `CHILDREN_NOT_SETTLED`. A recusa acontece antes da primeira escrita da
+  // transação de desfecho, então o Run ficava `RUNNING` para sempre, sem
+  // `run.result`, sem soltar a trava do workspace e sem gravar as `ProposedTask`
+  // e os `KnowledgeCandidate` daquele resultado — em silêncio, porque o Worker
+  // descarta o `Result`. O domínio autorizava começar o que ele mesmo recusava
+  // terminar. Não troque este desvio por "deixar de checar as filhas no
+  // desfecho": a regra das filhas vale para toda chegada a `COMPLETED`.
+  if (alvo === "COMPLETED" && unsettledChildren(input.children ?? []).length > 0) {
+    return "BLOCKED";
+  }
+
+  return alvo;
 }
