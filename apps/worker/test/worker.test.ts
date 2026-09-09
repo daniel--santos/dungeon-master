@@ -1,4 +1,5 @@
 import { readFile, stat } from "node:fs/promises";
+import { hostname } from "node:os";
 import { join } from "node:path";
 
 import type { TaskExecutionResult } from "@dungeon-master/contracts";
@@ -8,6 +9,7 @@ import {
   listKnowledgeCandidates,
   listProposedTasks,
   listWorkspaceLocksByRun,
+  newId,
   requestRunCancellation,
   runs,
   tasks,
@@ -26,6 +28,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, i
 
 import type { AchievementProjector } from "../src/achievements.js";
 import { newWorkerId } from "../src/config.js";
+import { workerStillRunningHere } from "../src/reconcile.js";
 import { createRunOutcomeWriter } from "../src/run-writers.js";
 import { createWorker, type Worker } from "../src/worker.js";
 import {
@@ -737,6 +740,66 @@ describe("reconciliação na partida", () => {
 
     const eventos = await eventosDoRun(db, criado.id);
     expect(eventos.map((evento) => evento.type)).toEqual(["Diagnostic", "RunFailed"]);
+  });
+
+  it("só um `host#pid#uuid` desta máquina com PID vivo conta como dono vivo", () => {
+    const sonda = { host: "maquina-a", alive: (pid: number) => pid === 42 };
+
+    expect(workerStillRunningHere("maquina-a#42#01a0", sonda)).toBe(true);
+    // PID morto: o Worker caiu e o Run é mesmo órfão.
+    expect(workerStillRunningHere("maquina-a#43#01a0", sonda)).toBe(false);
+    expect(workerStillRunningHere("maquina-b#42#01a0", sonda)).toBe(false);
+    // Formato desconhecido e `claimed_by` nulo continuam órfãos, como antes.
+    expect(workerStillRunningHere("worker-morto", sonda)).toBe(false);
+    expect(workerStillRunningHere("maquina-a#nao-e-pid#01a0", sonda)).toBe(false);
+    expect(workerStillRunningHere(null, sonda)).toBe(false);
+  });
+
+  it("não fecha o Run de um Worker que ainda está vivo nesta máquina", async () => {
+    const cenario = await montarCenario(db, { nome: "vivo", workspacePath: repositorio.repo });
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: "@@fake:hang",
+    });
+
+    // `newWorkerId()` é `host#pid#uuid`, e este aponta para um processo vivo —
+    // o do próprio teste. É o caso real do `CLAUDE.md`, seção 6: outras sessões
+    // rodam Worker nesta mesma máquina ao mesmo tempo, e o segundo
+    // `pnpm dev:worker` fechava como `WORKER_LOST` os Runs vivos do primeiro,
+    // com os agentes ainda rodando.
+    const vivo = `${hostname()}#${String(process.pid)}#${newId()}`;
+    await marcarComoEmExecucao(criado.id, cenario.taskId, vivo);
+
+    await subirWorker({ start: false });
+
+    const run = await getRun(db, { userId: USER, runId: criado.id });
+    expect(run?.status).toBe("RUNNING");
+    expect((await linhaDoRun(db, criado.id))?.claimedBy).toBe(vivo);
+    expect(await statusDaTask(db, cenario.taskId)).toBe("RUNNING");
+    expect(await eventosDoRun(db, criado.id)).toHaveLength(0);
+  });
+
+  it("fecha o Run reclamado por um Worker de outra máquina", async () => {
+    const cenario = await montarCenario(db, { nome: "outra-maq", workspacePath: repositorio.repo });
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: "@@fake:hang",
+    });
+
+    // O PID é o deste processo, mas o host é outro: um PID vivo aqui não diz
+    // nada sobre um processo de outra máquina.
+    const forasteiro = `outra-maquina#${String(process.pid)}#${newId()}`;
+    await marcarComoEmExecucao(criado.id, cenario.taskId, forasteiro);
+
+    await subirWorker({ start: false });
+
+    const run = await getRun(db, { userId: USER, runId: criado.id });
+    expect(run?.status).toBe("FAILED");
+    expect(run?.error?.["code"]).toBe("WORKER_LOST");
   });
 
   it("não toca nos Runs do próprio processo", async () => {
