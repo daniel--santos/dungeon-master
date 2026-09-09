@@ -31,14 +31,22 @@ Esse vocabulário existe apenas como **label da interface**, vindo de
 
 Convenções por camada:
 
-| Camada                    | Convenção                     | Exemplo                                 |
-| ------------------------- | ----------------------------- | --------------------------------------- |
-| Tipos e schemas Zod       | `PascalCase` singular         | `RunEvent`, `TaskKind`                  |
-| Campos de contrato e JSON | `camelCase`                   | `harnessSessionId`, `executionMode`     |
-| Tabelas e colunas         | `snake_case` singular         | `run_event`, `harness_session_id`       |
-| Enums de domínio          | `SCREAMING_SNAKE_CASE`        | `RUNNING`, `WAITING_APPROVAL`, `BUG`    |
-| Nomes de evento           | `PascalCase`                  | `RunSucceeded`, `ProcessTreeTerminated` |
-| Rotas                     | `/api/v1/<recurso-no-plural>` | `/api/v1/tasks`                         |
+| Camada                    | Convenção                     | Exemplo                               |
+| ------------------------- | ----------------------------- | ------------------------------------- |
+| Tipos e schemas Zod       | `PascalCase` singular         | `RunEvent`, `TaskKind`                |
+| Campos de contrato e JSON | `camelCase`                   | `harnessSessionId`, `executionMode`   |
+| Tabelas e colunas         | `snake_case` singular         | `run_event`, `harness_session_id`     |
+| Enums de domínio          | `SCREAMING_SNAKE_CASE`        | `RUNNING`, `WAITING_APPROVAL`, `BUG`  |
+| Nomes de `ExecutionEvent` | `PascalCase`                  | `RunCompleted`, `RunTimedOut`         |
+| Nomes de evento de painel | `recurso.acao` em snake_case  | `task.proposed`, `hero_stats.updated` |
+| Rotas                     | `/api/v1/<recurso-no-plural>` | `/api/v1/tasks`                       |
+
+São duas famílias de evento, e cada uma tem a sua convenção. `ExecutionEvent`
+(`packages/contracts/src/execution-event.ts`) é o que sai de um agente em execução, em
+`PascalCase`. O evento de painel (`packages/contracts/src/dashboard-event.ts`) é o que a
+web escuta pelo SSE e filtra por string: `recurso.acao` em snake_case, nos 26 tipos, e
+gravado assim na coluna `dashboard_event.type`. Ao acrescentar um evento, siga a
+convenção da família dele; não misture as duas no mesmo enum.
 
 O idioma da interface é português; os identificadores de código são em inglês. Comentários
 e mensagens de erro voltadas ao usuário podem ser em português.
@@ -65,8 +73,9 @@ Aplicadas pelo ESLint em `eslint.config.mjs`. Quebrar qualquer uma falha em `pnp
   direto. Código de teste (`**/*.test.*`, `test/`, `e2e/`) está fora da regra.
 - **`packages/domain`** não importa banco, ORM, HTTP, logger, runtime de agente nem
   builtins do Node. O domínio computa; a infraestrutura entra por injeção de contrato.
-- **`packages/runtime`** (quando existir) não importa `packages/database`; recebe o store
-  por contrato.
+- **`packages/runtime`**, e os adapters `runtime-sandcastle` e `runtime-antigravity`, não
+  importam `packages/database`, ORM, HTTP nem logger; o store entra por injeção de
+  contrato.
 - **`packages/workflow`** segue a mesma linha do runtime: não importa `packages/database`
   nem `packages/events`; persistência, runtime de agente, executor de processo e relógio
   entram pelas portas de `ports.ts`, e o Worker faz a fiação com os repositórios reais.

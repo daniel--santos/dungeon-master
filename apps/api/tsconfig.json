@@ -2,7 +2,14 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": ".",
-    "outDir": "dist"
+    "outDir": "dist",
+    // post-mortem #23 (08/09/2026): o pacote usa `process.env` (`src/config.ts`),
+    // `node:http` (`src/server.ts`) e `node:fs` (`src/handlers/projects.ts`), e
+    // compilava só porque `drizzle-orm`/`pg`/`hono` arrastavam a referência a
+    // `@types/node` por acaso. O TypeScript 6 não a inclui sozinho: no dia em que
+    // uma dessas dependências parasse de arrastá-la, o `typecheck` quebraria aqui
+    // com dezenas de erros sem relação com o commit que os causou. Não remova.
+    "types": ["node"]
   },
   "include": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts", "vitest.config.ts"]
 }

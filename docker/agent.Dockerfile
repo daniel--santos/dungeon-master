@@ -16,8 +16,9 @@
 #   parseável. O preflight do runtime compara esse valor com o UID do worker e
 #   avisa quando a imagem foi construída para outro dono.
 #
-# Origem da técnica: `@ai-hero/sandcastle` v0.12.0, `.sandcastle/Dockerfile`
-# (MIT, © 2026 Matt Pocock) — https://github.com/mattpocock/sandcastle
+# Adapted from Sandcastle — `.sandcastle/Dockerfile`@e99f832 (v0.12.0)
+# Copyright (c) 2026 Matt Pocock. Licensed under the MIT License.
+# https://github.com/mattpocock/sandcastle
 # Changes: base Node 24 em vez de 22; CLIs instaladas com versão fixa em vez de
 # instalador remoto (npm para as três de Node, objeto versionado com SHA-512
 # conferido para o Antigravity); `gh` removido; `ENTRYPOINT ["sleep","infinity"]`
