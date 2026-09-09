@@ -260,19 +260,27 @@ export async function applyRunStatus(
   // O veredito que decide o destino da Task é o que **vai** ficar gravado: o do
   // patch, quando ele traz um, e o que já estava quando não traz.
   const resultado = patch.result === undefined ? run.result : patch.result;
+
+  // post-mortem #7 (08/09/2026): as filhas eram lidas só depois de `alvo`, e
+  // `taskStatusForRunTransition` decidia sem elas. Uma Task mãe com subtarefa
+  // aberta recebia `COMPLETED` como alvo e `checkTaskTransition` recusava logo
+  // abaixo com `CHILDREN_NOT_SETTLED`: o Run terminava bem e nunca gravava o
+  // desfecho. A leitura subiu para antes da decisão, pelo índice
+  // `task_parent_idx`, e o mesmo valor serve às duas.
+  const filhas = await db
+    .select({ id: tasks.id, status: tasks.status })
+    .from(tasks)
+    .where(and(eq(tasks.userId, input.userId), eq(tasks.parentTaskId, task.id)));
+
   const alvo = taskStatusForRunTransition({
     from: run.status,
     to,
     resultStatus: resultado?.status ?? null,
+    children: filhas,
   });
   const moveTask = alvo !== null && alvo !== task.status;
 
   if (moveTask) {
-    const filhas = await db
-      .select({ id: tasks.id, status: tasks.status })
-      .from(tasks)
-      .where(and(eq(tasks.userId, input.userId), eq(tasks.parentTaskId, task.id)));
-
     const dependencias = await db
       .select({ id: tasks.id, status: tasks.status })
       .from(taskDependencies)

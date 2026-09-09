@@ -29,7 +29,7 @@ import {
 } from "../src/execution-profile.js";
 import { executionProfiles } from "../src/schema/execution.js";
 import { OPEN_FIELD_ALLOWED_COMMANDS } from "../src/seed-execution.js";
-import { getTaskDetail } from "../src/task.js";
+import { createTask, getTaskDetail } from "../src/task.js";
 import {
   acquireWorkspaceLock,
   getActiveRunByPath,
@@ -347,6 +347,40 @@ describe("writeRunTerminalStatus", () => {
       const detalhe = await getTaskDetail(handle.db, { userId: USER, taskId });
       expect(detalhe?.status, veredito).toBe(esperado);
     }
+  });
+
+  it("mãe com filha aberta fecha o Run e vai a BLOCKED, sem perder o result", async () => {
+    const { runId, taskId } = await ateRunning("Mãe com filha aberta");
+    exigirOk(
+      await createTask(handle.db, {
+        userId: USER,
+        projectId,
+        parentTaskId: taskId,
+        title: "Filha ainda aberta",
+      }),
+      "a criação da filha",
+    );
+
+    // O veredito é `completed`, que sozinho pediria COMPLETED. A filha aberta é
+    // lida antes da decisão, então o alvo já nasce BLOCKED e a transição passa:
+    // antes desta fiação o alvo era COMPLETED, `checkTaskTransition` recusava
+    // com CHILDREN_NOT_SETTLED e o desfecho nunca era gravado.
+    exigirOk(
+      await writeRunTerminalStatus(handle.db, {
+        userId: USER,
+        runId,
+        status: "SUCCEEDED",
+        result: { status: "completed", summary: "o trabalho da mãe terminou" },
+      }),
+      "o desfecho da mãe",
+    );
+
+    const detalhe = await getTaskDetail(handle.db, { userId: USER, taskId });
+    expect(detalhe?.status).toBe("BLOCKED");
+
+    const gravado = await getRun(handle.db, { userId: USER, runId });
+    expect(gravado?.status).toBe("SUCCEEDED");
+    expect(gravado?.result?.summary).toBe("o trabalho da mãe terminou");
   });
 
   it("TIMED_OUT leva a Task a FAILED", async () => {
