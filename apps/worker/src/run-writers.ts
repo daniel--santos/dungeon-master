@@ -110,7 +110,16 @@ export function createRunOutcomeWriter(input: {
 
     writeTerminal: async (terminal) => {
       try {
-        await writeRunTerminalStatus(db, {
+        // post-mortem #3 (08/09/2026): o retorno de `writeRunTerminalStatus`
+        // era descartado e `terminalWritten` virava `true` mesmo quando a
+        // máquina de estados **recusava** a escrita. A recusa vem como valor
+        // (`null` ou `ok: false`), e não como exceção, então o `catch` abaixo
+        // nunca a via: o Run ficava preso em `PREPARING`/`RUNNING`, o `result`
+        // com as `ProposedTask` e os `KnowledgeCandidate` se perdia sem uma
+        // linha de log, e as duas guardas de "sem evento terminal"
+        // (`execute-run.ts` e `execute-workflow-run.ts`) ficavam desarmadas.
+        // Agora só a escrita aceita conta como escrita.
+        const escrito = await writeRunTerminalStatus(db, {
           userId,
           runId: run.id,
           status: terminal.status,
@@ -121,6 +130,22 @@ export function createRunOutcomeWriter(input: {
           events: terminal.events,
           ...(logger === undefined ? {} : { logger }),
         });
+
+        if (escrito === null || !escrito.ok) {
+          // Nada foi gravado — nem o status, nem os eventos, nem o `result`.
+          // Insistir seria forçar um estado que o domínio não aceita; o log é
+          // o que sobra, e a guarda de "sem evento terminal" continua armada.
+          logger?.error(
+            {
+              runId: run.id,
+              status: terminal.status,
+              failure: escrito === null ? "RUN_NOT_FOUND" : escrito.failure,
+            },
+            "o domínio recusou o status terminal do Run; nada foi gravado",
+          );
+          return;
+        }
+
         terminalWritten = true;
       } catch (error) {
         // Nenhum resultado comum pode ser reportado pelo canal que acabou de

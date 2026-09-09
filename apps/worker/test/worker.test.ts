@@ -1,4 +1,5 @@
 import { readFile, stat } from "node:fs/promises";
+import { hostname } from "node:os";
 import { join } from "node:path";
 
 import type { TaskExecutionResult } from "@dungeon-master/contracts";
@@ -8,6 +9,7 @@ import {
   listKnowledgeCandidates,
   listProposedTasks,
   listWorkspaceLocksByRun,
+  newId,
   requestRunCancellation,
   runs,
   tasks,
@@ -26,6 +28,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, i
 
 import type { AchievementProjector } from "../src/achievements.js";
 import { newWorkerId } from "../src/config.js";
+import { workerStillRunningHere } from "../src/reconcile.js";
+import { createRunOutcomeWriter } from "../src/run-writers.js";
 import { createWorker, type Worker } from "../src/worker.js";
 import {
   abrirBanco,
@@ -95,9 +99,11 @@ async function subirWorker(input: {
   start?: boolean;
   workspace?: WorkspaceManager;
   achievements?: AchievementProjector;
+  /** Um `Database` instrumentado, para os testes de entrelaçamento. */
+  db?: Database;
 }): Promise<Worker> {
   const criado = createWorker({
-    db,
+    db: input.db ?? db,
     pool: handle.pool,
     userId: USER,
     adapters: input.adapters ?? [fakeHarness()],
@@ -472,6 +478,57 @@ describe("desfechos ruins", () => {
   });
 });
 
+describe("escrita terminal recusada pelo domínio", () => {
+  it("recusa devolvida como valor não conta como escrita terminal", async () => {
+    const cenario = await montarCenario(db, { nome: "recusa", workspacePath: repositorio.repo });
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: '@@fake:block {"status":"completed","summary":"ok"}',
+    });
+
+    // O primeiro desfecho é aceito: `QUEUED → CANCELLED` existe na máquina de
+    // estados.
+    const primeiro = createRunOutcomeWriter({
+      db,
+      userId: USER,
+      run: criado,
+      logger: undefined,
+      startedAt: Date.now(),
+    });
+    await primeiro.writeTerminal({
+      status: "CANCELLED",
+      error: { message: "cancelado antes de rodar", reason: "user_request" },
+      events: [],
+    });
+    expect(primeiro.terminalWritten).toBe(true);
+
+    // O segundo cai sobre um Run já terminal. `writeRunTerminalStatus` devolve
+    // a recusa **como valor** (`ok: false`), sem lançar: dar isso por escrito
+    // perde o `result`, as `ProposedTask` e os `KnowledgeCandidate` em silêncio
+    // e desarma as duas guardas de "sem evento terminal".
+    const segundo = createRunOutcomeWriter({
+      db,
+      userId: USER,
+      run: criado,
+      logger: undefined,
+      startedAt: Date.now(),
+    });
+    await segundo.writeTerminal({
+      status: "SUCCEEDED",
+      result: { status: "completed", summary: "trabalho que se perderia em silêncio" },
+      events: [],
+    });
+
+    expect(segundo.terminalWritten).toBe(false);
+
+    const run = await getRun(db, { userId: USER, runId: criado.id });
+    expect(run?.status).toBe("CANCELLED");
+    expect(run?.result).toBeNull();
+  });
+});
+
 describe("cancelamento", () => {
   it("cancela no meio, confirma a árvore morta e devolve a Task a READY", async () => {
     const cenario = await montarCenario(db, { nome: "cancelar", workspacePath: repositorio.repo });
@@ -513,6 +570,60 @@ describe("cancelamento", () => {
     expect((cancelado?.payload as { processTreeTerminated: boolean }).processTreeTerminated).toBe(
       true,
     );
+  });
+
+  it("cancela o Run que ainda espera na fila de capacidade, sem subir agente", async () => {
+    // `CURRENT` faz os dois Runs disputarem o mesmo caminho: o segundo é
+    // reclamado (Run em `PREPARING`, Task em `RUNNING`) e fica `queued-key` na
+    // `CapacityLock` — em voo para o Worker, sem execução nenhuma por trás.
+    const cenario = await montarCenario(db, {
+      nome: "cancelar-na-fila",
+      workspacePath: repositorio.repo,
+      workspaceStrategy: "CURRENT",
+    });
+    await subirWorker({ maxConcurrentRuns: 2 });
+
+    const segurando = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: ["@@fake:text segurando a chave", "@@fake:hang"].join("\n"),
+    });
+
+    const outro = await montarCenario(db, {
+      nome: "cancelar-na-fila-2",
+      workspacePath: repositorio.repo,
+      workspaceStrategy: "CURRENT",
+    });
+    const naFila = await enfileirar(db, {
+      taskId: outro.taskId,
+      loadoutId: outro.loadoutId,
+      prompt: '@@fake:block {"status":"completed","summary":"nunca deveria ter rodado"}',
+    });
+
+    await esperarStatusDeRun(db, segurando.id, ["RUNNING"]);
+    await esperarStatusDeRun(db, naFila.id, ["PREPARING"]);
+
+    const pedido = await requestRunCancellation(db, { userId: USER, runId: naFila.id });
+    expect(pedido?.ok).toBe(true);
+
+    // O desfecho precisa chegar **enquanto** o primeiro Run ainda segura a
+    // chave: esperar a trava liberar seria esperar o Run cancelado rodar.
+    const terminado = await esperarStatusDeRun(
+      db,
+      naFila.id,
+      ["CANCELLED", "SUCCEEDED", "FAILED", "TIMED_OUT"],
+      15_000,
+    );
+
+    expect(terminado.status).toBe("CANCELLED");
+    expect(terminado.error?.["reason"]).toBe("user_request");
+    expect(await statusDaTask(db, outro.taskId)).toBe("READY");
+
+    // Nenhum processo de agente subiu: sem `RunStarted` não houve worktree nem
+    // CLI, que é a diferença entre cancelar e deixar rodar até o fim.
+    const eventos = await eventosDoRun(db, naFila.id);
+    expect(eventos.map((evento) => evento.type)).not.toContain("RunStarted");
+    expect(eventos.at(-1)?.type).toBe("RunCancelled");
   });
 });
 
@@ -567,6 +678,41 @@ describe("trava de workspace", () => {
   });
 });
 
+describe("teto de concorrência", () => {
+  it("dois pumps no mesmo turno não reclamam além do teto", async () => {
+    const cenario = await montarCenario(db, { nome: "teto", workspacePath: repositorio.repo });
+    const primeiro = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: "@@fake:hang",
+    });
+
+    const outro = await montarCenario(db, { nome: "teto-2", workspacePath: repositorio.repo });
+    const segundo = await enfileirar(db, {
+      taskId: outro.taskId,
+      loadoutId: outro.loadoutId,
+      prompt: "@@fake:hang",
+    });
+
+    // Os Runs nascem antes do boot para que só os dois `pump()` abaixo possam
+    // reclamá-los: o `NOTIFY` de `createRun` sai antes do `LISTEN` começar.
+    const criado = await subirWorker({ maxConcurrentRuns: 1, start: false });
+
+    // É o entrelaçamento real: o `PgNotifyListener` dispara `void drainNow()`
+    // sem serializar, então o tique e a notificação entram no mesmo turno. Os
+    // dois `pump` leem `emVoo.size` antes de qualquer `emVoo.set`, porque entre
+    // a leitura do teto e a reserva do slot há o `await` do claim.
+    await Promise.all([criado.pump(), criado.pump()]);
+
+    expect(criado.inFlight).toBe(1);
+
+    // O outro Run continua na fila: reclamar leva a `PREPARING` e não há volta
+    // para `QUEUED`.
+    const linhas = [await linhaDoRun(db, primeiro.id), await linhaDoRun(db, segundo.id)];
+    expect(linhas.filter((linha) => linha?.status === "QUEUED")).toHaveLength(1);
+  });
+});
+
 describe("reconciliação na partida", () => {
   it("fecha como FAILED retentável o Run que ficou sem Worker", async () => {
     const cenario = await montarCenario(db, { nome: "orfao", workspacePath: repositorio.repo });
@@ -594,6 +740,66 @@ describe("reconciliação na partida", () => {
 
     const eventos = await eventosDoRun(db, criado.id);
     expect(eventos.map((evento) => evento.type)).toEqual(["Diagnostic", "RunFailed"]);
+  });
+
+  it("só um `host#pid#uuid` desta máquina com PID vivo conta como dono vivo", () => {
+    const sonda = { host: "maquina-a", alive: (pid: number) => pid === 42 };
+
+    expect(workerStillRunningHere("maquina-a#42#01a0", sonda)).toBe(true);
+    // PID morto: o Worker caiu e o Run é mesmo órfão.
+    expect(workerStillRunningHere("maquina-a#43#01a0", sonda)).toBe(false);
+    expect(workerStillRunningHere("maquina-b#42#01a0", sonda)).toBe(false);
+    // Formato desconhecido e `claimed_by` nulo continuam órfãos, como antes.
+    expect(workerStillRunningHere("worker-morto", sonda)).toBe(false);
+    expect(workerStillRunningHere("maquina-a#nao-e-pid#01a0", sonda)).toBe(false);
+    expect(workerStillRunningHere(null, sonda)).toBe(false);
+  });
+
+  it("não fecha o Run de um Worker que ainda está vivo nesta máquina", async () => {
+    const cenario = await montarCenario(db, { nome: "vivo", workspacePath: repositorio.repo });
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: "@@fake:hang",
+    });
+
+    // `newWorkerId()` é `host#pid#uuid`, e este aponta para um processo vivo —
+    // o do próprio teste. É o caso real do `CLAUDE.md`, seção 6: outras sessões
+    // rodam Worker nesta mesma máquina ao mesmo tempo, e o segundo
+    // `pnpm dev:worker` fechava como `WORKER_LOST` os Runs vivos do primeiro,
+    // com os agentes ainda rodando.
+    const vivo = `${hostname()}#${String(process.pid)}#${newId()}`;
+    await marcarComoEmExecucao(criado.id, cenario.taskId, vivo);
+
+    await subirWorker({ start: false });
+
+    const run = await getRun(db, { userId: USER, runId: criado.id });
+    expect(run?.status).toBe("RUNNING");
+    expect((await linhaDoRun(db, criado.id))?.claimedBy).toBe(vivo);
+    expect(await statusDaTask(db, cenario.taskId)).toBe("RUNNING");
+    expect(await eventosDoRun(db, criado.id)).toHaveLength(0);
+  });
+
+  it("fecha o Run reclamado por um Worker de outra máquina", async () => {
+    const cenario = await montarCenario(db, { nome: "outra-maq", workspacePath: repositorio.repo });
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: "@@fake:hang",
+    });
+
+    // O PID é o deste processo, mas o host é outro: um PID vivo aqui não diz
+    // nada sobre um processo de outra máquina.
+    const forasteiro = `outra-maquina#${String(process.pid)}#${newId()}`;
+    await marcarComoEmExecucao(criado.id, cenario.taskId, forasteiro);
+
+    await subirWorker({ start: false });
+
+    const run = await getRun(db, { userId: USER, runId: criado.id });
+    expect(run?.status).toBe("FAILED");
+    expect(run?.error?.["code"]).toBe("WORKER_LOST");
   });
 
   it("não toca nos Runs do próprio processo", async () => {
@@ -643,6 +849,113 @@ describe("desligamento gracioso", () => {
     // Trabalho interrompido pelo operador é retentável: ninguém desistiu dele.
     expect(terminado.error?.["retryable"]).toBe(true);
     expect(await statusDaTask(db, cenario.taskId)).toBe("READY");
+  });
+
+  it("não inicia o Run que esperava na fila de capacidade", async () => {
+    const cenario = await montarCenario(db, {
+      nome: "shutdown-fila",
+      workspacePath: repositorio.repo,
+      workspaceStrategy: "CURRENT",
+    });
+    const emExecucao = await subirWorker({ maxConcurrentRuns: 2, shutdownTimeoutMs: 30_000 });
+
+    const segurando = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: ["@@fake:text segurando a chave", "@@fake:hang"].join("\n"),
+    });
+
+    const outro = await montarCenario(db, {
+      nome: "shutdown-fila-2",
+      workspacePath: repositorio.repo,
+      workspaceStrategy: "CURRENT",
+    });
+    const naFila = await enfileirar(db, {
+      taskId: outro.taskId,
+      loadoutId: outro.loadoutId,
+      prompt: '@@fake:block {"status":"completed","summary":"nunca deveria ter rodado"}',
+    });
+
+    await esperarStatusDeRun(db, segurando.id, ["RUNNING"]);
+    await esperarStatusDeRun(db, naFila.id, ["PREPARING"]);
+
+    // `capacity.drain()` espera a fila **e a desenfileira**: sem tratar o que
+    // ainda não começou, o desligamento sobe worktree e processo de agente para
+    // o Run que só esperava, e o Ctrl+C vira o início de uma Expedição.
+    await emExecucao.stop("SIGINT");
+    worker = undefined;
+
+    const terminado = await esperarStatusDeRun(db, naFila.id, [
+      "CANCELLED",
+      "SUCCEEDED",
+      "FAILED",
+      "TIMED_OUT",
+    ]);
+
+    expect(terminado.status).toBe("CANCELLED");
+    expect(terminado.error?.["reason"]).toBe("worker_shutdown");
+    expect(terminado.error?.["retryable"]).toBe(true);
+    expect(await statusDaTask(db, outro.taskId)).toBe("READY");
+
+    const eventos = await eventosDoRun(db, naFila.id);
+    expect(eventos.map((evento) => evento.type)).not.toContain("RunStarted");
+  });
+
+  it("espera o pump em voo antes de percorrer os Runs em voo", async () => {
+    const cenario = await montarCenario(db, {
+      nome: "shutdown-pump",
+      workspacePath: repositorio.repo,
+    });
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: "@@fake:hang",
+    });
+
+    /**
+     * Uma transação lenta, uma vez só.
+     *
+     * É a janela em que o `pump` já está **dentro** do `await` do claim e o
+     * desligamento começa — o `void drainNow()` do `PgNotifyListener` produz
+     * exatamente isso, e sem o atraso o entrelaçamento dependeria do relógio.
+     */
+    let atrasar = false;
+    const lento = new Proxy(db as object, {
+      get(alvo, prop) {
+        const valor: unknown = Reflect.get(alvo, prop);
+        if (prop !== "transaction" || typeof valor !== "function") {
+          return typeof valor === "function" ? valor.bind(alvo) : valor;
+        }
+        return async (...args: unknown[]): Promise<unknown> => {
+          if (atrasar) {
+            atrasar = false;
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+          return await (valor as (...a: unknown[]) => Promise<unknown>).apply(alvo, args);
+        };
+      },
+    }) as Database;
+
+    const emExecucao = await subirWorker({ db: lento, start: false, runIdleTimeoutMs: 3_000 });
+
+    atrasar = true;
+    const bombeando = emExecucao.pump();
+    await emExecucao.stop("SIGINT");
+    worker = undefined;
+    await bombeando;
+
+    const terminado = await esperarStatusDeRun(db, criado.id, [
+      "CANCELLED",
+      "SUCCEEDED",
+      "FAILED",
+      "TIMED_OUT",
+    ]);
+
+    expect(terminado.status).toBe("CANCELLED");
+    expect(terminado.error?.["reason"]).toBe("worker_shutdown");
+
+    const eventos = await eventosDoRun(db, criado.id);
+    expect(eventos.map((evento) => evento.type)).not.toContain("RunStarted");
   });
 });
 

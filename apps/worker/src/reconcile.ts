@@ -1,3 +1,5 @@
+import { hostname } from "node:os";
+
 import {
   listOrphanRunRows,
   settleOrphanRunSteps,
@@ -5,6 +7,7 @@ import {
   type Database,
 } from "@dungeon-master/database";
 import { isTerminalStatusWriteError } from "@dungeon-master/events";
+import { processExists } from "@dungeon-master/platform";
 
 import type { Logger } from "./logger.js";
 import { toRunEventInput, workerDiagnostic, workerRunFailed } from "./run-events.js";
@@ -44,12 +47,69 @@ export interface ReconciledRun {
   readonly workspacePath: string | null;
 }
 
+/** Como perguntar pela máquina e pelos processos. Injetável para teste. */
+export interface WorkerLivenessProbe {
+  readonly host: string;
+  readonly alive: (pid: number) => boolean;
+}
+
+/**
+ * O `claimed_by` aponta para um processo que ainda está de pé **nesta máquina**?
+ *
+ * post-mortem #6 (08/09/2026): a reconciliação de partida tratava
+ * `claimed_by <> <meu workerId>` como prova de morte. Não é: não há heartbeat
+ * nem lease, `newWorkerId()` gera um id novo a cada processo de propósito, e o
+ * `CLAUDE.md` (seção 6) registra que outras sessões rodam Worker nesta mesma
+ * máquina ao mesmo tempo. O segundo `pnpm dev:worker` fechava como
+ * `FAILED`/`WORKER_LOST` os Runs vivos do primeiro, com os agentes de verdade
+ * ainda rodando e o trabalho jogado fora. O `workerId` é `host#pid#uuid`, então
+ * quando o host é este e o PID responde, o dono está vivo e o Run não é órfão.
+ *
+ * **Limitação conhecida, e deliberada.** Isto não é um lease: um Worker de
+ * outra máquina continua indistinguível de um Worker morto, e um PID reusado
+ * por outro programa faz um Run genuinamente órfão ficar aberto até alguém
+ * cancelá-lo pela interface. Os dois erros são reversíveis pelo usuário; o que
+ * esta função elimina é o irreversível — matar Run vivo. O conserto completo é
+ * um lease com `run.heartbeat_at` renovado pelo dono e um limiar de expiração,
+ * e isso pede coluna nova, portanto migração.
+ */
+export function workerStillRunningHere(
+  claimedBy: string | null,
+  probe: WorkerLivenessProbe = { host: hostname(), alive: processExists },
+): boolean {
+  if (claimedBy === null) return false;
+
+  // Só o formato de `newWorkerId()` é legível. Qualquer outra coisa — um id de
+  // uma versão anterior, um valor escrito à mão — conta como desconhecido, e
+  // desconhecido continua sendo tratado como órfão.
+  const partes = claimedBy.split("#");
+  if (partes.length !== 3) return false;
+
+  const [host, pid] = partes;
+  if (host !== probe.host) return false;
+
+  const numero = Number.parseInt(pid ?? "", 10);
+  if (!Number.isInteger(numero) || numero <= 0) return false;
+
+  return probe.alive(numero);
+}
+
 export async function reconcileOrphanRuns(
   input: ReconcileOrphanRunsInput,
 ): Promise<readonly ReconciledRun[]> {
   const { db, userId, workerId, logger } = input;
 
-  const orphans = await listOrphanRunRows(db, { userId, workerId });
+  const candidatos = await listOrphanRunRows(db, { userId, workerId });
+
+  const orphans = candidatos.filter((run) => {
+    if (!workerStillRunningHere(run.claimedBy)) return true;
+    logger?.info(
+      { runId: run.id, status: run.status, claimedBy: run.claimedBy },
+      "run reclamado por um worker vivo nesta máquina; não é órfão",
+    );
+    return false;
+  });
+
   if (orphans.length === 0) return [];
 
   logger?.warn(
