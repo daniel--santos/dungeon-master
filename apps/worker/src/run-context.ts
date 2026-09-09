@@ -69,9 +69,16 @@ export async function resolveRunContext(input: ResolveRunContextInput): Promise<
     }
 
     // 2. Retomada de sessão: a conversa continua com o contexto que já tinha.
+    //
+    // post-mortem #24 (08/09/2026): a herança exigia `ASSEMBLED`, e os outros
+    // três status caíam na montagem do caminho 3. Mas em `EMPTY`, `DISABLED` e
+    // `FAILED` o Run de origem rodou **sem bloco de contexto**: montar agora
+    // insere no meio de uma conversa em curso um texto que o agente não viu
+    // nascer, e que muda conforme o Grimório mudou desde então. O que herda não
+    // é o texto montado, é o que a conversa já tinha — inclusive quando era nada.
     if (run.resumedFromRunId !== null) {
       const origem = await getRunContext(db, { userId, runId: run.resumedFromRunId });
-      if (origem !== null && origem.status === "ASSEMBLED") {
+      if (origem !== null) {
         const herdado: RunContext = {
           ...origem,
           runId: run.id,

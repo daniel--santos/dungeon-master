@@ -410,6 +410,62 @@ describe("o Context Engine no Run simples", () => {
     ).toBe(true);
   });
 
+  it("a retomada herda o vazio da origem em vez de montar no meio da conversa", async () => {
+    // Sem página promovida, a montagem não acha nada e o contexto nasce `EMPTY`.
+    const cenario = await montarCenario(db, { nome: "vazio", workspacePath: repositorio.repo });
+    const taskId = await criarTaskDaPorta(cenario);
+
+    const gravador = runtimeGravador(managerPara(repositorio));
+    await subirWorker({ runtime: gravador.runtime });
+
+    const primeiro = exigirOk(
+      await createRun(db, {
+        userId: USER,
+        taskId,
+        loadoutId: cenario.loadoutId,
+        prompt:
+          '@@fake:session sessao-vazia\n@@fake:block {"status":"failed","summary":"Sem contexto."}',
+      }),
+      "o primeiro Run",
+    );
+    expect((await esperarStatusDeRun(db, primeiro.id, ["SUCCEEDED", "FAILED"])).status).toBe(
+      "SUCCEEDED",
+    );
+    const original = await contextoDoRun(primeiro.id);
+    expect(original.status).toBe("EMPTY");
+
+    // O Grimório ganha uma página **depois**. A conversa retomada não pode
+    // recebê-la: ela não existia no primeiro turno, e um bloco que aparece no
+    // meio da conversa é contexto que o agente não viu nascer.
+    await pararWorker(workers[0] as Worker);
+    await promoverPaginas(cenario, [PAGINA_DA_PORTA]);
+    const gravador2 = runtimeGravador(managerPara(repositorio));
+    await subirWorker({ runtime: gravador2.runtime });
+
+    const segundo = exigirOk(
+      await createRun(db, {
+        userId: USER,
+        taskId,
+        resumeFromRunId: primeiro.id,
+        prompt: '@@fake:block {"status":"completed","summary":"Agora sim."}',
+      }),
+      "o Run retomado",
+    );
+    const terminado = await esperarStatusDeRun(db, segundo.id, [
+      "SUCCEEDED",
+      "FAILED",
+      "TIMED_OUT",
+    ]);
+    const eventos = await eventosDoRun(db, segundo.id);
+    expect(terminado.status, diarioDoRun(eventos)).toBe("SUCCEEDED");
+
+    const herdado = await contextoDoRun(segundo.id);
+    expect(herdado.status).toBe("EMPTY");
+    expect(herdado.inheritedFromRunId).toBe(primeiro.id);
+    expect(herdado.text).toBe("");
+    expect(gravador2.prompts[0]).not.toContain(CONTEXT_PREAMBLE);
+  });
+
   it("um Run que retoma a sessão de outro herda o contexto dele, mesmo com o Grimório mudado", async () => {
     const cenario = await montarCenario(db, { nome: "retomada", workspacePath: repositorio.repo });
     await promoverPaginas(cenario, [PAGINA_DA_PORTA]);
