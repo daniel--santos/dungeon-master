@@ -1,8 +1,10 @@
 import {
+  BUILT_IN_KNOWLEDGE_MCP_SERVER_NAME,
   DEFAULT_TRUSTED_COMMANDS,
   type HarnessCapabilities,
   type HarnessKey,
   type PermissionPolicy,
+  type ProviderKind,
 } from "@dungeon-master/contracts";
 import { and, eq } from "drizzle-orm";
 
@@ -14,17 +16,19 @@ import {
 } from "./execution-profile.js";
 import { newId } from "./ids.js";
 import { executionProfiles, harnesses } from "./schema/execution.js";
+import { mcpServers, providers, tools } from "./schema/registry.js";
 
 /**
- * As sementes dos cadastros fechados: os quatro Harnesses e os dois
- * ExecutionProfiles do planejamento v0.4.
+ * As sementes dos cadastros fechados: os quatro Harnesses, os dois
+ * ExecutionProfiles e, desde a Fase 8A, os quatro Providers, as cinco Tools de
+ * comando e o servidor MCP `builtIn` do Grimório.
  *
  * Harness e ExecutionProfile nascem do `db:seed`, e não da massa de
  * demonstração, porque não são exemplo: são o vocabulário do sistema. Um banco
  * sem eles não consegue criar Loadout nenhum, e a aplicação estaria quebrada em
  * vez de vazia.
  *
- * Idempotente pela chave natural: `key` para o Harness, `name` para o perfil.
+ * Idempotente pela chave natural: `key` para o Harness, `name` para o resto.
  * Rodar duas vezes não duplica, e o que já existe é respeitado — quem editou o
  * nome de um perfil ou desligou um harness fez isso de propósito.
  */
@@ -43,6 +47,11 @@ interface HarnessSeed {
  * versão e instalação (Fase 2B), mas o que a CLI sabe fazer é conhecimento do
  * adapter e entra aqui como dado. Uma matriz descoberta em tempo de execução
  * deixaria a interface sem resposta antes do primeiro Run.
+ *
+ * `mcpServers` e `forkSession` (Fase 8A) copiam o que cada adapter declara em
+ * `packages/runtime-sandcastle` e `packages/runtime-antigravity`: Claude Code
+ * sobe servidores e forka sessão; Codex sobe servidores; Pi e Antigravity não
+ * têm caminho headless para servidores MCP na versão pinada.
  */
 const HARNESS_SEEDS: readonly HarnessSeed[] = [
   {
@@ -53,6 +62,7 @@ const HARNESS_SEEDS: readonly HarnessSeed[] = [
       streaming: true,
       structuredOutput: true,
       resume: true,
+      forkSession: true,
       multiTurnProcess: false,
       toolEvents: true,
       tokenUsage: true,
@@ -61,6 +71,7 @@ const HARNESS_SEEDS: readonly HarnessSeed[] = [
       nativePermissions: true,
       hostExecution: true,
       dockerExecution: true,
+      mcpServers: true,
     },
   },
   {
@@ -71,6 +82,7 @@ const HARNESS_SEEDS: readonly HarnessSeed[] = [
       streaming: true,
       structuredOutput: true,
       resume: true,
+      forkSession: false,
       multiTurnProcess: false,
       toolEvents: true,
       tokenUsage: true,
@@ -84,6 +96,7 @@ const HARNESS_SEEDS: readonly HarnessSeed[] = [
       // adapter `codex@docker`, e prometer aqui deixaria a interface oferecendo
       // um Ambiente de Execução que o Run recusa na partida.
       dockerExecution: false,
+      mcpServers: true,
     },
   },
   {
@@ -94,6 +107,7 @@ const HARNESS_SEEDS: readonly HarnessSeed[] = [
       streaming: true,
       structuredOutput: true,
       resume: true,
+      forkSession: false,
       multiTurnProcess: false,
       toolEvents: true,
       tokenUsage: true,
@@ -102,6 +116,7 @@ const HARNESS_SEEDS: readonly HarnessSeed[] = [
       nativePermissions: false,
       hostExecution: true,
       dockerExecution: true,
+      mcpServers: false,
     },
   },
   {
@@ -123,6 +138,7 @@ const HARNESS_SEEDS: readonly HarnessSeed[] = [
       streaming: true,
       structuredOutput: true,
       resume: true,
+      forkSession: false,
       multiTurnProcess: false,
       toolEvents: true,
       tokenUsage: true,
@@ -131,6 +147,7 @@ const HARNESS_SEEDS: readonly HarnessSeed[] = [
       nativePermissions: false,
       hostExecution: true,
       dockerExecution: false,
+      mcpServers: false,
     },
   },
 ];
@@ -211,11 +228,85 @@ const EXECUTION_PROFILE_SEEDS: readonly ExecutionProfileSeed[] = [
   },
 ];
 
+interface ProviderSeed {
+  readonly name: string;
+  readonly kind: ProviderKind;
+  readonly authEnvKeys: readonly string[];
+  readonly harnessKeys: readonly HarnessKey[];
+  readonly docsUrl: string | null;
+}
+
+/**
+ * Os Providers de partida (Fase 8A).
+ *
+ * `SUBSCRIPTION` porque o caminho provado de cada CLI é o login da própria
+ * ferramenta (ADR 0001); a variável de ambiente é a alternativa, e é ela que o
+ * preflight consegue enxergar sem chamar modelo nenhum. Só **nomes**: o valor
+ * nunca é gravado.
+ */
+const PROVIDER_SEEDS: readonly ProviderSeed[] = [
+  {
+    name: "Anthropic",
+    kind: "SUBSCRIPTION",
+    authEnvKeys: ["ANTHROPIC_API_KEY"],
+    harnessKeys: ["CLAUDE_CODE", "PI"],
+    docsUrl: "https://docs.anthropic.com/",
+  },
+  {
+    name: "OpenAI",
+    kind: "SUBSCRIPTION",
+    authEnvKeys: ["OPENAI_API_KEY"],
+    harnessKeys: ["CODEX", "PI"],
+    docsUrl: "https://platform.openai.com/docs",
+  },
+  {
+    name: "Google",
+    kind: "SUBSCRIPTION",
+    authEnvKeys: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+    harnessKeys: ["ANTIGRAVITY", "PI"],
+    docsUrl: "https://ai.google.dev/gemini-api/docs",
+  },
+  {
+    name: "Local",
+    kind: "LOCAL",
+    authEnvKeys: [],
+    harnessKeys: ["PI"],
+    docsUrl: null,
+  },
+];
+
+/**
+ * O servidor do Grimório, o único `builtIn`.
+ *
+ * O comando aqui é simbólico: quem sabe o arquivo empacotado, os argumentos
+ * (`projectId`, `userId`) e a `DATABASE_URL` é o Worker, que o sobe por
+ * `knowledgePolicy` do Loadout (Fase 7B). O registro existe para o Loadout
+ * poder referenciá-lo como qualquer outro servidor e para a interface listá-lo.
+ */
+const KNOWLEDGE_MCP_SERVER_SEED = {
+  name: BUILT_IN_KNOWLEDGE_MCP_SERVER_NAME,
+  transport: "STDIO" as const,
+  command: "node",
+  args: [] as string[],
+  envKeys: ["DATABASE_URL"],
+  readOnly: true,
+  builtIn: true,
+  description:
+    "O servidor MCP do Grimório: busca e leitura das páginas do Project, só leitura. " +
+    "O Worker resolve o arquivo do servidor e os argumentos na hora de subir.",
+};
+
 export interface ExecutionSeedResult {
   readonly harnessesCreated: number;
   readonly harnessesTotal: number;
   readonly executionProfilesCreated: number;
   readonly executionProfilesTotal: number;
+  readonly providersCreated: number;
+  readonly providersTotal: number;
+  readonly toolsCreated: number;
+  readonly toolsTotal: number;
+  readonly mcpServersCreated: number;
+  readonly mcpServersTotal: number;
 }
 
 export async function seedExecutionRegistry(
@@ -226,6 +317,9 @@ export async function seedExecutionRegistry(
 
   let harnessesCreated = 0;
   let executionProfilesCreated = 0;
+  let providersCreated = 0;
+  let toolsCreated = 0;
+  let mcpServersCreated = 0;
 
   for (const seed of HARNESS_SEEDS) {
     const inserted = await db
@@ -269,10 +363,74 @@ export async function seedExecutionRegistry(
     executionProfilesCreated += 1;
   }
 
+  for (const seed of PROVIDER_SEEDS) {
+    const inserted = await db
+      .insert(providers)
+      .values({
+        id: newId(),
+        userId,
+        name: seed.name,
+        kind: seed.kind,
+        authEnvKeys: [...seed.authEnvKeys],
+        harnessKeys: [...seed.harnessKeys],
+        docsUrl: seed.docsUrl,
+      })
+      .onConflictDoNothing({ target: [providers.userId, providers.name] })
+      .returning({ id: providers.id });
+
+    if (inserted.length > 0) providersCreated += 1;
+  }
+
+  // As cinco Tools de comando são os mesmos prefixos da allow-list de "Campo
+  // aberto": o que o perfil concede e o que o registro oferece são a mesma
+  // lista, e é `DEFAULT_TRUSTED_COMMANDS` que a define.
+  for (const command of DEFAULT_TRUSTED_COMMANDS) {
+    const inserted = await db
+      .insert(tools)
+      .values({
+        id: newId(),
+        userId,
+        name: command,
+        kind: "COMMAND",
+        command,
+        mcpServerId: null,
+        toolName: null,
+        description: `Prefixo de comando liberado: \`${command}\`.`,
+      })
+      .onConflictDoNothing({ target: [tools.userId, tools.name] })
+      .returning({ id: tools.id });
+
+    if (inserted.length > 0) toolsCreated += 1;
+  }
+
+  const [knowledge] = await db
+    .select({ id: mcpServers.id, builtIn: mcpServers.builtIn })
+    .from(mcpServers)
+    .where(and(eq(mcpServers.userId, userId), eq(mcpServers.name, KNOWLEDGE_MCP_SERVER_SEED.name)));
+
+  if (knowledge === undefined) {
+    await db.insert(mcpServers).values({ id: newId(), userId, ...KNOWLEDGE_MCP_SERVER_SEED });
+    mcpServersCreated += 1;
+  } else if (!knowledge.builtIn) {
+    // Um servidor inline chamado `knowledge` de antes da Fase 8A: o nome sempre
+    // foi reservado e o Worker o ignorava com aviso. Ele vira o `builtIn`, que
+    // é o único sentido que esse nome tem.
+    await db
+      .update(mcpServers)
+      .set(KNOWLEDGE_MCP_SERVER_SEED)
+      .where(eq(mcpServers.id, knowledge.id));
+  }
+
   return {
     harnessesCreated,
     harnessesTotal: HARNESS_SEEDS.length,
     executionProfilesCreated,
     executionProfilesTotal: EXECUTION_PROFILE_SEEDS.length,
+    providersCreated,
+    providersTotal: PROVIDER_SEEDS.length,
+    toolsCreated,
+    toolsTotal: DEFAULT_TRUSTED_COMMANDS.length,
+    mcpServersCreated,
+    mcpServersTotal: 1,
   };
 }

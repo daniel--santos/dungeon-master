@@ -186,7 +186,7 @@ export const AGENT_ROLES = Object.keys(AGENT_ROLE) as readonly AgentRole[];
 /* ------------------------------------------------- harness.capabilities */
 
 /**
- * Os onze campos de `HarnessCapabilities`, na ordem do contrato.
+ * Os treze campos de `HarnessCapabilities`, na ordem do contrato.
  *
  * A lista é um `Record` sobre a interface inteira: um campo novo no contrato
  * quebra a compilação aqui, em vez de sumir em silêncio da tela de Guildas.
@@ -195,6 +195,7 @@ export const HARNESS_CAPABILITY: Record<keyof HarnessCapabilities, GlossaryKey> 
   streaming: "harness.capability.streaming",
   structuredOutput: "harness.capability.structuredOutput",
   resume: "harness.capability.resume",
+  forkSession: "harness.capability.forkSession",
   multiTurnProcess: "harness.capability.multiTurnProcess",
   toolEvents: "harness.capability.toolEvents",
   tokenUsage: "harness.capability.tokenUsage",
@@ -203,6 +204,7 @@ export const HARNESS_CAPABILITY: Record<keyof HarnessCapabilities, GlossaryKey> 
   nativePermissions: "harness.capability.nativePermissions",
   hostExecution: "harness.capability.hostExecution",
   dockerExecution: "harness.capability.dockerExecution",
+  mcpServers: "harness.capability.mcpServers",
 };
 
 export const HARNESS_CAPABILITY_KEYS = Object.keys(

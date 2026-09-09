@@ -448,6 +448,7 @@ export const plain: Record<GlossaryKey, string> = {
   "harness.capability.streaming": "Saída incremental",
   "harness.capability.structuredOutput": "Saída estruturada",
   "harness.capability.resume": "Retomar",
+  "harness.capability.forkSession": "Retomar em sessão nova",
   "harness.capability.multiTurnProcess": "Processo de vários turnos",
   "harness.capability.toolEvents": "Eventos de ferramenta",
   "harness.capability.tokenUsage": "Uso de tokens",
@@ -456,6 +457,7 @@ export const plain: Record<GlossaryKey, string> = {
   "harness.capability.nativePermissions": "Permissões próprias",
   "harness.capability.hostExecution": "Host",
   "harness.capability.dockerExecution": "Docker",
+  "harness.capability.mcpServers": "Servidores MCP por Run",
 
   // ------------------------------------------------------------------ hero
   "hero.xp": "Pontos",

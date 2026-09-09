@@ -456,10 +456,11 @@ export const GLOSSARY_KEYS = [
   "workspaceKind.folder",
 
   // ----------------------------------------------------- harness.capability
-  // Os onze campos de `HarnessCapabilities`, na ordem do contrato.
+  // Os treze campos de `HarnessCapabilities`, na ordem do contrato.
   "harness.capability.streaming",
   "harness.capability.structuredOutput",
   "harness.capability.resume",
+  "harness.capability.forkSession",
   "harness.capability.multiTurnProcess",
   "harness.capability.toolEvents",
   "harness.capability.tokenUsage",
@@ -468,6 +469,7 @@ export const GLOSSARY_KEYS = [
   "harness.capability.nativePermissions",
   "harness.capability.hostExecution",
   "harness.capability.dockerExecution",
+  "harness.capability.mcpServers",
 
   // ------------------------------------------------------------------ hero
   // Prefixo próprio, e não `hall.`, porque estes são rótulos de número: eles

@@ -26,8 +26,12 @@ import {
   createAgent,
   createExecutionProfile,
   createLoadout,
+  createMcpServer,
   createModel,
   createPgNotifier,
+  createProvider,
+  createSkill,
+  createTool,
   createProject,
   createRun,
   createTask,
@@ -38,18 +42,28 @@ import {
   deleteAgent,
   deleteExecutionProfile,
   deleteLoadout,
+  deleteMcpServer,
   deleteModel,
+  deleteProvider,
+  deleteSkill,
+  deleteTool,
   deleteWorkflow,
   discardInboxTask,
   findAgentRow,
   findExecutionProfileRow,
   findLoadoutRow,
+  findMcpServerRow,
   findProjectRow,
+  findProviderRow,
+  findSkillRow,
+  findToolRow,
   findWorkflowRow,
+  getLoadout,
   getProject,
   getProposedTask,
   getRun,
   getRunContext,
+  getSkillDetail,
   getTaskDetail,
   getTaskGraph,
   getWorkflow,
@@ -63,7 +77,13 @@ import {
   listInboxTasks,
   listKnowledgeCandidates,
   listLoadouts,
+  listLoadoutVersions,
+  listMcpServers,
   listModels,
+  listProviders,
+  listSkills,
+  listSkillVersions,
+  listTools,
   listProjectActivity,
   listProjects,
   listProposedTasks,
@@ -76,21 +96,29 @@ import {
   listWorkflows,
   listWorkflowVersions,
   promoteInboxTask,
+  publishSkillVersion,
   readUserSettings,
   rejectProposedTask,
   removeTaskDependency,
   replaceTaskDependencies,
   requestRunCancellation,
   resolveApprovalGate,
+  restoreLoadoutVersion,
   setHarnessEnabled,
   setProjectArchived,
   toAgent,
   toExecutionProfile,
-  toLoadout,
+  toMcpServer,
+  toProvider,
+  toTool,
   updateAgent,
   updateExecutionProfile,
   updateLoadout,
+  updateMcpServer,
   updateModel,
+  updateProvider,
+  updateSkill,
+  updateTool,
   updateProject,
   updateTask,
   updateWorkflow,
@@ -98,12 +126,14 @@ import {
 } from "@dungeon-master/database";
 import { DashboardEventPoller, PgNotifyListener, SseTransport } from "@dungeon-master/events";
 
+import { createLoadoutPreflight } from "./loadout-preflight.js";
 import type { Logger } from "./logger.js";
 import type {
   AchievementsPort,
   DockerPreflightPort,
   DashboardEventsPort,
   ExecutionPort,
+  LoadoutPreflightPort,
   RunStreamHandle,
   SettingsPort,
   WorkPort,
@@ -424,6 +454,12 @@ export interface ExecutionPortOptions {
    * têm Docker: sem ele, a rota responde que o preflight não está disponível.
    */
   readonly dockerPreflight?: DockerPreflightPort;
+  /**
+   * O preflight de Loadout (Fase 8A). Opcional pelo mesmo motivo: sem adapters
+   * registrados, o padrão responde capabilities e credencial do Provider, e
+   * deixa `cli` nulo.
+   */
+  readonly loadoutPreflight?: LoadoutPreflightPort;
   db: Database;
   userId: string;
   runEvents: RunEventsRuntime;
@@ -448,7 +484,8 @@ export function createExecutionPort(options: ExecutionPortOptions): ExecutionPor
       setEnabled: (harnessId, enabled) => setHarnessEnabled(db, { userId, harnessId, enabled }),
     },
     models: {
-      list: (harnessId) => listModels(db, { userId, harnessId }),
+      list: (filters) =>
+        listModels(db, { userId, harnessId: filters.harnessId, providerId: filters.providerId }),
       create: (input) => createModel(db, { userId, ...input }),
       update: (modelId, patch) => updateModel(db, { userId, modelId, patch }),
       remove: (modelId) => deleteModel(db, { userId, modelId }),
@@ -476,13 +513,75 @@ export function createExecutionPort(options: ExecutionPortOptions): ExecutionPor
     },
     loadouts: {
       list: () => listLoadouts(db, { userId }),
-      get: async (loadoutId) => {
-        const row = await findLoadoutRow(db, { userId, loadoutId });
-        return row === null ? null : toLoadout(row);
-      },
+      get: (loadoutId) => getLoadout(db, { userId, loadoutId }),
       create: (input) => createLoadout(db, { userId, ...input }),
       update: (loadoutId, patch) => updateLoadout(db, { userId, loadoutId, patch }),
       remove: (loadoutId) => deleteLoadout(db, { userId, loadoutId }),
+      versions: async (loadoutId, page) => {
+        // A existência é checada antes de listar: as versões de um Loadout
+        // inexistente são 404, não uma página vazia.
+        const loadout = await findLoadoutRow(db, { userId, loadoutId });
+        if (loadout === null) return null;
+        return await listLoadoutVersions(db, { userId, loadoutId, ...page });
+      },
+      restore: (loadoutId, version) => restoreLoadoutVersion(db, { userId, loadoutId, version }),
+      // Sem adapters, o padrão responde capabilities e credencial e deixa `cli` nulo.
+      preflight: options.loadoutPreflight ?? createLoadoutPreflight({ db, userId, adapters: [] }),
+    },
+    skills: {
+      list: (page) => listSkills(db, { userId, ...page }),
+      get: (skillId) => getSkillDetail(db, { userId, skillId }),
+      create: (input) => createSkill(db, { userId, ...input }),
+      update: (skillId, patch) => updateSkill(db, { userId, skillId, patch }),
+      remove: (skillId) => deleteSkill(db, { userId, skillId }),
+      versions: async (skillId, page) => {
+        const skill = await findSkillRow(db, { userId, skillId });
+        if (skill === null) return null;
+        return await listSkillVersions(db, { userId, skillId, ...page });
+      },
+      publish: (skillId, input) => publishSkillVersion(db, { userId, skillId, ...input }),
+    },
+    tools: {
+      list: (input) =>
+        listTools(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          filters: input.filters,
+        }),
+      get: async (toolId) => {
+        const row = await findToolRow(db, { userId, toolId });
+        return row === null ? null : toTool(row);
+      },
+      create: (input) => createTool(db, { userId, ...input }),
+      update: (toolId, patch) => updateTool(db, { userId, toolId, patch }),
+      remove: (toolId) => deleteTool(db, { userId, toolId }),
+    },
+    mcpServers: {
+      list: (page) => listMcpServers(db, { userId, ...page }),
+      get: async (mcpServerId) => {
+        const row = await findMcpServerRow(db, { userId, mcpServerId });
+        return row === null ? null : toMcpServer(row);
+      },
+      create: (input) => createMcpServer(db, { userId, ...input }),
+      update: (mcpServerId, patch) => updateMcpServer(db, { userId, mcpServerId, patch }),
+      remove: (mcpServerId) => deleteMcpServer(db, { userId, mcpServerId }),
+    },
+    providers: {
+      list: (input) =>
+        listProviders(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          harnessKey: input.harnessKey,
+        }),
+      get: async (providerId) => {
+        const row = await findProviderRow(db, { userId, providerId });
+        return row === null ? null : toProvider(row);
+      },
+      create: (input) => createProvider(db, { userId, ...input }),
+      update: (providerId, patch) => updateProvider(db, { userId, providerId, patch }),
+      remove: (providerId) => deleteProvider(db, { userId, providerId }),
     },
     runs: {
       list: (input) =>

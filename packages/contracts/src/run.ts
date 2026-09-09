@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { CapabilityIssueSchema } from "./capability.js";
 import { ExecutionModeSchema, ExecutionProfileSnapshotSchema } from "./execution-profile.js";
 import { HarnessKeySchema } from "./harness.js";
 import { LoadoutSnapshotSchema } from "./loadout.js";
@@ -164,6 +165,22 @@ export const RunSchema = z
   .meta({ id: "Run", description: "Uma tentativa concreta de realizar uma Task." });
 
 export type Run = z.infer<typeof RunSchema>;
+
+/**
+ * A resposta de `POST /runs`: o Run e os avisos do capability matching.
+ *
+ * Os avisos vêm aqui, e não gravados no Run, porque são recomputáveis: o
+ * Worker roda a mesma função pura sobre os dois snapshots congelados e grava o
+ * resultado como `Diagnostic` no diário. Um blocker nunca chega aqui — ele é o
+ * `409` com `blockers[]` no corpo.
+ */
+export const RunCreatedSchema = RunSchema.extend({
+  warnings: z
+    .array(CapabilityIssueSchema)
+    .describe("Descompassos que não impedem a partida. O Worker os registra no diário."),
+}).meta({ id: "RunCreated", description: "O Run recém-criado e os avisos de capability." });
+
+export type RunCreated = z.infer<typeof RunCreatedSchema>;
 
 export const CreateRunSchema = z
   .object({

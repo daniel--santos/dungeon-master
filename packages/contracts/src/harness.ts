@@ -32,6 +32,9 @@ export const HarnessCapabilitiesSchema = z
     streaming: z.boolean().describe("Emite saída incremental enquanto executa."),
     structuredOutput: z.boolean().describe("Aceita um schema e devolve JSON validado."),
     resume: z.boolean().describe("Retoma uma sessão anterior a partir de `harnessSessionId`."),
+    forkSession: z
+      .boolean()
+      .describe("Retoma criando uma sessão nova em vez de mutar a original (fork)."),
     multiTurnProcess: z.boolean().describe("Mantém um processo vivo por vários turnos."),
     toolEvents: z.boolean().describe("Publica chamadas de ferramenta como eventos."),
     tokenUsage: z.boolean().describe("Reporta consumo de tokens."),
@@ -40,11 +43,51 @@ export const HarnessCapabilitiesSchema = z
     nativePermissions: z.boolean().describe("Tem mecanismo próprio de permissão."),
     hostExecution: z.boolean().describe("Roda no host, sem isolamento."),
     dockerExecution: z.boolean().describe("Roda dentro de container."),
+    /**
+     * As duas últimas chegaram ao contrato na Fase 8A. Elas já existiam na
+     * matriz do runtime desde a Fase 7 (`mcpServers`) e a Fase 2 (`forkSession`),
+     * e o preflight do Worker as gravava em `harness.capabilities`; o contrato é
+     * quem faltava, e sem ele o capability matching teria que adivinhar.
+     */
+    mcpServers: z
+      .boolean()
+      .describe("Sobe os servidores MCP declarados por Run, em modo headless (Fase 7)."),
   })
   .meta({
     id: "HarnessCapabilities",
     description: "O que este harness sabe fazer. Substitui condicionais por harness espalhados.",
   });
+
+/**
+ * As chaves da matriz, na ordem do contrato.
+ *
+ * Escritas por extenso, e não derivadas de `Object.keys(shape)`, porque o
+ * relatório de capabilities as usa como enum na spec OpenAPI, e um enum precisa
+ * de uma tupla literal. O `satisfies` prende a lista ao schema num sentido; o
+ * teste de contratos prende no outro (nenhuma chave do schema fora da lista).
+ */
+export const HARNESS_CAPABILITY_KEY_VALUES = [
+  "streaming",
+  "structuredOutput",
+  "resume",
+  "forkSession",
+  "multiTurnProcess",
+  "toolEvents",
+  "tokenUsage",
+  "modelSelection",
+  "agentSelection",
+  "nativePermissions",
+  "hostExecution",
+  "dockerExecution",
+  "mcpServers",
+] as const satisfies readonly (keyof z.infer<typeof HarnessCapabilitiesSchema>)[];
+
+export const HarnessCapabilityKeySchema = z.enum(HARNESS_CAPABILITY_KEY_VALUES).meta({
+  id: "HarnessCapabilityKey",
+  description: "Uma das chaves de `HarnessCapabilities`.",
+});
+
+export type HarnessCapabilityKey = z.infer<typeof HarnessCapabilityKeySchema>;
 
 export type HarnessCapabilities = z.infer<typeof HarnessCapabilitiesSchema>;
 
@@ -113,6 +156,13 @@ export const ModelSchema = z
   .object({
     id: z.uuid().describe("UUIDv7 do Model."),
     harnessId: z.uuid().describe("Harness dono da chave."),
+    providerId: z
+      .uuid()
+      .nullable()
+      .describe(
+        "Provider que serve o modelo (Fase 8A). Nulo quando ninguém o associou; o preflight " +
+          "então procura um Provider pelo Harness.",
+      ),
     key: z.string().describe("Identificador que o harness aceita na linha de comando."),
     name: z.string().describe("Nome exibido."),
     isDefault: z.boolean().describe("Escolhido quando o Loadout não indica um Model."),
@@ -126,6 +176,7 @@ export type Model = z.infer<typeof ModelSchema>;
 export const CreateModelSchema = z
   .object({
     harnessId: z.uuid().describe("Harness dono da chave."),
+    providerId: z.uuid().nullish().describe("Provider que serve o modelo. Padrão: nenhum."),
     key: ModelKeySchema.describe("Identificador aceito pelo harness. Único dentro do Harness."),
     name: ModelNameSchema,
     isDefault: z
@@ -139,6 +190,7 @@ export type CreateModel = z.infer<typeof CreateModelSchema>;
 
 export const UpdateModelSchema = z
   .object({
+    providerId: z.uuid().nullish().describe("`null` desassocia o Provider."),
     key: ModelKeySchema.optional(),
     name: ModelNameSchema.optional(),
     isDefault: z.boolean().optional(),
@@ -150,6 +202,7 @@ export type UpdateModel = z.infer<typeof UpdateModelSchema>;
 export const ModelListQuerySchema = z
   .object({
     harnessId: z.uuid().optional().describe("Só os Models deste Harness."),
+    providerId: z.uuid().optional().describe("Só os Models deste Provider."),
   })
   .meta({ id: "ModelListQuery" });
 

@@ -7,24 +7,28 @@ import {
   type EnvironmentPolicy,
   type HarnessCapabilities,
   type KnowledgePolicy,
-  type McpServerRef,
+  type LoadoutDefinition,
   type NetworkPolicy,
   type PermissionPolicy,
   WORKSPACE_STRATEGY_VALUES,
 } from "@dungeon-master/contracts";
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { mcpServers, providers, skills, tools } from "./registry.js";
 import { users } from "./user.js";
 
 /**
@@ -98,6 +102,12 @@ export const models = pgTable(
     harnessId: uuid("harness_id")
       .notNull()
       .references(() => harnesses.id, { onDelete: "cascade" }),
+    /**
+     * Quem serve o modelo (Fase 8A). `restrict`, e não `set null`: apagar o
+     * Provider deixaria o preflight sem saber que credencial procurar, e a API
+     * diz isso no `409` com os Models que ainda apontam para ele.
+     */
+    providerId: uuid("provider_id").references(() => providers.id, { onDelete: "restrict" }),
     key: text("key").notNull(),
     name: text("name").notNull(),
     isDefault: boolean("is_default").notNull().default(false),
@@ -110,6 +120,7 @@ export const models = pgTable(
   (table) => [
     unique("model_harness_key_uq").on(table.harnessId, table.key),
     index("model_harness_idx").on(table.harnessId, table.name),
+    index("model_provider_idx").on(table.providerId),
   ],
 );
 
@@ -180,6 +191,13 @@ export const executionProfiles = pgTable(
  * junto do snapshot. Sem ele, dois Runs com o mesmo `loadout_id` seriam
  * indistinguíveis no histórico mesmo tendo rodado com equipamentos diferentes —
  * e comparar loadouts é metade da razão de Run existir separado de Task.
+ * Desde a Fase 8A cada número tem uma linha em `loadout_version` com a
+ * definição daquele instante, e é ela que o restore reaplica.
+ *
+ * Skills, Tools e servidores MCP saíram das colunas `jsonb` (migração `0015`)
+ * para as junções `loadout_skill`, `loadout_tool` e `loadout_mcp`: são
+ * referências a registros versionados, e uma referência em `jsonb` não tem
+ * chave estrangeira nem `restrict`.
  *
  * O `on delete restrict` das quatro referências é deliberado: apagar um Agent
  * que um Loadout usa deixaria o Loadout apontando para o nada. O caminho é
@@ -203,9 +221,6 @@ export const loadouts = pgTable(
     executionProfileId: uuid("execution_profile_id")
       .notNull()
       .references(() => executionProfiles.id, { onDelete: "restrict" }),
-    skills: jsonb("skills").$type<string[]>().notNull(),
-    tools: jsonb("tools").$type<string[]>().notNull(),
-    mcpServers: jsonb("mcp_servers").$type<McpServerRef[]>().notNull(),
     knowledgePolicy: jsonb("knowledge_policy").$type<KnowledgePolicy>().notNull(),
     contextPolicy: jsonb("context_policy").$type<ContextPolicy>().notNull(),
     version: integer("version").notNull().default(1),
@@ -224,6 +239,108 @@ export const loadouts = pgTable(
   ],
 );
 
+/**
+ * As referências do Loadout, uma junção por registro.
+ *
+ * `position` guarda a ordem em que o Loadout as declara: a ordem das Skills é
+ * a ordem em que o conteúdo entra no prompt, e um conjunto sem ordem mudaria o
+ * prompt entre dois Runs do mesmo Loadout. `skill_id`, `tool_id` e
+ * `mcp_server_id` são `restrict`: um registro em uso não se apaga, e a API
+ * nomeia os Loadouts no `409`. Do Loadout para cá é `cascade`: apagar o
+ * Loadout apaga as referências dele, e só elas.
+ *
+ * `pinned_version` nulo é "siga a mais recente na hora de congelar o Run".
+ */
+export const loadoutSkills = pgTable(
+  "loadout_skill",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    loadoutId: uuid("loadout_id")
+      .notNull()
+      .references(() => loadouts.id, { onDelete: "cascade" }),
+    skillId: uuid("skill_id")
+      .notNull()
+      .references(() => skills.id, { onDelete: "restrict" }),
+    pinnedVersion: integer("pinned_version"),
+    position: integer("position").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.loadoutId, table.skillId], name: "loadout_skill_pk" }),
+    index("loadout_skill_skill_idx").on(table.skillId),
+    check("loadout_skill_pin_positive_ck", sql`"pinned_version" is null or "pinned_version" > 0`),
+  ],
+);
+
+export const loadoutTools = pgTable(
+  "loadout_tool",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    loadoutId: uuid("loadout_id")
+      .notNull()
+      .references(() => loadouts.id, { onDelete: "cascade" }),
+    toolId: uuid("tool_id")
+      .notNull()
+      .references(() => tools.id, { onDelete: "restrict" }),
+    position: integer("position").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.loadoutId, table.toolId], name: "loadout_tool_pk" }),
+    index("loadout_tool_tool_idx").on(table.toolId),
+  ],
+);
+
+export const loadoutMcpServers = pgTable(
+  "loadout_mcp",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    loadoutId: uuid("loadout_id")
+      .notNull()
+      .references(() => loadouts.id, { onDelete: "cascade" }),
+    mcpServerId: uuid("mcp_server_id")
+      .notNull()
+      .references(() => mcpServers.id, { onDelete: "restrict" }),
+    position: integer("position").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.loadoutId, table.mcpServerId], name: "loadout_mcp_pk" }),
+    index("loadout_mcp_server_idx").on(table.mcpServerId),
+  ],
+);
+
+/**
+ * Uma versão guardada do Loadout: a definição por referências daquele número.
+ *
+ * Imutável, como `workflow_version`: sem `updated_at`, e nenhuma escrita faz
+ * `UPDATE`. Toda edição que sobe `loadout.version` insere a linha
+ * correspondente na mesma transação, e o restore de uma versão antiga cria uma
+ * versão **nova** com a definição dela — a história nunca é reescrita.
+ */
+export const loadoutVersions = pgTable(
+  "loadout_version",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    loadoutId: uuid("loadout_id")
+      .notNull()
+      .references(() => loadouts.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    definition: jsonb("definition").$type<LoadoutDefinition>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("loadout_version_loadout_version_uq").on(table.loadoutId, table.version),
+    check("loadout_version_positive_ck", sql`"version" > 0`),
+  ],
+);
+
 export type HarnessRow = typeof harnesses.$inferSelect;
 export type NewHarnessRow = typeof harnesses.$inferInsert;
 export type ModelRow = typeof models.$inferSelect;
@@ -234,3 +351,8 @@ export type ExecutionProfileRow = typeof executionProfiles.$inferSelect;
 export type NewExecutionProfileRow = typeof executionProfiles.$inferInsert;
 export type LoadoutRow = typeof loadouts.$inferSelect;
 export type NewLoadoutRow = typeof loadouts.$inferInsert;
+export type LoadoutSkillRow = typeof loadoutSkills.$inferSelect;
+export type LoadoutToolRow = typeof loadoutTools.$inferSelect;
+export type LoadoutMcpServerRow = typeof loadoutMcpServers.$inferSelect;
+export type LoadoutVersionRow = typeof loadoutVersions.$inferSelect;
+export type NewLoadoutVersionRow = typeof loadoutVersions.$inferInsert;

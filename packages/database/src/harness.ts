@@ -1,9 +1,10 @@
 import type { Harness, HarnessCapabilities, HarnessKey, Model } from "@dungeon-master/contracts";
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, ne, type SQL, sql } from "drizzle-orm";
 
 import type { Database } from "./client.js";
 import { appendDashboardEvent, type DatabaseExecutor } from "./dashboard-event.js";
 import { newId } from "./ids.js";
+import { findProviderRow } from "./provider.js";
 import { IN_USE_SAMPLE_LIMIT, type RegistryWriteFailure } from "./registry.js";
 import { failed, ok, type Result } from "./result.js";
 import { harnesses, type HarnessRow, loadouts, models, type ModelRow } from "./schema/execution.js";
@@ -26,6 +27,7 @@ export function toModel(row: ModelRow): Model {
   return {
     id: row.id,
     harnessId: row.harnessId,
+    providerId: row.providerId,
     key: row.key,
     name: row.name,
     isDefault: row.isDefault,
@@ -123,6 +125,12 @@ export async function setHarnessEnabled(
  * verdade sobre o que o código realmente faz. Quando as duas discordam, quem
  * executa ganha — prometer na tela o que o adapter não cumpre é pior que
  * mostrar uma matriz mais modesta.
+ *
+ * A sobrescrita é chave a chave (`jsonb ||`), e não da coluna inteira: uma
+ * chave que o adapter não declara fica como estava. Sem isso, um Worker de
+ * antes da Fase 8A — que descarta `forkSession` antes de gravar — apagaria no
+ * primeiro boot as duas chaves que a semente e a migração `0015` puseram, e a
+ * API passaria a servir uma matriz que o contrato recusa.
  */
 export async function recordHarnessPreflight(
   db: DatabaseExecutor,
@@ -134,12 +142,17 @@ export async function recordHarnessPreflight(
     checkedAt?: Date;
   },
 ): Promise<void> {
+  const merged: SQL | undefined =
+    input.capabilities === undefined
+      ? undefined
+      : sql`${harnesses.capabilities} || ${JSON.stringify(input.capabilities)}::jsonb`;
+
   await db
     .update(harnesses)
     .set({
       installedVersion: input.installedVersion,
       checkedAt: input.checkedAt ?? new Date(),
-      ...(input.capabilities === undefined ? {} : { capabilities: input.capabilities }),
+      ...(merged === undefined ? {} : { capabilities: merged }),
     })
     .where(and(eq(harnesses.id, input.harnessId), eq(harnesses.userId, input.userId)));
 }
@@ -175,10 +188,11 @@ export async function findModelRow(
 
 export async function listModels(
   db: DatabaseExecutor,
-  input: { userId: string; harnessId?: string | undefined },
+  input: { userId: string; harnessId?: string | undefined; providerId?: string | undefined },
 ): Promise<Model[]> {
   const conditions = [eq(models.userId, input.userId)];
   if (input.harnessId !== undefined) conditions.push(eq(models.harnessId, input.harnessId));
+  if (input.providerId !== undefined) conditions.push(eq(models.providerId, input.providerId));
 
   const rows = await db
     .select()
@@ -215,9 +229,21 @@ async function clearOtherDefaults(
 export interface CreateModelInput {
   userId: string;
   harnessId: string;
+  providerId?: string | null;
   key: string;
   name: string;
   isDefault?: boolean;
+}
+
+/** O Provider precisa existir para este usuário. `null` é "nenhum", e vale. */
+async function checkProvider(
+  db: DatabaseExecutor,
+  input: { userId: string; providerId: string | null },
+): Promise<RegistryWriteFailure | null> {
+  if (input.providerId === null) return null;
+  const provider = await findProviderRow(db, input as { userId: string; providerId: string });
+  if (provider === null) return { code: "PROVIDER_NOT_FOUND", providerId: input.providerId };
+  return null;
 }
 
 export async function createModel(
@@ -242,6 +268,10 @@ export async function createModel(
       return failed<RegistryWriteFailure>({ code: "MODEL_KEY_TAKEN", key: input.key });
     }
 
+    const providerId = input.providerId ?? null;
+    const provider = await checkProvider(tx, { userId: input.userId, providerId });
+    if (provider !== null) return failed(provider);
+
     const isDefault = input.isDefault ?? false;
 
     const [row] = await tx
@@ -250,6 +280,7 @@ export async function createModel(
         id: newId(),
         userId: input.userId,
         harnessId: input.harnessId,
+        providerId,
         key: input.key,
         name: input.name,
         isDefault,
@@ -269,7 +300,13 @@ export async function createModel(
     await appendDashboardEvent(tx, {
       userId: input.userId,
       type: "model.created",
-      payload: { modelId: row.id, harnessId: row.harnessId, key: row.key, name: row.name },
+      payload: {
+        modelId: row.id,
+        harnessId: row.harnessId,
+        providerId: row.providerId,
+        key: row.key,
+        name: row.name,
+      },
     });
 
     return ok(toModel(row));
@@ -277,6 +314,7 @@ export async function createModel(
 }
 
 export interface UpdateModelPatch {
+  providerId?: string | null;
   key?: string;
   name?: string;
   isDefault?: boolean;
@@ -303,9 +341,21 @@ export async function updateModel(
       }
     }
 
+    if (patch.providerId !== undefined && patch.providerId !== current.providerId) {
+      const provider = await checkProvider(tx, {
+        userId: input.userId,
+        providerId: patch.providerId,
+      });
+      if (provider !== null) return failed(provider);
+    }
+
     const changed: string[] = [];
     const values: UpdateModelPatch = {};
 
+    if (patch.providerId !== undefined && patch.providerId !== current.providerId) {
+      values.providerId = patch.providerId;
+      changed.push("providerId");
+    }
     if (patch.key !== undefined && patch.key !== current.key) {
       values.key = patch.key;
       changed.push("key");

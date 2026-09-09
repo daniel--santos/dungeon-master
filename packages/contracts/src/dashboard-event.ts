@@ -52,6 +52,10 @@ export const REGISTRY_EVENT_TYPE_VALUES = [
   "workflow.created",
   "workflow.updated",
   "workflow.deleted",
+  // Os registros da Fase 8A (Skill, Tool, servidor MCP, Provider) saem num
+  // tipo só, com `kind` no payload: são quatro cadastros com o mesmo ciclo, e
+  // a tela que os mostra é uma.
+  "registry.changed",
 ] as const;
 
 export const RegistryEventTypeSchema = z.enum(REGISTRY_EVENT_TYPE_VALUES).meta({
@@ -60,6 +64,29 @@ export const RegistryEventTypeSchema = z.enum(REGISTRY_EVENT_TYPE_VALUES).meta({
 });
 
 export type RegistryEventType = z.infer<typeof RegistryEventTypeSchema>;
+
+/** Qual registro da Fase 8A mudou. São os nomes das tabelas. */
+export const REGISTRY_KIND_VALUES = ["skill", "tool", "mcp_server", "provider"] as const;
+
+export const RegistryKindSchema = z.enum(REGISTRY_KIND_VALUES).meta({
+  id: "RegistryKind",
+  description: "O registro que `registry.changed` anuncia.",
+});
+
+export type RegistryKind = z.infer<typeof RegistryKindSchema>;
+
+export const REGISTRY_ACTION_VALUES = ["created", "updated", "deleted"] as const;
+
+/** O payload de `registry.changed`. Fechado na escrita, como o tipo do evento. */
+export const RegistryChangedPayloadSchema = z
+  .object({
+    kind: RegistryKindSchema,
+    id: z.uuid(),
+    action: z.enum(REGISTRY_ACTION_VALUES),
+  })
+  .meta({ id: "RegistryChangedPayload", description: "O que `registry.changed` carrega." });
+
+export type RegistryChangedPayload = z.infer<typeof RegistryChangedPayloadSchema>;
 
 /**
  * O que o projetor de Conquistas emite (planejamento v0.4, Fase 2.5B).

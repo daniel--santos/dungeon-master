@@ -8,6 +8,7 @@ import { createLoadout } from "../src/loadout.js";
 import { createProject } from "../src/project.js";
 import { projects } from "../src/schema/project.js";
 import { LOCAL_USER_ID } from "../src/seed.js";
+import { seedExecutionRegistry } from "../src/seed-execution.js";
 import { createTask } from "../src/task.js";
 
 /**
@@ -113,6 +114,11 @@ export async function criarEquipamento(
 /**
  * Apaga tudo o que os testes de execução escrevem, na ordem das chaves
  * estrangeiras. Harness e ExecutionProfile ficam: são semente, não massa.
+ *
+ * Os registros da Fase 8A (Skill, Tool, servidor MCP, Provider) são apagados
+ * inteiros e semeados de novo: parte deles é semente (as cinco Tools de git,
+ * os quatro Providers, o `knowledge` builtIn) e parte é massa de teste, e a
+ * semente idempotente é mais barata que distinguir os dois.
  */
 export async function limparExecucao(handle: DatabaseHandle): Promise<void> {
   for (const tabela of [
@@ -135,8 +141,14 @@ export async function limparExecucao(handle: DatabaseHandle): Promise<void> {
     "workflow_version",
     "workflow",
     "project",
+    "skill_version",
+    "skill",
+    "tool",
+    "mcp_server",
+    "provider",
     "dashboard_event",
   ]) {
     await handle.pool.query(`delete from ${tabela} where user_id = $1`, [USER]);
   }
+  await seedExecutionRegistry(handle.db, { userId: USER });
 }

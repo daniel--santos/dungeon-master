@@ -4,7 +4,8 @@ import type { Server as HttpServer } from "node:http";
 
 import { createAdaptorServer } from "@hono/node-server";
 import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/database";
-import { dockerAdapters } from "@dungeon-master/runtime-sandcastle";
+import { antigravityHostAdapters } from "@dungeon-master/runtime-antigravity";
+import { dockerAdapters, hostAdapters } from "@dungeon-master/runtime-sandcastle";
 
 import { createApp } from "./app.js";
 import {
@@ -18,6 +19,7 @@ import {
 } from "./composition.js";
 import { API_BASE_PATH, loadConfig } from "./config.js";
 import { createDockerPreflightPort } from "./docker-preflight.js";
+import { createLoadoutPreflight } from "./loadout-preflight.js";
 import { createLogger } from "./logger.js";
 
 const config = loadConfig();
@@ -55,6 +57,16 @@ const runEvents = createRunEventsRuntime({
 // cada abertura do Hall seria I/O por um dado que não muda em execução.
 const achievements = loadAchievementCatalog({ logger });
 
+// Os mesmos adapters que o Worker registra, de host e de container. Construir
+// não custa nada e não toca CLI nem Docker: só a chamada de um preflight mede.
+const dockerPreflight = createDockerPreflightPort({ adapters: dockerAdapters() });
+const loadoutPreflight = createLoadoutPreflight({
+  db: database.db,
+  userId: LOCAL_USER_ID,
+  adapters: [...hostAdapters(), ...antigravityHostAdapters(), ...dockerAdapters()],
+  dockerPreflight,
+});
+
 const app = createApp({
   probeDatabase: () => pingDatabase(database.db),
   events: events.port,
@@ -64,9 +76,8 @@ const app = createApp({
     db: database.db,
     userId: LOCAL_USER_ID,
     runEvents,
-    // Os mesmos adapters de container que o Worker registra. Construir não
-    // custa nada e não toca o Docker: só a chamada da rota mede alguma coisa.
-    dockerPreflight: createDockerPreflightPort({ adapters: dockerAdapters() }),
+    dockerPreflight,
+    loadoutPreflight,
   }),
   achievements,
   hall: createAchievementsPort({ db: database.db, userId: LOCAL_USER_ID }),

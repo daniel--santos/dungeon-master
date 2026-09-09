@@ -10,8 +10,9 @@ import { seedWorkflows } from "../src/seed-workflow.js";
 
 /**
  * `pnpm db:seed` garante o usuário local, os quatro Harnesses, os dois
- * ExecutionProfiles e o Workflow de partida. `pnpm db:seed --demo` acrescenta a massa de demonstração:
- * dois Projects, catorze Tasks e três capturas na Inbox.
+ * ExecutionProfiles, os registros da Fase 8A (Providers, Tools de git e o servidor
+ * MCP do Grimório) e o Workflow de partida. `pnpm db:seed --demo` acrescenta a massa
+ * de demonstração: dois Projects, catorze Tasks e três capturas na Inbox.
  *
  * A massa é opcional de propósito. O usuário local e os cadastros fechados são
  * infraestrutura — sem eles nada escreve e nenhum Loadout pode ser criado —,
@@ -38,6 +39,14 @@ try {
       `(${String(execucao.harnessesCreated)} novos), ` +
       `${String(execucao.executionProfilesTotal)} ExecutionProfiles ` +
       `(${String(execucao.executionProfilesCreated)} novos)`,
+  );
+
+  console.log(
+    `[db:seed] registros: ${String(execucao.providersTotal)} Providers ` +
+      `(${String(execucao.providersCreated)} novos), ` +
+      `${String(execucao.toolsTotal)} Tools (${String(execucao.toolsCreated)} novas), ` +
+      `${String(execucao.mcpServersTotal)} servidor MCP builtIn ` +
+      `(${String(execucao.mcpServersCreated)} novo)`,
   );
 
   const escriba = await seedKnowledgeLoadout(handle.db, { userId: LOCAL_USER_ID });

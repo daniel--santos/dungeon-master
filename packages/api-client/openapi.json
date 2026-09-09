@@ -45,6 +45,10 @@
       "description": "Cadastros de execução: Harness, Model, Agent, ExecutionProfile e Loadout."
     },
     {
+      "name": "registry",
+      "description": "Registros versionados da Fase 8A: Skill (com versões), Tool, servidor MCP e Provider."
+    },
+    {
       "name": "runs",
       "description": "Runs: as tentativas concretas de realizar uma Task."
     },
@@ -2681,6 +2685,10 @@
             "type": "boolean",
             "description": "Retoma uma sessão anterior a partir de `harnessSessionId`."
           },
+          "forkSession": {
+            "type": "boolean",
+            "description": "Retoma criando uma sessão nova em vez de mutar a original (fork)."
+          },
           "multiTurnProcess": {
             "type": "boolean",
             "description": "Mantém um processo vivo por vários turnos."
@@ -2712,12 +2720,17 @@
           "dockerExecution": {
             "type": "boolean",
             "description": "Roda dentro de container."
+          },
+          "mcpServers": {
+            "type": "boolean",
+            "description": "Sobe os servidores MCP declarados por Run, em modo headless (Fase 7)."
           }
         },
         "required": [
           "streaming",
           "structuredOutput",
           "resume",
+          "forkSession",
           "multiTurnProcess",
           "toolEvents",
           "tokenUsage",
@@ -2725,7 +2738,8 @@
           "agentSelection",
           "nativePermissions",
           "hostExecution",
-          "dockerExecution"
+          "dockerExecution",
+          "mcpServers"
         ],
         "description": "O que este harness sabe fazer. Substitui condicionais por harness espalhados."
       },
@@ -2771,6 +2785,14 @@
             "format": "uuid",
             "description": "Harness dono da chave."
           },
+          "providerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Provider que serve o modelo (Fase 8A). Nulo quando ninguém o associou; o preflight então procura um Provider pelo Harness."
+          },
           "key": {
             "type": "string",
             "description": "Identificador que o harness aceita na linha de comando."
@@ -2795,6 +2817,7 @@
         "required": [
           "id",
           "harnessId",
+          "providerId",
           "key",
           "name",
           "isDefault",
@@ -2810,6 +2833,14 @@
             "type": "string",
             "format": "uuid",
             "description": "Harness dono da chave."
+          },
+          "providerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Provider que serve o modelo. Padrão: nenhum."
           },
           "key": {
             "type": "string",
@@ -2837,6 +2868,14 @@
       "UpdateModel": {
         "type": "object",
         "properties": {
+          "providerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "`null` desassocia o Provider."
+          },
           "key": {
             "type": "string",
             "minLength": 1,
@@ -3378,25 +3417,47 @@
             "type": "string",
             "format": "uuid"
           },
+          "skillRefs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoadoutSkillRef"
+            },
+            "description": "As Skills, na ordem do Loadout."
+          },
+          "toolRefs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoadoutToolRef"
+            },
+            "description": "As Tools, na ordem do Loadout."
+          },
+          "mcpServerRefs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoadoutMcpServerRef"
+            },
+            "description": "Os servidores MCP, na ordem do Loadout."
+          },
           "skills": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Nomes de skills oferecidas ao agente."
+            "description": "Forma curta: os nomes das Skills de `skillRefs`, na mesma ordem."
           },
           "tools": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Nomes de ferramentas liberadas."
+            "description": "Forma curta: os nomes das Tools de `toolRefs`."
           },
           "mcpServers": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/McpServerRef"
-            }
+            },
+            "description": "Forma curta: os servidores de `mcpServerRefs`, com comando e argumentos juntos."
           },
           "knowledgePolicy": {
             "$ref": "#/components/schemas/KnowledgePolicy"
@@ -3429,6 +3490,9 @@
           "harnessId",
           "modelId",
           "executionProfileId",
+          "skillRefs",
+          "toolRefs",
+          "mcpServerRefs",
           "skills",
           "tools",
           "mcpServers",
@@ -3440,6 +3504,101 @@
           "updatedAt"
         ],
         "description": "A configuração completa de uma execução."
+      },
+      "LoadoutSkillRef": {
+        "type": "object",
+        "properties": {
+          "skillId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome da Skill no momento da leitura."
+          },
+          "pinnedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "description": "A versão pinada. Nulo usa a mais recente na hora de congelar o Run."
+          },
+          "latestVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "A mais recente publicada."
+          }
+        },
+        "required": [
+          "skillId",
+          "name",
+          "pinnedVersion",
+          "latestVersion"
+        ],
+        "description": "Uma Skill referenciada, com o pin."
+      },
+      "LoadoutToolRef": {
+        "type": "object",
+        "properties": {
+          "toolId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ToolKind"
+          }
+        },
+        "required": [
+          "toolId",
+          "name",
+          "kind"
+        ],
+        "description": "Uma Tool referenciada."
+      },
+      "ToolKind": {
+        "type": "string",
+        "enum": [
+          "COMMAND",
+          "MCP_TOOL"
+        ],
+        "description": "`COMMAND` é um prefixo de argv liberado; `MCP_TOOL` é a ferramenta de um servidor MCP."
+      },
+      "LoadoutMcpServerRef": {
+        "type": "object",
+        "properties": {
+          "mcpServerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "transport": {
+            "$ref": "#/components/schemas/McpTransport"
+          },
+          "builtIn": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mcpServerId",
+          "name",
+          "transport",
+          "builtIn"
+        ],
+        "description": "Um servidor MCP referenciado."
+      },
+      "McpTransport": {
+        "type": "string",
+        "enum": [
+          "STDIO",
+          "HTTP"
+        ],
+        "description": "Como o servidor MCP é alcançado."
       },
       "McpServerRef": {
         "type": "object",
@@ -3461,15 +3620,7 @@
           "transport",
           "target"
         ],
-        "description": "Um servidor MCP oferecido ao agente."
-      },
-      "McpTransport": {
-        "type": "string",
-        "enum": [
-          "STDIO",
-          "HTTP"
-        ],
-        "description": "Como o servidor MCP é alcançado."
+        "description": "Um servidor MCP oferecido ao agente, na forma curta."
       },
       "KnowledgePolicy": {
         "type": "object",
@@ -3547,26 +3698,53 @@
             "type": "string",
             "format": "uuid"
           },
+          "skillRefs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkillPin"
+            },
+            "description": "Skills por id, com pin opcional."
+          },
+          "toolIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Tools por id."
+          },
+          "mcpServerIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Servidores MCP por id."
+          },
           "skills": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             },
-            "description": "Padrão: vazio."
+            "description": "Forma curta: nomes de Skills, resolvidos ou criados pelo nome."
           },
           "tools": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             },
-            "description": "Padrão: vazio."
+            "description": "Forma curta: nomes de Tools, resolvidos ou criados pelo nome como `COMMAND`."
           },
           "mcpServers": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/McpServerRef"
+              "$ref": "#/components/schemas/McpServerInput"
             },
-            "description": "Padrão: vazio."
+            "description": "Forma curta: servidores inline, resolvidos ou criados pelo nome."
           },
           "knowledgePolicy": {
             "$ref": "#/components/schemas/KnowledgePolicy"
@@ -3585,6 +3763,51 @@
           "executionProfileId"
         ],
         "description": "Corpo de `POST /api/v1/loadouts`. Nasce em `v1`."
+      },
+      "SkillPin": {
+        "type": "object",
+        "properties": {
+          "skillId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "pinnedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "description": "Ausente ou nulo segue a versão mais recente."
+          }
+        },
+        "required": [
+          "skillId"
+        ],
+        "description": "Uma Skill a referenciar, com ou sem pin."
+      },
+      "McpServerInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+          },
+          "transport": {
+            "$ref": "#/components/schemas/McpTransport"
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Comando com argumentos, para `STDIO`; URL, para `HTTP`."
+          }
+        },
+        "required": [
+          "name",
+          "transport",
+          "target"
+        ],
+        "description": "Um servidor MCP na forma curta, para escrita."
       },
       "UpdateLoadout": {
         "type": "object",
@@ -3613,23 +3836,53 @@
             "type": "string",
             "format": "uuid"
           },
+          "skillRefs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkillPin"
+            },
+            "description": "Skills por id, com pin opcional."
+          },
+          "toolIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Tools por id."
+          },
+          "mcpServerIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Servidores MCP por id."
+          },
           "skills": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "description": "Forma curta: nomes de Skills, resolvidos ou criados pelo nome."
           },
           "tools": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "description": "Forma curta: nomes de Tools, resolvidos ou criados pelo nome como `COMMAND`."
           },
           "mcpServers": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/McpServerRef"
-            }
+              "$ref": "#/components/schemas/McpServerInput"
+            },
+            "description": "Forma curta: servidores inline, resolvidos ou criados pelo nome."
           },
           "knowledgePolicy": {
             "$ref": "#/components/schemas/KnowledgePolicy"
@@ -3642,6 +3895,585 @@
           }
         },
         "description": "Corpo de `PATCH /api/v1/loadouts/{id}`. Toda edição que muda algo incrementa `version`."
+      },
+      "LoadoutVersionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoadoutVersion"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de versões do Loadout, da mais recente para a mais antiga."
+      },
+      "LoadoutVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "loadoutId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "definition": {
+            "$ref": "#/components/schemas/LoadoutDefinition"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "loadoutId",
+          "version",
+          "definition",
+          "createdAt"
+        ],
+        "description": "Uma versão guardada do Loadout. Imutável."
+      },
+      "LoadoutDefinition": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "agentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "harnessId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "modelId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "executionProfileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "skillRefs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "skillId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "pinnedVersion": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "skillId",
+                "pinnedVersion"
+              ]
+            }
+          },
+          "toolIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "mcpServerIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "knowledgePolicy": {
+            "$ref": "#/components/schemas/KnowledgePolicy"
+          },
+          "contextPolicy": {
+            "$ref": "#/components/schemas/ContextPolicy"
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "agentId",
+          "harnessId",
+          "modelId",
+          "executionProfileId",
+          "skillRefs",
+          "toolIds",
+          "mcpServerIds",
+          "knowledgePolicy",
+          "contextPolicy",
+          "isDefault"
+        ],
+        "description": "O Loadout numa versão, só por referências."
+      },
+      "LoadoutPreflight": {
+        "type": "object",
+        "properties": {
+          "loadoutId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "loadoutVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante em que a checagem começou, em UTC."
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "harness": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "key": {
+                "$ref": "#/components/schemas/HarnessKey"
+              },
+              "name": {
+                "type": "string"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "capabilities": {
+                "$ref": "#/components/schemas/HarnessCapabilities"
+              },
+              "installedVersion": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "O que o Worker gravou no último preflight de boot."
+              },
+              "checkedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name",
+              "enabled",
+              "capabilities",
+              "installedVersion",
+              "checkedAt"
+            ]
+          },
+          "executionProfile": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "mode": {
+                "$ref": "#/components/schemas/ExecutionMode"
+              },
+              "enforcement": {
+                "$ref": "#/components/schemas/EnforcementLevel"
+              },
+              "enabled": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "mode",
+              "enforcement",
+              "enabled"
+            ]
+          },
+          "model": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name"
+            ],
+            "description": "O Model efetivo: o do Loadout, ou o padrão do Harness."
+          },
+          "provider": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "providerId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "$ref": "#/components/schemas/ProviderKind"
+              },
+              "authEnvKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "As variáveis que o Provider declara."
+              },
+              "presentEnvKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "As que existem no ambiente da API. Só os nomes: o valor nunca sai daqui."
+              },
+              "status": {
+                "$ref": "#/components/schemas/ProviderAuthStatus"
+              },
+              "docsUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "providerId",
+              "name",
+              "kind",
+              "authEnvKeys",
+              "presentEnvKeys",
+              "status",
+              "docsUrl"
+            ],
+            "description": "O Provider do Model, ou o primeiro que declara o Harness. Nulo quando não há nenhum."
+          },
+          "cli": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/ExecutionMode"
+              },
+              "adapterId": {
+                "type": "string",
+                "description": "Identificador do adapter, com o ambiente: `claude-code@host`."
+              },
+              "installed": {
+                "type": "boolean"
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "authenticated": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "Resultado da checagem de credencial do adapter. Nulo quando ela não existe."
+              },
+              "timedOut": {
+                "type": "boolean",
+                "description": "O adapter não respondeu dentro do teto."
+              },
+              "problems": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PreflightProblem"
+                }
+              }
+            },
+            "required": [
+              "mode",
+              "adapterId",
+              "installed",
+              "version",
+              "authenticated",
+              "timedOut",
+              "problems"
+            ],
+            "description": "Nulo quando a API não tem adapter registrado para o par Harness/modo."
+          },
+          "docker": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "daemonReachable": {
+                "type": "boolean"
+              },
+              "serverVersion": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "imageName": {
+                "type": "string"
+              },
+              "imagePresent": {
+                "type": "boolean"
+              },
+              "problems": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PreflightProblem"
+                }
+              }
+            },
+            "required": [
+              "daemonReachable",
+              "serverVersion",
+              "imageName",
+              "imagePresent",
+              "problems"
+            ],
+            "description": "Só em perfil `DOCKER`: daemon e imagem, medidos na chamada."
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/CapabilityReport"
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "Sem blocker de capability, sem problema fatal de CLI, com Harness e perfil ligados."
+          }
+        },
+        "required": [
+          "loadoutId",
+          "loadoutVersion",
+          "checkedAt",
+          "durationMs",
+          "harness",
+          "executionProfile",
+          "model",
+          "provider",
+          "cli",
+          "docker",
+          "capabilities",
+          "ready"
+        ],
+        "description": "Tudo o que dá para saber antes de partir: matriz, CLI, credencial e o relatório de capabilities."
+      },
+      "ProviderKind": {
+        "type": "string",
+        "enum": [
+          "SUBSCRIPTION",
+          "API_KEY",
+          "LOCAL"
+        ],
+        "description": "`SUBSCRIPTION` autentica pela CLI (login); `API_KEY` por variável de ambiente; `LOCAL` não autentica."
+      },
+      "ProviderAuthStatus": {
+        "type": "string",
+        "enum": [
+          "ENV_KEY_PRESENT",
+          "CLI_AUTHENTICATED",
+          "CLI_NOT_AUTHENTICATED",
+          "NOT_REQUIRED",
+          "UNKNOWN"
+        ],
+        "description": "O estado da credencial do Provider, sem nenhuma chamada ao modelo."
+      },
+      "PreflightProblem": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/PreflightProblemCode"
+          },
+          "message": {
+            "type": "string",
+            "description": "O que falta e como resolver, em português."
+          },
+          "fatal": {
+            "type": "boolean",
+            "description": "Um problema fatal impede a execução; os demais viram aviso."
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "fatal"
+        ],
+        "description": "Um problema encontrado no preflight."
+      },
+      "PreflightProblemCode": {
+        "type": "string",
+        "enum": [
+          "NOT_INSTALLED",
+          "VERSION_UNREADABLE",
+          "NOT_AUTHENTICATED",
+          "UNSUPPORTED_MODE",
+          "UNSUPPORTED_PLATFORM"
+        ],
+        "description": "Código estável de um problema encontrado no preflight."
+      },
+      "CapabilityReport": {
+        "type": "object",
+        "properties": {
+          "blockers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CapabilityIssue"
+            },
+            "description": "Impedem a partida. Vazio é obrigatório."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CapabilityIssue"
+            },
+            "description": "Seguem, registrados no diário do Run."
+          }
+        },
+        "required": [
+          "blockers",
+          "warnings"
+        ],
+        "description": "O resultado do capability matching entre um Loadout e o Harness dele."
+      },
+      "CapabilityIssue": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/CapabilityIssueCode"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/CapabilityIssueSeverity"
+          },
+          "capability": {
+            "type": "string",
+            "enum": [
+              "streaming",
+              "structuredOutput",
+              "resume",
+              "forkSession",
+              "multiTurnProcess",
+              "toolEvents",
+              "tokenUsage",
+              "modelSelection",
+              "agentSelection",
+              "nativePermissions",
+              "hostExecution",
+              "dockerExecution",
+              "mcpServers"
+            ],
+            "description": "A capability que o Harness não declara."
+          },
+          "message": {
+            "type": "string",
+            "description": "A mensagem canônica, em português, escrita pelo domínio."
+          },
+          "causedBy": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "O que no Loadout ou no pedido provocou o descompasso: nomes de servidores MCP, de Tools, a chave do Model, o modo de execução."
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "capability",
+          "message",
+          "causedBy"
+        ],
+        "description": "Um descompasso entre o pedido e o Harness."
+      },
+      "CapabilityIssueCode": {
+        "type": "string",
+        "enum": [
+          "DOCKER_UNSUPPORTED",
+          "HOST_UNSUPPORTED",
+          "STRUCTURED_OUTPUT_REQUIRED",
+          "MCP_UNSUPPORTED",
+          "MODEL_SELECTION_UNSUPPORTED",
+          "COMMAND_TOOLS_ADVISORY",
+          "RESUME_UNSUPPORTED"
+        ],
+        "description": "Código estável de um descompasso entre o Loadout e a matriz do Harness."
+      },
+      "CapabilityIssueSeverity": {
+        "type": "string",
+        "enum": [
+          "BLOCKER",
+          "WARNING"
+        ],
+        "description": "`BLOCKER` impede a partida; `WARNING` segue e vira `Diagnostic`."
       },
       "DockerPreflight": {
         "type": "object",
@@ -3734,39 +4566,6 @@
         ],
         "description": "O preflight do backend Docker, medido na chamada."
       },
-      "PreflightProblem": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "$ref": "#/components/schemas/PreflightProblemCode"
-          },
-          "message": {
-            "type": "string",
-            "description": "O que falta e como resolver, em português."
-          },
-          "fatal": {
-            "type": "boolean",
-            "description": "Um problema fatal impede a execução; os demais viram aviso."
-          }
-        },
-        "required": [
-          "code",
-          "message",
-          "fatal"
-        ],
-        "description": "Um problema encontrado no preflight."
-      },
-      "PreflightProblemCode": {
-        "type": "string",
-        "enum": [
-          "NOT_INSTALLED",
-          "VERSION_UNREADABLE",
-          "NOT_AUTHENTICATED",
-          "UNSUPPORTED_MODE",
-          "UNSUPPORTED_PLATFORM"
-        ],
-        "description": "Código estável de um problema encontrado no preflight."
-      },
       "DockerHarnessPreflight": {
         "type": "object",
         "properties": {
@@ -3817,7 +4616,979 @@
         ],
         "description": "O preflight de um harness dentro do container: versão e credencial."
       },
-      "Run": {
+      "SkillPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Skill"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de Skills, em ordem alfabética."
+      },
+      "Skill": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da Skill."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome da Skill. Único por usuário."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nota livre para quem monta o Loadout."
+          },
+          "latestVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "A versão mais recente. É a efetiva quando o Loadout não pina nenhuma."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "latestVersion",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Instruções versionadas oferecidas ao agente."
+      },
+      "SkillDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da Skill."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome da Skill. Único por usuário."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nota livre para quem monta o Loadout."
+          },
+          "latestVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "A versão mais recente. É a efetiva quando o Loadout não pina nenhuma."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "latest": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "UUIDv7 da versão."
+              },
+              "skillId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "version": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "description": "Número sequencial, a partir de 1. Imutável."
+              },
+              "content": {
+                "type": "string",
+                "description": "O markdown que o agente recebe."
+              },
+              "changelog": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "O que mudou nesta versão, para quem escolhe o pin."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "skillId",
+              "version",
+              "content",
+              "changelog",
+              "createdAt"
+            ],
+            "description": "A versão mais recente, com o conteúdo."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "latestVersion",
+          "createdAt",
+          "updatedAt",
+          "latest"
+        ],
+        "description": "A Skill com a versão mais recente resolvida."
+      },
+      "CreateSkill": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 100000,
+            "description": "O conteúdo da versão 1. Padrão: vazio."
+          },
+          "changelog": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000,
+            "description": "Nota da versão 1."
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "description": "Corpo de `POST /api/v1/skills`. Nasce na versão 1."
+      },
+      "UpdateSkill": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/skills/{id}`."
+      },
+      "SkillVersionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkillVersion"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de versões, da mais recente para a mais antiga."
+      },
+      "SkillVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da versão."
+          },
+          "skillId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Número sequencial, a partir de 1. Imutável."
+          },
+          "content": {
+            "type": "string",
+            "description": "O markdown que o agente recebe."
+          },
+          "changelog": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "O que mudou nesta versão, para quem escolhe o pin."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "skillId",
+          "version",
+          "content",
+          "changelog",
+          "createdAt"
+        ],
+        "description": "Uma versão imutável do conteúdo de uma Skill."
+      },
+      "PublishSkillVersion": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 100000
+          },
+          "changelog": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "expectedLatestVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "CAS opcional: recusa com `409` se a versão mais recente já não for esta. Quem edita a partir de uma versão que leu não sobrescreve o que outra aba publicou."
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "description": "Corpo de `POST /api/v1/skills/{id}/versions`. Append-only: cria a versão seguinte."
+      },
+      "ToolPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tool"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de Tools, em ordem alfabética."
+      },
+      "Tool": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da Tool."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome da Tool. Único por usuário."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ToolKind"
+          },
+          "command": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Só em `COMMAND`: o prefixo de argv."
+          },
+          "mcpServerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Só em `MCP_TOOL`: o servidor do registro."
+          },
+          "toolName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Só em `MCP_TOOL`: o nome anunciado pelo servidor."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "command",
+          "mcpServerId",
+          "toolName",
+          "description",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Uma ferramenta do registro: comando liberado ou ferramenta MCP."
+      },
+      "CreateTool": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "COMMAND"
+                ]
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "command": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "description": "Prefixo de argv liberado, como `git add`. Sem shell: palavras separadas por espaço."
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "command"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "MCP_TOOL"
+                ]
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "mcpServerId": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Um servidor MCP do registro."
+              },
+              "toolName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "O nome da ferramenta como o servidor MCP a anuncia (`search_knowledge`)."
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "mcpServerId",
+              "toolName"
+            ]
+          }
+        ],
+        "description": "Corpo de `POST /api/v1/tools`. A forma depende de `kind`."
+      },
+      "UpdateTool": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Prefixo de argv liberado, como `git add`. Sem shell: palavras separadas por espaço."
+          },
+          "mcpServerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "toolName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "O nome da ferramenta como o servidor MCP a anuncia (`search_knowledge`)."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/tools/{id}`."
+      },
+      "McpServerPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpServer"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de servidores MCP, em ordem alfabética."
+      },
+      "McpServer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do servidor."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome canônico, único por usuário. É a chave que a CLI registra."
+          },
+          "transport": {
+            "$ref": "#/components/schemas/McpTransport"
+          },
+          "command": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Só em `STDIO`."
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Só em `STDIO`; vazio em `HTTP`."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Só em `HTTP`."
+          },
+          "envKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Nomes de variáveis de ambiente, nunca valores."
+          },
+          "readOnly": {
+            "type": "boolean",
+            "description": "O servidor só lê. É informação para quem monta o Loadout e para a interface."
+          },
+          "builtIn": {
+            "type": "boolean",
+            "description": "Nasce com o sistema e o Worker sabe subi-lo (o `knowledge` do Grimório). Não se apaga."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "transport",
+          "command",
+          "args",
+          "url",
+          "envKeys",
+          "readOnly",
+          "builtIn",
+          "description",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Um servidor MCP do registro, com a forma de subi-lo."
+      },
+      "CreateMcpServer": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "transport": {
+                "type": "string",
+                "enum": [
+                  "STDIO"
+                ]
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+              },
+              "command": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000,
+                "description": "Executável do servidor `STDIO`, sem argumentos e sem shell."
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "maxItems": 50,
+                "description": "Argumentos, um por posição. Nunca um segredo: o argv é público na máquina."
+              },
+              "envKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z_][A-Z0-9_]{0,127}$"
+                },
+                "maxItems": 50,
+                "description": "Nomes de variáveis que o servidor precisa enxergar. Só nomes; o valor fica no ambiente."
+              },
+              "readOnly": {
+                "type": "boolean",
+                "description": "Padrão: `false`."
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "transport",
+              "name",
+              "command"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "transport": {
+                "type": "string",
+                "enum": [
+                  "HTTP"
+                ]
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^https?:\\/\\//i",
+                "description": "Endereço do servidor `HTTP`. Credenciais vão por `envKeys`, nunca na URL."
+              },
+              "envKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z_][A-Z0-9_]{0,127}$"
+                },
+                "maxItems": 50,
+                "description": "Nomes de variáveis que o servidor precisa enxergar. Só nomes; o valor fica no ambiente."
+              },
+              "readOnly": {
+                "type": "boolean",
+                "description": "Padrão: `false`."
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "transport",
+              "name",
+              "url"
+            ]
+          }
+        ],
+        "description": "Corpo de `POST /api/v1/mcp-servers`. A forma depende de `transport`."
+      },
+      "UpdateMcpServer": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "Executável do servidor `STDIO`, sem argumentos e sem shell."
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "maxItems": 50,
+            "description": "Argumentos, um por posição. Nunca um segredo: o argv é público na máquina."
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2000,
+            "pattern": "^https?:\\/\\//i",
+            "description": "Endereço do servidor `HTTP`. Credenciais vão por `envKeys`, nunca na URL."
+          },
+          "envKeys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z_][A-Z0-9_]{0,127}$"
+            },
+            "maxItems": 50,
+            "description": "Nomes de variáveis que o servidor precisa enxergar. Só nomes; o valor fica no ambiente."
+          },
+          "readOnly": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/mcp-servers/{id}`."
+      },
+      "ProviderPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Provider"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de Providers, em ordem alfabética."
+      },
+      "Provider": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do Provider."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome do Provider. Único por usuário."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ProviderKind"
+          },
+          "authEnvKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Nomes das variáveis que carregam a credencial. Qualquer uma presente basta."
+          },
+          "harnessKeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HarnessKey"
+            },
+            "description": "Os Harnesses que usam este Provider."
+          },
+          "docsUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Onde está explicado como autenticar."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "authEnvKeys",
+          "harnessKeys",
+          "docsUrl",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Quem serve os modelos e como se autentica nele."
+      },
+      "CreateProvider": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ProviderKind"
+          },
+          "authEnvKeys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z_][A-Z0-9_]{0,127}$"
+            },
+            "maxItems": 50,
+            "description": "Padrão: nenhuma."
+          },
+          "harnessKeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HarnessKey"
+            },
+            "description": "Padrão: nenhum."
+          },
+          "docsUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000,
+            "pattern": "^https?:\\/\\//i"
+          }
+        },
+        "required": [
+          "name",
+          "kind"
+        ],
+        "description": "Corpo de `POST /api/v1/providers`."
+      },
+      "UpdateProvider": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ProviderKind"
+          },
+          "authEnvKeys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z_][A-Z0-9_]{0,127}$"
+            },
+            "maxItems": 50,
+            "description": "Nomes de variáveis que o servidor precisa enxergar. Só nomes; o valor fica no ambiente."
+          },
+          "harnessKeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HarnessKey"
+            }
+          },
+          "docsUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000,
+            "pattern": "^https?:\\/\\//i"
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/providers/{id}`."
+      },
+      "RunCreated": {
         "type": "object",
         "properties": {
           "id": {
@@ -3959,6 +5730,13 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CapabilityIssue"
+            },
+            "description": "Descompassos que não impedem a partida. O Worker os registra no diário."
           }
         },
         "required": [
@@ -3986,9 +5764,10 @@
           "result",
           "error",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "warnings"
         ],
-        "description": "Uma tentativa concreta de realizar uma Task."
+        "description": "O Run recém-criado e os avisos de capability."
       },
       "RunStatus": {
         "type": "string",
@@ -4099,19 +5878,35 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Os nomes das Skills, na ordem do Loadout."
           },
           "tools": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Os nomes das Tools, na ordem do Loadout."
           },
           "mcpServers": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/McpServerRef"
+              "$ref": "#/components/schemas/McpServerSnapshot"
             }
+          },
+          "skillVersions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkillVersionSnapshot"
+            },
+            "description": "As Skills resolvidas, com conteúdo. Ausente em Runs anteriores à Fase 8."
+          },
+          "toolDefinitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolSnapshot"
+            },
+            "description": "As Tools resolvidas. Ausente em Runs anteriores à Fase 8."
           },
           "knowledgePolicy": {
             "$ref": "#/components/schemas/KnowledgePolicy"
@@ -4140,7 +5935,146 @@
           "contextPolicy",
           "capturedAt"
         ],
-        "description": "O Loadout como estava quando o Run foi criado, com Agent e Harness resolvidos."
+        "description": "O Loadout como estava quando o Run foi criado, com tudo resolvido."
+      },
+      "McpServerSnapshot": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Nome pelo qual o harness registra o servidor."
+          },
+          "transport": {
+            "$ref": "#/components/schemas/McpTransport"
+          },
+          "target": {
+            "type": "string",
+            "description": "Comando, para `STDIO`; URL, para `HTTP`. Nunca montado por concatenação."
+          },
+          "mcpServerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "command": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Só em `STDIO`."
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Só em `STDIO`."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Só em `HTTP`."
+          },
+          "envKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Nomes de variáveis; nunca valores."
+          },
+          "readOnly": {
+            "type": "boolean"
+          },
+          "builtIn": {
+            "type": "boolean",
+            "description": "O Worker é quem sabe subi-lo."
+          }
+        },
+        "required": [
+          "name",
+          "transport",
+          "target"
+        ],
+        "description": "Um servidor MCP congelado no Run, com a forma curta e a definição."
+      },
+      "SkillVersionSnapshot": {
+        "type": "object",
+        "properties": {
+          "skillId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "A versão efetiva: a pinada, ou a mais recente."
+          },
+          "pinned": {
+            "type": "boolean",
+            "description": "Verdadeiro quando o Loadout pinava esta versão."
+          },
+          "content": {
+            "type": "string",
+            "description": "O markdown exatamente como foi congelado."
+          }
+        },
+        "required": [
+          "skillId",
+          "name",
+          "version",
+          "pinned",
+          "content"
+        ],
+        "description": "Uma Skill resolvida na versão efetiva, com o conteúdo."
+      },
+      "ToolSnapshot": {
+        "type": "object",
+        "properties": {
+          "toolId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ToolKind"
+          },
+          "command": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Só em `COMMAND`."
+          },
+          "mcpServerName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Só em `MCP_TOOL`: o nome do servidor."
+          },
+          "toolName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Só em `MCP_TOOL`."
+          }
+        },
+        "required": [
+          "toolId",
+          "name",
+          "kind",
+          "command",
+          "mcpServerName",
+          "toolName"
+        ],
+        "description": "Uma Tool resolvida, com a definição."
       },
       "ExecutionProfileSnapshot": {
         "type": "object",
@@ -4506,6 +6440,179 @@
           "taskTitle"
         ],
         "description": "Um Run na listagem, com o título da Task."
+      },
+      "Run": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do Run."
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A Task que este Run tenta realizar."
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Project da Task no momento da leitura. Vem por junção, não é coluna do Run."
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "harnessKey": {
+            "type": "string",
+            "enum": [
+              "CLAUDE_CODE",
+              "CODEX",
+              "PI",
+              "ANTIGRAVITY"
+            ],
+            "description": "Harness escolhido, copiado do Loadout."
+          },
+          "harnessVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Versão da CLI descoberta no preflight. Nula até o Run preparar."
+          },
+          "harnessSessionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Id de sessão emitido pelo harness, guardado junto do harness emissor: as semânticas de resume diferem entre Claude Code, Codex, Pi e Antigravity."
+          },
+          "modelKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Chave do Model usada, copiada do Loadout."
+          },
+          "executionMode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "workspacePath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Caminho do checkout usado. É a base da trava por caminho."
+          },
+          "workflowVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Captura congelada do Workflow da Task no instante da criação. Nulo no Run simples, de um agente só. Os steps ficam em `GET /runs/{id}/steps`."
+          },
+          "resumedFromRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero."
+          },
+          "loadoutId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "loadoutVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Versão do Loadout no instante da criação."
+          },
+          "loadoutSnapshot": {
+            "$ref": "#/components/schemas/LoadoutSnapshot"
+          },
+          "executionProfileSnapshot": {
+            "$ref": "#/components/schemas/ExecutionProfileSnapshot"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "O prompt enviado ao harness."
+          },
+          "attempt": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "N-ésimo Run desta Task, começando em 1."
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Entrada em `RUNNING`, em UTC (ISO 8601)."
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Entrada em estado terminal, em UTC."
+          },
+          "cancelRequestedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Instante do pedido de cancelamento. Marcar aqui não muda o status: quem transiciona é quem confirma o término da árvore de processos."
+          },
+          "result": {
+            "$ref": "#/components/schemas/RunResult"
+          },
+          "error": {
+            "$ref": "#/components/schemas/RunError"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "taskId",
+          "projectId",
+          "status",
+          "harnessKey",
+          "harnessVersion",
+          "harnessSessionId",
+          "modelKey",
+          "executionMode",
+          "workspacePath",
+          "workflowVersionId",
+          "resumedFromRunId",
+          "loadoutId",
+          "loadoutVersion",
+          "loadoutSnapshot",
+          "executionProfileSnapshot",
+          "prompt",
+          "attempt",
+          "startedAt",
+          "finishedAt",
+          "cancelRequestedAt",
+          "result",
+          "error",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Uma tentativa concreta de realizar uma Task."
       },
       "RunContext": {
         "type": "object",
@@ -11686,6 +13793,17 @@
             "description": "Só os Models deste Harness.",
             "name": "harnessId",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só os Models deste Provider."
+            },
+            "required": false,
+            "description": "Só os Models deste Provider.",
+            "name": "providerId",
+            "in": "query"
           }
         ],
         "responses": {
@@ -12368,7 +14486,7 @@
           "execution"
         ],
         "summary": "Cria um Loadout",
-        "description": "Nasce em `version: 1`. Agent, Harness e ExecutionProfile precisam existir e estar ligados.",
+        "description": "Nasce em `version: 1`. Agent, Harness e ExecutionProfile precisam existir e estar ligados. Skills, Tools e servidores MCP entram por referência (`skillRefs`, `toolIds`, `mcpServerIds`) ou na forma curta (`skills`, `tools`, `mcpServers`), resolvida pelo nome; as duas formas na mesma coleção são recusadas.",
         "requestBody": {
           "required": true,
           "content": {
@@ -12411,7 +14529,7 @@
             }
           },
           "409": {
-            "description": "Nome já usado, Harness ou perfil desligado, ou Model de outro Harness.",
+            "description": "Nome já usado, Harness ou perfil desligado, Model de outro Harness, pin para versão inexistente, ou as duas formas de referência na mesma coleção.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12583,6 +14701,236 @@
         }
       }
     },
+    "/api/v1/loadouts/{id}/versions": {
+      "get": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "As versões guardadas do Loadout",
+        "description": "Da mais recente para a mais antiga. Cada uma traz a definição por referências daquele número: ids, pins e políticas, nunca conteúdo.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de versões.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadoutVersionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paginação inválida.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Loadout com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/loadouts/{id}/versions/{version}/restore": {
+      "post": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "Restaura uma versão do Loadout",
+        "description": "Cria uma versão **nova** com a definição da antiga; nunca reescreve. Se a definição já for a atual, nada muda e a versão não sobe. As referências são conferidas de novo.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Loadout."
+            },
+            "required": true,
+            "description": "UUIDv7 do Loadout.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,8}$",
+              "description": "O número da versão a restaurar."
+            },
+            "required": true,
+            "description": "O número da versão a restaurar.",
+            "name": "version",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O Loadout na versão nova (ou na atual, se nada mudou).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Loadout"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Loadout com este id, ou alguma referência da versão sumiu.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A versão não existe, ou uma referência dela está desligada ou em conflito.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/loadouts/{id}/preflight": {
+      "get": {
+        "tags": [
+          "execution"
+        ],
+        "summary": "O preflight do Loadout: tudo o que dá para saber antes de partir",
+        "description": "Junta o relatório de capabilities (o Loadout resolvido contra a matriz do Harness), o preflight da CLI no modo do perfil — no host, o `--version` e a checagem de credencial do adapter; em `DOCKER`, daemon, imagem e a CLI dentro do container — e o estado da credencial do Provider, sem chamar modelo nenhum: variável presente no ambiente da API ou o que a CLI respondeu. `executionProfileId` sobrepõe o perfil como `POST /runs` permite; `resume=true` avalia a intenção de retomar. Mede na chamada; nunca no boot.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Sobrepõe o ExecutionProfile do Loadout, como `POST /runs` permite."
+            },
+            "required": false,
+            "description": "Sobrepõe o ExecutionProfile do Loadout, como `POST /runs` permite.",
+            "name": "executionProfileId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "description": "`true` avalia a intenção de retomar uma sessão."
+            },
+            "required": false,
+            "description": "`true` avalia a intenção de retomar uma sessão.",
+            "name": "resume",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O preflight, mesmo com blockers: eles vêm no corpo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadoutPreflight"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetro inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Loadout com este id, ou o perfil informado não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "O Loadout aponta para um Agent ou Harness que não existe mais.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/preflights/docker": {
       "get": {
         "tags": [
@@ -12604,13 +14952,1263 @@
         }
       }
     },
+    "/api/v1/skills": {
+      "get": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Lista as Skills",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de Skills, em ordem alfabética.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paginação inválida.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Cria uma Skill na versão 1",
+        "description": "O nome é único por usuário. O conteúdo vai para a versão 1; publicar de novo é `POST /skills/{id}/versions`, nunca um PATCH no conteúdo.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSkill"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Skill criada, com a versão 1.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe uma Skill com este nome.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/skills/{id}": {
+      "get": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Uma Skill, com a versão mais recente",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A Skill e o conteúdo da versão mais recente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Skill com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Edita nome e descrição da Skill",
+        "description": "O conteúdo não se edita: publique uma versão nova.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSkill"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A Skill depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Skill com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe uma Skill com este nome.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Apaga a Skill e as versões dela",
+        "description": "Recusa enquanto algum Loadout a referencia. Runs antigos não impedem: o snapshot deles carrega o conteúdo da versão efetiva.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Skill apagada."
+          },
+          "404": {
+            "description": "Não existe Skill com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Algum Loadout ainda referencia esta Skill.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/skills/{id}/versions": {
+      "get": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "As versões da Skill",
+        "description": "Da mais recente para a mais antiga, cada uma com o conteúdo e o changelog.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de versões.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillVersionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paginação inválida.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Skill com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Publica a versão seguinte da Skill",
+        "description": "Append-only: cria `latestVersion + 1` e nunca reescreve uma versão. Com `expectedLatestVersion`, recusa com `409` se outra publicação chegou antes (CAS).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishSkillVersion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "A versão publicada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillVersion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Skill com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A versão mais recente já não é a esperada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools": {
+      "get": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Lista as Tools",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "COMMAND",
+                "MCP_TOOL"
+              ],
+              "description": "Só as Tools desta espécie."
+            },
+            "required": false,
+            "description": "Só as Tools desta espécie.",
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só as ferramentas deste servidor MCP."
+            },
+            "required": false,
+            "description": "Só as ferramentas deste servidor MCP.",
+            "name": "mcpServerId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de Tools, em ordem alfabética.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Cria uma Tool",
+        "description": "`COMMAND` leva um prefixo de argv, no formato da allow-list do ExecutionProfile (`git add`). `MCP_TOOL` leva o servidor do registro e o nome que ele anuncia.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTool"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tool criada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tool"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O servidor MCP informado não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe uma Tool com este nome.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools/{id}": {
+      "get": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Uma Tool",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A Tool.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tool"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Tool com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Edita a Tool",
+        "description": "`kind` não muda. Um campo da outra espécie é recusado com `409`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTool"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A Tool depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tool"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Tool com este id, ou o servidor informado não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Nome já usado, ou campo que não pertence à espécie da Tool.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Apaga a Tool",
+        "description": "Recusa enquanto algum Loadout a referencia.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Tool apagada."
+          },
+          "404": {
+            "description": "Não existe Tool com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Algum Loadout ainda referencia esta Tool.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mcp-servers": {
+      "get": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Lista os servidores MCP",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de servidores, em ordem alfabética.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paginação inválida.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Cria um servidor MCP",
+        "description": "`STDIO` leva comando e argumentos separados; `HTTP` leva a URL, sem credencial. Segredos entram por `envKeys`, que são nomes de variáveis de ambiente.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMcpServer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Servidor criado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe um servidor com este nome.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mcp-servers/{id}": {
+      "get": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Um servidor MCP",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O servidor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServer"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe servidor MCP com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Edita o servidor MCP",
+        "description": "`transport` não muda. Num `builtIn` só `description` é editável; o resto é do Worker.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMcpServer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O servidor depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe servidor MCP com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Nome já usado, campo do outro transporte, ou servidor `builtIn`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Apaga o servidor MCP",
+        "description": "Um `builtIn` nunca se apaga. Os demais recusam enquanto uma Tool ou um Loadout os referenciam.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Servidor apagado."
+          },
+          "404": {
+            "description": "Não existe servidor MCP com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Servidor `builtIn`, ou ainda referenciado por Tool ou Loadout.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers": {
+      "get": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Lista os Providers",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CLAUDE_CODE",
+                "CODEX",
+                "PI",
+                "ANTIGRAVITY"
+              ],
+              "description": "Só os Providers que este Harness usa."
+            },
+            "required": false,
+            "description": "Só os Providers que este Harness usa.",
+            "name": "harnessKey",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de Providers, em ordem alfabética.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Cria um Provider",
+        "description": "`authEnvKeys` são nomes de variáveis de ambiente; o valor nunca é gravado. O preflight só olha se a variável existe no ambiente da API.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProvider"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Provider criado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Provider"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe um Provider com este nome.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers/{id}": {
+      "get": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Um Provider",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O Provider.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Provider"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Provider com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Edita o Provider",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProvider"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O Provider depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Provider"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Provider com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe um Provider com este nome.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "registry"
+        ],
+        "summary": "Apaga o Provider",
+        "description": "Recusa enquanto algum Model aponta para ele.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Provider apagado."
+          },
+          "404": {
+            "description": "Não existe Provider com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Algum Model ainda aponta para este Provider.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tasks/{id}/runs": {
       "post": {
         "tags": [
           "runs"
         ],
         "summary": "Enfileira uma execução para a Task",
-        "description": "Cria o Run em `QUEUED`, com o Loadout e o ExecutionProfile congelados em snapshot, e leva a Task a `QUEUED` na mesma transação. Sem `prompt`, ele é montado a partir do título e da descrição da Task. Exige Task em `READY` ou `FAILED` (retentativa), dependências `COMPLETED` e um Project com `workspacePath`.\n\nCom `resumeFromRunId`, o Run continua a sessão do harness de um Run anterior: Loadout e ExecutionProfile são herdados dele quando não vierem no corpo, e o Run de origem precisa ter `harnessSessionId` capturado e um Harness que declare a capability `resume`. A retomada é sempre um Run novo, com `attempt` maior.",
+        "description": "Cria o Run em `QUEUED`, com o Loadout e o ExecutionProfile congelados em snapshot, e leva a Task a `QUEUED` na mesma transação. Sem `prompt`, ele é montado a partir do título e da descrição da Task. Exige Task em `READY` ou `FAILED` (retentativa), dependências `COMPLETED` e um Project com `workspacePath`.\n\nCom `resumeFromRunId`, o Run continua a sessão do harness de um Run anterior: Loadout e ExecutionProfile são herdados dele quando não vierem no corpo, e o Run de origem precisa ter `harnessSessionId` capturado e um Harness que declare a capability `resume`. A retomada é sempre um Run novo, com `attempt` maior.\n\nAntes de enfileirar, o capability matching (Fase 8A) compara o Loadout resolvido com a matriz do Harness: um blocker recusa com `409` e a lista em `blockers[]`; os avisos voltam em `warnings[]` junto do Run, e o Worker os grava no diário como `Diagnostic`.",
         "parameters": [
           {
             "schema": {
@@ -12636,11 +16234,11 @@
         },
         "responses": {
           "201": {
-            "description": "Run criado e enfileirado.",
+            "description": "Run criado e enfileirado, com os avisos de capability.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Run"
+                  "$ref": "#/components/schemas/RunCreated"
                 }
               }
             }
@@ -12666,7 +16264,7 @@
             }
           },
           "409": {
-            "description": "A Task não aceita Run agora, o Project não tem workspace, há dependência pendente, ou o Harness/perfil está desligado.",
+            "description": "A Task não aceita Run agora, o Project não tem workspace, há dependência pendente, o Harness/perfil está desligado, ou o capability matching achou um blocker (`blockers[]` no corpo).",
             "content": {
               "application/problem+json": {
                 "schema": {

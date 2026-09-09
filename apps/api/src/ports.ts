@@ -12,14 +12,19 @@ import type {
   ExecutionProfile,
   ForgedAchievement,
   Harness,
+  HarnessKey,
   JsonValue,
   KnowledgeCandidate,
   KnowledgeItem,
   KnowledgeItemStatus,
   KnowledgeItemType,
   Loadout,
+  LoadoutPreflight,
+  LoadoutVersion,
+  McpServer,
   ProjectSummary,
   Model,
+  Provider,
   Project,
   ProjectDetail,
   ProjectStatus,
@@ -27,9 +32,13 @@ import type {
   ProposedTaskListItem,
   Run,
   RunContext,
+  RunCreated,
   RunEvent,
   RunListItem,
   RunStep,
+  Skill,
+  SkillDetail,
+  SkillVersion,
   SortOrder,
   Task,
   TaskDetail,
@@ -39,6 +48,7 @@ import type {
   TaskReopening,
   TaskSort,
   TaskStatus,
+  Tool,
   HeroStatsResponse,
   UserSettings,
   UserSettingsKey,
@@ -57,6 +67,8 @@ import type {
   CreateAgentInput,
   CreateExecutionProfileInput,
   CreateLoadoutInput,
+  CreateProviderInput,
+  CreateSkillInput,
   DependencyWriteFailure,
   DistillationRunFilters,
   ForgedAchievementWriteFailure,
@@ -67,15 +79,21 @@ import type {
   PageResult,
   ProposedTaskFilters,
   ProposedTaskWriteFailure,
+  PublishSkillVersionInput,
   RegistryWriteFailure,
   Result,
   RunFilters,
   RunWriteFailure,
   TaskFilters,
   TaskWriteFailure,
+  ToolFilters,
   UpdateAgentPatch,
   UpdateExecutionProfilePatch,
   UpdateLoadoutPatch,
+  UpdateMcpServerPatch,
+  UpdateProviderPatch,
+  UpdateSkillPatch,
+  UpdateToolPatch,
   WorkflowWriteFailure,
 } from "@dungeon-master/database";
 import { SseTransport } from "@dungeon-master/events";
@@ -335,16 +353,20 @@ export interface HarnessesPort {
 }
 
 export interface ModelsPort {
-  list(harnessId?: string | undefined): Promise<Model[]>;
+  list(filters: {
+    harnessId?: string | undefined;
+    providerId?: string | undefined;
+  }): Promise<Model[]>;
   create(input: {
     harnessId: string;
+    providerId?: string | null;
     key: string;
     name: string;
     isDefault?: boolean;
   }): Promise<Result<Model, RegistryWriteFailure>>;
   update(
     modelId: string,
-    patch: { key?: string; name?: string; isDefault?: boolean },
+    patch: { providerId?: string | null; key?: string; name?: string; isDefault?: boolean },
   ): Promise<Result<Model, RegistryWriteFailure> | null>;
   remove(modelId: string): Promise<Result<null, RegistryWriteFailure> | null>;
 }
@@ -373,6 +395,21 @@ export interface ExecutionProfilesPort {
   remove(executionProfileId: string): Promise<Result<null, RegistryWriteFailure> | null>;
 }
 
+/**
+ * O preflight de um Loadout (Fase 8A): capabilities, CLI e credencial.
+ *
+ * `null` é o Loadout que não existe. As recusas são as mesmas de `POST /runs`
+ * — perfil inexistente, Loadout apontando para o nada — porque o preflight é
+ * o ensaio da criação.
+ */
+export interface LoadoutPreflightPort {
+  check(input: {
+    loadoutId: string;
+    executionProfileId?: string | undefined;
+    resume: boolean;
+  }): Promise<Result<LoadoutPreflight, RunWriteFailure> | null>;
+}
+
 export interface LoadoutsPort {
   list(): Promise<Loadout[]>;
   get(loadoutId: string): Promise<Loadout | null>;
@@ -382,6 +419,85 @@ export interface LoadoutsPort {
     patch: UpdateLoadoutPatch,
   ): Promise<Result<Loadout, RegistryWriteFailure> | null>;
   remove(loadoutId: string): Promise<Result<null, RegistryWriteFailure> | null>;
+  /** `null` quando o Loadout não existe: as versões de um Loadout inexistente são 404. */
+  versions(loadoutId: string, page: PageRequest): Promise<PageResult<LoadoutVersion> | null>;
+  restore(
+    loadoutId: string,
+    version: number,
+  ): Promise<Result<Loadout, RegistryWriteFailure> | null>;
+  preflight: LoadoutPreflightPort;
+}
+
+/** Skills: registro e versões append-only (Fase 8A). */
+export interface SkillsPort {
+  list(page: PageRequest): Promise<PageResult<Skill>>;
+  get(skillId: string): Promise<SkillDetail | null>;
+  create(
+    input: Omit<CreateSkillInput, "userId">,
+  ): Promise<Result<SkillDetail, RegistryWriteFailure>>;
+  update(
+    skillId: string,
+    patch: UpdateSkillPatch,
+  ): Promise<Result<Skill, RegistryWriteFailure> | null>;
+  remove(skillId: string): Promise<Result<null, RegistryWriteFailure> | null>;
+  /** `null` quando a Skill não existe. */
+  versions(skillId: string, page: PageRequest): Promise<PageResult<SkillVersion> | null>;
+  publish(
+    skillId: string,
+    input: Omit<PublishSkillVersionInput, "userId" | "skillId">,
+  ): Promise<Result<SkillVersion, RegistryWriteFailure> | null>;
+}
+
+/**
+ * O que `POST /tools` aceita, já validado. Escrito por extenso, e não como
+ * `Omit<CreateToolInput, "userId">`: `Omit` sobre uma união fica só com as
+ * chaves comuns e perde a forma de cada espécie.
+ */
+export type CreateToolRequest = { name: string; description?: string | null } & (
+  { kind: "COMMAND"; command: string } | { kind: "MCP_TOOL"; mcpServerId: string; toolName: string }
+);
+
+/** O que `POST /mcp-servers` aceita, já validado. Mesma razão de `CreateToolRequest`. */
+export type CreateMcpServerRequest = {
+  name: string;
+  envKeys?: string[];
+  readOnly?: boolean;
+  description?: string | null;
+} & ({ transport: "STDIO"; command: string; args?: string[] } | { transport: "HTTP"; url: string });
+
+export interface ToolsPort {
+  list(input: PageRequest & { filters: ToolFilters }): Promise<PageResult<Tool>>;
+  get(toolId: string): Promise<Tool | null>;
+  create(input: CreateToolRequest): Promise<Result<Tool, RegistryWriteFailure>>;
+  update(
+    toolId: string,
+    patch: UpdateToolPatch,
+  ): Promise<Result<Tool, RegistryWriteFailure> | null>;
+  remove(toolId: string): Promise<Result<null, RegistryWriteFailure> | null>;
+}
+
+export interface McpServersPort {
+  list(page: PageRequest): Promise<PageResult<McpServer>>;
+  get(mcpServerId: string): Promise<McpServer | null>;
+  create(input: CreateMcpServerRequest): Promise<Result<McpServer, RegistryWriteFailure>>;
+  update(
+    mcpServerId: string,
+    patch: UpdateMcpServerPatch,
+  ): Promise<Result<McpServer, RegistryWriteFailure> | null>;
+  remove(mcpServerId: string): Promise<Result<null, RegistryWriteFailure> | null>;
+}
+
+export interface ProvidersPort {
+  list(input: PageRequest & { harnessKey?: HarnessKey | undefined }): Promise<PageResult<Provider>>;
+  get(providerId: string): Promise<Provider | null>;
+  create(
+    input: Omit<CreateProviderInput, "userId">,
+  ): Promise<Result<Provider, RegistryWriteFailure>>;
+  update(
+    providerId: string,
+    patch: UpdateProviderPatch,
+  ): Promise<Result<Provider, RegistryWriteFailure> | null>;
+  remove(providerId: string): Promise<Result<null, RegistryWriteFailure> | null>;
 }
 
 /**
@@ -408,7 +524,7 @@ export interface RunsPort {
       prompt?: string;
       resumeFromRunId?: string;
     },
-  ): Promise<Result<Run, RunWriteFailure> | null>;
+  ): Promise<Result<RunCreated, RunWriteFailure> | null>;
   cancel(runId: string): Promise<Result<Run, RunWriteFailure> | null>;
   events(runId: string, input: { afterSequence: number; limit: number }): Promise<RunEvent[]>;
   openStream(runId: string): RunStreamHandle;
@@ -468,6 +584,10 @@ export interface ExecutionPort {
   readonly agents: AgentsPort;
   readonly executionProfiles: ExecutionProfilesPort;
   readonly loadouts: LoadoutsPort;
+  readonly skills: SkillsPort;
+  readonly tools: ToolsPort;
+  readonly mcpServers: McpServersPort;
+  readonly providers: ProvidersPort;
   readonly runs: RunsPort;
   readonly workflows: WorkflowsPort;
   readonly approvalGates: ApprovalGatesPort;
@@ -632,6 +752,39 @@ export function createSpecPorts(): {
         create: inerte("a criação de Loadout"),
         update: inerte("a edição de Loadout"),
         remove: inerte("a remoção de Loadout"),
+        versions: inerte("as versões de Loadout"),
+        restore: inerte("o restore de versão de Loadout"),
+        preflight: { check: inerte("o preflight de Loadout") },
+      },
+      skills: {
+        list: inerte("a listagem de Skills"),
+        get: inerte("a leitura de Skill"),
+        create: inerte("a criação de Skill"),
+        update: inerte("a edição de Skill"),
+        remove: inerte("a remoção de Skill"),
+        versions: inerte("as versões de Skill"),
+        publish: inerte("a publicação de versão de Skill"),
+      },
+      tools: {
+        list: inerte("a listagem de Tools"),
+        get: inerte("a leitura de Tool"),
+        create: inerte("a criação de Tool"),
+        update: inerte("a edição de Tool"),
+        remove: inerte("a remoção de Tool"),
+      },
+      mcpServers: {
+        list: inerte("a listagem de servidores MCP"),
+        get: inerte("a leitura de servidor MCP"),
+        create: inerte("a criação de servidor MCP"),
+        update: inerte("a edição de servidor MCP"),
+        remove: inerte("a remoção de servidor MCP"),
+      },
+      providers: {
+        list: inerte("a listagem de Providers"),
+        get: inerte("a leitura de Provider"),
+        create: inerte("a criação de Provider"),
+        update: inerte("a edição de Provider"),
+        remove: inerte("a remoção de Provider"),
       },
       runs: {
         list: inerte("a listagem de Runs"),

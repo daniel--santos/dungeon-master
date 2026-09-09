@@ -3,6 +3,7 @@ import type {
   ExecutionProfileList,
   HarnessList,
   LoadoutList,
+  LoadoutVersionPage,
   ModelList,
 } from "@dungeon-master/contracts";
 import type {
@@ -12,6 +13,7 @@ import type {
 } from "@dungeon-master/database";
 import type { OpenAPIHono } from "@hono/zod-openapi";
 
+import { resolvePage } from "../pagination.js";
 import type {
   AgentsPort,
   ExecutionProfilesPort,
@@ -32,17 +34,20 @@ import {
   executionProfilesUpdateRoute,
   harnessesListRoute,
   harnessesUpdateRoute,
+  loadoutPreflightRoute,
   loadoutsCreateRoute,
   loadoutsDeleteRoute,
   loadoutsGetRoute,
   loadoutsListRoute,
   loadoutsUpdateRoute,
+  loadoutVersionsListRoute,
+  loadoutVersionsRestoreRoute,
   modelsCreateRoute,
   modelsDeleteRoute,
   modelsListRoute,
   modelsUpdateRoute,
 } from "../routes/registry.js";
-import { notFoundProblem, registryFailureProblem } from "./failures.js";
+import { notFoundProblem, registryFailureProblem, runFailureProblem } from "./failures.js";
 
 /**
  * As rotas dos cadastros de execução.
@@ -72,8 +77,8 @@ export function registerHarnessRoutes(app: OpenAPIHono, harnesses: HarnessesPort
 
 export function registerModelRoutes(app: OpenAPIHono, models: ModelsPort): void {
   app.openapi(modelsListRoute, async (c) => {
-    const { harnessId } = c.req.valid("query");
-    const body: ModelList = { items: await models.list(harnessId) };
+    const { harnessId, providerId } = c.req.valid("query");
+    const body: ModelList = { items: await models.list({ harnessId, providerId }) };
     return c.json(body, 200);
   });
 
@@ -82,6 +87,7 @@ export function registerModelRoutes(app: OpenAPIHono, models: ModelsPort): void 
 
     const created = await models.create({
       harnessId: input.harnessId,
+      providerId: input.providerId ?? null,
       key: input.key,
       name: input.name,
       ...(input.isDefault === undefined ? {} : { isDefault: input.isDefault }),
@@ -96,7 +102,9 @@ export function registerModelRoutes(app: OpenAPIHono, models: ModelsPort): void 
     const { id } = c.req.valid("param");
     const body = c.req.valid("json");
 
-    const patch: { key?: string; name?: string; isDefault?: boolean } = {};
+    const patch: { providerId?: string | null; key?: string; name?: string; isDefault?: boolean } =
+      {};
+    if (Object.hasOwn(body, "providerId")) patch.providerId = body.providerId ?? null;
     if (body.key !== undefined) patch.key = body.key;
     if (body.name !== undefined) patch.name = body.name;
     if (body.isDefault !== undefined) patch.isDefault = body.isDefault;
@@ -270,6 +278,9 @@ export function registerLoadoutRoutes(app: OpenAPIHono, loadouts: LoadoutsPort):
       harnessId: input.harnessId,
       modelId: input.modelId ?? null,
       executionProfileId: input.executionProfileId,
+      ...(input.skillRefs === undefined ? {} : { skillRefs: input.skillRefs }),
+      ...(input.toolIds === undefined ? {} : { toolIds: input.toolIds }),
+      ...(input.mcpServerIds === undefined ? {} : { mcpServerIds: input.mcpServerIds }),
       ...(input.skills === undefined ? {} : { skills: input.skills }),
       ...(input.tools === undefined ? {} : { tools: input.tools }),
       ...(input.mcpServers === undefined ? {} : { mcpServers: input.mcpServers }),
@@ -295,6 +306,9 @@ export function registerLoadoutRoutes(app: OpenAPIHono, loadouts: LoadoutsPort):
     if (body.executionProfileId !== undefined) {
       patch.executionProfileId = body.executionProfileId;
     }
+    if (body.skillRefs !== undefined) patch.skillRefs = body.skillRefs;
+    if (body.toolIds !== undefined) patch.toolIds = body.toolIds;
+    if (body.mcpServerIds !== undefined) patch.mcpServerIds = body.mcpServerIds;
     if (body.skills !== undefined) patch.skills = body.skills;
     if (body.tools !== undefined) patch.tools = body.tools;
     if (body.mcpServers !== undefined) patch.mcpServers = body.mcpServers;
@@ -317,5 +331,35 @@ export function registerLoadoutRoutes(app: OpenAPIHono, loadouts: LoadoutsPort):
     if (!removed.ok) throw registryFailureProblem(removed.failure);
 
     return c.body(null, 204);
+  });
+
+  app.openapi(loadoutVersionsListRoute, async (c) => {
+    const { id } = c.req.valid("param");
+    const { page, pageSize } = resolvePage(c.req.valid("query"));
+    const result = await loadouts.versions(id, { page, pageSize });
+    if (result === null) throw notFoundProblem("Loadout", id);
+    const body: LoadoutVersionPage = { items: result.items, page, pageSize, total: result.total };
+    return c.json(body, 200);
+  });
+
+  app.openapi(loadoutVersionsRestoreRoute, async (c) => {
+    const { id, version } = c.req.valid("param");
+    const restored = await loadouts.restore(id, Number.parseInt(version, 10));
+    if (restored === null) throw notFoundProblem("Loadout", id);
+    if (!restored.ok) throw registryFailureProblem(restored.failure);
+    return c.json(restored.value, 200);
+  });
+
+  app.openapi(loadoutPreflightRoute, async (c) => {
+    const { id } = c.req.valid("param");
+    const query = c.req.valid("query");
+    const checked = await loadouts.preflight.check({
+      loadoutId: id,
+      executionProfileId: query.executionProfileId,
+      resume: query.resume === "true",
+    });
+    if (checked === null) throw notFoundProblem("Loadout", id);
+    if (!checked.ok) throw runFailureProblem(checked.failure);
+    return c.json(checked.value, 200);
   });
 }

@@ -26,10 +26,13 @@ import type { Logger } from "./logger.js";
  * recusa a subir.
  */
 
-/** A matriz do runtime tem um campo a mais (`forkSession`) que o contrato. */
+/**
+ * A matriz do runtime e a do contrato têm os mesmos treze campos desde a Fase
+ * 8A: `forkSession` e `mcpServers` entraram no contrato, e o que era um
+ * descarte virou identidade. A função fica como o ponto único de conversão.
+ */
 function toContractCapabilities(capabilities: HarnessCapabilities): ContractCapabilities {
-  const { forkSession: _forkSession, ...contract } = capabilities;
-  return contract;
+  return capabilities;
 }
 
 export interface PreflightOutcome {

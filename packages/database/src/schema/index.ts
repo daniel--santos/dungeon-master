@@ -4,6 +4,7 @@ export * from "./dashboard-event.js";
 export * from "./project.js";
 export * from "./task.js";
 export * from "./user.js";
+export * from "./registry.js";
 export * from "./execution.js";
 export * from "./workflow.js";
 export * from "./run.js";

@@ -129,9 +129,9 @@ Endpoints de serviço, os únicos que não dependem do banco:
 | `GET /api/v1/docs`                 | Swagger UI sobre a spec                               |
 | `GET /api/v1/achievements/catalog` | o catálogo de Conquistas, sem estado                  |
 
-Esses quatro **não** são a API. A superfície completa tem **68 caminhos** — o CRUD de
-`projects`, `tasks`, `runs`, `agents`, `loadouts`, `workflows`, `knowledge-items` e
-`approval-gates`, mais os dois streams SSE. Ela não é repetida aqui de propósito: a lista
+Esses quatro **não** são a API. A superfície completa tem **80 caminhos** — o CRUD de
+`projects`, `tasks`, `runs`, `agents`, `loadouts`, `skills`, `tools`, `mcp-servers`,
+`providers`, `workflows`, `knowledge-items` e `approval-gates`, mais os dois streams SSE. Ela não é repetida aqui de propósito: a lista
 que vale é a gerada, em `GET /api/v1/docs` (Swagger UI, com o corpo de cada rota) e em
 [`packages/api-client/openapi.json`](./packages/api-client/openapi.json). Uma tabela
 escrita à mão sairia do ar no primeiro endpoint novo.
