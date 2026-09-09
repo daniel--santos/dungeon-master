@@ -468,6 +468,68 @@ describe("o Context Engine no Run simples", () => {
       mensagensDeDiagnostico(eventos).some((m) => m.startsWith("Contexto herdado do Run")),
     ).toBe(true);
   });
+
+  it("herda também de uma origem EMPTY: a conversa não ganha um bloco no meio", async () => {
+    const cenario = await montarCenario(db, { nome: "vazio", workspacePath: repositorio.repo });
+    const taskId = await criarTaskDaPorta(cenario);
+
+    const gravador = runtimeGravador(managerPara(repositorio));
+    await subirWorker({ runtime: gravador.runtime });
+
+    // Sem página no Grimório: o primeiro Run monta um contexto EMPTY, e o
+    // prompt dele não tem bloco nenhum.
+    const primeiro = exigirOk(
+      await createRun(db, {
+        userId: USER,
+        taskId,
+        loadoutId: cenario.loadoutId,
+        prompt:
+          '@@fake:session sessao-vazia\n@@fake:block {"status":"failed","summary":"Faltou a porta."}',
+      }),
+      "o primeiro Run",
+    );
+    expect((await esperarStatusDeRun(db, primeiro.id, ["SUCCEEDED", "FAILED"])).status).toBe(
+      "SUCCEEDED",
+    );
+    const original = await contextoDoRun(primeiro.id);
+    expect(original.status).toBe("EMPTY");
+    expect(original.text).toBe("");
+    expect(gravador.prompts[0]).not.toContain(CONTEXT_PREAMBLE);
+
+    // O Grimório ganha uma página antes da retomada.
+    await pararWorker(workers[0] as Worker);
+    await promoverPaginas(cenario, [PAGINA_DA_PORTA]);
+    const gravador2 = runtimeGravador(managerPara(repositorio));
+    await subirWorker({ runtime: gravador2.runtime });
+
+    const segundo = exigirOk(
+      await createRun(db, {
+        userId: USER,
+        taskId,
+        resumeFromRunId: primeiro.id,
+        prompt: '@@fake:block {"status":"completed","summary":"Agora sim."}',
+      }),
+      "o Run retomado",
+    );
+    const terminado = await esperarStatusDeRun(db, segundo.id, [
+      "SUCCEEDED",
+      "FAILED",
+      "TIMED_OUT",
+    ]);
+    const eventos = await eventosDoRun(db, segundo.id);
+    expect(terminado.status, diarioDoRun(eventos)).toBe("SUCCEEDED");
+
+    // A conversa continua com o que já tinha: nada. Montar o seu daria um
+    // bloco que não existia no primeiro turno.
+    const herdado = await contextoDoRun(segundo.id);
+    expect(herdado.inheritedFromRunId).toBe(primeiro.id);
+    expect(herdado.status).toBe("EMPTY");
+    expect(herdado.text).toBe("");
+    expect(gravador2.prompts[0]).not.toContain(CONTEXT_PREAMBLE);
+    expect(
+      mensagensDeDiagnostico(eventos).some((m) => m.startsWith("Contexto herdado do Run")),
+    ).toBe(true);
+  });
 });
 
 describe("o Context Engine no Run com Workflow", () => {
