@@ -154,6 +154,11 @@ Todas têm padrão sensato para desenvolvimento local. Os arquivos `.env.example
 `apps/api` e `apps/worker` listam o conjunto completo; copie para um `.env` na raiz se
 quiser mudar algo.
 
+Cada ponto de entrada (API, Worker, `pnpm dm`, `db:migrate` e `db:seed`) lê **dois**
+arquivos: o `.env` do próprio pacote e o `.env` da raiz do monorepo, nessa ordem de
+precedência — quem define a variável primeiro vence, então o do pacote sobrepõe o da
+raiz. Na prática, ponha tudo na raiz e use o `.env` do pacote só para exceções.
+
 | Variável                                     | Padrão                                                       | Onde                   |
 | -------------------------------------------- | ------------------------------------------------------------ | ---------------------- |
 | `DATABASE_URL`                               | `postgresql://dungeon:dungeon@127.0.0.1:5433/dungeon_master` | API, Worker, migrações |

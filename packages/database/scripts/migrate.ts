@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../src/load-env.js";
 
 import { resolveDatabaseUrl } from "../src/env.js";
 import { runMigrations } from "../src/migrate.js";

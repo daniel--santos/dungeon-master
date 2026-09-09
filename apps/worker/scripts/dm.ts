@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../src/load-env.js";
 
 import {
   countAchievementDefinitions,
