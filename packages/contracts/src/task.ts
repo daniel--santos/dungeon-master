@@ -8,7 +8,10 @@ import { PageQuerySchema, paginatedSchema, SortOrderSchema } from "./pagination.
  * A Inbox não tem tabela própria: uma captura rápida é uma Task em `INBOX`, sem
  * Project (documento técnico, seção 38). Promover é atribuir um Project e
  * passar para `READY`. O banco garante a metade estrutural dessa regra com um
- * `CHECK (status = 'INBOX' OR project_id IS NOT NULL)`.
+ * `CHECK (project_id IS NOT NULL OR status IN ('INBOX','CANCELLED'))`.
+ * `CANCELLED` está na exceção porque descartar uma captura é levá-la a
+ * `CANCELLED` sem nunca lhe dar um Project: fora de `INBOX`, `projectId` só é
+ * garantido não nulo em Task que não foi descartada.
  *
  * Task não é Run (documento técnico, seção 5.1): Task é o trabalho, Run é uma
  * tentativa concreta de realizá-lo, e um Run chega só na Fase 2.

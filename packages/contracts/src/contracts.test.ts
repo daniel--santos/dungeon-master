@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { DashboardEventSchema, DashboardEventTypeSchema } from "./dashboard-event.js";
+import {
+  DASHBOARD_EVENT_TYPE_VALUES,
+  DashboardEventSchema,
+  DashboardEventTypeSchema,
+} from "./dashboard-event.js";
 import { HealthResponseSchema } from "./health.js";
 import { PROBLEM_TYPE_BASE_URI, ProblemDetailsSchema } from "./problem-details.js";
 import {
@@ -105,19 +109,25 @@ describe("DashboardEventSchema", () => {
   });
 
   it("tolera na leitura um tipo que ainda não existe no enum de escrita", () => {
-    // `approval.granted` chega na Fase 4 e ainda não está no enum de escrita.
-    // O exemplo precisa ser um tipo mesmo ausente: quando a Fase 2.5 pôs
-    // `achievement.unlocked` no enum, este teste passou a afirmar o contrário
-    // do que verifica, e foi assim que a falha apareceu.
+    // O exemplo é sintético de propósito, e nasce checado contra o vocabulário
+    // real: um nome de fase futura envelhece mal. `achievement.unlocked` entrou
+    // no enum na Fase 2.5 e fez o teste afirmar o contrário do que verifica;
+    // `approval.granted`, que o substituiu, nunca existiu — a Fase 4 emitiu
+    // `approval.requested` e `approval.resolved` —, e a segunda asserção parou
+    // de dizer algo sobre o vocabulário. Com a primeira asserção, o dia em que
+    // este nome virar um tipo de verdade é o dia em que o teste quebra.
+    const tipoAusente = "test.tipo_fora_do_enum";
+    expect(DASHBOARD_EVENT_TYPE_VALUES).not.toContain(tipoAusente);
+
     const parsed = DashboardEventSchema.parse({
       sequence: 1,
-      type: "approval.granted",
+      type: tipoAusente,
       payload: null,
       createdAt: "2026-09-07T12:00:00.000Z",
     });
 
-    expect(parsed.type).toBe("approval.granted");
-    expect(DashboardEventTypeSchema.safeParse("approval.granted").success).toBe(false);
+    expect(parsed.type).toBe(tipoAusente);
+    expect(DashboardEventTypeSchema.safeParse(tipoAusente).success).toBe(false);
   });
 
   it("rejeita sequence zero ou negativo", () => {
