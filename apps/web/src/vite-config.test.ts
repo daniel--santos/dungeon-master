@@ -53,4 +53,16 @@ describe("proxy de desenvolvimento", () => {
 
     expect(config.server?.proxy?.["/api"]?.target).toBe("http://127.0.0.1:3333");
   });
+
+  it("a variável do ambiente ganha do arquivo: é assim que o e2e aponta a porta dele", async () => {
+    writeFileSync(ENV_FILE, "VITE_API_PROXY_TARGET=http://127.0.0.1:9999\n", "utf8");
+    process.env["VITE_API_PROXY_TARGET"] = "http://127.0.0.1:3399";
+
+    try {
+      const config = await resolveConfig("probe");
+      expect(config.server?.proxy?.["/api"]?.target).toBe("http://127.0.0.1:3399");
+    } finally {
+      delete process.env["VITE_API_PROXY_TARGET"];
+    }
+  });
 });
