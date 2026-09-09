@@ -140,6 +140,9 @@ export const PREFLIGHT_OK: LoadoutPreflightRecord = {
     capabilities: HARNESS.capabilities,
     installedVersion: HARNESS.installedVersion,
     checkedAt: NOW,
+    authStatus: "AUTHENTICATED",
+    authCheckedAt: NOW,
+    authReason: "`claude auth status` respondeu loggedIn=true (authMethod=claude.ai)",
   },
   executionProfile: {
     id: HOST_PROFILE.id,
@@ -164,6 +167,7 @@ export const PREFLIGHT_OK: LoadoutPreflightRecord = {
     installed: true,
     version: "claude 2.1.263",
     authenticated: true,
+    authReason: "`claude auth status` respondeu loggedIn=true (authMethod=claude.ai)",
     timedOut: false,
     problems: [],
   },
