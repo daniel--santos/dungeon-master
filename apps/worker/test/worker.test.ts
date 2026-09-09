@@ -26,6 +26,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, i
 
 import type { AchievementProjector } from "../src/achievements.js";
 import { newWorkerId } from "../src/config.js";
+import { createRunOutcomeWriter } from "../src/run-writers.js";
 import { createWorker, type Worker } from "../src/worker.js";
 import {
   abrirBanco,
@@ -469,6 +470,57 @@ describe("desfechos ruins", () => {
     const eventos = await eventosDoRun(db, criado.id);
     const timedOut = eventos.find((evento) => evento.type === "RunTimedOut");
     expect((timedOut?.payload as { kind: string }).kind).toBe("IDLE");
+  });
+});
+
+describe("escrita terminal recusada pelo domínio", () => {
+  it("recusa devolvida como valor não conta como escrita terminal", async () => {
+    const cenario = await montarCenario(db, { nome: "recusa", workspacePath: repositorio.repo });
+
+    const criado = await enfileirar(db, {
+      taskId: cenario.taskId,
+      loadoutId: cenario.loadoutId,
+      prompt: '@@fake:block {"status":"completed","summary":"ok"}',
+    });
+
+    // O primeiro desfecho é aceito: `QUEUED → CANCELLED` existe na máquina de
+    // estados.
+    const primeiro = createRunOutcomeWriter({
+      db,
+      userId: USER,
+      run: criado,
+      logger: undefined,
+      startedAt: Date.now(),
+    });
+    await primeiro.writeTerminal({
+      status: "CANCELLED",
+      error: { message: "cancelado antes de rodar", reason: "user_request" },
+      events: [],
+    });
+    expect(primeiro.terminalWritten).toBe(true);
+
+    // O segundo cai sobre um Run já terminal. `writeRunTerminalStatus` devolve
+    // a recusa **como valor** (`ok: false`), sem lançar: dar isso por escrito
+    // perde o `result`, as `ProposedTask` e os `KnowledgeCandidate` em silêncio
+    // e desarma as duas guardas de "sem evento terminal".
+    const segundo = createRunOutcomeWriter({
+      db,
+      userId: USER,
+      run: criado,
+      logger: undefined,
+      startedAt: Date.now(),
+    });
+    await segundo.writeTerminal({
+      status: "SUCCEEDED",
+      result: { status: "completed", summary: "trabalho que se perderia em silêncio" },
+      events: [],
+    });
+
+    expect(segundo.terminalWritten).toBe(false);
+
+    const run = await getRun(db, { userId: USER, runId: criado.id });
+    expect(run?.status).toBe("CANCELLED");
+    expect(run?.result).toBeNull();
   });
 });
 
