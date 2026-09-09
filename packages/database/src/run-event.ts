@@ -158,6 +158,19 @@ export interface ListRunEventsInput {
 }
 
 /**
+ * Teto interno da leitura: o teto público mais a linha-sonda.
+ *
+ * post-mortem #10 (08/09/2026): quem pagina descobre que há continuação
+ * pedindo um item além do que vai mostrar. Com o teto interno igual ao público
+ * (500), o pedido de 501 voltava com 500 e `hasMore = items.length > limit`
+ * era **sempre falso** no limite padrão — que é o próprio teto. A resposta
+ * afirmava ser a última página com milhares de eventos por ler, e
+ * `lastSequence` parava no 500º. A linha a mais é a sonda de quem chama, não
+ * uma página maior: o teto público continua sendo `RUN_EVENT_PAGE_LIMIT`.
+ */
+export const RUN_EVENT_FETCH_LIMIT = RUN_EVENT_PAGE_LIMIT + 1;
+
+/**
  * Os eventos posteriores a um cursor, em ordem crescente de `sequence`.
  *
  * É o drain do NOTIFY, o replay da reconexão e a leitura da rota de histórico:
@@ -168,7 +181,7 @@ export async function listRunEventsSince(
   db: DatabaseExecutor,
   input: ListRunEventsInput,
 ): Promise<RunEvent[]> {
-  const limit = Math.min(input.limit ?? RUN_EVENT_PAGE_LIMIT, RUN_EVENT_PAGE_LIMIT);
+  const limit = Math.min(input.limit ?? RUN_EVENT_PAGE_LIMIT, RUN_EVENT_FETCH_LIMIT);
 
   const rows = await db
     .select()

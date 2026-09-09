@@ -1,0 +1,2 @@
+CREATE INDEX "activity_user_created_idx" ON "activity" USING btree ("user_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "run_event_user_created_idx" ON "run_event" USING btree ("user_id","created_at","id") WHERE type = 'Usage';

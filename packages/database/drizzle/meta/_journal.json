@@ -99,6 +99,13 @@
       "when": 1788885256288,
       "tag": "0013_contexto_do_run",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788915406756,
+      "tag": "0014_indices_do_projetor_de_conquistas",
+      "breakpoints": true
     }
   ]
 }

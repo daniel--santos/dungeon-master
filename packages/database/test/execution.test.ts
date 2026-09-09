@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { TerminalStatusWriteError } from "@dungeon-master/events";
 import { and, eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import { createDatabase, type DatabaseHandle } from "../src/client.js";
 import { newId } from "../src/ids.js";
@@ -450,6 +450,44 @@ describe("writeRunTerminalStatus", () => {
 
     const aindaPreparing = await getRun(handle.db, { userId: USER, runId: outro.runId });
     expect(aindaPreparing?.status).toBe("PREPARING");
+  });
+
+  it("redige credencial no result, e não só no error", async () => {
+    const { runId } = await ateRunning("Segredo no veredito");
+    const segredo = "ghp_token_de_teste_bem_comprido";
+
+    // O sanitizador procura o **valor** das variáveis sensíveis no ambiente do
+    // processo; é assim que ele pega o token colado no meio de uma frase.
+    vi.stubEnv("GH_TOKEN", segredo);
+
+    try {
+      exigirOk(
+        await writeRunTerminalStatus(handle.db, {
+          userId: USER,
+          runId,
+          status: "SUCCEEDED",
+          result: {
+            status: "completed",
+            summary: `rodei git remote set-url origin https://${segredo}@github.com/a/b`,
+            warnings: [`o token ${segredo} apareceu no stderr`],
+            output: { comando: `curl -H "Authorization: Bearer ${segredo}"` },
+          },
+          error: null,
+        }),
+        "o término com segredo no resultado",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+
+    const run = await getRun(handle.db, { userId: USER, runId });
+
+    expect(JSON.stringify(run?.result)).not.toContain(segredo);
+    expect(run?.result?.summary).toBe(
+      "rodei git remote set-url origin https://[REDACTED]@github.com/a/b",
+    );
+    expect(run?.result?.warnings).toEqual(["o token [REDACTED] apareceu no stderr"]);
+    expect(run?.result?.status).toBe("completed");
   });
 
   it("recusa um estado não terminal", async () => {

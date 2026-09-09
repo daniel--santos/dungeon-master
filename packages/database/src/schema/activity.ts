@@ -34,6 +34,12 @@ export const activities = pgTable(
     // antigo": é exatamente esta ordem de colunas.
     index("activity_project_created_idx").on(table.projectId, table.createdAt),
     index("activity_task_created_idx").on(table.taskId, table.createdAt),
+    // O drain do projetor de Conquistas lê "do usuário X, na ordem em que
+    // aconteceu, depois deste par": é exatamente esta ordem de colunas. Sem o
+    // índice, cada tique de 1 s do Worker vira um seq scan mais um sort da
+    // tabela inteira, e o passe que não acha nada custa o mesmo que o cheio.
+    // É o mesmo motivo de `dashboard_event_user_sequence_idx`.
+    index("activity_user_created_idx").on(table.userId, table.createdAt, table.id),
   ],
 );
 
