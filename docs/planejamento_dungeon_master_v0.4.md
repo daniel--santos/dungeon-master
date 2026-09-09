@@ -845,7 +845,7 @@ Pendências que ficam registradas:
 
 - `GET /runs/{id}/context` não distingue Expedição inexistente de contexto ainda não montado; não há leitura de contextos por Missão.
 - A capability `mcpServers` não está no contrato da API; o `target` STDIO do Equipamento não aceita caminho com espaço; o commit do Codex no Windows é barrado pelo sandbox dele; sessão contínua e relevância híbrida (RRF, embeddings) ficam para depois.
-- Ambiente: nesta máquina o Node 24.15 mata processos em silêncio sob carga; com Node 22.19 a suíte de ponta a ponta passou de primeira. O e2e passou a servir a build de produção por `vite preview`.
+- Ambiente: nesta máquina o Node 24.15 mata processos em silêncio sob carga; com o Node 22 a suíte de ponta a ponta passou de primeira. O piso é **22.22**, que é o que o `engines` aceita e o que o `jsdom` exige — a 22.19 usada no experimento é recusada pelo `pnpm install` de hoje. O e2e passou a servir a build de produção por `vite preview`.
 
 **Fases 0 a 7 concluídas.** A Fase 8 (Loadouts avançados, Skills e Tools) aguarda decisão.
 
