@@ -15,20 +15,37 @@ e os fundamentos técnicos em [`docs/documentacao_ideia_e_fundamentos_tecnicos.m
 
 ## Estado atual
 
-**Fase 0 — esqueleto do monorepo.** Web, API, Worker e PostgreSQL sobem localmente. Ainda
-não há execução de agentes, fila, SSE, glossário nem Conquistas.
+**Fases 0 a 7 concluídas** (08/09/2026). Estão de pé: o esqueleto do monorepo, o modelo e
+o CRUD de Project e Task, a execução de agentes com os harnesses de host e o modo
+container, o Worker com fila e cancelamento confirmado, o stream SSE, o glossário, as
+Conquistas, o motor de Workflow, o Grimório com o Distiller e o Context Engine com o
+servidor MCP.
+
+A **Fase 8** (Loadouts avançados, Skills e Tools) aguarda decisão. O bloco de fechamento
+de cada fase, com o que ficou pendente, está no fim de
+[`docs/planejamento_dungeon_master_v0.4.md`](./docs/planejamento_dungeon_master_v0.4.md).
 
 ## Pré-requisitos
 
-| Ferramenta | Versão                  | Observação                                          |
-| ---------- | ----------------------- | --------------------------------------------------- |
-| Node.js    | 24 (LTS)                | fixado em `.nvmrc` e em `engines`; use `nvm use`    |
-| pnpm       | 10.18.0                 | fixado em `packageManager`; `corepack enable` basta |
-| Docker     | qualquer com Compose v2 | só para o PostgreSQL de desenvolvimento             |
-| Git        | 2.40+                   | `db:check` e `gen:check` usam `git diff`            |
+| Ferramenta | Versão                  | Observação                                                    |
+| ---------- | ----------------------- | ------------------------------------------------------------- |
+| Node.js    | 22.22+ ou 24            | `engines` aceita as duas linhas; o CI roda a do `.nvmrc` (24) |
+| pnpm       | 10.18.0                 | fixado em `packageManager`; `corepack enable` basta           |
+| Docker     | qualquer com Compose v2 | PostgreSQL de desenvolvimento **e** a imagem do agente        |
+| Git        | 2.40+                   | `db:check` e `gen:check` usam `git diff`                      |
+
+No **Windows, prefira o 22**: com o Node 24.15 processos node (Vite, fork do vitest, API)
+morrem em silêncio sob carga com exit `0xC0000409`. A seção 8 do
+[`CLAUDE.md`](./CLAUDE.md) registra o incidente. O piso é 22.22 porque o `jsdom` exige.
 
 Windows 11 e macOS são plataformas de primeira classe. Linux não é excluído, mas não é
-alvo de teste. A aplicação **não** roda em Docker: web, API e Worker são processos Node.
+alvo de teste. Web, API e Worker **não** rodam em Docker: são processos Node. O Docker
+entra em dois lugares — o PostgreSQL de desenvolvimento e, no modo de execução
+container ("Masmorra selada"), a imagem `dungeon-master-agent` que roda o agente
+isolado. Quem for usar esse modo constrói a imagem com `pnpm docker:build`; o contrato
+dela está em [`docker/README.md`](./docker/README.md) e a decisão de credencial nos ADRs
+[0001](./docs/adr/0001-autenticacao-em-docker.md) e
+[0002](./docs/adr/0002-antigravity-em-docker.md).
 
 ## Como subir
 
@@ -53,7 +70,8 @@ Num clone novo, sem este passo, o primeiro comando de banco morre com
 
 ### 3. Banco de desenvolvimento
 
-O PostgreSQL 17 sobe em container; é a única peça em Docker.
+O PostgreSQL 17 sobe em container. É a única peça da aplicação em Docker — o outro uso do
+Docker, a imagem do agente, é opcional e só entra no modo de execução container.
 
 ```bash
 docker compose up -d db
@@ -102,7 +120,7 @@ pnpm dev:web      # http://127.0.0.1:5173
 A API escuta somente em `127.0.0.1`. O Vite faz proxy de `/api` para ela, então a web
 fala com o backend por caminho relativo e não há CORS em desenvolvimento.
 
-Endpoints da API:
+Endpoints de serviço, os únicos que não dependem do banco:
 
 | Caminho                            | O que faz                                             |
 | ---------------------------------- | ----------------------------------------------------- |
@@ -111,23 +129,46 @@ Endpoints da API:
 | `GET /api/v1/docs`                 | Swagger UI sobre a spec                               |
 | `GET /api/v1/achievements/catalog` | o catálogo de Conquistas, sem estado                  |
 
+Esses quatro **não** são a API. A superfície completa tem **68 caminhos** — o CRUD de
+`projects`, `tasks`, `runs`, `agents`, `loadouts`, `workflows`, `knowledge-items` e
+`approval-gates`, mais os dois streams SSE. Ela não é repetida aqui de propósito: a lista
+que vale é a gerada, em `GET /api/v1/docs` (Swagger UI, com o corpo de cada rota) e em
+[`packages/api-client/openapi.json`](./packages/api-client/openapi.json). Uma tabela
+escrita à mão sairia do ar no primeiro endpoint novo.
+
 ## Comandos
 
 ### Verificação
 
-| Comando          | O que faz                                                        |
-| ---------------- | ---------------------------------------------------------------- |
-| `pnpm lint`      | ESLint em todo o workspace, incluindo as regras de fronteira     |
-| `pnpm typecheck` | `tsc --noEmit` em cada pacote                                    |
-| `pnpm test`      | Vitest; os testes de banco sobem `embedded-postgres`, sem Docker |
-| `pnpm e2e`       | Playwright na web; sobe API, Vite e um PostgreSQL só dele        |
-| `pnpm build`     | compila todos os pacotes na ordem do grafo                       |
-| `pnpm gen`       | regenera `openapi.json` e o cliente tipado                       |
-| `pnpm gen:check` | regenera e falha se houver diff                                  |
-| `pnpm db:check`  | falha se o schema Drizzle e as migrações divergirem              |
+| Comando             | O que faz                                                         |
+| ------------------- | ----------------------------------------------------------------- |
+| `pnpm lint`         | ESLint em todo o workspace, incluindo as regras de fronteira      |
+| `pnpm typecheck`    | `tsc --noEmit` em cada pacote                                     |
+| `pnpm test`         | Vitest; os testes de banco sobem `embedded-postgres`, sem Docker  |
+| `pnpm e2e`          | Playwright na web; sobe API, Vite e um PostgreSQL só dele         |
+| `pnpm build`        | compila todos os pacotes na ordem do grafo                        |
+| `pnpm gen`          | regenera `openapi.json` e o cliente tipado                        |
+| `pnpm gen:check`    | regenera e falha se houver diff                                   |
+| `pnpm db:check`     | falha se o schema Drizzle e as migrações divergirem               |
+| `pnpm format`       | Prettier sobre a árvore, com a configuração de `.prettierrc.json` |
+| `pnpm format:check` | Prettier em modo conferência; não escreve nada                    |
 
-O CI roda exatamente esta sequência em `windows-latest` e `macos-latest`. O `pnpm e2e`
-precisa do navegador instalado uma vez: `pnpm --filter web exec playwright install chromium`.
+O CI roda `lint`, `typecheck`, `test`, `build`, `e2e`, `gen:check` e `db:check`, nesta
+ordem, em `windows-latest` e `macos-latest`. O `pnpm e2e` precisa do navegador instalado
+uma vez: `pnpm --filter web exec playwright install chromium`.
+
+O `format:check` **não** está no CI, e o passo "árvore de trabalho limpa" não pega
+formatação de arquivo já commitado. Rode `pnpm format` antes de commitar, em vez de
+confiar no Prettier do editor, que pode estar com outra configuração.
+
+### Imagem do agente
+
+| Comando             | O que faz                                                               |
+| ------------------- | ----------------------------------------------------------------------- |
+| `pnpm docker:build` | constrói `dungeon-master-agent`, a imagem do modo de execução container |
+
+Só é necessário para o perfil "Masmorra selada". O contrato de UID/GID e as CLIs
+instaladas estão em [`docker/README.md`](./docker/README.md).
 
 ### Banco
 
@@ -138,6 +179,9 @@ precisa do navegador instalado uma vez: `pnpm --filter web exec playwright insta
 | `pnpm db:seed`        | garante o usuário local; idempotente            |
 | `pnpm db:seed --demo` | acrescenta a massa de demonstração; idempotente |
 | `pnpm db:check`       | verifica que schema e migrações estão em dia    |
+
+Para abrir o banco de desenvolvimento numa interface, o `drizzle-kit studio` não tem
+atalho na raiz: `pnpm --filter @dungeon-master/database db:studio`.
 
 ### Operação (`pnpm dm`)
 
@@ -155,7 +199,8 @@ estruturado; `knowledge.loadoutId` em Settings escolhe outro.
 ## Variáveis de ambiente
 
 Todas têm padrão sensato para desenvolvimento local. Os arquivos `.env.example` de
-`apps/api` e `apps/worker` listam o conjunto completo; copie para um `.env` na raiz se
+`apps/api` e `apps/worker` listam o que cada processo lê; há um terceiro em `apps/web`,
+com a única variável do proxy de desenvolvimento do Vite. Copie para um `.env` na raiz se
 quiser mudar algo.
 
 Cada ponto de entrada (API, Worker, `pnpm dm`, `db:migrate` e `db:seed`) lê **dois**
@@ -171,6 +216,8 @@ raiz. Na prática, ponha tudo na raiz e use o `.env` do pacote só para exceçõ
 | `API_REQUEST_TIMEOUT_MS`                     | `0` (sem limite, por causa do SSE)                           | API                    |
 | `API_HEADERS_TIMEOUT_MS`                     | `65000`                                                      | API                    |
 | `API_KEEP_ALIVE_TIMEOUT_MS`                  | `61000`                                                      | API                    |
+| `API_SSE_HEARTBEAT_MS`                       | `15000` (`0` desliga o heartbeat)                            | API                    |
+| `API_SSE_FALLBACK_INTERVAL_MS`               | `5000`                                                       | API                    |
 | `WORKER_TICK_INTERVAL_MS`                    | `1000`                                                       | Worker                 |
 | `WORKER_SHUTDOWN_TIMEOUT_MS`                 | `30000`                                                      | Worker                 |
 | `WORKER_MAX_CONCURRENT_RUNS`                 | `2`                                                          | Worker                 |
@@ -179,6 +226,8 @@ raiz. Na prática, ponha tudo na raiz e use o `.env` do pacote só para exceçõ
 | `WORKER_WORKTREES_ROOT`                      | `<pai do repositório>/.dm-worktrees/<nome do repositório>`   | Worker                 |
 | `WORKER_DISTILLER_ENABLED`                   | `true`                                                       | Worker                 |
 | `WORKER_DISTILLER_IDLE_MS`                   | `60000`                                                      | Worker                 |
+| `WORKER_DISTILLER_TICK_INTERVAL_MS`          | `1000`                                                       | Worker                 |
+| `WORKER_DISTILLER_SWEEP_INTERVAL_MS`         | `30000`                                                      | Worker                 |
 | `WORKER_DISTILLER_LLM_IDLE_TIMEOUT_MS`       | `180000`                                                     | Worker                 |
 | `WORKER_DISTILLER_LLM_COMPLETION_TIMEOUT_MS` | `600000`                                                     | Worker                 |
 | `WORKER_DISTILLER_BATCH_SIZE`                | `20`                                                         | Worker                 |
@@ -186,7 +235,15 @@ raiz. Na prática, ponha tudo na raiz e use o `.env` do pacote só para exceçõ
 | `LOG_LEVEL`                                  | `info`                                                       | API, Worker            |
 | `NODE_ENV`                                   | `development`                                                | tudo                   |
 
-Portas: **3333** API, **5173** Web, **5433** PostgreSQL de desenvolvimento.
+Portas: **3333** API, **5173** Web, **5433** PostgreSQL de desenvolvimento. O e2e usa
+**3399** e **5273**, sobrescritíveis por `E2E_API_PORT` e `E2E_WEB_PORT`.
+
+`API_SSE_HEARTBEAT_MS` é o ajuste de quem está atrás de um proxy que corta conexão
+ociosa: ele precisa ficar bem abaixo do timeout desse proxy, senão uma Expedição sem
+eventos por alguns minutos é derrubada e o browser reconecta à toa.
+
+Nenhuma outra variável é lida em produção. As demais que aparecem no código
+(`DM_E2E_CLAUDE_CODE`, `DM_HARNESS_CONTRACT`, `CI`) só ligam ou desligam suítes de teste.
 
 ## Estrutura
 
@@ -199,21 +256,38 @@ packages/
   contracts/    schemas Zod: fonte única de tipos e da spec OpenAPI
   api-client/   gerado da spec; único import de backend permitido na web
   database/     Drizzle, schema, migrações versionadas
-  domain/       entidades e regras; sem infraestrutura (esqueleto)
-  platform/     processo, caminho e shell por SO (esqueleto)
-  events/       ExecutionEvent, writers e cursor (esqueleto)
-  glossary/     canônico → tema; labels da UI (esqueleto)
+  domain/       entidades, máquinas de estado e regras; sem infraestrutura
+  platform/     kill de árvore, normalização de caminho e spawn sem shell
+  events/       transporte SSE, drain por cursor e ponte de NOTIFY
+  glossary/     canônico → tema; fonte única dos labels da UI (dnd e plain)
   achievements/ catálogo, templates e vocabulário de condições de Conquistas
+  runs/         teto de concorrência e ordenação por chave de recurso
+  runtime/      AgentRuntime, HarnessAdapter, capabilities, preflight e workspace
+  runtime-sandcastle/  adapters de Claude Code, Codex e Pi para execução no host
+  runtime-antigravity/ adapter do Antigravity CLI (agy) para execução no host
+  workflow/     motor de Workflows: runner determinístico e um executor por step
   knowledge/    Distiller do Grimório: prompts, dedup, resumo e forja, por portas
+  knowledge-mcp/  servidor MCP somente leitura do Grimório, por stdio
   context/      Context Engine: o bloco de contexto estável por Run, com orçamento, por portas
-docs/         planejamento, fundamentos e as análises das referências
+docs/         planejamento, fundamentos, ADRs e as análises das referências
+docker/       o Dockerfile do agente e o contrato da imagem
 ```
+
+São dezesseis pacotes. Código novo de execução de agente vai em `packages/runtime` ou num
+adapter; tipo de step novo, em `packages/workflow`. Nada disso mora em `apps/worker`, que
+só faz a fiação — a fronteira de lint da seção 3 do [`CLAUDE.md`](./CLAUDE.md) recusa o
+contrário.
 
 ### Fronteiras aplicadas por lint
 
-- `apps/web` importa somente `@dungeon-master/api-client` e **tipos** de
-  `@dungeon-master/contracts`. Nenhum pacote interno de backend.
+- `apps/web` importa somente `@dungeon-master/api-client`, `@dungeon-master/glossary` e
+  **tipos** de `@dungeon-master/contracts`. Nenhum outro pacote interno de backend. O
+  glossário é a única exceção, e é declarada: é um pacote puro de labels da interface, e
+  a web precisa consumi-lo direto para que nenhum componente escreva "Campanha" ou
+  "Projeto" no JSX.
 - `packages/domain` não importa banco, ORM, HTTP, logger, runtime nem builtins do Node.
+- `packages/runtime` e `packages/workflow` não importam `packages/database`; o store e a
+  persistência entram por contrato.
 - `packages/knowledge` e `packages/context` são puros: banco, runtime e relógio entram
   pelas portas de `ports.ts`, e o Worker faz a fiação.
 
