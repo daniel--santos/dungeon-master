@@ -1,8 +1,8 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { Fragment, useMemo } from "react";
 
 import { BrandMark } from "@/components/app-shell/brand-mark";
-import { NAV_ITEMS } from "@/components/app-shell/navigation";
+import { NAV_ITEMS, navItemFor } from "@/components/app-shell/navigation";
 import { usePendingGates } from "@/lib/approvals";
 import { useGlossary } from "@/lib/glossary";
 import { usePendingKnowledgeCounts } from "@/lib/knowledge";
@@ -47,6 +47,11 @@ export function Sidebar() {
   const knowledge = usePendingKnowledgeCounts(projectIds);
   const knowledgeCount = knowledge.total;
 
+  // O Arsenal (Fase 8C) é um item só para quatro rotas; o `activeProps` do
+  // Link conhece uma, então o estado ativo dele é decidido aqui pela rota.
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const grouped = navItemFor(pathname);
+
   return (
     <aside className="bg-card border-border flex w-62 flex-none flex-col border-r">
       <div className="border-border flex h-14 items-center gap-2.5 border-b px-4">
@@ -63,7 +68,15 @@ export function Sidebar() {
               activeOptions={{ exact: item.to === "/" }}
               className="flex h-[34px] items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors"
               activeProps={{ className: "bg-muted text-foreground font-medium" }}
-              inactiveProps={{ className: "text-muted-foreground hover:text-foreground" }}
+              inactiveProps={{
+                className:
+                  item.matches !== undefined && grouped === item
+                    ? "bg-muted text-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground",
+              }}
+              {...(item.matches !== undefined && grouped === item
+                ? { "data-nav-active": item.to }
+                : {})}
             >
               <item.icon aria-hidden className="size-4 flex-none" />
               <span>{t(item.label)}</span>

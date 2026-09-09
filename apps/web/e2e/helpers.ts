@@ -1086,3 +1086,118 @@ export async function seedRunContext(input: SeedRunContextInput): Promise<SeedRu
     await client.end();
   }
 }
+
+export interface SeedRegistryInput {
+  /** Um sufixo para os nomes ficarem únicos entre testes. */
+  readonly suffix: string;
+}
+
+export interface SeedRegistryResult {
+  readonly skillId: string;
+  readonly toolId: string;
+  readonly mcpServerId: string;
+  readonly providerId: string;
+  readonly names: {
+    readonly skill: string;
+    readonly tool: string;
+    readonly mcpServer: string;
+    readonly provider: string;
+  };
+  readonly contents: { readonly v1: string; readonly v2: string };
+}
+
+/**
+ * Deixa o Arsenal com um registro de cada, por SQL no banco do e2e (Fase 8C).
+ *
+ * Uma Habilidade com duas versões (a v2 acrescenta uma linha à v1, para o
+ * diff ter o que mostrar), um Item de comando, uma Relíquia `STDIO` com um
+ * caminho com espaço nos argumentos e uma variável de ambiente só pelo nome,
+ * e um Patronato por chave de API que declara a Guilda do Claude Code. Tudo
+ * escopado ao único usuário local, que o `db:seed` do banco embutido já criou.
+ *
+ * A escrita é direta porque o que os testes provam é a leitura e a edição
+ * pela interface: criar pela API já é coberto pelos testes da API. Os ids são
+ * UUID v4 do Node, como nas outras fixtures.
+ */
+export async function seedRegistry(input: SeedRegistryInput): Promise<SeedRegistryResult> {
+  const databaseUrl = process.env["DATABASE_URL"];
+  if (databaseUrl === undefined) {
+    throw new Error("DATABASE_URL não está no ambiente: rode pelo run-e2e.mjs.");
+  }
+
+  const names = {
+    skill: `Testes de plataforma ${input.suffix}`,
+    tool: `Status do git ${input.suffix}`,
+    mcpServer: `reliquia-${input.suffix}`,
+    provider: `Oráculo ${input.suffix}`,
+  };
+  const contents = {
+    v1: "# Testes\n\nRode `pnpm test` antes de commitar.\nConfira o CI nos dois sistemas.",
+    v2: "# Testes\n\nRode `pnpm test` antes de commitar.\nConfira o CI nos dois sistemas.\nProve que o vermelho é vermelho.",
+  };
+
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+
+    const user = await client.query<{ id: string }>(`SELECT id FROM "user" LIMIT 1`);
+    const userId = user.rows[0]?.id;
+    if (userId === undefined) throw new Error("O banco do e2e não tem o usuário local.");
+
+    const skillId = randomUUID();
+    await client.query(
+      `INSERT INTO skill (id, user_id, name, description, latest_version, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 2, now() - interval '2 minutes', now() - interval '1 minute')`,
+      [skillId, userId, names.skill, "Como testar nos dois sistemas."],
+    );
+    await client.query(
+      `INSERT INTO skill_version (id, user_id, skill_id, version, content, changelog, created_at)
+       VALUES ($1, $2, $3, 1, $4, NULL, now() - interval '2 minutes'),
+              ($5, $2, $3, 2, $6, 'Acrescenta a prova do vermelho.', now() - interval '1 minute')`,
+      [randomUUID(), userId, skillId, contents.v1, randomUUID(), contents.v2],
+    );
+
+    const toolId = randomUUID();
+    await client.query(
+      `INSERT INTO tool (id, user_id, name, kind, command, mcp_server_id, tool_name, description)
+       VALUES ($1, $2, $3, 'COMMAND', 'git status', NULL, NULL, 'Só lê o estado do repositório.')`,
+      [toolId, userId, names.tool],
+    );
+
+    const mcpServerId = randomUUID();
+    await client.query(
+      `INSERT INTO mcp_server
+         (id, user_id, name, transport, command, args, url, env_keys, read_only, built_in, description)
+       VALUES ($1, $2, $3, 'STDIO', 'node', $4::jsonb, NULL, $5::jsonb, true, false, 'Uma Relíquia do e2e.')`,
+      [
+        mcpServerId,
+        userId,
+        names.mcpServer,
+        JSON.stringify(["C:\\Program Files\\reliquia\\server.js", "--porta", "0"]),
+        JSON.stringify(["RELIQUIA_TOKEN"]),
+      ],
+    );
+
+    const providerId = randomUUID();
+    await client.query(
+      `INSERT INTO provider (id, user_id, name, kind, auth_env_keys, harness_keys, docs_url)
+       VALUES ($1, $2, $3, 'API_KEY', $4::jsonb, $5::jsonb, 'https://example.invalid/oraculo')`,
+      [
+        providerId,
+        userId,
+        names.provider,
+        JSON.stringify(["DM_E2E_ORACULO_KEY"]),
+        JSON.stringify(["CLAUDE_CODE"]),
+      ],
+    );
+
+    await client.query("COMMIT");
+    return { skillId, toolId, mcpServerId, providerId, names, contents };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    await client.end();
+  }
+}

@@ -18,6 +18,7 @@ import { Panel } from "@/components/panel";
 import { ApprovalGateCard } from "@/components/run/approval-gate-card";
 import { CancelRunDialog } from "@/components/run/cancel-run-dialog";
 import { FailurePanel } from "@/components/run/failure-panel";
+import { FrozenLoadoutPanel } from "@/components/run/frozen-loadout-panel";
 import { ResultPanel } from "@/components/run/result-panel";
 import { RunContextPanel } from "@/components/run/run-context-panel";
 import { ResumeRunDialog } from "@/components/run/resume-run-dialog";
@@ -363,6 +364,10 @@ function Cockpit({ run }: { run: RunRecord }) {
       </div>
 
       {guided && <RunStepsPanel live={live} now={now} runId={run.id} />}
+
+      {/* O Equipamento como foi congelado na partida (Fase 8C): Habilidades
+          com versão e texto, Itens e Relíquias com a definição. */}
+      <FrozenLoadoutPanel run={run} />
 
       <RunContextPanel run={run} />
 

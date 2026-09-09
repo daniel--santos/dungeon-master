@@ -1,13 +1,14 @@
 import type { components } from "@dungeon-master/api-client";
 import { API_BASE_PATH } from "@dungeon-master/api-client";
-import type { HarnessKey, RunStatus } from "@dungeon-master/contracts";
+import type { CapabilityIssue, HarnessKey, RunStatus } from "@dungeon-master/contracts";
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 import { isLiveRunStatus } from "@/lib/execution-domain";
-import { fail } from "@/lib/problem";
+import { ApiError, fail, problemBlockers, problemMessage } from "@/lib/problem";
 
 type Run = components["schemas"]["Run"];
+type RunCreated = components["schemas"]["RunCreated"];
 type RunPage = components["schemas"]["RunPage"];
 type CreateRun = components["schemas"]["CreateRun"];
 
@@ -92,22 +93,49 @@ export interface CreateRunInput extends CreateRun {
 }
 
 /**
+ * A partida recusada pelo capability matching (Fase 8A): o `409` que traz
+ * `blockers[]` no problem details. Um erro próprio, com a lista, para o
+ * diálogo mostrar cada bloqueio pelo código e pela mensagem canônica em vez
+ * de um toast com o `detail` inteiro.
+ */
+export class RunBlockedError extends ApiError {
+  readonly blockers: readonly CapabilityIssue[];
+
+  constructor(message: string, blockers: readonly CapabilityIssue[]) {
+    super(message, 409);
+    this.name = "RunBlockedError";
+    this.blockers = blockers;
+  }
+}
+
+/**
  * Enfileira uma Expedição para a Task.
  *
  * A recusa vem como `409` com o motivo em `detail` — Task fora de `READY` ou
  * `FAILED`, Project sem workspace, dependência pendente, Harness ou perfil
- * desligado — e quem chama mostra esse texto.
+ * desligado — e quem chama mostra esse texto. Um `409` do capability
+ * matching vira `RunBlockedError`, com os bloqueios. A resposta boa é
+ * `RunCreated`: o Run e os avisos que o Worker vai gravar no diário.
  */
 export function useCreateRun() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ taskId, ...body }: CreateRunInput): Promise<Run> => {
+    mutationFn: async ({ taskId, ...body }: CreateRunInput): Promise<RunCreated> => {
       const { data, error, response } = await api.POST("/api/v1/tasks/{id}/runs", {
         params: { path: { id: taskId } },
         body,
       });
-      if (data === undefined) fail(error, response.status, "Não foi possível partir");
+      if (data === undefined) {
+        const blockers = problemBlockers(error);
+        if (response.status === 409 && blockers.length > 0) {
+          throw new RunBlockedError(
+            problemMessage(error, response.status, "Não foi possível partir"),
+            blockers,
+          );
+        }
+        fail(error, response.status, "Não foi possível partir");
+      }
       return data;
     },
     onSuccess: (run) => {

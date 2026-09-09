@@ -52,6 +52,28 @@ const SCANNED_PREFIXES = [
   "context.",
   "loadout.policy.",
   "settings.context.",
+  // Fase 8C: o Arsenal — Habilidades, Itens, Relíquias e Patronatos —, o
+  // Equipamento por referência (pin, compatibilidade, histórico, restauração),
+  // o preflight da partida, o Equipamento congelado no cockpit e a moldura do
+  // capability matching. `tool.` fica de fora porque "Argumentos" e "Comando"
+  // são rótulos de campo comuns; os títulos e diálogos de Item entram por
+  // `tool.create.`, `tool.edit.`, `tool.delete.` e `tool.kind.`.
+  "registry.",
+  "skill.",
+  "tool.kind.",
+  "tool.create.",
+  "tool.edit.",
+  "tool.delete.",
+  "mcpServer.",
+  "provider.",
+  "loadout.pin.",
+  "loadout.compat.",
+  "loadout.history.",
+  "loadout.change.",
+  "loadout.restore.",
+  "run.preflight.",
+  "run.frozen.",
+  "capability.",
 ] as const;
 
 /**
@@ -64,10 +86,24 @@ const SCANNED_PREFIXES = [
  */
 // `context.items` é "{n} itens" nos dois temas: o mesmo contador que o Quadro
 // de Missões já escreve à mão para o que não é entidade.
+// Fase 8C: os estados curtos da CLI e do container ("instalada", "Daemon",
+// "sem credencial"), o verbo "Verificar de novo" e o cabeçalho "Avisos" são
+// palavras que Settings e o painel de resultado já escrevem à mão, fora de
+// qualquer contexto de Equipamento; "Nenhuma" é o vazio de qualquer lista.
 const SKIPPED_KEYS = new Set<string>([
   "knowledge.filter.type",
   "context.items",
   "context.items.one",
+  "loadout.compat.cli.installed",
+  "loadout.compat.cli.notInstalled",
+  "loadout.compat.cli.timedOut",
+  "loadout.compat.cli.authenticated",
+  "loadout.compat.cli.notAuthenticated",
+  "loadout.compat.container.daemon",
+  "loadout.compat.container.image",
+  "loadout.compat.check",
+  "loadout.compat.warnings",
+  "run.frozen.none",
 ]);
 
 const EXEMPT_FILES = new Set(["lib/glossary.ts", "lib/api-types.ts", "routeTree.gen.ts"]);

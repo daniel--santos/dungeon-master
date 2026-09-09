@@ -1,5 +1,5 @@
 import type { ProblemDetails } from "@dungeon-master/api-client";
-import type { ValidationIssue } from "@dungeon-master/contracts";
+import type { CapabilityIssue, ValidationIssue } from "@dungeon-master/contracts";
 
 /**
  * A mensagem que a tela mostra quando a API recusa alguma coisa.
@@ -54,5 +54,26 @@ export function problemIssues(problem: unknown): readonly ValidationIssue[] {
       issue !== null &&
       typeof (issue as ValidationIssue).path === "string" &&
       typeof (issue as ValidationIssue).message === "string",
+  );
+}
+
+/**
+ * Os `blockers[]` do `409` de `POST /runs` (Fase 8A), quando existirem.
+ *
+ * É um membro de extensão do problem details, fora do contrato de
+ * `ProblemDetails`, e por isso lido com cuidado: cada item precisa de
+ * `code`, `severity` e `message`, senão não é um descompasso de capability.
+ */
+export function problemBlockers(problem: unknown): readonly CapabilityIssue[] {
+  if (typeof problem !== "object" || problem === null) return [];
+  const blockers = (problem as { blockers?: unknown }).blockers;
+  if (!Array.isArray(blockers)) return [];
+  return blockers.filter(
+    (issue): issue is CapabilityIssue =>
+      typeof issue === "object" &&
+      issue !== null &&
+      typeof (issue as CapabilityIssue).code === "string" &&
+      typeof (issue as CapabilityIssue).severity === "string" &&
+      typeof (issue as CapabilityIssue).message === "string",
   );
 }

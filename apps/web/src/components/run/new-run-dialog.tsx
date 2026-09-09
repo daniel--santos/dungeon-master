@@ -1,10 +1,21 @@
-import type { ExecutionMode } from "@dungeon-master/contracts";
+import type { CapabilityIssue, ExecutionMode, ProviderAuthStatus } from "@dungeon-master/contracts";
 import { useNavigate } from "@tanstack/react-router";
-import { Ban, GitBranch, Package, Swords, WandSparkles } from "lucide-react";
+import {
+  Ban,
+  GitBranch,
+  Package,
+  ShieldCheck,
+  ShieldX,
+  Swords,
+  TriangleAlert,
+  WandSparkles,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { EnforcementText } from "@/components/execution/chips";
+import { CapabilityIssueList } from "@/components/registry/capability-issues";
+import { ProviderAuthBadge } from "@/components/registry/provider-auth-badge";
 import { KindChip, PriorityText } from "@/components/task/chips";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -36,7 +47,9 @@ import {
 } from "@/lib/execution";
 import { useGlossary } from "@/lib/glossary";
 import { useHydratedForm } from "@/lib/hydrated-form";
-import { useCreateRun } from "@/lib/runs";
+import { useLoadoutPreflight } from "@/lib/registry";
+import { ACCENT_AMBER, ACCENT_GREEN } from "@/lib/registry-domain";
+import { RunBlockedError, useCreateRun } from "@/lib/runs";
 import { useHostAcknowledgement } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import { useWorkflows } from "@/lib/workflows";
@@ -60,6 +73,11 @@ export interface NewRunDialogProps {
  * exigência da Fase 2B, e ele explica exatamente o que vai acontecer — acesso
  * ao disco e à rede, worktree separado que não é sandbox, política pedida
  * contra política imposta.
+ *
+ * Desde a Fase 8C o preflight do Equipamento roda antes de partir, no perfil
+ * do ambiente escolhido: um bloqueio desabilita "Partir" com a lista, um
+ * aviso aparece e deixa partir, e o `409` de `POST /runs` com `blockers[]` —
+ * a API confere de novo na partida — fica no diálogo com os mesmos itens.
  */
 export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
   const { t, format } = useGlossary();
@@ -127,10 +145,34 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
 
   const dockerProfile = profileItems.find((item) => item.mode === "DOCKER" && item.enabled);
   const needsAcceptance = mode === "HOST";
+
+  // O preflight do Equipamento escolhido, no perfil que a partida vai usar.
+  // O perfil vai como override só quando difere do que o Equipamento traz,
+  // exatamente como o `POST /runs` logo abaixo.
+  const profileOverride =
+    loadout !== undefined && profile !== undefined && profile.id !== loadout.executionProfileId
+      ? profile.id
+      : undefined;
+  const preflight = useLoadoutPreflight(loadout, { executionProfileId: profileOverride }, open);
+  const blockers = preflight.data?.capabilities.blockers ?? [];
+  const warnings = preflight.data?.capabilities.warnings ?? [];
+
+  // A recusa da API pelo capability matching, guardada até a próxima escolha.
+  const [rejected, setRejected] = useState<readonly CapabilityIssue[] | null>(null);
+  const profileId = profile?.id;
+  useEffect(() => {
+    setRejected(null);
+  }, [loadoutId, profileId, open]);
+
+  const checking = loadout !== undefined && preflight.isPending && !preflight.isError;
+  const blocked = blockers.length > 0 || (rejected !== null && rejected.length > 0);
+
   const ready =
     loadout !== undefined &&
     prompt.trim() !== "" &&
     (!needsAcceptance || accepted) &&
+    !checking &&
+    !blocked &&
     !create.isPending;
 
   function depart() {
@@ -154,11 +196,20 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
       {
         onSuccess: (run) => {
           onOpenChange(false);
+          if (run.warnings.length > 0) {
+            toast.warning(format(t("run.departed.warnings"), { n: run.warnings.length }));
+          }
           void navigate({ to: "/runs/$id", params: { id: run.id } });
         },
         onError: (error: Error) => {
-          // O `409` diz o motivo: Task fora de READY, Project sem workspace,
-          // dependência pendente, Harness ou perfil desligado.
+          // O `409` do capability matching traz os bloqueios: ficam no
+          // diálogo, com o mesmo desenho do preflight.
+          if (error instanceof RunBlockedError) {
+            setRejected(error.blockers);
+            return;
+          }
+          // Os outros `409` dizem o motivo: Task fora de READY, Project sem
+          // workspace, dependência pendente, Harness ou perfil desligado.
           toast.error(error.message);
         },
       },
@@ -226,13 +277,25 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
           {loadout !== undefined && (
             <span className="text-muted-foreground text-[11px] leading-4">
               {format("{skills} · {tools} · {relics} vão junto.", {
-                skills: `${String(loadout.skills.length)} ${t("entity.skill.plural")}`,
-                tools: `${String(loadout.tools.length)} ${t("entity.tool.plural")}`,
-                relics: `${String(loadout.mcpServers.length)} ${t("entity.mcpServer.plural")}`,
+                skills: `${String(loadout.skillRefs.length)} ${t("entity.skill.plural")}`,
+                tools: `${String(loadout.toolRefs.length)} ${t("entity.tool.plural")}`,
+                relics: `${String(loadout.mcpServerRefs.length)} ${t("entity.mcpServer.plural")}`,
               })}
             </span>
           )}
         </div>
+
+        {loadout !== undefined && (
+          <PreflightBlock
+            blockers={blockers}
+            checking={checking}
+            cli={preflight.data?.cli ?? null}
+            error={preflight.isError ? preflight.error.message : null}
+            provider={preflight.data?.provider ?? null}
+            rejected={rejected}
+            warnings={warnings}
+          />
+        )}
 
         {task.workflowId !== null && (
           <div
@@ -368,6 +431,115 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+type PreflightState = "checking" | "failed" | "blocked" | "warnings" | "ready" | "rejected";
+
+/**
+ * O resultado do preflight, dentro do diálogo (Fase 8C).
+ *
+ * Cinco estados: verificando (a partida espera), bloqueado (a partida fica
+ * desabilitada e a lista diz por quê), com avisos (parte, e eles vão para o
+ * Diário), pronto, e a recusa `409` da API — os mesmos itens, porque é a
+ * mesma função do domínio rodada de novo na partida. Se o preflight em si
+ * falhar, a partida segue: a API é quem decide, e ela confere de novo.
+ */
+function PreflightBlock({
+  checking,
+  error,
+  blockers,
+  warnings,
+  rejected,
+  provider,
+  cli,
+}: {
+  checking: boolean;
+  error: string | null;
+  blockers: readonly CapabilityIssue[];
+  warnings: readonly CapabilityIssue[];
+  rejected: readonly CapabilityIssue[] | null;
+  provider: { readonly name: string; readonly status: ProviderAuthStatus } | null;
+  cli: {
+    readonly installed: boolean;
+    readonly timedOut: boolean;
+    readonly version: string | null;
+  } | null;
+}) {
+  const { t } = useGlossary();
+
+  const state: PreflightState =
+    rejected !== null
+      ? "rejected"
+      : checking
+        ? "checking"
+        : error !== null
+          ? "failed"
+          : blockers.length > 0
+            ? "blocked"
+            : warnings.length > 0
+              ? "warnings"
+              : "ready";
+
+  const color =
+    state === "blocked" || state === "rejected"
+      ? "var(--destructive)"
+      : state === "warnings"
+        ? ACCENT_AMBER
+        : state === "ready"
+          ? ACCENT_GREEN
+          : "var(--muted-foreground)";
+  const Icon =
+    state === "blocked" || state === "rejected"
+      ? ShieldX
+      : state === "ready"
+        ? ShieldCheck
+        : TriangleAlert;
+
+  const hint: Record<PreflightState, string> = {
+    rejected: t("run.preflight.rejected"),
+    checking: t("run.preflight.checking"),
+    failed: t("run.preflight.failed"),
+    blocked: t("run.preflight.blocked"),
+    warnings: t("run.preflight.warnings"),
+    ready: t("run.preflight.ready"),
+  };
+
+  return (
+    <div
+      className="flex flex-col gap-2.5 rounded-[10px] border px-3 py-2.5"
+      data-run-preflight={state}
+      style={{ borderColor: `color-mix(in oklch, ${color} 40%, transparent)` }}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <Icon aria-hidden className="size-3.5 flex-none" style={{ color }} />
+        <span className="text-[12.5px] font-medium">{t("run.preflight.title")}</span>
+        <span className="flex-1" />
+        {provider !== null && (
+          <span className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
+            <span>{provider.name}</span>
+            <ProviderAuthBadge status={provider.status} />
+          </span>
+        )}
+        {cli !== null && (
+          <span className="text-muted-foreground text-[11px]" data-run-preflight-cli>
+            {cli.timedOut
+              ? t("loadout.compat.cli.timedOut")
+              : cli.installed
+                ? `CLI ${cli.version ?? ""}`.trim()
+                : t("loadout.compat.cli.notInstalled")}
+          </span>
+        )}
+      </div>
+
+      <span className="text-muted-foreground text-[11.5px] leading-4.5">{hint[state]}</span>
+
+      {state === "failed" && error !== null && (
+        <span className="text-destructive text-[11.5px]">{error}</span>
+      )}
+
+      <CapabilityIssueList issues={rejected ?? [...blockers, ...warnings]} />
+    </div>
   );
 }
 
