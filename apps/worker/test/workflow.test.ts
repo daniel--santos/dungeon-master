@@ -262,7 +262,11 @@ describe("Expedição guiada no Worker", () => {
       note: "Pode seguir.",
     });
     expect(decidido?.ok).toBe(true);
-    expect((await getRun(db, { userId: USER, runId: criado.id }))?.status).toBe("QUEUED");
+    // Sai da espera; o degrau é com o Worker, que já está no ar e é acordado por
+    // `NOTIFY` — `PREPARING` aqui é tão correto quanto `QUEUED`.
+    expect((await getRun(db, { userId: USER, runId: criado.id }))?.status).not.toBe(
+      "WAITING_APPROVAL",
+    );
 
     const terminado = await esperarStatusDeRun(db, criado.id, ["SUCCEEDED", "FAILED", "TIMED_OUT"]);
     const diario = diarioDoRun(await eventosDoRun(db, criado.id));

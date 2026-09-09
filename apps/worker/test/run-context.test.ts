@@ -628,7 +628,13 @@ describe("o Context Engine no Run com Workflow", () => {
     expect(
       (await resolveApprovalGate(db, { userId: USER, gateId: gate.id, decision: "approve" }))?.ok,
     ).toBe(true);
-    expect((await getRun(db, { userId: USER, runId: run.id }))?.status).toBe("QUEUED");
+    // O gate liberado devolve o Run à fila; o que se afirma aqui é que ele saiu
+    // da espera, e não em que degrau está. O Worker do trecho acima já está no
+    // ar e é acordado por `NOTIFY`, então `PREPARING` é um desfecho tão correto
+    // quanto `QUEUED` — afirmar `QUEUED` era afirmar que a reclamação demora.
+    expect((await getRun(db, { userId: USER, runId: run.id }))?.status).not.toBe(
+      "WAITING_APPROVAL",
+    );
 
     const terminado = await esperarStatusDeRun(db, run.id, ["SUCCEEDED", "FAILED", "TIMED_OUT"]);
     const eventos = await eventosDoRun(db, run.id);
