@@ -932,6 +932,25 @@ desde o commit original; faltavam só o `@commit` no cabeçalho e a entrada no
   `rejected-queue-full`, handlers de sinal instalados depois do boot, e as duas escritas
   separadas da reconciliação.
 
+**A correção expôs dois testes que passavam por acidente.** `run-context.test.ts` e
+`workflow.test.ts:265` aprovavam um `ApprovalGate` com o Worker no ar e, na linha seguinte,
+afirmavam que o Run estava em `QUEUED` — um estado transitório que ninguém garante, porque o
+Worker é acordado por `NOTIFY` e pode reclamá-lo no mesmo instante. Passavam por lentidão. A
+serialização do `pump` desta rodada tornou a reclamação por `NOTIFY` confiável, a corrida
+virou frequente, e o CI do macOS quebrou com `expected 'PREPARING' to be 'QUEUED'` — depois de
+a suíte inteira, os 19 e2e e o CI do Windows passarem. Os dois passaram a afirmar o que
+interessa ali: que o gate liberou o Run, não em que degrau ele está. É a mesma categoria que a
+auditoria denunciou no repositório, encontrada desta vez do lado de dentro.
+
+**Sobre "Campo aberto" na lista de capabilities**, a primeira correção tirou o tema
+(`hostExecution` virava "Host") e foi refeita: resolver por remoção fazia o sabor sumir junto
+com o problema, e de quebra trocava `dockerExecution`, que nada tinha a ver com a regra —
+Docker é isolado. O ponto de renderização (`harness-panel.tsx:154`) é um `<span>` com o rótulo
+e nada mais, sem lugar para um aviso ao lado como o `EnvBadge` tem, então o aviso foi para
+**dentro do valor**: `Campo aberto (sem isolamento)`. O teste que varre os dois glossários
+aceita as duas formas de acompanhar — chave irmã `.warning` ou aviso embutido — e recusa
+qualquer "Campo aberto" sem nenhuma das duas.
+
 **Ponto cego que a rodada tornou visível:** as suítes de contrato de harness
 (`runtime-sandcastle`, `runtime-antigravity`) se desligam quando `CI` está definido, por
 decisão do projeto — elas sobem agentes de verdade. O verde do GitHub nunca as cobre, e elas só
