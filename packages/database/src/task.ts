@@ -28,6 +28,7 @@ import {
   ilike,
   inArray,
   isNotNull,
+  isNull,
   notInArray,
   type SQL,
   sql,
@@ -103,10 +104,11 @@ export type TaskWriteFailure =
 /**
  * Por que uma escrita de dependência foi recusada.
  *
- * Os três primeiros são da rota por aresta; os demais entram com a troca do
- * conjunto inteiro (`replaceTaskDependencies`), que exige toda dependência
- * no mesmo Project — o grafo é do Project — e por isso pode não encontrar
- * uma Task que existe, mas em outro lugar.
+ * As duas portas exigem toda dependência no mesmo Project — o grafo é do
+ * Project —, e por isso as duas podem não encontrar uma Task que existe, mas
+ * em outro lugar. `DEPENDENCY_NOT_FOUND` e `DEPENDENCY_IN_INBOX` são só da
+ * troca do conjunto inteiro (`replaceTaskDependencies`): na rota por aresta,
+ * uma Task que não existe é `null` e uma em INBOX é `TASK_IN_INBOX`.
  */
 export type DependencyWriteFailure =
   | { readonly code: "SELF_DEPENDENCY"; readonly taskId: string }
@@ -308,25 +310,50 @@ async function loadChildren(
     .orderBy(asc(tasks.createdAt), asc(tasks.id));
 }
 
-/** As Tasks das quais esta depende. */
+/**
+ * O outro lado de uma aresta precisa estar no mesmo Project.
+ *
+ * post-mortem #19 (2026-09-08): a leitura da linhagem filtrava só por
+ * `user_id`, então uma aresta entre Projects diferentes — que a rota por
+ * aresta aceitava criar — levava título, descrição e resumo do último Run de
+ * uma Task de outra Campanha para dentro do bloco `<context>` e do
+ * `get_task_context`. O sistema é single-user: não é vazamento entre
+ * usuários, é a promessa da Fase 7 ("só o contexto relevante da Campanha")
+ * furada. A criação passou a recusar a aresta, mas quem já tem uma gravada
+ * só é protegido por este filtro na leitura.
+ *
+ * `undefined` é "sem filtro", e existe para um caso só: o portão de transição
+ * de estado, que continua esperando **toda** dependência gravada, inclusive a
+ * torta. Ali a aresta atrasa o trabalho; ela não vira texto de prompt.
+ */
+function mesmoProject(projectId: string | null | undefined): SQL | undefined {
+  if (projectId === undefined) return undefined;
+  return projectId === null ? isNull(tasks.projectId) : eq(tasks.projectId, projectId);
+}
+
+/** As Tasks das quais esta depende, no Project dela. */
 async function loadDependencies(
   db: DatabaseExecutor,
-  input: { userId: string; taskId: string },
+  input: { userId: string; taskId: string; projectId?: string | null },
 ): Promise<TaskSummary[]> {
   return await db
     .select(summaryColumns)
     .from(taskDependencies)
     .innerJoin(tasks, eq(tasks.id, taskDependencies.dependsOnTaskId))
     .where(
-      and(eq(taskDependencies.userId, input.userId), eq(taskDependencies.taskId, input.taskId)),
+      and(
+        eq(taskDependencies.userId, input.userId),
+        eq(taskDependencies.taskId, input.taskId),
+        mesmoProject(input.projectId),
+      ),
     )
     .orderBy(asc(tasks.createdAt), asc(tasks.id));
 }
 
-/** As Tasks que esperam por esta. */
+/** As Tasks que esperam por esta, no Project dela. */
 async function loadDependents(
   db: DatabaseExecutor,
-  input: { userId: string; taskId: string },
+  input: { userId: string; taskId: string; projectId?: string | null },
 ): Promise<TaskSummary[]> {
   return await db
     .select(summaryColumns)
@@ -336,9 +363,30 @@ async function loadDependents(
       and(
         eq(taskDependencies.userId, input.userId),
         eq(taskDependencies.dependsOnTaskId, input.taskId),
+        mesmoProject(input.projectId),
       ),
     )
     .orderBy(asc(tasks.createdAt), asc(tasks.id));
+}
+
+/**
+ * Os ids do outro lado das arestas desta Task, **sem** filtrar por Project.
+ *
+ * Quem troca o conjunto inteiro precisa enxergar também a aresta torta que
+ * uma versão anterior gravou entre Projects: escondê-la aqui a deixaria para
+ * sempre no banco, porque um `PUT` só apaga o que ele vê.
+ */
+async function loadDependencyTargetIds(
+  db: DatabaseExecutor,
+  input: { userId: string; taskId: string },
+): Promise<string[]> {
+  const rows = await db
+    .select({ id: taskDependencies.dependsOnTaskId })
+    .from(taskDependencies)
+    .where(
+      and(eq(taskDependencies.userId, input.userId), eq(taskDependencies.taskId, input.taskId)),
+    );
+  return rows.map((row) => row.id);
 }
 
 /**
@@ -373,8 +421,8 @@ export async function getTaskDetail(
   // compartilham a mesma conexão, e o `pg` avisa (e vai passar a recusar) duas
   // consultas simultâneas no mesmo cliente.
   const children = await loadChildren(db, input);
-  const dependencies = await loadDependencies(db, input);
-  const dependents = await loadDependents(db, input);
+  const dependencies = await loadDependencies(db, { ...input, projectId: row.projectId });
+  const dependents = await loadDependents(db, { ...input, projectId: row.projectId });
   const openProposalCount = await countOpenProposalsForTask(db, input);
 
   return { ...toTask(row), children, dependencies, dependents, openProposalCount };
@@ -790,7 +838,9 @@ export interface TaskDependencyInput {
  * Cria a aresta "esta Task espera aquela".
  *
  * Idempotente, como todo `PUT`: repetir devolve o mesmo estado e não grava um
- * segundo fato. Devolve `null` quando qualquer das duas Tasks não existe.
+ * segundo fato. Devolve `null` quando qualquer das duas Tasks não existe. As
+ * duas precisam estar no mesmo Project, pela mesma razão de
+ * `replaceTaskDependencies`: o grafo é do Project.
  */
 export async function addTaskDependency(
   db: Database,
@@ -814,6 +864,17 @@ export async function addTaskDependency(
 
     if (task.status === "INBOX" || dependency.status === "INBOX") {
       return failed<DependencyWriteFailure>({ code: "TASK_IN_INBOX" });
+    }
+
+    // post-mortem #19 (2026-09-08): esta rota checava dono, autodependência,
+    // INBOX e ciclo, mas não o Project — só `replaceTaskDependencies` checava.
+    // A aresta entre Campanhas que passava por aqui punha o texto de uma delas
+    // no contexto de uma Expedição da outra. Mesma recusa das duas portas.
+    if (task.projectId === null || dependency.projectId !== task.projectId) {
+      return failed<DependencyWriteFailure>({
+        code: "DEPENDENCY_IN_OTHER_PROJECT",
+        taskId: input.dependsOnTaskId,
+      });
     }
 
     const edges = await loadDependencyEdges(tx, input.userId);
@@ -970,7 +1031,7 @@ export async function replaceTaskDependencies(
     });
     if (!check.ok) return failed<DependencyWriteFailure>(check.rejection);
 
-    const current = new Set((await loadDependencies(tx, input)).map((dependency) => dependency.id));
+    const current = new Set(await loadDependencyTargetIds(tx, input));
     const wanted = new Set(desired);
 
     for (const dependsOnTaskId of current) {

@@ -18,6 +18,7 @@ import {
   writeRunTerminalStatus,
 } from "../src/run.js";
 import { persistRunResultOutputs } from "../src/run-result-outputs.js";
+import { taskDependencies } from "../src/schema/task.js";
 import {
   addTaskDependency,
   countOpenProposalsForTask,
@@ -623,17 +624,20 @@ describe("getTaskGraph", () => {
       "a filha espera a origem",
     );
 
-    // Uma aresta para fora do Project, pela rota por aresta, fica fora do desenho.
+    // A rota por aresta recusa uma dependência para fora do Project; a aresta
+    // que uma versão anterior gravou continua fora do desenho.
     const outro = await createProject(handle.db, { userId: USER, title: "Outro" });
     const deFora = await criarTask(handle.db, { projectId: outro.id, title: "De fora" });
-    exigirOk(
+    expect(
       await addTaskDependency(handle.db, {
         userId: USER,
         taskId: filha.id,
         dependsOnTaskId: deFora.id,
       }),
-      "a filha espera de fora",
-    );
+    ).toMatchObject({ ok: false, failure: { code: "DEPENDENCY_IN_OTHER_PROJECT" } });
+    await handle.db
+      .insert(taskDependencies)
+      .values({ userId: USER, taskId: filha.id, dependsOnTaskId: deFora.id });
 
     const grafo = await getTaskGraph(handle.db, { userId: USER, projectId });
     expect(grafo?.projectId).toBe(projectId);

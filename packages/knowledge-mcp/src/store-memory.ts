@@ -151,14 +151,20 @@ export function createInMemoryKnowledgeToolStore(
       );
       if (task === undefined) return null;
 
-      const porId = new Map(tasks.filter((t) => t.userId === userId).map((t) => [t.id, t]));
+      // A linhagem para na fronteira do Project, como o store de banco (veja o
+      // post-mortem #19 em `packages/database/src/run-context.ts`): uma aresta
+      // entre Campanhas gravada por uma versão anterior não traz o título de
+      // uma Task de outra Campanha para dentro do `get_task_context`.
+      const daCampanha = (t: MemoryTask): boolean =>
+        t.userId === userId && t.projectId === projectId;
+      const porId = new Map(tasks.filter(daCampanha).map((t) => [t.id, t]));
       const parent = task.parentTaskId == null ? undefined : porId.get(task.parentTaskId);
       const dependencies = (task.dependsOn ?? [])
         .map((id) => porId.get(id))
         .filter((t): t is MemoryTask => t !== undefined)
         .map(toRef);
       const dependents = tasks
-        .filter((t) => t.userId === userId && (t.dependsOn ?? []).includes(task.id))
+        .filter((t) => daCampanha(t) && (t.dependsOn ?? []).includes(task.id))
         .map(toRef);
 
       return {

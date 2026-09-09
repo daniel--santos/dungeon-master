@@ -30,6 +30,7 @@ function page(
 
 function task(input: Partial<MemoryTask> & Pick<MemoryTask, "id" | "title">): MemoryTask {
   return {
+    projectId: PROJECT,
     description: null,
     status: "READY",
     kind: "FEATURE",
@@ -270,6 +271,27 @@ describe("lineage", () => {
       includeDependencies: true,
     });
     expect(soDeps.entries.map((e) => e.item.id)).toEqual(["t-dep1", "t-dep2"]);
+  });
+
+  it("a mãe e a dependência de outra Campanha ficam de fora", async () => {
+    const store = createMemoryContextStore({
+      tasks: [
+        task({
+          id: "t-fora",
+          projectId: OUTRO_PROJECT,
+          title: "Segredo da outra Campanha",
+          description: "O texto que não pode atravessar.",
+          latestResultSummary: "Resultado alheio.",
+        }),
+        task({ id: "t", title: "Esta", parentTaskId: "t-fora", dependsOn: ["t-fora"] }),
+      ],
+    });
+    const secao = await buildLineageSection(store, {
+      taskId: "t",
+      includeParent: true,
+      includeDependencies: true,
+    });
+    expect(secao.entries).toEqual([]);
   });
 });
 

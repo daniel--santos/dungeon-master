@@ -138,10 +138,15 @@ export function createDatabaseKnowledgeToolStore(
       const detail = await getTaskDetail(db, { userId, taskId });
       if (detail === null || detail.projectId !== projectId) return null;
 
+      // A mãe é resolvida por id, então o escopo precisa ser checado aqui: o
+      // `projectId` fecha a mesma fronteira que `getTaskDetail` já fecha nas
+      // dependências (post-mortem #19 em `packages/database/src/run-context.ts`).
       let parent: KnowledgeToolTaskRef | null = null;
       if (detail.parentTaskId !== null) {
         const mae = await findTaskRow(db, { userId, taskId: detail.parentTaskId });
-        if (mae !== null) parent = { id: mae.id, title: mae.title, status: mae.status };
+        if (mae !== null && mae.projectId === projectId) {
+          parent = { id: mae.id, title: mae.title, status: mae.status };
+        }
       }
 
       const toRef = (ref: { id: string; title: string; status: KnowledgeToolTaskRef["status"] }) =>

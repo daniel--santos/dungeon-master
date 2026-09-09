@@ -91,6 +91,7 @@ const GRIMORIO: MemoryContextStoreOptions = {
   tasks: [
     {
       id: PARENT,
+      projectId: PROJECT,
       title: "Épico dos widgets",
       description: null,
       status: "RUNNING",
@@ -101,6 +102,7 @@ const GRIMORIO: MemoryContextStoreOptions = {
     },
     {
       id: DEP,
+      projectId: PROJECT,
       title: "Subir o serviço",
       description: null,
       status: "COMPLETED",
@@ -111,6 +113,7 @@ const GRIMORIO: MemoryContextStoreOptions = {
     },
     {
       id: TASK,
+      projectId: PROJECT,
       title: "Registrar a porta",
       description: null,
       status: "RUNNING",

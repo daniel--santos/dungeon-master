@@ -319,6 +319,41 @@ describe("get_task_context", () => {
     expect(result.text).toContain("não existe neste Project");
   });
 
+  it("mãe, dependência e dependente de outra Campanha ficam de fora", async () => {
+    // A dependente alheia está no catálogo de sempre: TASK_ALHEIA espera TASK_FILHA.
+    const filha = await tools.getTaskContext({ taskId: TASK_FILHA });
+    expect(filha.text).not.toContain("Task de outra Campanha");
+    expect(filha.text).not.toContain(TASK_ALHEIA);
+    expect(filha.text).toContain("- Dependentes: nenhuma");
+
+    const atravessada = createKnowledgeTools(
+      createInMemoryKnowledgeToolStore({
+        userId: USER,
+        projectId: PROJECT,
+        tasks: [
+          {
+            id: TASK_ALHEIA,
+            userId: USER,
+            projectId: OUTRO_PROJECT,
+            title: "Task de outra Campanha",
+          },
+          {
+            id: TASK_FILHA,
+            userId: USER,
+            projectId: PROJECT,
+            title: "Esta",
+            parentTaskId: TASK_ALHEIA,
+            dependsOn: [TASK_ALHEIA],
+          },
+        ],
+      }),
+    );
+    const result = await atravessada.getTaskContext({ taskId: TASK_FILHA });
+    expect(result.text).not.toContain("Task de outra Campanha");
+    expect(result.text).toContain("- Task mãe: nenhuma");
+    expect(result.text).toContain("- Dependências: nenhuma");
+  });
+
   it("recusa um id que não é uuid", async () => {
     expect((await tools.getTaskContext({ taskId: "abc" })).isError).toBe(true);
   });
