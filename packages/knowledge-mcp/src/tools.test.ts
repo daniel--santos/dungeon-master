@@ -292,11 +292,11 @@ describe("list_decisions", () => {
     expect(result.text.indexOf(ITEM_DECISAO_1)).toBeLessThan(result.text.indexOf(ITEM_DECISAO_2));
   });
 
-  it("respeita o limite", async () => {
+  it("com o teto abaixo do total, volta a mais recente e não a mais antiga", async () => {
     const result = await tools.listDecisions({ limit: 1 });
     expect(result.text).toMatch(/^1 decisão/);
-    expect(result.text).toContain(ITEM_DECISAO_1);
-    expect(result.text).not.toContain(ITEM_DECISAO_2);
+    expect(result.text).toContain(ITEM_DECISAO_2);
+    expect(result.text).not.toContain(ITEM_DECISAO_1);
   });
 });
 

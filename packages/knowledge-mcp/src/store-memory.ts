@@ -134,12 +134,18 @@ export function createInMemoryKnowledgeToolStore(
       };
     },
 
+    // As `limit` mais recentes, apresentadas da mais antiga para a mais
+    // recente — a mesma conta do store de banco (post-mortem #20 lá). O dublê
+    // ordenava ascendente antes do teto, então as duas implementações
+    // concordavam no defeito e o teste de unidade não pegava nada.
     async listDecisions(limit) {
+      if (limit <= 0) return [];
       return ativos()
         .filter((item) => item.type === "DECISION")
         .map(toItem)
-        .sort(byCreation)
-        .slice(0, limit);
+        .sort((a, b) => byCreation(b, a))
+        .slice(0, limit)
+        .reverse();
     },
 
     async getTask(taskId): Promise<KnowledgeToolTask | null> {

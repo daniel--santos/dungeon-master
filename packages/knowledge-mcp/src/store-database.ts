@@ -5,7 +5,6 @@ import {
   getTaskDetail,
   KNOWLEDGE_FTS_CONFIG,
   knowledgeItems,
-  listProjectDecisions,
   type Database,
   type KnowledgeItemRow,
 } from "@dungeon-master/database";
@@ -114,24 +113,27 @@ export function createDatabaseKnowledgeToolStore(
       };
     },
 
+    /**
+     * post-mortem #20 (2026-09-08): esta porta chamava a listagem paginada do
+     * diário de decisões, que ordena `asc(createdAt)` de propósito, e aplicava
+     * o teto na página 1. Numa Campanha com quarenta decisões, o agente recebia
+     * as dez **mais antigas** — as já superadas — e não tinha como chegar às
+     * recentes, porque a ferramenta não expõe página nem offset. É o oposto do
+     * que o montador de contexto faz e do motivo pelo qual ele o faz: "a mais
+     * recente é a que mais provavelmente ainda vale". A consulta busca as
+     * `limit` mais recentes e só então inverte, para a apresentação continuar
+     * sendo a que a descrição da ferramenta promete: da mais antiga para a mais
+     * recente.
+     */
     async listDecisions(limit) {
-      const page = await listProjectDecisions(db, {
-        userId,
-        projectId,
-        status: "ACTIVE",
-        page: 1,
-        pageSize: limit,
-      });
-      if (page === null) return [];
-      return page.items.map((item) => ({
-        id: item.id,
-        type: item.type,
-        title: item.title,
-        content: item.content,
-        version: item.version,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-      }));
+      if (limit <= 0) return [];
+      const rows = await db
+        .select()
+        .from(knowledgeItems)
+        .where(and(escopo(), eq(knowledgeItems.type, "DECISION")))
+        .orderBy(desc(knowledgeItems.createdAt), desc(knowledgeItems.id))
+        .limit(limit);
+      return rows.reverse().map(toItem);
     },
 
     async getTask(taskId) {

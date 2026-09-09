@@ -89,8 +89,8 @@ export const KNOWLEDGE_TOOL_DESCRIPTIONS: Readonly<Record<KnowledgeToolName, str
     "Devolve o resumo corrente do Project — a consolidação do que o Grimório sabe — e " +
     "quantas páginas ativas existem.",
   list_decisions:
-    "Lista as decisões registradas neste Project, da mais antiga para a mais recente, com " +
-    "trecho e id.",
+    "Lista as decisões registradas neste Project, com trecho e id. Quando há mais decisões " +
+    "que o limite, voltam as mais recentes — apresentadas da mais antiga para a mais recente.",
   get_task_context:
     "Mostra título, descrição, estado, Task mãe e dependências de uma Task deste Project.",
 };
