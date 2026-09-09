@@ -11,6 +11,29 @@ O que **não** mora aqui: timeout, cancelamento, worktree, política de ambiente
 resultado estruturado. Isso é do runtime, uma camada acima, e é o que garante
 que essas promessas não variem de harness para harness.
 
+## Autenticação no preflight (Fase 8B)
+
+Cada definição declara `detectAuthentication`, uma checagem local, não
+interativa e sem chamada de modelo, que o preflight roda depois do `--version`
+com o mesmo ambiente por allow-list do Run (`auth-check.ts`, interpretações
+puras e testadas):
+
+| Harness     | Comando                                        | Veredito                                    | Custo medido (09/09/2026) |
+| ----------- | ---------------------------------------------- | ------------------------------------------- | ------------------------- |
+| Claude Code | `claude auth status`                           | JSON com `loggedIn`                         | ~0,2 s                    |
+| Codex       | `codex login status`                           | código `0`; `1` com "Not logged in"         | ~0,2 s                    |
+| Pi          | `pi auth check --provider <p> --json`          | `status: ready` / `not_ready`, por provedor | ~0,35 s por provedor      |
+| Antigravity | `agy models` (no pacote `runtime-antigravity`) | código `0`; `1` com "Please sign in"        | ~2,6 s (0,9 s sem sessão) |
+
+O Pi exige `--provider`; com o provedor fixado no adapter é uma checagem, sem
+ele são três (`google`, `anthropic`, `openai`), e uma pronta basta. O resultado
+sai em `PreflightResult.authenticated` com `authReason`, uma frase com o comando
+e o que ele respondeu — nunca a saída bruta, porque o JSON do `claude auth
+status` traz o e-mail e a organização do usuário. Qualquer resposta que não dá
+para ler deixa `authenticated` indefinido: um `false` sem prova travaria
+execuções que funcionariam. O Worker grava o veredito em
+`harness.auth_status` no boot; a API o mede de novo no preflight do Loadout.
+
 ```ts
 import {
   createAgentRuntime,
