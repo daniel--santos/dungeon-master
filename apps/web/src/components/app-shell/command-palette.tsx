@@ -1,8 +1,9 @@
+import type { GlossaryKey } from "@dungeon-master/glossary";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
-import { NAV_ITEMS, type NavPath } from "@/components/app-shell/navigation";
+import { NAV_ITEMS, type NavItem, type NavPath } from "@/components/app-shell/navigation";
 import {
   CommandDialog,
   CommandEmpty,
@@ -57,6 +58,14 @@ export interface CommandPaletteProps {
   readonly onOpenChange: (open: boolean) => void;
 }
 
+/** As quatro rotas do Arsenal (Fase 8C), cada uma com o nome do próprio registro. */
+const REGISTRY_DESTINATIONS: readonly { readonly to: NavPath; readonly label: GlossaryKey }[] = [
+  { to: "/skills", label: "entity.skill.plural" },
+  { to: "/tools", label: "entity.tool.plural" },
+  { to: "/mcp-servers", label: "entity.mcpServer.plural" },
+  { to: "/providers", label: "entity.provider.plural" },
+];
+
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const { t } = useGlossary();
   const navigate = useNavigate();
@@ -68,6 +77,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     },
     [navigate, onOpenChange],
   );
+
+  const registry = NAV_ITEMS.find((item: NavItem) => item.label === "nav.registry");
 
   return (
     <CommandDialog
@@ -94,6 +105,23 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             </CommandItem>
           ))}
         </CommandGroup>
+
+        {registry !== undefined && (
+          <CommandGroup heading={t(registry.label)}>
+            {REGISTRY_DESTINATIONS.map((destination) => (
+              <CommandItem
+                key={destination.to}
+                value={`${t(registry.label)} ${t(destination.label)} ${destination.to}`}
+                onSelect={() => {
+                  go(destination.to);
+                }}
+              >
+                <registry.icon aria-hidden />
+                <span>{t(destination.label)}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
         <CommandGroup heading="Ações">
           <CommandItem

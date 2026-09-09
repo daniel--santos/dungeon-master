@@ -205,3 +205,105 @@ describe("aviso de permissão do Equipamento", () => {
     );
   });
 });
+
+/**
+ * O Equipamento por referência (Fase 8C): as Habilidades vêm do Arsenal com o
+ * pin de versão, os Itens e as Relíquias por id, e é isso que o `PATCH` leva —
+ * nunca mais a forma curta por nome.
+ */
+describe("Equipamento por referência", () => {
+  async function montarComArsenal() {
+    const { OTHER_SKILL, OTHER_TOOL, MCP_SERVER, SKILL, TOOL } =
+      await import("@/test/registry-fixtures");
+    client.GET.mockImplementation(((path: string) => {
+      switch (path) {
+        case "/api/v1/agents":
+          return Promise.resolve(ok({ items: [AGENT] }));
+        case "/api/v1/harnesses":
+          return Promise.resolve(ok({ items: [HARNESS] }));
+        case "/api/v1/execution-profiles":
+          return Promise.resolve(ok({ items: [HOST_PROFILE] }));
+        case "/api/v1/skills":
+          return Promise.resolve(
+            ok({ items: [SKILL, OTHER_SKILL], page: 1, pageSize: 100, total: 2 }),
+          );
+        case "/api/v1/tools":
+          return Promise.resolve(
+            ok({ items: [TOOL, OTHER_TOOL], page: 1, pageSize: 100, total: 2 }),
+          );
+        case "/api/v1/mcp-servers":
+          return Promise.resolve(ok({ items: [MCP_SERVER], page: 1, pageSize: 100, total: 1 }));
+        default:
+          return Promise.resolve(ok({ items: [] }));
+      }
+    }) as never);
+    client.PATCH.mockResolvedValue(ok({ ...LOADOUT, version: LOADOUT.version + 1 }) as never);
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LoadoutForm
+          loadout={{
+            ...LOADOUT,
+            skillRefs: [{ ...LOADOUT.skillRefs[0]!, pinnedVersion: 1, latestVersion: 2 }],
+          }}
+          onCancel={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    return { SKILL, OTHER_SKILL, TOOL, OTHER_TOOL, MCP_SERVER };
+  }
+
+  it("hidrata as referências com o pin, e grava skillRefs, toolIds e mcpServerIds", async () => {
+    const { SKILL, OTHER_SKILL, TOOL, OTHER_TOOL, MCP_SERVER } = await montarComArsenal();
+
+    const chip = await waitFor(() => {
+      const element = document.querySelector(`[data-skill-ref="${SKILL.name}"]`);
+      expect(element).not.toBeNull();
+      return element as HTMLElement;
+    });
+    // Fixada na v1, vinda do Loadout.
+    expect(chip.querySelector("[data-skill-pin]")?.getAttribute("data-skill-pin")).toBe("1");
+    expect(document.querySelector(`[data-reference-ref="${TOOL.name}"]`)).not.toBeNull();
+    expect(document.querySelector(`[data-reference-ref="${OTHER_TOOL.name}"]`)).not.toBeNull();
+
+    // Troca o pin para "seguir a mais recente".
+    fireEvent.keyDown(chip.querySelector("[data-skill-pin]") as HTMLElement, { key: "Enter" });
+    fireEvent.click(
+      await screen.findByRole("option", { name: `${dnd["loadout.pin.latest"]} (v2)` }),
+    );
+    await waitFor(() => {
+      expect(chip.querySelector("[data-skill-pin]")?.getAttribute("data-skill-pin")).toBe("latest");
+    });
+
+    // Acrescenta a outra Habilidade e a Relíquia; tira um Item.
+    fireEvent.keyDown(document.querySelector('[data-reference-add="skills"]') as HTMLElement, {
+      key: "Enter",
+    });
+    fireEvent.click(await screen.findByRole("option", { name: OTHER_SKILL.name }));
+    fireEvent.keyDown(document.querySelector('[data-reference-add="mcpServers"]') as HTMLElement, {
+      key: "Enter",
+    });
+    fireEvent.click(await screen.findByRole("option", { name: MCP_SERVER.name }));
+    fireEvent.click(screen.getByLabelText(`Remover ${OTHER_TOOL.name}`));
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+    await waitFor(() => {
+      expect(client.PATCH).toHaveBeenCalledTimes(1);
+    });
+    const [, request] = client.PATCH.mock.calls[0] as [string, { body: Record<string, unknown> }];
+    expect(request.body["skillRefs"]).toEqual([
+      { skillId: SKILL.id, pinnedVersion: null },
+      { skillId: OTHER_SKILL.id, pinnedVersion: null },
+    ]);
+    expect(request.body["toolIds"]).toEqual([TOOL.id]);
+    expect(request.body["mcpServerIds"]).toEqual([MCP_SERVER.id]);
+    // A forma curta por nome não sai mais daqui.
+    expect(request.body["skills"]).toBeUndefined();
+    expect(request.body["tools"]).toBeUndefined();
+    expect(request.body["mcpServers"]).toBeUndefined();
+  });
+});

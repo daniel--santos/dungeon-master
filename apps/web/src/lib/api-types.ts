@@ -41,8 +41,49 @@ export type KnowledgePolicyRecord = components["schemas"]["KnowledgePolicy"];
 export type ContextPolicyRecord = components["schemas"]["ContextPolicy"];
 export type ExecutionProfileSnapshotRecord = components["schemas"]["ExecutionProfileSnapshot"];
 export type McpServerRecord = components["schemas"]["McpServerRef"];
+export type LoadoutSkillRefRecord = components["schemas"]["LoadoutSkillRef"];
+export type LoadoutToolRefRecord = components["schemas"]["LoadoutToolRef"];
+export type LoadoutMcpServerRefRecord = components["schemas"]["LoadoutMcpServerRef"];
+export type LoadoutDefinitionRecord = components["schemas"]["LoadoutDefinition"];
+export type LoadoutVersionRecord = components["schemas"]["LoadoutVersion"];
+export type LoadoutVersionPageRecord = components["schemas"]["LoadoutVersionPage"];
+export type LoadoutPreflightRecord = components["schemas"]["LoadoutPreflight"];
+export type CapabilityIssueRecord = components["schemas"]["CapabilityIssue"];
+export type CapabilityReportRecord = components["schemas"]["CapabilityReport"];
+// O gerador embute os dois no `LoadoutPreflight` em vez de registrá-los à parte;
+// os apelidos saem de dentro dele, sem o `| null` que só existe no pai.
+export type ProviderAuthRecord = NonNullable<components["schemas"]["LoadoutPreflight"]["provider"]>;
+export type CliPreflightRecord = NonNullable<components["schemas"]["LoadoutPreflight"]["cli"]>;
+export type SkillVersionSnapshotRecord = components["schemas"]["SkillVersionSnapshot"];
+export type ToolSnapshotRecord = components["schemas"]["ToolSnapshot"];
+export type McpServerSnapshotRecord = components["schemas"]["McpServerSnapshot"];
+
+// Os quatro registros da Fase 8A. `McpServerRegistryRecord` leva o sufixo
+// "Registry" porque `McpServerRecord`, acima, já é a forma curta inline que o
+// snapshot do Run carrega; os dois convivem no cockpit.
+export type SkillRecord = components["schemas"]["Skill"];
+export type SkillDetailRecord = components["schemas"]["SkillDetail"];
+export type SkillVersionRecord = components["schemas"]["SkillVersion"];
+export type SkillPageRecord = components["schemas"]["SkillPage"];
+export type SkillVersionPageRecord = components["schemas"]["SkillVersionPage"];
+export type CreateSkillBody = components["schemas"]["CreateSkill"];
+export type UpdateSkillBody = components["schemas"]["UpdateSkill"];
+export type PublishSkillVersionBody = components["schemas"]["PublishSkillVersion"];
+export type ToolRecord = components["schemas"]["Tool"];
+export type ToolPageRecord = components["schemas"]["ToolPage"];
+export type CreateToolBody = components["schemas"]["CreateTool"];
+export type UpdateToolBody = components["schemas"]["UpdateTool"];
+export type McpServerRegistryRecord = components["schemas"]["McpServer"];
+export type McpServerPageRecord = components["schemas"]["McpServerPage"];
+export type CreateMcpServerBody = components["schemas"]["CreateMcpServer"];
+export type UpdateMcpServerBody = components["schemas"]["UpdateMcpServer"];
+export type ProviderRecord = components["schemas"]["Provider"];
+export type ProviderPageRecord = components["schemas"]["ProviderPage"];
+export type CreateProviderBody = components["schemas"]["CreateProvider"];
+export type UpdateProviderBody = components["schemas"]["UpdateProvider"];
 
 export type RunRecord = components["schemas"]["Run"];
+export type RunCreatedRecord = components["schemas"]["RunCreated"];
 export type RunListItemRecord = components["schemas"]["RunListItem"];
 export type RunPageRecord = components["schemas"]["RunPage"];
 export type RunEventRecord = components["schemas"]["RunEvent"];

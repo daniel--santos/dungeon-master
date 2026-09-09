@@ -1,29 +1,21 @@
-import type { McpTransport } from "@dungeon-master/contracts";
-import { Backpack, Gem, Plus, ShieldAlert, WandSparkles, Wrench, X } from "lucide-react";
+import { Backpack, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { ChipInput } from "@/components/execution/chip-input";
-import type {
-  ContextPolicyRecord,
-  KnowledgePolicyRecord,
-  LoadoutRecord,
-  McpServerRecord,
-} from "@/lib/api-types";
 import { EnforcementText } from "@/components/execution/chips";
+import { CompatibilityPanel } from "@/components/execution/compatibility-panel";
 import { EnvBadge } from "@/components/execution/env-badge";
+import { LoadoutHistory } from "@/components/execution/loadout-history";
+import {
+  McpServerPicker,
+  SkillPicker,
+  ToolPicker,
+  type SkillPick,
+} from "@/components/execution/reference-picker";
 import { Panel } from "@/components/panel";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -32,6 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import type { ContextPolicyRecord, KnowledgePolicyRecord, LoadoutRecord } from "@/lib/api-types";
 import { CONTEXT_COLOR } from "@/lib/context";
 import { AGENT_ROLE, WORKSPACE_STRATEGY } from "@/lib/execution-domain";
 import {
@@ -43,9 +37,11 @@ import {
   useUpdateLoadout,
 } from "@/lib/execution";
 import { useGlossary } from "@/lib/glossary";
+import { useMcpServers, useProviders, useSkills, useTools } from "@/lib/registry";
 
 /** O Radix recusa `value=""`, então "usar o padrão" precisa de um valor próprio. */
 const HARNESS_DEFAULT = "__default__";
+const ANY_PROVIDER = "__any__";
 
 /**
  * O que um Loadout novo pede do Grimório e da Missão: tudo, com o teto de
@@ -70,6 +66,20 @@ function parseNonNegative(text: string): number | null {
   return /^\d+$/.test(text.trim()) ? Number(text.trim()) : null;
 }
 
+function samePicks(a: readonly SkillPick[], b: readonly SkillPick[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (pick, index) =>
+        b[index]?.skillId === pick.skillId && b[index]?.pinnedVersion === pick.pinnedVersion,
+    )
+  );
+}
+
+function sameIds(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id, index) => b[index] === id);
+}
+
 export interface LoadoutFormProps {
   /** `null` monta um Loadout novo; um Loadout edita aquele. */
   readonly loadout: LoadoutRecord | null;
@@ -84,6 +94,13 @@ export interface LoadoutFormProps {
  * edição muda alguma coisa. Cada Run congela o número junto do snapshot, então
  * o que aparece aqui é o que a próxima Expedição vai carregar — não o que a
  * anterior carregou.
+ *
+ * Desde a Fase 8C as Habilidades, os Itens e as Relíquias entram **por
+ * referência** ao Arsenal (`skillRefs` com pin, `toolIds`, `mcpServerIds`), e
+ * não mais como nomes soltos; o Patrono pode ser filtrado pelo Patronato que o
+ * serve. Embaixo, o painel de compatibilidade responde a cada troca de Guilda
+ * ou perfil pela matriz e, depois de salvar, pelo preflight completo; e o
+ * histórico de versões mostra o que mudou e restaura.
  *
  * O resumo do perfil fica visível o tempo todo, e não escondido atrás do
  * seletor, porque é ali que mora a diferença entre rodar isolado e rodar na
@@ -105,6 +122,10 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
   const harnesses = useHarnesses();
   const models = useModels();
   const profiles = useExecutionProfiles();
+  const providers = useProviders();
+  const skillsQuery = useSkills();
+  const toolsQuery = useTools();
+  const serversQuery = useMcpServers();
 
   const create = useCreateLoadout();
   const update = useUpdateLoadout();
@@ -112,12 +133,12 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
   const [name, setName] = useState("");
   const [agentId, setAgentId] = useState("");
   const [harnessId, setHarnessId] = useState("");
+  const [providerId, setProviderId] = useState<string>(ANY_PROVIDER);
   const [modelId, setModelId] = useState<string>(HARNESS_DEFAULT);
   const [executionProfileId, setExecutionProfileId] = useState("");
-  const [skills, setSkills] = useState<readonly string[]>([]);
-  const [tools, setTools] = useState<readonly string[]>([]);
-  const [mcpServers, setMcpServers] = useState<readonly McpServerRecord[]>([]);
-  const [addingServer, setAddingServer] = useState(false);
+  const [skillRefs, setSkillRefs] = useState<readonly SkillPick[]>([]);
+  const [toolIds, setToolIds] = useState<readonly string[]>([]);
+  const [mcpServerIds, setMcpServerIds] = useState<readonly string[]>([]);
   const [knowledgePolicy, setKnowledgePolicy] =
     useState<KnowledgePolicyRecord>(DEFAULT_KNOWLEDGE_POLICY);
   const [contextPolicy, setContextPolicy] = useState<ContextPolicyRecord>(DEFAULT_CONTEXT_POLICY);
@@ -127,16 +148,25 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
 
   const enabledHarnesses = (harnesses.data?.items ?? []).filter((harness) => harness.enabled);
   const enabledProfiles = (profiles.data?.items ?? []).filter((profile) => profile.enabled);
+  const skills = skillsQuery.data?.items ?? [];
+  const tools = toolsQuery.data?.items ?? [];
+  const servers = serversQuery.data?.items ?? [];
 
   useEffect(() => {
     setName(loadout?.name ?? "");
     setAgentId(loadout?.agentId ?? "");
     setHarnessId(loadout?.harnessId ?? "");
     setModelId(loadout?.modelId ?? HARNESS_DEFAULT);
+    setProviderId(ANY_PROVIDER);
     setExecutionProfileId(loadout?.executionProfileId ?? "");
-    setSkills(loadout?.skills ?? []);
-    setTools(loadout?.tools ?? []);
-    setMcpServers(loadout?.mcpServers ?? []);
+    setSkillRefs(
+      (loadout?.skillRefs ?? []).map((ref) => ({
+        skillId: ref.skillId,
+        pinnedVersion: ref.pinnedVersion,
+      })),
+    );
+    setToolIds((loadout?.toolRefs ?? []).map((ref) => ref.toolId));
+    setMcpServerIds((loadout?.mcpServerRefs ?? []).map((ref) => ref.mcpServerId));
     setKnowledgePolicy(loadout?.knowledgePolicy ?? DEFAULT_KNOWLEDGE_POLICY);
     setContextPolicy(loadout?.contextPolicy ?? DEFAULT_CONTEXT_POLICY);
     setMaxItemsText(String((loadout?.knowledgePolicy ?? DEFAULT_KNOWLEDGE_POLICY).maxItems));
@@ -155,21 +185,44 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
     }
   }, [enabledHarnesses, enabledProfiles, executionProfileId, harnessId, loadout]);
 
+  const harness = enabledHarnesses.find((item) => item.id === harnessId);
+
+  // Os Patronatos que servem a Guilda escolhida; os outros não teriam Patrono aqui.
+  const harnessProviders = useMemo(
+    () =>
+      (providers.data?.items ?? []).filter(
+        (provider) => harness === undefined || provider.harnessKeys.includes(harness.key),
+      ),
+    [harness, providers.data],
+  );
+
   const harnessModels = useMemo(
-    () => (models.data?.items ?? []).filter((model) => model.harnessId === harnessId),
-    [harnessId, models.data],
+    () =>
+      (models.data?.items ?? []).filter(
+        (model) =>
+          model.harnessId === harnessId &&
+          (providerId === ANY_PROVIDER || model.providerId === providerId),
+      ),
+    [harnessId, models.data, providerId],
   );
 
   // Trocar de Harness invalida o Model escolhido: a API recusa um Model de
-  // outro Harness, e deixar a escolha velha na tela só adiaria o erro.
+  // outro Harness, e deixar a escolha velha na tela só adiaria o erro. Trocar
+  // o filtro de Patronato faz o mesmo com um Model que saiu da lista.
   useEffect(() => {
     if (modelId === HARNESS_DEFAULT) return;
     if (!harnessModels.some((model) => model.id === modelId)) setModelId(HARNESS_DEFAULT);
   }, [harnessModels, modelId]);
 
+  useEffect(() => {
+    if (providerId === ANY_PROVIDER) return;
+    if (!harnessProviders.some((provider) => provider.id === providerId))
+      setProviderId(ANY_PROVIDER);
+  }, [harnessProviders, providerId]);
+
   const profile = enabledProfiles.find((item) => item.id === executionProfileId);
   const agent = (agents.data?.items ?? []).find((item) => item.id === agentId);
-  const harness = enabledHarnesses.find((item) => item.id === harnessId);
+  const model = harnessModels.find((item) => item.id === modelId);
   const withoutNativePermissions = harness !== undefined && !harness.capabilities.nativePermissions;
 
   const maxItems = parseNonNegative(maxItemsText);
@@ -184,6 +237,48 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
     maxItems !== null &&
     maxTokens !== null;
 
+  // O que o preflight completo olha e o formulário pode ter mudado sem salvar:
+  // a Guilda, o Patrono e as referências. O perfil vai como override, e por
+  // isso não entra aqui.
+  const savedPicks = useMemo<readonly SkillPick[]>(
+    () =>
+      (loadout?.skillRefs ?? []).map((ref) => ({
+        skillId: ref.skillId,
+        pinnedVersion: ref.pinnedVersion,
+      })),
+    [loadout],
+  );
+  const dirtyForPreflight =
+    loadout === null ||
+    harnessId !== loadout.harnessId ||
+    (modelId === HARNESS_DEFAULT ? null : modelId) !== loadout.modelId ||
+    !samePicks(skillRefs, savedPicks) ||
+    !sameIds(
+      toolIds,
+      loadout.toolRefs.map((ref) => ref.toolId),
+    ) ||
+    !sameIds(
+      mcpServerIds,
+      loadout.mcpServerRefs.map((ref) => ref.mcpServerId),
+    );
+
+  const draft = useMemo(
+    () => ({
+      capabilities: harness?.capabilities,
+      mode: profile?.mode,
+      mcpServerNames: mcpServerIds.map(
+        (id) => servers.find((server) => server.id === id)?.name ?? id,
+      ),
+      modelKey: model?.key ?? null,
+      commandToolNames: toolIds
+        .map((id) => tools.find((tool) => tool.id === id))
+        .filter((tool) => tool !== undefined && tool.kind === "COMMAND")
+        .map((tool) => tool!.name),
+      dirty: dirtyForPreflight,
+    }),
+    [dirtyForPreflight, harness, mcpServerIds, model, profile, servers, toolIds, tools],
+  );
+
   function save() {
     if (maxItems === null || maxTokens === null) return;
     const body = {
@@ -192,9 +287,12 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
       harnessId,
       modelId: modelId === HARNESS_DEFAULT ? null : modelId,
       executionProfileId,
-      skills: [...skills],
-      tools: [...tools],
-      mcpServers: [...mcpServers],
+      skillRefs: skillRefs.map((pick) => ({
+        skillId: pick.skillId,
+        pinnedVersion: pick.pinnedVersion,
+      })),
+      toolIds: [...toolIds],
+      mcpServerIds: [...mcpServerIds],
       knowledgePolicy: { ...knowledgePolicy, maxItems },
       contextPolicy: { ...contextPolicy, maxTokens },
     };
@@ -287,6 +385,24 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
         </div>
 
         <div className="flex flex-col gap-1.5">
+          <Label htmlFor="loadout-provider">{t("entity.provider")}</Label>
+          <Select value={providerId} onValueChange={setProviderId}>
+            <SelectTrigger aria-label={t("entity.provider")} id="loadout-provider">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_PROVIDER}>{t("loadout.model.anyProvider")}</SelectItem>
+              {harnessProviders.length > 0 && <SelectSeparator />}
+              {harnessProviders.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
           <Label htmlFor="loadout-model">{t("entity.model")}</Label>
           <Select value={modelId} onValueChange={setModelId}>
             <SelectTrigger aria-label={t("entity.model")} id="loadout-model">
@@ -300,6 +416,22 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
               {harnessModels.map((item) => (
                 <SelectItem key={item.id} value={item.id}>
                   {item.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="loadout-profile">{t("entity.executionProfile")}</Label>
+          <Select value={executionProfileId} onValueChange={setExecutionProfileId}>
+            <SelectTrigger aria-label={t("entity.executionProfile")} id="loadout-profile">
+              <SelectValue placeholder={t("entity.executionProfile")} />
+            </SelectTrigger>
+            <SelectContent>
+              {enabledProfiles.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {`${item.name} · ${t(WORKSPACE_STRATEGY[item.workspaceStrategy])}`}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -342,22 +474,6 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
             </div>
           </div>
         )}
-
-        <div className="flex flex-col gap-1.5 sm:col-span-2">
-          <Label htmlFor="loadout-profile">{t("entity.executionProfile")}</Label>
-          <Select value={executionProfileId} onValueChange={setExecutionProfileId}>
-            <SelectTrigger aria-label={t("entity.executionProfile")} id="loadout-profile">
-              <SelectValue placeholder={t("entity.executionProfile")} />
-            </SelectTrigger>
-            <SelectContent>
-              {enabledProfiles.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {`${item.name} · ${t(WORKSPACE_STRATEGY[item.workspaceStrategy])}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
       {profile !== undefined && (
@@ -378,59 +494,24 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
-        <ChipInput
-          icon={WandSparkles}
-          label={t("entity.skill.plural")}
-          onChange={setSkills}
-          placeholder="Adicionar"
-          values={skills}
-        />
-        <ChipInput
-          icon={Wrench}
-          label={t("entity.tool.plural")}
-          onChange={setTools}
-          placeholder="Adicionar"
-          values={tools}
-        />
-
-        <div className="flex flex-col gap-1.5">
-          <span className="text-muted-foreground text-xs">{t("entity.mcpServer.plural")}</span>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {mcpServers.map((server) => (
-              <span
-                key={server.name}
-                className="border-border inline-flex h-[22px] w-fit items-center gap-1.5 rounded-lg border bg-white/[0.04] px-2 text-xs"
-              >
-                <Gem aria-hidden className="text-muted-foreground size-3.5" strokeWidth={1.5} />
-                <span>{server.name}</span>
-                <span className="text-muted-foreground text-[10px]">{server.transport}</span>
-                <button
-                  aria-label={`Remover ${server.name}`}
-                  className="text-muted-foreground hover:text-foreground -mr-1 flex size-4 items-center justify-center rounded"
-                  onClick={() => {
-                    setMcpServers(mcpServers.filter((item) => item.name !== server.name));
-                  }}
-                  type="button"
-                >
-                  <X aria-hidden className="size-3" />
-                </button>
-              </span>
-            ))}
-
-            <button
-              className="border-input text-muted-foreground hover:text-foreground inline-flex h-[22px] items-center gap-1 rounded-lg border border-dashed px-2 text-xs"
-              onClick={() => {
-                setAddingServer(true);
-              }}
-              type="button"
-            >
-              <Plus aria-hidden className="size-3" />
-              <span>Adicionar</span>
-            </button>
-          </div>
-        </div>
+      <div className="flex flex-col gap-3" data-loadout-references>
+        <SkillPicker onChange={setSkillRefs} skills={skills} value={skillRefs} />
+        <ToolPicker onChange={setToolIds} tools={tools} value={toolIds} />
+        <McpServerPicker onChange={setMcpServerIds} servers={servers} value={mcpServerIds} />
+        <span className="text-muted-foreground text-[11px] leading-4">
+          {t("loadout.refs.hint")}
+        </span>
       </div>
+
+      <CompatibilityPanel
+        draft={draft}
+        executionProfileId={
+          loadout !== null && executionProfileId !== loadout.executionProfileId
+            ? executionProfileId
+            : undefined
+        }
+        loadout={loadout}
+      />
 
       <div
         className="border-border flex flex-col gap-3 rounded-[10px] border px-3.5 py-3"
@@ -506,14 +587,7 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
         </div>
       </div>
 
-      <McpServerDialog
-        onAdd={(server) => {
-          setMcpServers([...mcpServers.filter((item) => item.name !== server.name), server]);
-          setAddingServer(false);
-        }}
-        onOpenChange={setAddingServer}
-        open={addingServer}
-      />
+      {loadout !== null && <LoadoutHistory loadout={loadout} onRestored={onSaved} />}
     </Panel>
   );
 }
@@ -595,113 +669,5 @@ function PolicyNumber({
         {invalid ? "Um inteiro a partir de 0." : description}
       </span>
     </div>
-  );
-}
-
-const TRANSPORTS: readonly McpTransport[] = ["STDIO", "HTTP"];
-
-/**
- * Um servidor MCP tem três campos, e nenhum deles cabe num chip.
- *
- * `target` é comando para `STDIO` e URL para `HTTP`. O valor entra inteiro e
- * nunca é montado por concatenação: quem executa recebe a string como está.
- */
-function McpServerDialog({
-  open,
-  onOpenChange,
-  onAdd,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onAdd: (server: McpServerRecord) => void;
-}) {
-  const { t } = useGlossary();
-  const [name, setName] = useState("");
-  const [transport, setTransport] = useState<McpTransport>("STDIO");
-  const [target, setTarget] = useState("");
-
-  useEffect(() => {
-    if (open) {
-      setName("");
-      setTransport("STDIO");
-      setTarget("");
-    }
-  }, [open]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t("entity.mcpServer")}</DialogTitle>
-        </DialogHeader>
-
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="mcp-name">Nome</Label>
-            <Input
-              id="mcp-name"
-              maxLength={120}
-              onChange={(event) => {
-                setName(event.target.value);
-              }}
-              value={name}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="mcp-transport">Transporte</Label>
-            <Select
-              value={transport}
-              onValueChange={(next) => {
-                setTransport(next as McpTransport);
-              }}
-            >
-              <SelectTrigger aria-label="Transporte" className="w-40" id="mcp-transport">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TRANSPORTS.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {item}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="mcp-target">{transport === "STDIO" ? "Comando" : "URL"}</Label>
-            <Input
-              className="font-mono text-[13px]"
-              id="mcp-target"
-              maxLength={2_000}
-              onChange={(event) => {
-                setTarget(event.target.value);
-              }}
-              value={target}
-            />
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button
-            onClick={() => {
-              onOpenChange(false);
-            }}
-            variant="outline"
-          >
-            Cancelar
-          </Button>
-          <Button
-            disabled={name.trim() === "" || target.trim() === ""}
-            onClick={() => {
-              onAdd({ name: name.trim(), transport, target: target.trim() });
-            }}
-          >
-            Adicionar
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

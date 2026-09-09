@@ -15,11 +15,16 @@ import { Route as HallRouteImport } from './routes/hall'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as LoadoutsRouteImport } from './routes/loadouts'
+import { Route as McpServersRouteImport } from './routes/mcp-servers'
+import { Route as ProvidersRouteImport } from './routes/providers'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsIdRouteImport } from './routes/projects.$id'
 import { Route as RunsIndexRouteImport } from './routes/runs.index'
 import { Route as RunsIdRouteImport } from './routes/runs.$id'
+import { Route as SkillsIndexRouteImport } from './routes/skills.index'
+import { Route as SkillsIdRouteImport } from './routes/skills.$id'
 import { Route as TasksIndexRouteImport } from './routes/tasks.index'
 import { Route as TasksIdRouteImport } from './routes/tasks.$id'
 import { Route as WorkflowsIndexRouteImport } from './routes/workflows.index'
@@ -57,9 +62,24 @@ const LoadoutsRoute = LoadoutsRouteImport.update({
   path: '/loadouts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpServersRoute = McpServersRouteImport.update({
+  id: '/mcp-servers',
+  path: '/mcp-servers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProvidersRoute = ProvidersRouteImport.update({
+  id: '/providers',
+  path: '/providers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsRoute = ToolsRouteImport.update({
+  id: '/tools',
+  path: '/tools',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsIndexRoute = ProjectsIndexRouteImport.update({
@@ -80,6 +100,16 @@ const RunsIndexRoute = RunsIndexRouteImport.update({
 const RunsIdRoute = RunsIdRouteImport.update({
   id: '/runs/$id',
   path: '/runs/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SkillsIndexRoute = SkillsIndexRouteImport.update({
+  id: '/skills/',
+  path: '/skills/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SkillsIdRoute = SkillsIdRouteImport.update({
+  id: '/skills/$id',
+  path: '/skills/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TasksIndexRoute = TasksIndexRouteImport.update({
@@ -120,13 +150,18 @@ export interface FileRoutesByFullPath {
   '/inbox': typeof InboxRoute
   '/knowledge': typeof KnowledgeRoute
   '/loadouts': typeof LoadoutsRoute
+  '/mcp-servers': typeof McpServersRoute
+  '/providers': typeof ProvidersRoute
   '/settings': typeof SettingsRoute
+  '/tools': typeof ToolsRoute
   '/projects/$id': typeof ProjectsIdRoute
   '/runs/$id': typeof RunsIdRoute
+  '/skills/$id': typeof SkillsIdRoute
   '/tasks/$id': typeof TasksIdRoute
   '/workflows/$id': typeof WorkflowsIdRoute
   '/projects/': typeof ProjectsIndexRoute
   '/runs/': typeof RunsIndexRoute
+  '/skills/': typeof SkillsIndexRoute
   '/tasks/': typeof TasksIndexRoute
   '/workflows/': typeof WorkflowsIndexRoute
   '/projects/$id/graph': typeof ProjectsIdGraphRoute
@@ -139,13 +174,18 @@ export interface FileRoutesByTo {
   '/inbox': typeof InboxRoute
   '/knowledge': typeof KnowledgeRoute
   '/loadouts': typeof LoadoutsRoute
+  '/mcp-servers': typeof McpServersRoute
+  '/providers': typeof ProvidersRoute
   '/settings': typeof SettingsRoute
+  '/tools': typeof ToolsRoute
   '/projects/$id': typeof ProjectsIdRoute
   '/runs/$id': typeof RunsIdRoute
+  '/skills/$id': typeof SkillsIdRoute
   '/tasks/$id': typeof TasksIdRoute
   '/workflows/$id': typeof WorkflowsIdRoute
   '/projects': typeof ProjectsIndexRoute
   '/runs': typeof RunsIndexRoute
+  '/skills': typeof SkillsIndexRoute
   '/tasks': typeof TasksIndexRoute
   '/workflows': typeof WorkflowsIndexRoute
   '/projects/$id/graph': typeof ProjectsIdGraphRoute
@@ -159,13 +199,18 @@ export interface FileRoutesById {
   '/inbox': typeof InboxRoute
   '/knowledge': typeof KnowledgeRoute
   '/loadouts': typeof LoadoutsRoute
+  '/mcp-servers': typeof McpServersRoute
+  '/providers': typeof ProvidersRoute
   '/settings': typeof SettingsRoute
+  '/tools': typeof ToolsRoute
   '/projects/$id': typeof ProjectsIdRoute
   '/runs/$id': typeof RunsIdRoute
+  '/skills/$id': typeof SkillsIdRoute
   '/tasks/$id': typeof TasksIdRoute
   '/workflows/$id': typeof WorkflowsIdRoute
   '/projects/': typeof ProjectsIndexRoute
   '/runs/': typeof RunsIndexRoute
+  '/skills/': typeof SkillsIndexRoute
   '/tasks/': typeof TasksIndexRoute
   '/workflows/': typeof WorkflowsIndexRoute
   '/projects/$id_/graph': typeof ProjectsIdGraphRoute
@@ -180,13 +225,18 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/knowledge'
     | '/loadouts'
+    | '/mcp-servers'
+    | '/providers'
     | '/settings'
+    | '/tools'
     | '/projects/$id'
     | '/runs/$id'
+    | '/skills/$id'
     | '/tasks/$id'
     | '/workflows/$id'
     | '/projects/'
     | '/runs/'
+    | '/skills/'
     | '/tasks/'
     | '/workflows/'
     | '/projects/$id/graph'
@@ -199,13 +249,18 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/knowledge'
     | '/loadouts'
+    | '/mcp-servers'
+    | '/providers'
     | '/settings'
+    | '/tools'
     | '/projects/$id'
     | '/runs/$id'
+    | '/skills/$id'
     | '/tasks/$id'
     | '/workflows/$id'
     | '/projects'
     | '/runs'
+    | '/skills'
     | '/tasks'
     | '/workflows'
     | '/projects/$id/graph'
@@ -218,13 +273,18 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/knowledge'
     | '/loadouts'
+    | '/mcp-servers'
+    | '/providers'
     | '/settings'
+    | '/tools'
     | '/projects/$id'
     | '/runs/$id'
+    | '/skills/$id'
     | '/tasks/$id'
     | '/workflows/$id'
     | '/projects/'
     | '/runs/'
+    | '/skills/'
     | '/tasks/'
     | '/workflows/'
     | '/projects/$id_/graph'
@@ -238,13 +298,18 @@ export interface RootRouteChildren {
   InboxRoute: typeof InboxRoute
   KnowledgeRoute: typeof KnowledgeRoute
   LoadoutsRoute: typeof LoadoutsRoute
+  McpServersRoute: typeof McpServersRoute
+  ProvidersRoute: typeof ProvidersRoute
   SettingsRoute: typeof SettingsRoute
+  ToolsRoute: typeof ToolsRoute
   ProjectsIdRoute: typeof ProjectsIdRoute
   RunsIdRoute: typeof RunsIdRoute
+  SkillsIdRoute: typeof SkillsIdRoute
   TasksIdRoute: typeof TasksIdRoute
   WorkflowsIdRoute: typeof WorkflowsIdRoute
   ProjectsIndexRoute: typeof ProjectsIndexRoute
   RunsIndexRoute: typeof RunsIndexRoute
+  SkillsIndexRoute: typeof SkillsIndexRoute
   TasksIndexRoute: typeof TasksIndexRoute
   WorkflowsIndexRoute: typeof WorkflowsIndexRoute
   ProjectsIdGraphRoute: typeof ProjectsIdGraphRoute
@@ -295,11 +360,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoadoutsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mcp-servers': {
+      id: '/mcp-servers'
+      path: '/mcp-servers'
+      fullPath: '/mcp-servers'
+      preLoaderRoute: typeof McpServersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/providers': {
+      id: '/providers'
+      path: '/providers'
+      fullPath: '/providers'
+      preLoaderRoute: typeof ProvidersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tools': {
+      id: '/tools'
+      path: '/tools'
+      fullPath: '/tools'
+      preLoaderRoute: typeof ToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects/': {
@@ -328,6 +414,20 @@ declare module '@tanstack/react-router' {
       path: '/runs/$id'
       fullPath: '/runs/$id'
       preLoaderRoute: typeof RunsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/skills/': {
+      id: '/skills/'
+      path: '/skills'
+      fullPath: '/skills/'
+      preLoaderRoute: typeof SkillsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/skills/$id': {
+      id: '/skills/$id'
+      path: '/skills/$id'
+      fullPath: '/skills/$id'
+      preLoaderRoute: typeof SkillsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tasks/': {
@@ -382,13 +482,18 @@ const rootRouteChildren: RootRouteChildren = {
   InboxRoute: InboxRoute,
   KnowledgeRoute: KnowledgeRoute,
   LoadoutsRoute: LoadoutsRoute,
+  McpServersRoute: McpServersRoute,
+  ProvidersRoute: ProvidersRoute,
   SettingsRoute: SettingsRoute,
+  ToolsRoute: ToolsRoute,
   ProjectsIdRoute: ProjectsIdRoute,
   RunsIdRoute: RunsIdRoute,
+  SkillsIdRoute: SkillsIdRoute,
   TasksIdRoute: TasksIdRoute,
   WorkflowsIdRoute: WorkflowsIdRoute,
   ProjectsIndexRoute: ProjectsIndexRoute,
   RunsIndexRoute: RunsIndexRoute,
+  SkillsIndexRoute: SkillsIndexRoute,
   TasksIndexRoute: TasksIndexRoute,
   WorkflowsIndexRoute: WorkflowsIndexRoute,
   ProjectsIdGraphRoute: ProjectsIdGraphRoute,

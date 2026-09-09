@@ -14,6 +14,7 @@ import { useThemeSetting } from "@/lib/glossary";
 import { useKnowledgeToasts } from "@/lib/knowledge-toast";
 import { useLiveQueries } from "@/lib/live";
 import { useProposalToasts } from "@/lib/proposal-toast";
+import { useProviderAuthToasts } from "@/lib/provider-auth";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -52,6 +53,11 @@ function RootLayout() {
   // Grimório, o outro à forja no Hall.
   useKnowledgeToasts();
   useForgedToasts();
+
+  // Um Patronato cuja credencial caiu entre dois preflights (Fase 8C): o
+  // aviso sai na tela em que o preflight rodou, seja a de Equipamentos, a de
+  // Patronatos ou o diálogo de partida.
+  useProviderAuthToasts();
 
   // Uma conexão SSE por aba, aberta no layout raiz e viva enquanto a aba
   // estiver. `connect` é idempotente, o que importa porque o StrictMode monta o
