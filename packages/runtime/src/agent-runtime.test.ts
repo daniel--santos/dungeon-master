@@ -11,7 +11,7 @@ import { collectExecutionResult, createAgentRuntime, resolvePermission } from ".
 import { capabilities } from "./capabilities.js";
 import { buildGitEnv } from "./env.js";
 import type { ExecutionRequest } from "./execution-request.js";
-import type { HarnessAdapter } from "./harness.js";
+import type { HarnessAdapter, HarnessCancelOptions } from "./harness.js";
 import { collectProcess } from "./process.js";
 import { createHarnessRegistry } from "./registry.js";
 import { fakeHarness } from "./testing/fake-harness.js";
@@ -191,8 +191,21 @@ describe("createAgentRuntime", () => {
     expect(events.at(-1)?.type).toBe("RunFailed");
   });
 
-  it("mata a árvore inteira: o neto some junto", async () => {
-    const adapter = fakeHarness();
+  it("mata a árvore inteira: o neto some junto, com o tempo que o pedido definiu", async () => {
+    // O dublê de `cancel` existe porque passar `killGraceMs`/`killConfirmMs` no
+    // pedido e conferir só que a árvore sumiu não prova nada: os padrões do
+    // `packages/platform` dão conta do agente falso sozinhos, e foi assim que
+    // este teste passou por uma fase inteira sem que os dois números saíssem do
+    // `resolveTimeouts`.
+    const recebidos: (HarnessCancelOptions | undefined)[] = [];
+    const base = fakeHarness();
+    const adapter: HarnessAdapter = {
+      ...base,
+      cancel: (executionId, cancelOptions) => {
+        recebidos.push(cancelOptions);
+        return base.cancel(executionId, cancelOptions);
+      },
+    };
     const runtime = runtimeFor(adapter);
     const req = request("arvore", {
       prompt: "@@fake:ignore-signals\n@@fake:spawn-child\n@@fake:sleep 600000",
@@ -229,6 +242,8 @@ describe("createAgentRuntime", () => {
     // O kill de árvore alcança a descendência; a prova é o polling, não o
     // código de saída do comando (CLAUDE.md, seção 8).
     expect(await waitUntilGone(() => processExists(grandchildPid as number), 5_000)).toBe(true);
+    // E o kill usou a política do pedido, não o padrão do `packages/platform`.
+    expect(recebidos).toEqual([{ graceMs: 1_000, confirmMs: 5_000 }]);
   });
 
   it("timeout ocioso e de conclusão são distinguidos", async () => {

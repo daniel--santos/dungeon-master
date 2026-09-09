@@ -196,4 +196,21 @@ describe("createDockerAdapter", () => {
     expect(r.terminated).toBe(true);
     expect(calls.some((c) => c[0] === "rm" && c.includes("dm-run-x"))).toBe(true);
   });
+
+  it("o teto de confirmação do pedido ganha do padrão do adapter", async () => {
+    // O container que não some é o caso em que o número importa: com o padrão
+    // de 10 s, um Run que pediu 30 ms esperaria dez segundos para descobrir o
+    // mesmo `terminated: false`.
+    const { cli, calls } = fakeDocker((args) =>
+      args[0] === "ps" ? { code: 0, stdout: "dm-run-x\n" } : { code: 0 },
+    );
+    const adapter = createDockerAdapter(definicao, { docker: cli });
+
+    const r = await adapter.cancel("x", { confirmMs: 30 });
+
+    expect(r.terminated).toBe(false);
+    // Duas perguntas: a primeira dentro do teto, a segunda já fora dele. Com os
+    // 10 s do padrão seriam cinquenta.
+    expect(calls.filter((c) => c[0] === "ps")).toHaveLength(2);
+  });
 });

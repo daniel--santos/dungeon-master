@@ -18,6 +18,7 @@ import { BoundedTail } from "./bounded-tail.js";
 import type { HarnessCapabilities } from "./capabilities.js";
 import type {
   HarnessAdapter,
+  HarnessCancelOptions,
   HarnessCancelResult,
   HarnessContext,
   HarnessEvent,
@@ -347,15 +348,24 @@ export function createHostAdapter(definition: HostAdapterDefinition): HarnessAda
       : { environmentKeys: definition.environmentKeys }),
     preflight: (context) => definition.preflight(context),
     execute,
-    cancel: async (executionId: string): Promise<HarnessCancelResult> => {
+    // post-mortem #11 (08/09/2026): `cancel` não tinha parâmetro de tempo e
+    // `child.terminate()` era chamado sem argumento, então `killGraceMs` e
+    // `killConfirmMs` do `ExecutionTimeouts` eram validados, viajavam até o
+    // kill e morriam ali: valia sempre o padrão do `packages/platform`, e o
+    // `Diagnostic` do timeout anunciava ao usuário um número que nenhuma
+    // chamada tinha usado. Não simplifique isto de volta para `terminate()`.
+    cancel: async (
+      executionId: string,
+      options?: HarnessCancelOptions,
+    ): Promise<HarnessCancelResult> => {
       const child = running.get(executionId);
       if (child === undefined) {
         return { terminated: true, elapsedMs: 0, notRunning: true };
       }
       if (definition.terminate !== undefined) {
-        return definition.terminate({ executionId, process: child });
+        return definition.terminate({ executionId, process: child, ...options });
       }
-      const result = await child.terminate();
+      const result = await child.terminate(options);
       return { terminated: result.terminated, method: result.method, elapsedMs: result.elapsedMs };
     },
   };

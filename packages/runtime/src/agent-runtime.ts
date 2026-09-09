@@ -604,7 +604,14 @@ async function* runAttempt(options: RunAttemptOptions): AsyncGenerator<AttemptSt
   const kill = async (): Promise<HarnessCancelResult> => {
     let result: HarnessCancelResult;
     try {
-      result = await adapter.cancel(request.executionId);
+      // post-mortem #11 (08/09/2026): a política de kill do pedido não era
+      // repassada, e o `Diagnostic` de `RunTimedOut` citava `killConfirmMs`
+      // enquanto o kill rodava com o padrão do `packages/platform`. Um
+      // diagnóstico que mente sobre o que o sistema fez é pior que nenhum.
+      result = await adapter.cancel(request.executionId, {
+        graceMs: timeouts.killGraceMs,
+        confirmMs: timeouts.killConfirmMs,
+      });
     } catch (error) {
       result = { terminated: false, elapsedMs: 0, method: describeError(error) };
     }
