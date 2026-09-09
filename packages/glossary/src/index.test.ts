@@ -122,23 +122,34 @@ describe("regra de segurança da seção 14", () => {
     }
   });
 
-  it("todo 'Campo aberto' dos dois glossários vem com o aviso ao lado", () => {
+  it("nenhum 'Campo aberto' dos dois glossários aparece sem o aviso", () => {
     // A regra não abre exceção por chave: se o rótulo aparecer num segundo
     // lugar — as capabilities de Harness eram esse lugar —, o aviso tem que
-    // existir ali também. Varrer os valores é o que pega o próximo.
+    // estar junto ali também. Varrer os valores é o que pega o próximo.
+    //
+    // Duas formas valem, e as duas existem hoje: o aviso numa chave irmã
+    // `<key>.warning`, que é como o badge de ambiente o renderiza ao lado; ou
+    // dentro do próprio valor, onde não há lugar para um texto ao lado.
+    const chaves = new Set<string>(GLOSSARY_KEYS);
     let encontrados = 0;
+
     for (const theme of themes) {
       const glossario = getGlossary(theme);
       for (const key of GLOSSARY_KEYS) {
-        if (glossario[key] !== "Campo aberto") continue;
+        const valor = glossario[key];
+        if (!valor.includes("Campo aberto")) continue;
         encontrados += 1;
+
+        const noValor = valor.includes("sem isolamento");
         const aviso = `${key}.warning`;
-        expect(GLOSSARY_KEYS as readonly string[], `${key} sem aviso`).toContain(aviso);
-        expect(t(theme, aviso as GlossaryKey), aviso).toBe("sem isolamento");
+        const naChaveIrma =
+          chaves.has(aviso) && t(theme, aviso as GlossaryKey) === "sem isolamento";
+        expect(noValor || naChaveIrma, `${theme}/${key}: "${valor}" sem o aviso`).toBe(true);
       }
     }
-    // O `env.host` do tema é o lugar onde o rótulo deve estar.
-    expect(encontrados).toBe(1);
+
+    // A varredura não é vazia: o rótulo existe, e é por isso que ela importa.
+    expect(encontrados).toBeGreaterThan(0);
   });
 
   it("o badge mantém o texto canônico nos dois modos", () => {

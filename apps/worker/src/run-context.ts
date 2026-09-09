@@ -30,9 +30,10 @@ import type { RunOutcomeWriter } from "./run-writers.js";
  *    seção 20.1).
  * 2. **O Run retoma a sessão de outro.** A conversa continua, e recebe o
  *    contexto que já tinha: o registro do Run de origem é copiado, com o
- *    vínculo em `inheritedFromRunId`. Só quando aquele contexto foi montado de
- *    verdade; um `FAILED` ou `DISABLED` na origem não é o que a conversa
- *    "já tinha", e o Run monta o seu.
+ *    vínculo em `inheritedFromRunId`. Vale para `ASSEMBLED` e para `EMPTY` —
+ *    um bloco vazio também é o que a conversa já tinha, e montar um no meio
+ *    dela é justamente o que esta regra evita. Um `FAILED` ou `DISABLED` na
+ *    origem não é o que ela tinha, e aí o Run monta o seu.
  * 3. **Primeira vez.** Configurações e Loadout viram política, o montador
  *    roda sobre o store do banco, e o resultado é gravado com
  *    `ON CONFLICT DO NOTHING` — o primeiro texto gravado vence.
@@ -69,16 +70,22 @@ export async function resolveRunContext(input: ResolveRunContextInput): Promise<
     }
 
     // 2. Retomada de sessão: a conversa continua com o contexto que já tinha.
+    // post-mortem #24 (08/09/2026): a peneira era só `ASSEMBLED`, e um `EMPTY`
+    // na origem (Grimório ainda vazio) caía no caminho 3: bastava uma página ser
+    // promovida no meio para o Run retomado montar o seu, e a conversa contínua
+    // recebia um bloco `<context>` que não existia no primeiro turno — quebrando
+    // o cache de prompt e a promessa de "o mesmo texto em todos os passos".
+    // `EMPTY` herda o texto `""`, que é exatamente o que a conversa já tinha.
     //
-    // post-mortem #24 (08/09/2026): a herança exigia `ASSEMBLED`, e os outros
-    // três status caíam na montagem do caminho 3. Mas em `EMPTY`, `DISABLED` e
-    // `FAILED` o Run de origem rodou **sem bloco de contexto**: montar agora
-    // insere no meio de uma conversa em curso um texto que o agente não viu
-    // nascer, e que muda conforme o Grimório mudou desde então. O que herda não
-    // é o texto montado, é o que a conversa já tinha — inclusive quando era nada.
+    // `FAILED` e `DISABLED` continuam de fora, e não é descuido: além de não
+    // serem o que a conversa tinha — são a ausência de uma tentativa —, o
+    // registro herdado copia `...origem`, então herdar um `FAILED` gravaria
+    // neste Run o `error` de outro, e herdar um `DISABLED` gravaria
+    // `policy.enabled: false` num Run cuja configuração está ligada. Alargar a
+    // peneira sem tratar esses dois campos poria um fato falso no registro.
     if (run.resumedFromRunId !== null) {
       const origem = await getRunContext(db, { userId, runId: run.resumedFromRunId });
-      if (origem !== null) {
+      if (origem !== null && (origem.status === "ASSEMBLED" || origem.status === "EMPTY")) {
         const herdado: RunContext = {
           ...origem,
           runId: run.id,
