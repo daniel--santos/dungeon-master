@@ -1521,10 +1521,93 @@ Loadout
 └── Permission Policy
 ```
 
-- [ ] Skills versionadas
-- [ ] Tool registry, MCP registry, Model registry, Provider registry
-- [ ] Loadout versioning
-- [ ] Capability matching e preflight
+- [x] Skills versionadas (8A)
+- [x] Tool registry, MCP registry, Model registry, Provider registry (8A)
+- [x] Loadout versioning (8A)
+- [x] Capability matching e preflight (8A, lado de contratos, domínio, banco e API)
+- [ ] 8B — Worker consome o snapshot resolvido e grava os avisos como `Diagnostic`
+- [ ] 8C — interface dos registros, do pin e do preflight
+
+## Andamento da Fase 8A (09/09/2026)
+
+Entregue na branch `feat/fase8-registros`, no lado de contratos, domínio, banco e API; o
+Worker (8B) e a interface (8C) vêm depois e consomem o que ficou aqui.
+
+**Registros são dados versionados.** Quatro tabelas novas, todas escopadas por `user_id`:
+`skill` (nome, descrição, `latest_version`) com `skill_version` imutável (número, conteúdo,
+changelog) — publicar é append-only, com a linha da Skill travada e um CAS opcional
+(`expectedLatestVersion`) que perde a corrida com `409`; `tool` com `kind` `COMMAND`
+(prefixo de argv, o mesmo formato da allow-list do ExecutionProfile) ou `MCP_TOOL` (servidor
+do registro + nome anunciado), com `CHECK` prendendo os campos à espécie; `mcp_server` com
+`STDIO` (comando e argumentos **separados**, o que fecha a pendência do caminho com espaço
+da Fase 7) ou `HTTP` (URL sem `usuário:senha@`), `env_keys` só com **nomes** de variáveis,
+`read_only` e `built_in` — o `knowledge` do Grimório nasce `builtIn`, não se apaga e só a
+descrição dele se edita; `provider` com `kind` `SUBSCRIPTION | API_KEY | LOCAL`,
+`auth_env_keys` (nomes), `harness_keys` e `docs_url`, e `model.provider_id` (`restrict`).
+
+**Loadout por referência com histórico.** As colunas `jsonb` `skills`, `tools` e
+`mcp_servers` deram lugar às junções `loadout_skill` (com `pinned_version` nulo = "a mais
+recente na hora de congelar o Run"), `loadout_tool` e `loadout_mcp`, com `position` para a
+ordem e `restrict` do registro para a junção; `loadout_version` guarda a definição por
+referências de cada número, e `POST /loadouts/{id}/versions/{n}/restore` cria uma versão
+**nova** igual à antiga, nunca reescreve (idêntica à atual não sobe). A migração **`0015`**
+tem a parte de dados escrita à mão: capabilities dos Harnesses ganham `mcpServers` e
+`forkSession` (o que já estava gravado vence), strings de `skills` viram Skills vazias na
+v1, strings de `tools` viram `COMMAND`, `McpServerRef` inline viram `mcp_server` (nome
+repetido com definição diferente ganha sufixo `-2`), e cada Loadout recebe a linha de
+versão atual. Os ids são UUIDv7 gerados por uma função temporária em SQL. A migração é
+provada por um teste que aplica `0000`–`0014` num banco irmão, grava o `jsonb` antigo e só
+então aplica a `0015`.
+
+**Snapshot resolvido.** `LoadoutSnapshot` ganha `skillVersions` (Skill, versão efetiva,
+`pinned`, **conteúdo**), `toolDefinitions` e `mcpServers` com a definição (`mcpServerId`,
+`command`/`args` ou `url`, `envKeys`, `readOnly`, `builtIn`) por cima da forma curta
+(`name`, `transport`, `target`), que o Worker da Fase 7 continua lendo. Os dois campos
+novos são opcionais só porque Runs anteriores não os têm; todo Run novo os carrega. O
+contrato `Loadout` mantém `skills`, `tools` e `mcpServers` como **forma curta derivada** das
+referências (`skillRefs`, `toolRefs`, `mcpServerRefs`), e a escrita aceita as duas formas —
+a curta é resolvida pelo nome, criando o que não existe como a migração fez; as duas na
+mesma coleção é `409`.
+
+**Capability matching é função pura do domínio** (`packages/domain/src/capability-matching.ts`):
+`matchCapabilities({ snapshot, harnessCapabilities, executionProfile, intent })` devolve
+`{ blockers, warnings }` com código, mensagem canônica e `causedBy`. Blockers:
+`DOCKER_UNSUPPORTED`, `HOST_UNSUPPORTED`, `STRUCTURED_OUTPUT_REQUIRED` (Escriba sem
+`structuredOutput`). Avisos: `MCP_UNSUPPORTED`, `MODEL_SELECTION_UNSUPPORTED`,
+`COMMAND_TOOLS_ADVISORY`, `RESUME_UNSUPPORTED`. Nenhum `if (harness === ...)`: só a matriz,
+que ganhou `mcpServers` e `forkSession` no contrato (`HarnessCapabilities` com treze chaves)
+e passou a ser mesclada chave a chave em `recordHarnessPreflight`, para um Worker anterior
+não apagar as duas no boot. `POST /runs` recusa com `409` e `blockers[]` no problem details
+e responde `RunCreated` (`Run` + `warnings[]`); o Worker (8B) recomputa a mesma função sobre
+os snapshots congelados para gravar os avisos como `Diagnostic`.
+
+**Preflight antes de partir.** `GET /loadouts/{id}/preflight` (`?executionProfileId`,
+`?resume=true`) junta o relatório de capabilities, a CLI no modo do perfil — no host, o
+`preflight` do adapter medido na chamada com teto de 15 s; em `DOCKER`, o preflight do
+backend que já existia — e o Provider do Model efetivo (ou o primeiro que declara o
+Harness) com o estado da credencial sem chamar modelo nenhum: `ENV_KEY_PRESENT` (variável
+nomeada existe no ambiente da API; só o nome sai), `CLI_AUTHENTICATED` /
+`CLI_NOT_AUTHENTICATED` (o que a CLI respondeu), `NOT_REQUIRED` (`LOCAL`) ou `UNKNOWN`.
+`ready` é "sem blocker, Harness e perfil ligados, CLI sem problema fatal nem timeout".
+
+**Rotas novas** (a spec passou de 68 para 80 caminhos): `/skills` (+ `{id}/versions` GET e
+POST), `/tools`, `/mcp-servers`, `/providers`, `/models` com `providerId`,
+`/loadouts/{id}/versions`, `/loadouts/{id}/versions/{n}/restore`, `/loadouts/{id}/preflight`.
+Evento de painel `registry.changed` (`kind`, `id`, `action`) para os quatro registros. Seeds
+idempotentes: Anthropic, OpenAI, Google e Local; as cinco Tools de git; o `knowledge`.
+
+**Fora do escopo declarado, pelo typecheck:** `HarnessCapabilities` com duas chaves a mais
+obriga o mapa `HARNESS_CAPABILITY` da web (`Record<keyof HarnessCapabilities, …>`), os
+rótulos do glossário, o `toContractCapabilities` do Worker (que descartava `forkSession`) e
+um literal de teste do Worker a acompanhar. São edições de poucas linhas, num commit
+próprio.
+
+**Pendências para 8B e 8C:** o Worker ainda quebra `target` por espaço e ignora `command`/
+`args`, `envKeys` e `builtIn` do snapshot; os avisos ainda não viram `Diagnostic`; a
+interface ainda escreve pela forma curta e não mostra pin, versões nem preflight;
+`MODEL_SELECTION_UNSUPPORTED` avisa também quando o Model é só o padrão do Harness; o
+preflight da API não mede a CLI do Antigravity em `DOCKER` porque não há adapter de
+container para ele.
 
 ---
 
@@ -1597,12 +1680,11 @@ hero_stats              # por agent_id e por loadout_id: xp, nível, expediçõe
 
 Todas são projeções: podem ser truncadas e reconstruídas a partir de `run_event`, `task` e `project`.
 
-## Posteriores
+## Fase 8A
 
 ```text
-skill · tool · mcp_server
-loadout_skill · loadout_tool · loadout_mcp
-provider
+skill · skill_version · tool · mcp_server · provider
+loadout_skill · loadout_tool · loadout_mcp · loadout_version
 ```
 
 ---
