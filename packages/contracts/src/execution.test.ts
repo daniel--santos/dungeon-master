@@ -7,7 +7,11 @@ import {
   EXECUTION_MODE_VALUES,
   WORKSPACE_STRATEGY_VALUES,
 } from "./execution-profile.js";
-import { HARNESS_KEY_VALUES, HarnessCapabilitiesSchema } from "./harness.js";
+import {
+  HARNESS_CAPABILITY_KEY_VALUES,
+  HARNESS_KEY_VALUES,
+  HarnessCapabilitiesSchema,
+} from "./harness.js";
 import { WORKSPACE_KIND_VALUES } from "./project.js";
 import { RUN_STATUS_VALUES, RunEventListQuerySchema, RunResultSchema, RunSchema } from "./run.js";
 
@@ -44,6 +48,7 @@ describe("HarnessCapabilities", () => {
       streaming: true,
       structuredOutput: true,
       resume: true,
+      forkSession: true,
       multiTurnProcess: false,
       toolEvents: true,
       tokenUsage: true,
@@ -52,12 +57,21 @@ describe("HarnessCapabilities", () => {
       nativePermissions: true,
       hostExecution: true,
       dockerExecution: true,
+      mcpServers: true,
     };
 
     expect(HarnessCapabilitiesSchema.safeParse(completa).success).toBe(true);
 
     const { resume: _resume, ...semResume } = completa;
     expect(HarnessCapabilitiesSchema.safeParse(semResume).success).toBe(false);
+  });
+
+  it("a lista de chaves cobre o schema inteiro, nos dois sentidos", () => {
+    // O `satisfies` da lista garante que nenhuma chave inventada entra; esta
+    // asserção garante que nenhuma chave do schema fica de fora dela.
+    expect([...HARNESS_CAPABILITY_KEY_VALUES].sort()).toEqual(
+      Object.keys(HarnessCapabilitiesSchema.shape).sort(),
+    );
   });
 });
 
@@ -95,6 +109,7 @@ describe("Run", () => {
           streaming: true,
           structuredOutput: true,
           resume: true,
+          forkSession: true,
           multiTurnProcess: false,
           toolEvents: true,
           tokenUsage: true,
@@ -103,6 +118,7 @@ describe("Run", () => {
           nativePermissions: true,
           hostExecution: true,
           dockerExecution: true,
+          mcpServers: true,
         },
       },
       model: null,
