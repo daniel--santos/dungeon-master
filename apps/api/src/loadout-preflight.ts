@@ -81,6 +81,7 @@ function fromResult(input: {
     installed: input.result.installed,
     version: input.result.version ?? null,
     authenticated: input.result.authenticated ?? null,
+    authReason: input.result.authReason ?? null,
     timedOut: false,
     problems: input.result.problems.map((problem) => ({
       code: problem.code,
@@ -107,6 +108,7 @@ async function checkHostAdapter(
     installed: false,
     version: null,
     authenticated: null,
+    authReason: null,
     timedOut: false,
     problems: [],
   };
@@ -235,6 +237,9 @@ export function createLoadoutPreflight(options: LoadoutPreflightOptions): Loadou
             installed: linha.installed,
             version: linha.version,
             authenticated: linha.authenticated,
+            // O relatório do Docker não carrega o motivo: a checagem lá dentro
+            // é `docker run … auth status`, e o código de saída é o veredito.
+            authReason: null,
             timedOut: linha.timedOut,
             problems: linha.problems,
           };
@@ -277,6 +282,11 @@ export function createLoadoutPreflight(options: LoadoutPreflightOptions): Loadou
             capabilities: harnessView.capabilities,
             installedVersion: harnessView.installedVersion,
             checkedAt: harnessView.checkedAt,
+            // O que o Worker mediu no boot (Fase 8B): o complemento de `cli`,
+            // que é medido nesta chamada. Nulos enquanto nenhum Worker subiu.
+            authStatus: harnessView.authStatus ?? null,
+            authCheckedAt: harnessView.authCheckedAt ?? null,
+            authReason: harnessView.authReason ?? null,
           },
           executionProfile: {
             id: profile.id,

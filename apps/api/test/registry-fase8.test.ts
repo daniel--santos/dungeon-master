@@ -23,7 +23,12 @@ import {
   type Task,
   TaskSchema,
 } from "@dungeon-master/contracts";
-import { createDatabase, type DatabaseHandle, LOCAL_USER_ID } from "@dungeon-master/database";
+import {
+  createDatabase,
+  type DatabaseHandle,
+  LOCAL_USER_ID,
+  recordHarnessPreflight,
+} from "@dungeon-master/database";
 import type { HarnessAdapter, HarnessContext, PreflightResult } from "@dungeon-master/runtime";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -704,10 +709,66 @@ describe(`${API_BASE_PATH}/loadouts/{id}/preflight`, () => {
     expect(semPerfil.status).toBe(404);
   });
 
+  it("o que o Worker gravou no boot sai em GET /harnesses e no bloco harness do preflight (Fase 8B)", async () => {
+    const claude = await harness("CLAUDE_CODE");
+    const medidoEm = new Date("2026-09-09T11:00:00.000Z");
+    await recordHarnessPreflight(handle.db, {
+      userId: LOCAL_USER_ID,
+      harnessId: claude.id,
+      installedVersion: "2.1.263",
+      auth: {
+        status: "AUTHENTICATED",
+        reason: "`claude auth status` respondeu loggedIn=true (authMethod=claude.ai)",
+        checkedAt: medidoEm,
+      },
+    });
+
+    const lista = HarnessListSchema.parse(
+      await (await pedir({ app, method: "GET", path: `${API_BASE_PATH}/harnesses` })).json(),
+    );
+    expect(lista.items.find((item) => item.key === "CLAUDE_CODE")).toMatchObject({
+      authStatus: "AUTHENTICATED",
+      authCheckedAt: medidoEm.toISOString(),
+      authReason: expect.stringContaining("claude auth status") as string,
+    });
+    // Quem nenhum Worker mediu continua nulo, e não UNKNOWN: nulo é "ninguém olhou".
+    expect(lista.items.find((item) => item.key === "CODEX")?.authStatus).toBeNull();
+
+    const agent = await criarAgent("Herói");
+    const loadout = await criarLoadout({
+      name: "Medido no boot",
+      agentId: agent.id,
+      harnessId: claude.id,
+      executionProfileId: (await perfil("HOST")).id,
+    });
+    const preflight = LoadoutPreflightSchema.parse(
+      await (
+        await pedir({
+          app,
+          method: "GET",
+          path: `${API_BASE_PATH}/loadouts/${loadout.id}/preflight`,
+        })
+      ).json(),
+    );
+    expect(preflight.harness).toMatchObject({
+      installedVersion: "2.1.263",
+      authStatus: "AUTHENTICATED",
+      authCheckedAt: medidoEm.toISOString(),
+    });
+    // Sem adapter nesta instância a CLI não é medida na chamada; o boot é o que há.
+    expect(preflight.cli).toBeNull();
+  });
+
   it("com um adapter de host registrado, mede a CLI e lê a credencial do ambiente", async () => {
     const adapter = adapterFalso({
       key: "CLAUDE_CODE",
-      result: { installed: true, version: "2.1.263", authenticated: false, problems: [] },
+      result: {
+        installed: true,
+        version: "2.1.263",
+        authenticated: false,
+        authReason: "`claude auth status` respondeu loggedIn=false",
+        problems: [],
+      },
     });
     const comAdapter = criarApp(handle, {
       loadoutPreflight: createLoadoutPreflight({
@@ -743,6 +804,7 @@ describe(`${API_BASE_PATH}/loadouts/{id}/preflight`, () => {
       installed: true,
       version: "2.1.263",
       authenticated: false,
+      authReason: "`claude auth status` respondeu loggedIn=false",
       timedOut: false,
       problems: [],
     });
