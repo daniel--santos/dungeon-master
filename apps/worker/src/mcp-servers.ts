@@ -1,4 +1,8 @@
-import type { KnowledgePolicy, LoadoutSnapshot, McpServerRef } from "@dungeon-master/contracts";
+import type {
+  KnowledgePolicy,
+  LoadoutSnapshot,
+  McpServerSnapshot,
+} from "@dungeon-master/contracts";
 import {
   KNOWLEDGE_MCP_CONTAINER_ENTRYPOINT,
   KNOWLEDGE_MCP_ENV_KEYS,
@@ -10,6 +14,7 @@ import {
 } from "@dungeon-master/knowledge-mcp";
 import { isValidMcpServerName, type McpServerSpec } from "@dungeon-master/runtime";
 
+import { checkMcpToolBindings } from "./loadout-tools.js";
 import type { PolicyNote } from "./policy.js";
 
 /**
@@ -23,11 +28,20 @@ import type { PolicyNote } from "./policy.js";
  *    itens em zero é o jeito de o Loadout dizer "este agente não usa o
  *    Grimório" — é o caso do Escriba, que o escreve em vez de o ler — e ele
  *    não ganha ferramenta nenhuma.
- * 2. **Os servidores do Loadout**, repassados como o usuário os declarou: um
- *    comando dividido em palavras para os `STDIO`, a URL para os `HTTP`.
+ * 2. **Os servidores do Loadout**, pela definição congelada no snapshot
+ *    (Fase 8B): `command` e `args` já separados nos `STDIO` — o `target`
+ *    quebrado por espaço só sobrevive para Runs anteriores à Fase 8 —, a
+ *    `url` nos `HTTP`, os **nomes** das variáveis em `envKeys`, o `readOnly`
+ *    registrado no diário. Um servidor `builtIn` é o Grimório, que o Worker
+ *    já sobe: referenciá-lo no Loadout o oferece mesmo com a política de
+ *    conhecimento toda desligada, e nunca o sobe duas vezes.
+ *
+ * No fim, as Tools `MCP_TOOL` do Loadout são conferidas contra a lista: uma
+ * que aponta para servidor ausente vira aviso (`loadout-tools.ts`).
  *
  * O que sai daqui é dado, sem vocabulário de CLI: cada adapter traduz para o
- * `--mcp-config` ou o `-c mcp_servers.*` dele.
+ * `--mcp-config` ou o `-c mcp_servers.*` dele. Nada é relido do registro: o
+ * Run usa só o snapshot.
  */
 
 /** O nome que o container alcança o host. Combina com o `--add-host` do runtime. */
@@ -62,11 +76,12 @@ export function toContainerDatabaseUrl(databaseUrl: string): string {
 }
 
 /**
- * Quebra o `target` de um servidor `STDIO` do Loadout em comando e argumentos.
+ * Quebra o `target` de um servidor `STDIO` em comando e argumentos.
  *
- * Por espaço, sem shell: é o que o contrato da Fase 2 permite dizer com uma
- * string só. Um caminho com espaço não sobrevive a isso, e a Fase 8, que
- * transforma o registro de servidores em dado estruturado, é quem resolve.
+ * Por espaço, sem shell: é o que a forma curta da Fase 2 permite dizer com
+ * uma string só, e um caminho com espaço não sobrevive a isso. Desde a Fase
+ * 8B só os Runs anteriores à Fase 8, cujo snapshot não traz `command` e
+ * `args`, passam por aqui.
  */
 export function splitCommandTarget(
   target: string,
@@ -98,13 +113,22 @@ export interface RunMcpServers {
   readonly notes: readonly PolicyNote[];
 }
 
+/** O snapshot referencia o Grimório como servidor embutido do registro? */
+function knowledgeReferenced(loadout: LoadoutSnapshot): boolean {
+  return loadout.mcpServers.some(
+    (server) => server.builtIn === true && server.name.trim() === KNOWLEDGE_MCP_SERVER_NAME,
+  );
+}
+
 export function buildRunMcpServers(input: BuildRunMcpServersInput): RunMcpServers {
   const servers: McpServerSpec[] = [];
   const notes: PolicyNote[] = [];
   const nomes = new Set<string>();
 
   // ------------------------------------------------------------- Grimório
-  if (knowledgeToolsEnabled(input.loadout.knowledgePolicy)) {
+  // A política de conhecimento ligada, ou a referência explícita ao servidor
+  // embutido: qualquer uma das duas oferece o Grimório, uma vez só.
+  if (knowledgeToolsEnabled(input.loadout.knowledgePolicy) || knowledgeReferenced(input.loadout)) {
     if (input.databaseUrl === undefined || input.databaseUrl.trim().length === 0) {
       notes.push({
         level: "WARN",
@@ -143,22 +167,59 @@ export function buildRunMcpServers(input: BuildRunMcpServersInput): RunMcpServer
   }
 
   // -------------------------------------------------------------- Loadout
+  const doLoadout: string[] = [];
   for (const ref of input.loadout.mcpServers) {
     const spec = fromLoadoutRef(ref, nomes, notes);
     if (spec === undefined) continue;
     servers.push(spec);
     nomes.add(spec.name);
+    doLoadout.push(
+      `${spec.name} (${spec.transport}${ref.readOnly === true ? ", somente leitura" : ""})`,
+    );
   }
+  if (doLoadout.length > 0) {
+    notes.push({
+      level: "INFO",
+      message: `Servidores MCP do Loadout oferecidos ao agente: ${doLoadout.join(", ")}.`,
+    });
+  }
+
+  // ---------------------------------------------------------------- Tools
+  notes.push(...checkMcpToolBindings(input.loadout, servers));
 
   return { servers, notes };
 }
 
 function fromLoadoutRef(
-  ref: McpServerRef,
+  ref: McpServerSnapshot,
   nomes: ReadonlySet<string>,
   notes: PolicyNote[],
 ): McpServerSpec | undefined {
   const name = ref.name.trim();
+
+  if (ref.builtIn === true) {
+    // O embutido é o Grimório, e quem o sobe é o bloco acima. Um embutido com
+    // outro nome é um registro que este Worker não sabe subir.
+    if (name === KNOWLEDGE_MCP_SERVER_NAME) {
+      if (nomes.has(KNOWLEDGE_MCP_SERVER_NAME)) {
+        notes.push({
+          level: "INFO",
+          message:
+            'O servidor embutido "knowledge" do Loadout é o Grimório, que o Worker já oferece; ' +
+            "não foi subido de novo.",
+        });
+      }
+      return undefined;
+    }
+    notes.push({
+      level: "WARN",
+      message:
+        `O servidor MCP embutido "${ref.name}" do Loadout foi ignorado: este Worker só sabe ` +
+        'subir o embutido "knowledge".',
+    });
+    return undefined;
+  }
+
   if (!isValidMcpServerName(name)) {
     notes.push({
       level: "WARN",
@@ -179,18 +240,23 @@ function fromLoadoutRef(
   }
 
   if (ref.transport === "HTTP") {
-    const url = ref.target.trim();
+    const url = (ref.url ?? ref.target).trim();
     if (!/^https?:\/\//i.test(url)) {
       notes.push({
         level: "WARN",
-        message: `O servidor MCP "${name}" do Loadout foi ignorado: "${ref.target}" não é uma URL http(s).`,
+        message: `O servidor MCP "${name}" do Loadout foi ignorado: "${url}" não é uma URL http(s).`,
       });
       return undefined;
     }
     return { name, transport: "HTTP", url };
   }
 
-  const comando = splitCommandTarget(ref.target);
+  // A definição do registro (Fase 8A) traz comando e argumentos separados; a
+  // forma curta de um Run anterior à Fase 8 só tem o `target`.
+  const comando =
+    typeof ref.command === "string" && ref.command.trim().length > 0
+      ? { command: ref.command.trim(), args: [...(ref.args ?? [])] }
+      : splitCommandTarget(ref.target);
   if (comando === undefined) {
     notes.push({
       level: "WARN",
@@ -198,5 +264,13 @@ function fromLoadoutRef(
     });
     return undefined;
   }
-  return { name, transport: "STDIO", command: comando.command, args: comando.args };
+  // Só os nomes: o valor vem do ambiente do Worker, pela allow-list do runtime.
+  const envKeys = (ref.envKeys ?? []).map((key) => key.trim()).filter((key) => key.length > 0);
+  return {
+    name,
+    transport: "STDIO",
+    command: comando.command,
+    args: comando.args,
+    ...(envKeys.length === 0 ? {} : { envKeys }),
+  };
 }

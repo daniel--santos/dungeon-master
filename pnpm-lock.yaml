@@ -235,6 +235,9 @@ importers:
       '@dungeon-master/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@dungeon-master/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@dungeon-master/events':
         specifier: workspace:*
         version: link:../../packages/events

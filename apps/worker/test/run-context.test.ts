@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { CONTEXT_PREAMBLE } from "@dungeon-master/context";
+import { CONTEXT_PREAMBLE, SKILLS_HEADING } from "@dungeon-master/context";
 import type { KnowledgeItemType, RunContext, WorkflowDefinition } from "@dungeon-master/contracts";
 import { WorkflowDefinitionSchema } from "@dungeon-master/contracts";
 import {
@@ -378,7 +378,10 @@ describe("o Context Engine no Run simples", () => {
     expect(contexto.text).not.toContain("<knowledge>");
     expect(contexto.text).not.toContain("48213");
     expect(contexto.text).toContain("<decisions>");
-    expect(contexto.text).toContain("<skills>\n- review\n</skills>");
+    // A Skill criada pelo nome (Fase 8A) é vazia na v1: entra pelo nome, fora
+    // do bloco, em "# Habilidades" (Fase 8B).
+    expect(contexto.text).toContain(`</context>\n\n${SKILLS_HEADING}\n\n`);
+    expect(contexto.text.endsWith("- review v1")).toBe(true);
     esperarBlocoNoPrompt(gravador.prompts[0] ?? "", contexto, pedido);
   });
 

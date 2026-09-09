@@ -43,6 +43,8 @@ export function workerDiagnostic(input: {
   level: DiagnosticLevel;
   message: string;
   detail?: string;
+  /** Código estável, quando o diagnóstico é um fato acionável (`CAPABILITY_*`, `MCP_TOOL_*`). */
+  code?: string;
   timestamp?: Date;
 }): ExecutionEvent {
   return {
@@ -51,6 +53,7 @@ export function workerDiagnostic(input: {
     harness: input.harness,
     level: input.level,
     source: "RUNTIME",
+    ...(input.code === undefined ? {} : { code: input.code }),
     message: input.message,
     ...(input.detail === undefined ? {} : { detail: input.detail }),
   };

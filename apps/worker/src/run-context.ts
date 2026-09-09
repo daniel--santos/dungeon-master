@@ -124,6 +124,12 @@ export async function resolveRunContext(input: ResolveRunContextInput): Promise<
           id: snapshot.loadoutId,
           version: snapshot.version,
           skills: snapshot.skills,
+          // As Habilidades com o conteúdo da versão efetiva, congeladas no
+          // snapshot (Fase 8B). Um Run anterior à Fase 8 não as tem, e o
+          // montador cai nos nomes.
+          ...(snapshot.skillVersions === undefined
+            ? {}
+            : { skillVersions: snapshot.skillVersions }),
           knowledgePolicy: snapshot.knowledgePolicy,
           contextPolicy: snapshot.contextPolicy,
         },
@@ -152,7 +158,13 @@ export async function resolveRunContext(input: ResolveRunContextInput): Promise<
 
     switch (context.status) {
       case "ASSEMBLED":
-        await writer.diagnostic("INFO", `Contexto montado: ${describeStatus(context)}.`);
+        await writer.diagnostic(
+          "INFO",
+          context.policy.enabled
+            ? `Contexto montado: ${describeStatus(context)}.`
+            : "Context Engine desligado (`context.enabled` = false); só as Habilidades do " +
+                `Loadout entraram no prompt: ${describeStatus(context)}.`,
+        );
         break;
       case "EMPTY":
         await writer.diagnostic(
@@ -170,7 +182,11 @@ export async function resolveRunContext(input: ResolveRunContextInput): Promise<
       case "FAILED":
         await writer.diagnostic(
           "WARN",
-          "A montagem do contexto falhou; o Run segue sem contexto, e não com contexto parcial.",
+          "A montagem do contexto falhou; o Run segue sem contexto do Grimório, e não com " +
+            "contexto parcial" +
+            (context.usage.itemCount > 0
+              ? ` — só com as Habilidades do Loadout (${describeStatus(context)}).`
+              : "."),
           context.error ?? undefined,
         );
         break;

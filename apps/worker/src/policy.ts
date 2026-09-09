@@ -51,6 +51,8 @@ export interface PolicyNote {
   readonly level: DiagnosticLevel;
   readonly message: string;
   readonly detail?: string;
+  /** Código estável, quando a nota é um fato acionável. */
+  readonly code?: string;
 }
 
 export interface ResolvedRunPolicies {
@@ -108,11 +110,20 @@ export interface ResolveRunPoliciesInput {
   readonly harnessKey: HarnessKey;
   /** Matriz do adapter que vai executar, não a semeada no banco. */
   readonly capabilities: Pick<HarnessCapabilities, "nativePermissions">;
+  /**
+   * Os prefixos das Tools `COMMAND` do Loadout (Fase 8B), já sem repetição.
+   *
+   * Somam-se à allow-list do perfil por Run — união — e passam pela mesma
+   * tradução por harness. Um perfil que não libera comando nenhum não ganha
+   * comando por Tool: a Tool amplia a lista, não abre a porta.
+   */
+  readonly toolCommands?: readonly string[];
 }
 
 export function resolveRunPolicies(input: ResolveRunPoliciesInput): ResolvedRunPolicies {
   const { profile, harnessKey, capabilities } = input;
   const policy = profile.permissionPolicy;
+  const toolCommands = input.toolCommands ?? [];
   const notes: PolicyNote[] = [];
 
   const sandboxEnforced = profile.enforcement === "SANDBOX_ENFORCED";
@@ -145,10 +156,29 @@ export function resolveRunPolicies(input: ResolveRunPoliciesInput): ResolvedRunP
         "Desligue a opção no perfil para voltar ao modo configurado por allow-list.",
     });
   } else {
-    const grant = buildGrant(policy, querTudo);
+    const grant = buildGrant(policy, querTudo, toolCommands);
     permission = { mode: "CONFIGURED", grant };
 
     notes.push(describeGrant(grant, querTudo));
+
+    if (toolCommands.length > 0) {
+      notes.push(
+        grant.commandExecution === "NONE"
+          ? {
+              level: "WARN",
+              message:
+                "A política do perfil não libera execução de comandos; as Tools de comando do " +
+                `Loadout não foram somadas à allow-list: ${toolCommands.join(", ")}.`,
+              detail:
+                "Uma Tool amplia a lista do ExecutionProfile, não abre a porta. Mude " +
+                "`commandExecution` no perfil para ALLOWLIST ou ALL.",
+            }
+          : {
+              level: "INFO",
+              message: `Tools de comando do Loadout somadas à allow-list: ${toolCommands.join(", ")}.`,
+            },
+      );
+    }
 
     if (!capabilities.nativePermissions && grant.commandExecution === "ALLOWLIST") {
       // Diferenciar `policy requested` de `policy enforced` (documento técnico,
@@ -210,13 +240,22 @@ export function resolveRunPolicies(input: ResolveRunPoliciesInput): ResolvedRunP
 function buildGrant(
   policy: ExecutionProfileSnapshot["permissionPolicy"],
   querTudo: boolean,
+  toolCommands: readonly string[],
 ): PermissionGrant {
   const daPolitica = policy.allowedCommands.map((comando) => comando.trim()).filter(Boolean);
 
+  // A união: o que o perfil pede, mais as Tools de comando do Loadout, sem
+  // repetir e na ordem perfil → Tools, para o log ler igual ao que foi editado.
   const permitidos =
     policy.commandExecution === "NONE"
       ? []
-      : [...new Set(querTudo ? [...DEFAULT_TRUSTED_COMMANDS, ...daPolitica] : daPolitica)];
+      : [
+          ...new Set(
+            querTudo
+              ? [...DEFAULT_TRUSTED_COMMANDS, ...daPolitica, ...toolCommands]
+              : [...daPolitica, ...toolCommands],
+          ),
+        ];
 
   return {
     workspaceWrite: policy.workspaceWrite,

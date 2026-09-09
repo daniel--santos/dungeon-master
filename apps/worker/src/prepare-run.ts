@@ -1,7 +1,8 @@
-import type { WorkspaceStrategy } from "@dungeon-master/contracts";
+import type { HarnessCapabilities, WorkspaceStrategy } from "@dungeon-master/contracts";
 import {
   acquireWorkspaceLock,
   getActiveRunByPath,
+  isKnowledgeScribeLoadout,
   recordDomainEvent,
   updateRunExecutionFields,
   type ClaimedRun,
@@ -9,7 +10,15 @@ import {
 import { normalizeAbsolutePath } from "@dungeon-master/platform";
 import type { WorktreeHandle } from "@dungeon-master/runtime";
 
+import {
+  CAPABILITY_BLOCKED_CODE,
+  CAPABILITY_DIVERGENCE_CODE,
+  checkRunCapabilities,
+  describeBlockers,
+  describeDivergences,
+} from "./capability-check.js";
 import type { ExecuteRunDeps } from "./execute-run.js";
+import { commandToolPrefixes } from "./loadout-tools.js";
 import { resolveRunPolicies, type ResolvedRunPolicies } from "./policy.js";
 import type { RunOutcomeWriter } from "./run-writers.js";
 
@@ -19,6 +28,11 @@ import type { RunOutcomeWriter } from "./run-writers.js";
  * É a mesma para o Run simples e para o Run com Workflow, e a ordem não é
  * arbitrária — cada passo existe por um acidente conhecido:
  *
+ * 0. **Capability matching antes de tudo** (Fase 8B). O snapshot congelado
+ *    contra a matriz medida neste Worker: um blocker fecha o Run como
+ *    `FAILED` com `CAPABILITY_BLOCKED` sem trava, sem worktree e sem
+ *    processo; os avisos viram `Diagnostic` com o código do domínio; uma
+ *    divergência entre o snapshot e o adapter fica registrada.
  * 1. **Trava de workspace antes de qualquer processo.** Dois `run()` do
  *    Sandcastle com a mesma branch nomeada recebem o mesmo diretório e
  *    corrompem em silêncio (documento técnico, seção 16); a trava é nossa e
@@ -45,6 +59,11 @@ export interface PreparedRun {
   /** `true` quando o worktree já existia e foi reaberto (retomada de Workflow). */
   readonly reopened: boolean;
   readonly policies: ResolvedRunPolicies;
+  /**
+   * A matriz que valeu para este Run: a do adapter registrado neste Worker,
+   * ou a do snapshot quando o par `(harness, modo)` não tem adapter aqui.
+   */
+  readonly capabilities: HarnessCapabilities;
 }
 
 export type PreparationOutcome =
@@ -69,6 +88,45 @@ export async function prepareRun(input: PrepareRunInput): Promise<PreparationOut
   const { db, userId } = deps;
   const { run, project, task } = claimed;
   const harness = run.harnessKey;
+  const mode = run.executionProfileSnapshot.mode;
+
+  // ------------------------------------------------- (0) capability matching
+  const measured = deps.measureCapabilities?.(harness, mode);
+  const check = checkRunCapabilities({
+    run,
+    measured,
+    requiresStructuredOutput: await isKnowledgeScribeLoadout(db, {
+      userId,
+      loadout: { id: run.loadoutSnapshot.loadoutId, name: run.loadoutSnapshot.name },
+    }),
+  });
+
+  if (check.divergences.length > 0) {
+    await writer.diagnostic(
+      "INFO",
+      describeDivergences(check.divergences),
+      undefined,
+      CAPABILITY_DIVERGENCE_CODE,
+    );
+  }
+
+  if (check.blockers.length > 0) {
+    for (const blocker of check.blockers) {
+      await writer.diagnostic("ERROR", blocker.message, undefined, blocker.code);
+    }
+    await writer.failPreparation({
+      code: CAPABILITY_BLOCKED_CODE,
+      message: describeBlockers(check.blockers),
+      // Um blocker é configuração: só outro Loadout ou outro perfil o resolve.
+      retryable: false,
+      extra: { blockers: check.blockers, capabilitiesSource: check.source },
+    });
+    return { ok: false, lockAcquired: false };
+  }
+
+  for (const warning of check.warnings) {
+    await writer.diagnostic("WARN", warning.message, undefined, warning.code);
+  }
 
   // ------------------------------------------------------------ workspace
   if (project.workspacePath === null || project.workspacePath.trim() === "") {
@@ -173,11 +231,14 @@ export async function prepareRun(input: PrepareRunInput): Promise<PreparationOut
     return { ok: false, lockAcquired: true };
   }
 
-  // (d) Políticas. A tradução é regra de domínio e mora em `policy.ts`.
+  // (d) Políticas. A tradução é regra de domínio e mora em `policy.ts`. A
+  // matriz é a que valeu no matching, e as Tools de comando do Loadout entram
+  // na união com a allow-list do perfil (Fase 8B).
   const policies = resolveRunPolicies({
     profile: run.executionProfileSnapshot,
     harnessKey: harness,
-    capabilities: run.loadoutSnapshot.harness.capabilities,
+    capabilities: check.capabilities,
+    toolCommands: commandToolPrefixes(run.loadoutSnapshot),
   });
 
   for (const nota of policies.notes) {
@@ -185,6 +246,7 @@ export async function prepareRun(input: PrepareRunInput): Promise<PreparationOut
       nota.level === "DEBUG" ? "INFO" : nota.level,
       nota.message,
       nota.detail,
+      nota.code,
     );
   }
 
@@ -213,6 +275,14 @@ export async function prepareRun(input: PrepareRunInput): Promise<PreparationOut
   return {
     ok: true,
     lockAcquired: true,
-    prepared: { repoPath, checkoutPath, strategy, worktree, reopened, policies },
+    prepared: {
+      repoPath,
+      checkoutPath,
+      strategy,
+      worktree,
+      reopened,
+      policies,
+      capabilities: check.capabilities,
+    },
   };
 }

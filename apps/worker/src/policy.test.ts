@@ -125,6 +125,53 @@ describe("resolveRunPolicies", () => {
     expect(resolvido.permission.grant?.allowedCommands).toEqual([]);
     expect(resolvido.notes.some((nota) => nota.message.includes("não lista nenhum"))).toBe(true);
   });
+
+  it("as Tools de comando do Loadout entram na união com a lista do perfil, sem repetir (Fase 8B)", () => {
+    const resolvido = resolveRunPolicies({
+      profile: perfil({ commandExecution: "ALLOWLIST", allowedCommands: ["git status", "git"] }),
+      harnessKey: "CLAUDE_CODE",
+      capabilities: COM_PERMISSAO_NATIVA,
+      toolCommands: ["pnpm --version", "git", "pnpm --version"],
+    });
+
+    expect(resolvido.permission.grant?.allowedCommands).toEqual([
+      "git status",
+      "git",
+      "pnpm --version",
+    ]);
+    expect(
+      resolvido.notes.find((nota) =>
+        nota.message.startsWith("Tools de comando do Loadout somadas"),
+      ),
+    ).toMatchObject({ level: "INFO" });
+
+    // Com `ALL`, a lista de trabalho vem antes das duas.
+    const tudo = resolveRunPolicies({
+      profile: perfil({ commandExecution: "ALL", allowedCommands: [] }),
+      harnessKey: "CLAUDE_CODE",
+      capabilities: COM_PERMISSAO_NATIVA,
+      toolCommands: ["pnpm --version"],
+    });
+    expect(tudo.permission.grant?.allowedCommands).toEqual([
+      ...DEFAULT_TRUSTED_COMMANDS,
+      "pnpm --version",
+    ]);
+  });
+
+  it("uma Tool de comando não abre a porta de um perfil que não libera comando", () => {
+    const resolvido = resolveRunPolicies({
+      profile: perfil({ commandExecution: "NONE" }),
+      harnessKey: "CLAUDE_CODE",
+      capabilities: COM_PERMISSAO_NATIVA,
+      toolCommands: ["pnpm --version"],
+    });
+
+    expect(resolvido.permission.grant?.commandExecution).toBe("NONE");
+    expect(resolvido.permission.grant?.allowedCommands).toEqual([]);
+    const aviso = resolvido.notes.find((nota) => nota.message.includes("não foram somadas"));
+    expect(aviso?.level).toBe("WARN");
+    expect(aviso?.message).toContain("pnpm --version");
+  });
 });
 
 describe("a concessão chegando ao argv do Claude Code", () => {

@@ -1,4 +1,5 @@
 import type {
+  HarnessAuthStatus,
   HarnessCapabilities as ContractCapabilities,
   HarnessKey,
 } from "@dungeon-master/contracts";
@@ -24,7 +25,22 @@ import type { Logger } from "./logger.js";
  * quem só usa o Claude Code não tem o Codex instalado, e o Run que pedisse o
  * Codex falharia com uma mensagem de instalação, não com um Worker que se
  * recusa a subir.
+ *
+ * Desde a Fase 8B o preflight também grava **a credencial da CLI** — o que
+ * cada adapter mede barato, sem chamar modelo (`claude auth status`, `codex
+ * login status`, `pi auth check --json`, `agy models`) — em `auth_status`,
+ * com o instante e o motivo, para a tela de Guildas e o preflight do Loadout.
+ * `UNKNOWN` é a resposta honesta para CLI ausente ou checagem que não
+ * respondeu. O modo `DOCKER` não é medido no boot: a credencial dentro do
+ * container é o caminho dos ADRs 0001 e 0002, e o preflight sob demanda da
+ * API é quem a mede, subindo um container descartável.
  */
+
+function toAuthStatus(authenticated: boolean | undefined): HarnessAuthStatus {
+  if (authenticated === true) return "AUTHENTICATED";
+  if (authenticated === false) return "NOT_AUTHENTICATED";
+  return "UNKNOWN";
+}
 
 /**
  * A matriz do runtime e a do contrato têm os mesmos treze campos desde a Fase
@@ -42,6 +58,10 @@ export interface PreflightOutcome {
   readonly version: string | null;
   readonly executablePath: string | undefined;
   readonly problems: PreflightResult["problems"];
+  /** O que a CLI respondeu sobre a credencial dela (Fase 8B). */
+  readonly authStatus: HarnessAuthStatus;
+  /** Como o estado foi medido, sem segredo. Nulo quando não houve checagem. */
+  readonly authReason: string | null;
   /** `false` quando o Harness não está no cadastro (banco sem `db:seed`). */
   readonly recorded: boolean;
 }
@@ -95,6 +115,11 @@ export async function runBootPreflight(
       };
     }
 
+    const authStatus = toAuthStatus(result.authenticated);
+    const authReason =
+      result.authReason ??
+      (result.installed ? null : "a CLI não está instalada; a credencial não foi medida");
+
     const harness = await findHarnessRowByKey(db, { userId, key: adapter.key });
     if (harness !== null) {
       await recordHarnessPreflight(db, {
@@ -104,6 +129,7 @@ export async function runBootPreflight(
         // A matriz gravada é a do **adapter**, não a da semente: o que o código
         // realmente sabe fazer ganha do que o `db:seed` declarou.
         capabilities: toContractCapabilities(adapter.capabilities),
+        auth: { status: authStatus, reason: authReason },
       });
     }
 
@@ -114,6 +140,8 @@ export async function runBootPreflight(
       version: result.version ?? null,
       executablePath: result.executablePath,
       problems: result.problems,
+      authStatus,
+      authReason,
       recorded: harness !== null,
     });
   }
@@ -125,6 +153,9 @@ export async function runBootPreflight(
         adapter: outcome.adapterId,
         installed: outcome.installed,
         version: outcome.version,
+        // O estado e o motivo, nunca a saída da CLI: o motivo já nasce sem segredo.
+        auth: outcome.authStatus,
+        authReason: outcome.authReason,
         problems: outcome.problems.map((problem) => problem.code),
       })),
     },

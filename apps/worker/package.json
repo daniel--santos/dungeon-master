@@ -19,6 +19,7 @@
     "@dungeon-master/context": "workspace:*",
     "@dungeon-master/contracts": "workspace:*",
     "@dungeon-master/database": "workspace:*",
+    "@dungeon-master/domain": "workspace:*",
     "@dungeon-master/events": "workspace:*",
     "@dungeon-master/knowledge": "workspace:*",
     "@dungeon-master/knowledge-mcp": "workspace:*",
