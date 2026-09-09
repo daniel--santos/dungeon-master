@@ -1659,7 +1659,9 @@ preparação.
 **Autenticação por Provider.** Cada adapter mede a credencial barato e sem chamar modelo,
 com o comando local não interativo dos ADRs 0001 e 0002: `claude auth status` (JSON com
 `loggedIn`), `codex login status` (código de saída), `pi auth check --provider <p> --json`
-(um provedor fixado ou a lista curta `google`, `anthropic`, `openai`; uma pronta basta) e
+(um provedor fixado, onde `not_ready` é "não", ou a lista curta `google`, `anthropic`,
+`openai`, onde uma pronta basta e nenhuma pronta é "não sei" — o provedor padrão do Pi pode
+ser outro, e foi: sem `GEMINI_API_KEY` a CLI rodou por `opencode-go`) e
 `agy models` (o único com rede; 2,6 s autenticado, 0,9 s sem sessão — o README do
 Antigravity dizia 60 s, que é o tempo de um Run com `-p`). O `PreflightResult` ganha
 `authReason`, uma frase com o comando e o que ele respondeu, nunca a saída bruta (o JSON do
