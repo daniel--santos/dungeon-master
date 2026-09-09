@@ -22,7 +22,7 @@ import {
 import type { Pool } from "pg";
 
 import type { AchievementProjector } from "./achievements.js";
-import type { MeasureCapabilities } from "./capability-check.js";
+import { measureCapabilitiesFrom, type MeasureCapabilities } from "./capability-check.js";
 import { executeRun } from "./execute-run.js";
 import { startIdleLoop, type IdleLoop } from "./idle-loop.js";
 import type { Logger } from "./logger.js";
@@ -148,10 +148,7 @@ export function createWorker(options: CreateWorkerOptions): Worker {
    * reclamação (Fase 8B). É a mesma lista que o `HarnessRegistry` do runtime
    * recebeu, e a mesma que o preflight de boot grava no banco.
    */
-  const measureCapabilities: MeasureCapabilities = (key, mode) =>
-    options.adapters.find(
-      (adapter) => adapter.key === key && (adapter.executionMode ?? "HOST") === mode,
-    )?.capabilities;
+  const measureCapabilities: MeasureCapabilities = measureCapabilitiesFrom(options.adapters);
 
   /** Runs reclamados e ainda não terminados. É o teto do claim e a lista do observador. */
   const emVoo = new Map<string, ClaimedRun>();

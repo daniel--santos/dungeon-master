@@ -37,6 +37,46 @@ export type MeasureCapabilities = (
   mode: ExecutionMode,
 ) => HarnessCapabilities | undefined;
 
+/** O suficiente de um adapter para medir a matriz: a chave, o modo e a matriz. */
+export interface MeasurableAdapter {
+  readonly key: HarnessKey;
+  readonly executionMode?: ExecutionMode | undefined;
+  readonly capabilities: HarnessCapabilities;
+}
+
+/**
+ * A matriz medida por par `(harness, modo)`, a partir dos adapters que este
+ * Worker registrou — a mesma lista que o `HarnessRegistry` do runtime e o
+ * preflight de boot recebem.
+ *
+ * Quando o par não tem adapter mas o outro modo tem, a resposta é a matriz
+ * desse outro adapter com a execução **neste** modo desligada: a matriz é do
+ * harness e é a mesma nos dois adapters de propósito, e "este Worker não tem
+ * como rodar o harness neste modo" é exatamente o que `hostExecution` ou
+ * `dockerExecution` em `false` dizem. Sem isso, um Run em `DOCKER` de um
+ * harness que só tem adapter de host aqui passaria pelo matching com a
+ * matriz do snapshot e morreria mais adiante, no registry do runtime, com um
+ * erro genérico e depois de trava e worktree. Sem adapter em modo nenhum,
+ * `undefined`: vale o snapshot, e o registry diz o resto.
+ */
+export function measureCapabilitiesFrom(
+  adapters: readonly MeasurableAdapter[],
+): MeasureCapabilities {
+  const find = (key: HarnessKey, mode: ExecutionMode): MeasurableAdapter | undefined =>
+    adapters.find((adapter) => adapter.key === key && (adapter.executionMode ?? "HOST") === mode);
+
+  return (key, mode) => {
+    const exato = find(key, mode);
+    if (exato !== undefined) return exato.capabilities;
+    const outro = find(key, mode === "HOST" ? "DOCKER" : "HOST");
+    if (outro === undefined) return undefined;
+    return {
+      ...outro.capabilities,
+      ...(mode === "HOST" ? { hostExecution: false } : { dockerExecution: false }),
+    };
+  };
+}
+
 export interface CapabilityDivergence {
   readonly key: HarnessCapabilityKey;
   readonly snapshot: boolean;
