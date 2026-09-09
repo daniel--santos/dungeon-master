@@ -359,6 +359,82 @@ describe("distillProject", () => {
     expect(memory.candidates[0]?.status).toBe("PROMOTED");
   });
 
+  it("uma falha de banco no resumo desfaz o lote e não reporta promoção nenhuma", async () => {
+    const { memory, scripted, input } = montar({
+      candidates: [candidato("c1")],
+      items: [
+        {
+          id: "k1",
+          projectId: "p1",
+          type: "FACT",
+          status: "ACTIVE",
+          title: "A",
+          content: "a",
+          createdAt: "2026-09-01T00:00:00.000Z",
+        },
+      ],
+      failOn: { upsertSummary: new Error("duplicate key value violates unique constraint") },
+    });
+
+    const outcome = await distillProject(
+      { store: memory, runtime: scripted },
+      { ...input, settings: { ...SETTINGS, humanReview: false } },
+    );
+
+    // No PostgreSQL a instrução que falha aborta a transação do lock: engolir o
+    // erro faz o COMMIT virar ROLLBACK em silêncio, e o DistillationRun
+    // reportaria promoções que o banco desfez.
+    expect(outcome).toMatchObject({
+      kind: "finished",
+      status: "FAILED",
+      promoted: 0,
+      rejected: 0,
+      merged: 0,
+      summaryRegenerated: false,
+    });
+    expect(outcome.kind === "finished" && outcome.error).toContain("duplicate key value");
+    expect(memory.candidates[0]?.status).toBe("PENDING");
+    expect(memory.items.map((i) => i.id)).toEqual(["k1"]);
+    expect(memory.runs[0]).toMatchObject({ status: "FAILED", finish: { promoted: 0 } });
+  });
+
+  it("uma falha de banco na forja desfaz o lote inteiro", async () => {
+    const { memory, scripted, input } = montar({
+      candidates: [candidato("c1")],
+      notable: {
+        runs: [
+          {
+            runId: "run-1",
+            taskId: "task-1",
+            taskTitle: "Missão",
+            taskKind: "FEATURE" as const,
+            taskStatus: "COMPLETED",
+            reopenings: 0,
+            status: "SUCCEEDED" as const,
+            harnessKey: "CLAUDE_CODE",
+            harnessSlug: "claude",
+            harnessName: "Claude Code",
+            durationMs: 1000,
+            finishedAt: "2026-09-08T10:00:00.000Z",
+          },
+        ],
+        victoryStreak: 10,
+      },
+      failOn: { createForged: new Error("deadlock detected") },
+    });
+
+    const outcome = await distillProject({ store: memory, runtime: scripted }, input);
+
+    expect(outcome).toMatchObject({
+      kind: "finished",
+      status: "FAILED",
+      promoted: 0,
+      forgedAchievementId: null,
+    });
+    expect(memory.candidates[0]?.status).toBe("PENDING");
+    expect(memory.forged).toEqual([]);
+  });
+
   it("a forja grava a forjada em revisão quando há resultado notável, e respeita o rate limit", async () => {
     const notable = {
       runs: [
