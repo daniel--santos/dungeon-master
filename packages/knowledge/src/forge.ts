@@ -1,3 +1,4 @@
+import { cleanTitle } from "@dungeon-master/context";
 import { z } from "zod";
 
 import { sanitizeLlmText } from "./sanitize.js";
@@ -112,20 +113,29 @@ export function formatDurationPt(ms: number): string {
 export function detectNotableResult(facts: NotableFacts): NotableResult | null {
   const vitorias = facts.runs.filter((run) => run.status === "SUCCEEDED");
   const ultima = vitorias[vitorias.length - 1];
+  // post-mortem #21 (2026-09-08): título de Task e de Project entravam crus no
+  // `themedFact` (daí no prompt da forja, que não escapa nada), no `detail` e
+  // nas duas versões sóbrias, que o banco gravava só com `sanitizeCredentials`.
+  // Um título de Task **é** texto de modelo quando a Task nasceu de um
+  // `discoveredTasks`, e um com quebra de linha e `## Saída` no meio abria uma
+  // seção nova no prompt. `cleanTitle` é a mesma função do montador de
+  // contexto: sanitiza, deixa numa linha e corta no teto.
+  const projeto = cleanTitle(facts.projectTitle);
 
   const nemesis = vitorias.find(
     (run) => run.taskKind === "BUG" && run.taskStatus === "COMPLETED" && run.reopenings >= 2,
   );
   if (nemesis !== undefined) {
+    const missao = cleanTitle(nemesis.taskTitle);
     return {
       kind: "NEMESIS_DEFEATED",
       runId: nemesis.runId,
       taskId: nemesis.taskId,
-      detail: `Task BUG "${nemesis.taskTitle}" reaberta ${String(nemesis.reopenings)} vezes concluída pelo Run ${nemesis.runId}.`,
-      themedFact: `O Monstro «${nemesis.taskTitle}», reaberto ${String(nemesis.reopenings)} vezes, foi derrotado de vez pela Expedição de hoje.`,
+      detail: `Task BUG "${missao}" reaberta ${String(nemesis.reopenings)} vezes concluída pelo Run ${nemesis.runId}.`,
+      themedFact: `O Monstro «${missao}», reaberto ${String(nemesis.reopenings)} vezes, foi derrotado de vez pela Expedição de hoje.`,
       plainName: plain("Bug reaberto resolvido"),
       plainDescription: plain(
-        `Concluir a Task "${nemesis.taskTitle}", um BUG reaberto ${String(nemesis.reopenings)} vezes, com um Run bem-sucedido.`,
+        `Concluir a Task "${missao}", um BUG reaberto ${String(nemesis.reopenings)} vezes, com um Run bem-sucedido.`,
       ),
       icon: "skull",
       rarity: "EPIC",
@@ -143,11 +153,11 @@ export function detectNotableResult(facts: NotableFacts): NotableResult | null {
       kind: "VICTORY_STREAK",
       runId: ultima.runId,
       taskId: ultima.taskId,
-      detail: `${String(n)} Runs bem-sucedidos seguidos no Project "${facts.projectTitle}", fechados pelo Run ${ultima.runId}.`,
-      themedFact: `${String(n)} Expedições vitoriosas seguidas na Campanha «${facts.projectTitle}», sem uma derrota no meio.`,
+      detail: `${String(n)} Runs bem-sucedidos seguidos no Project "${projeto}", fechados pelo Run ${ultima.runId}.`,
+      themedFact: `${String(n)} Expedições vitoriosas seguidas na Campanha «${projeto}», sem uma derrota no meio.`,
       plainName: plain(`Sequência de ${String(n)} Runs bem-sucedidos`),
       plainDescription: plain(
-        `Encadear ${String(n)} Runs bem-sucedidos seguidos no Project "${facts.projectTitle}".`,
+        `Encadear ${String(n)} Runs bem-sucedidos seguidos no Project "${projeto}".`,
       ),
       icon: "flame",
       rarity: n >= 50 ? "LEGENDARY" : "RARE",
@@ -162,16 +172,15 @@ export function detectNotableResult(facts: NotableFacts): NotableResult | null {
 
   const primeira = vitorias.find((run) => facts.firstVictoryRunIds.includes(run.runId));
   if (primeira !== undefined) {
+    const guilda = cleanTitle(primeira.harnessName);
     return {
       kind: "FIRST_HARNESS_VICTORY",
       runId: primeira.runId,
       taskId: primeira.taskId,
       detail: `Primeiro Run bem-sucedido com o Harness ${primeira.harnessKey}: ${primeira.runId}.`,
-      themedFact: `A primeira Expedição vitoriosa da Guilda ${primeira.harnessName}, na Missão «${primeira.taskTitle}».`,
-      plainName: plain(`Primeiro Run bem-sucedido com ${primeira.harnessName}`),
-      plainDescription: plain(
-        `Concluir o primeiro Run bem-sucedido com o Harness ${primeira.harnessName}.`,
-      ),
+      themedFact: `A primeira Expedição vitoriosa da Guilda ${guilda}, na Missão «${cleanTitle(primeira.taskTitle)}».`,
+      plainName: plain(`Primeiro Run bem-sucedido com ${guilda}`),
+      plainDescription: plain(`Concluir o primeiro Run bem-sucedido com o Harness ${guilda}.`),
       icon: "swords",
       rarity: "RARE",
       condition: {
@@ -194,11 +203,11 @@ export function detectNotableResult(facts: NotableFacts): NotableResult | null {
       kind: "DURATION_RECORD",
       runId: ultima.runId,
       taskId: ultima.taskId,
-      detail: `Run bem-sucedido mais longo do Project "${facts.projectTitle}": ${duracao} (${ultima.runId}), antes ${formatDurationPt(facts.previousBestDurationMs)}.`,
-      themedFact: `A Expedição mais longa da Campanha «${facts.projectTitle}»: ${duracao} até a vitória, na Missão «${ultima.taskTitle}». O recorde anterior era ${formatDurationPt(facts.previousBestDurationMs)}.`,
+      detail: `Run bem-sucedido mais longo do Project "${projeto}": ${duracao} (${ultima.runId}), antes ${formatDurationPt(facts.previousBestDurationMs)}.`,
+      themedFact: `A Expedição mais longa da Campanha «${projeto}»: ${duracao} até a vitória, na Missão «${cleanTitle(ultima.taskTitle)}». O recorde anterior era ${formatDurationPt(facts.previousBestDurationMs)}.`,
       plainName: plain("Run bem-sucedido mais longo"),
       plainDescription: plain(
-        `Concluir um Run bem-sucedido de ${duracao} no Project "${facts.projectTitle}", o mais longo até então.`,
+        `Concluir um Run bem-sucedido de ${duracao} no Project "${projeto}", o mais longo até então.`,
       ),
       icon: "hourglass",
       rarity: "RARE",
@@ -284,6 +293,11 @@ Escreva em português.
 
 { "name": "...", "description": "...", "flavor": "..." }`;
 
+/**
+ * O prompt da carta. Tudo o que entra aqui já veio de `detectNotableResult`,
+ * que sanitiza os títulos; `projectTitle` passa de novo porque chega direto
+ * dos fatos (post-mortem #21).
+ */
 export function buildForgePrompt(notable: NotableResult, facts: NotableFacts): string {
   return [
     FORGE_SYSTEM_PROMPT,
@@ -294,7 +308,7 @@ export function buildForgePrompt(notable: NotableResult, facts: NotableFacts): s
     "",
     notable.themedFact,
     "",
-    `Campanha: «${facts.projectTitle}».`,
+    `Campanha: «${cleanTitle(facts.projectTitle)}».`,
     "",
     "Escreva a carta e responda com o JSON.",
   ].join("\n");
