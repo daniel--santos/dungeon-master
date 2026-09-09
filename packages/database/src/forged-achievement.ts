@@ -101,8 +101,16 @@ function scopeOf(input: ForgedAchievementInput): { scopeType: AchievementScope; 
  *
  * A condição passa pelo schema das Conquistas antes de entrar: uma condição
  * torta seria uma linha que o projetor ignora com aviso a cada passe, para
- * sempre. Os textos já vêm sanitizados do Distiller; o `sanitizeCredentials`
- * é a mesma rede que todo payload atravessa.
+ * sempre.
+ *
+ * post-mortem #21 (2026-09-08): o comentário aqui dizia "os textos já vêm
+ * sanitizados do Distiller", e isso valia para três dos cinco campos —
+ * `name`, `description` e `flavor`, que vieram do modelo e passaram por
+ * `sanitizeLlmText`. As versões sóbrias e o `detail` da proveniência são
+ * escritos pelo código do Distiller **interpolando título de Task**, e
+ * chegavam aqui com `sanitizeCredentials` só. Todos passam pelo mesmo
+ * `normalizar` do `PATCH` de renomear, que é `escapeXmlTags` por cima do
+ * `sanitizeCredentials`: uma rede só, aplicada em todo campo de texto.
  */
 export async function createForgedAchievement(
   db: DatabaseExecutor,
@@ -118,7 +126,7 @@ export async function createForgedAchievement(
   const scope = scopeOf(forged);
   const provenance: ForgedAchievementProvenance = {
     kind: forged.kind,
-    detail: forged.detail,
+    detail: normalizar(forged.detail),
     projectId: forged.projectId,
     runId: forged.runId,
     taskId: forged.taskId,
@@ -136,11 +144,11 @@ export async function createForgedAchievement(
     catalogVersion: null,
     scopeType: scope.scopeType,
     scopeId: scope.scopeId,
-    nameTheme: sanitizeCredentials(forged.name),
-    namePlain: sanitizeCredentials(forged.plainName),
-    descriptionTheme: sanitizeCredentials(forged.description),
-    descriptionPlain: sanitizeCredentials(forged.plainDescription),
-    flavor: sanitizeCredentials(forged.flavor),
+    nameTheme: normalizar(forged.name),
+    namePlain: normalizar(forged.plainName),
+    descriptionTheme: normalizar(forged.description),
+    descriptionPlain: normalizar(forged.plainDescription),
+    flavor: normalizar(forged.flavor),
     icon: forged.icon,
     rarity: forged.rarity,
     tiers: null,

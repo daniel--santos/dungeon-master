@@ -12,7 +12,7 @@ import {
   type RunResult,
   TaskExecutionArtifactSchema,
 } from "@dungeon-master/contracts";
-import { and, asc, desc, eq, inArray, ne, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, notInArray, sql } from "drizzle-orm";
 
 import type { DatabaseExecutor } from "./dashboard-event.js";
 import { newId } from "./ids.js";
@@ -233,6 +233,16 @@ export function createDatabaseContextStore(
       return rows.map((row) => ({ ...toKnowledgeSource(row), score: Number(row.score) }));
     },
 
+    /**
+     * post-mortem #19 (2026-09-08): a mãe e as dependências eram resolvidas só
+     * por `user_id`. Uma aresta entre Campanhas — que a rota
+     * `PUT /tasks/{a}/dependencies/{b}` aceitava criar, e que continua no banco
+     * de quem já a criou — trazia título, descrição e resumo do último Run de
+     * uma Task de outro Project para dentro do bloco `<context>`. Não é
+     * vazamento entre usuários (o sistema é single-user): é a promessa da
+     * Fase 7, "só o contexto relevante da Campanha", furada por construção. O
+     * `projectId` da própria Task é o escopo, e ele fecha os dois lados.
+     */
     async loadTaskLineage({ taskId }): Promise<TaskLineageSource> {
       const [task] = await db
         .select()
@@ -240,12 +250,15 @@ export function createDatabaseContextStore(
         .where(and(eq(tasks.id, taskId), eq(tasks.userId, userId)));
       if (task === undefined) return { parent: null, dependencies: [] };
 
+      const mesmoProject =
+        task.projectId === null ? isNull(tasks.projectId) : eq(tasks.projectId, task.projectId);
+
       let parent: TaskContextSource | null = null;
       if (task.parentTaskId !== null) {
         const [mae] = await db
           .select()
           .from(tasks)
-          .where(and(eq(tasks.id, task.parentTaskId), eq(tasks.userId, userId)));
+          .where(and(eq(tasks.id, task.parentTaskId), eq(tasks.userId, userId), mesmoProject));
         if (mae !== undefined) parent = await toTaskSource(mae);
       }
 
@@ -253,7 +266,13 @@ export function createDatabaseContextStore(
         .select({ task: tasks })
         .from(taskDependencies)
         .innerJoin(tasks, eq(tasks.id, taskDependencies.dependsOnTaskId))
-        .where(and(eq(taskDependencies.userId, userId), eq(taskDependencies.taskId, task.id)))
+        .where(
+          and(
+            eq(taskDependencies.userId, userId),
+            eq(taskDependencies.taskId, task.id),
+            mesmoProject,
+          ),
+        )
         .orderBy(asc(tasks.createdAt), asc(tasks.id));
 
       // Em série, e não em `Promise.all`: dentro de uma transação as consultas

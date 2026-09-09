@@ -20,6 +20,9 @@ export * from "./sections/artifacts.js";
 export * from "./sections/decisions.js";
 export * from "./sections/knowledge.js";
 export * from "./sections/lineage.js";
+// `cleanTitle` sai daqui porque o `knowledge` também precisa dele: um título de
+// Task escrito por modelo entra no prompt da forja e na carta (post-mortem #21).
+export * from "./sections/shared.js";
 export * from "./sections/skills.js";
 export * from "./sections/summary.js";
 export * from "./token-estimate.js";

@@ -26,6 +26,8 @@ export interface MemoryKnowledgeItem extends KnowledgeItemSource {
 }
 
 export interface MemoryTask extends TaskContextSource {
+  /** A Campanha da Task. É por ele que a linhagem para na fronteira. */
+  readonly projectId: string;
   readonly parentTaskId: string | null;
   readonly dependsOn: readonly string[];
 }
@@ -154,14 +156,23 @@ export function createMemoryContextStore(
         .slice(0, limit);
     },
 
+    /**
+     * A linhagem para na fronteira do Project, como a consulta real (veja o
+     * post-mortem #19 em `packages/database/src/run-context.ts`). Sem
+     * `projectId` no dublê, o caso "dependência em outra Campanha" era
+     * inexprimível aqui e o defeito passava pela suíte inteira.
+     */
     async loadTaskLineage({ taskId }): Promise<TaskLineageSource> {
       calls.push("loadTaskLineage");
       if (options.failOn?.loadTaskLineage) throw options.failOn.loadTaskLineage;
       const task = tasks.get(taskId);
       if (task === undefined) return { parent: null, dependencies: [] };
-      const parent = task.parentTaskId === null ? undefined : tasks.get(task.parentTaskId);
+      const daCampanha = (outra: MemoryTask | undefined): MemoryTask | undefined =>
+        outra !== undefined && outra.projectId === task.projectId ? outra : undefined;
+      const parent =
+        task.parentTaskId === null ? undefined : daCampanha(tasks.get(task.parentTaskId));
       const dependencies = task.dependsOn
-        .map((id) => tasks.get(id))
+        .map((id) => daCampanha(tasks.get(id)))
         .filter((dependency): dependency is MemoryTask => dependency !== undefined)
         .map(toTaskSource);
       return { parent: parent === undefined ? null : toTaskSource(parent), dependencies };

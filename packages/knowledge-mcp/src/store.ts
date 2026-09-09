@@ -14,6 +14,12 @@ import type {
  * chegue como argumento de ferramenta encontra o escopo já fechado e recebe
  * "não encontrado", nunca o item. A implementação em memória serve aos testes
  * de unidade e faz a mesma promessa.
+ *
+ * A promessa vale também para o id que chega **de dentro**: mãe, dependência
+ * e dependente de `getTask` são filtradas pelo mesmo `projectId`, porque uma
+ * aresta entre Campanhas gravada antes da correção do post-mortem #19 traria
+ * o título de uma Task de outro Project por um caminho que não passa por
+ * argumento nenhum.
  */
 
 /** Uma página do Grimório como as ferramentas a enxergam. Só o que o agente precisa. */

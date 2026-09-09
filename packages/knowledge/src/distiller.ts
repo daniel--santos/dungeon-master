@@ -50,10 +50,16 @@ import type { DistillSettings, LlmProvenance, RunTranscript } from "./types.js";
  * - O modelo falha, o parse falha, o banco falha **antes** das decisões
  *   gravadas: a transação do lock desfaz tudo, os candidatos ficam
  *   `PENDING`, e o `DistillationRun` termina `FAILED` com o erro.
- * - O resumo ou a forja falham **depois** das decisões gravadas: as
- *   decisões ficam (a transação commita), e o lote termina `FAILED` com o
+ * - O **modelo** falha no resumo ou na forja, depois das decisões gravadas:
+ *   as decisões ficam (a transação commita), e o lote termina `FAILED` com o
  *   erro dizendo qual etapa foi. O gatilho do resumo dispara de novo no
  *   lote seguinte.
+ * - A **porta de banco** falha no resumo ou na forja: o erro propaga e leva o
+ *   lote inteiro ao caminho `FAILED`, com `promoted/rejected/merged` zerados.
+ *   É a única leitura honesta: as três etapas estão na mesma transação, e no
+ *   PostgreSQL a instrução que falha aborta a transação — engolir o erro faria
+ *   o `COMMIT` virar `ROLLBACK` em silêncio, e o `DistillationRun` reportaria
+ *   promoções que o banco desfez.
  * - Nada aqui lança para quem chama por causa do modelo; só uma porta que
  *   quebrou antes de o lote existir propaga, e aí o Worker loga.
  */
@@ -122,6 +128,37 @@ class DistillerFailure extends Error {
   ) {
     super(message);
     this.name = "DistillerFailure";
+  }
+}
+
+/**
+ * A falha de uma porta de banco dentro de uma etapa opcional.
+ *
+ * post-mortem #22 (2026-09-08): o resumo e a forja rodam dentro da transação
+ * do lock, e os dois `catch` que existiam aqui engoliam qualquer exceção —
+ * inclusive a de banco. No PostgreSQL a instrução que falha aborta a
+ * transação: toda instrução seguinte falha com `25P02` (também engolida), o
+ * callback devolvia normalmente e o driver emitia `COMMIT`, que numa
+ * transação abortada o PostgreSQL executa como `ROLLBACK` **sem erro**. As
+ * decisões eram desfeitas e o `DistillationRun` gravava o `tally` que estava
+ * em memória: promoções que não aconteceram, e um erro dizendo "resumo: ...",
+ * nunca "as decisões foram desfeitas". Marcar a origem é o que separa a falha
+ * de modelo (que pode ser engolida) da falha de porta (que precisa propagar).
+ */
+class StorePortFailure extends Error {
+  constructor(step: string, cause: unknown) {
+    super(`banco (${step}): ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.name = "StorePortFailure";
+    this.cause = cause;
+  }
+}
+
+/** Roda uma chamada de porta marcando a exceção como falha de banco. */
+async function porta<T>(step: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    throw new StorePortFailure(step, error);
   }
 }
 
@@ -247,9 +284,13 @@ export async function distillProject(
       tally.merged = applied.merged;
 
       // ----------------------------------------------------------- resumo
+      // post-mortem #22 (2026-09-08): só a falha de modelo é engolida aqui. A
+      // de banco propaga, porque estas duas etapas estão dentro da mesma
+      // transação das decisões e engoli-la desfazia tudo em silêncio.
       try {
         await regenerarResumo(locked, ports, input, run.id, tally, anotarProvenance, project);
       } catch (error) {
+        if (error instanceof StorePortFailure) throw error;
         tally.stepErrors.push(`resumo: ${descreverErro(error)}`);
         logger?.warn?.({ err: error, distillationRunId }, "distiller_summary_failed");
       }
@@ -258,6 +299,7 @@ export async function distillProject(
       try {
         await forjar(locked, ports, input, run.id, tally, anotarProvenance);
       } catch (error) {
+        if (error instanceof StorePortFailure) throw error;
         tally.stepErrors.push(`forja: ${descreverErro(error)}`);
         logger?.warn?.({ err: error, distillationRunId }, "distiller_forge_failed");
       }
@@ -392,7 +434,7 @@ async function regenerarResumo(
   anotarProvenance: (provenance: LlmProvenance | null) => void,
   project: { id: string; title: string; description: string | null },
 ): Promise<void> {
-  const facts = await locked.summaryFacts();
+  const facts = await porta("resumo", () => locked.summaryFacts());
   const trigger = shouldRegenerateSummary(
     { ...facts, requested: facts.requested || input.regenerateSummary === true },
     input.settings.summaryEveryNItems === undefined
@@ -406,9 +448,9 @@ async function regenerarResumo(
     "distiller_summary_triggered",
   );
 
-  const items = await locked.listItemsForSummary(DEFAULT_SUMMARY_ITEM_LIMIT);
+  const items = await porta("resumo", () => locked.listItemsForSummary(DEFAULT_SUMMARY_ITEM_LIMIT));
   if (items.length === 0) return;
-  const currentSummary = await locked.currentSummary();
+  const currentSummary = await porta("resumo", () => locked.currentSummary());
   const prompt = buildProjectSummaryPrompt({ project, currentSummary, items });
 
   const result = await ports.runtime.execute({
@@ -432,16 +474,18 @@ async function regenerarResumo(
     ),
   ];
 
-  await locked.upsertSummary({
-    distillationRunId,
-    title: title.length === 0 ? `Resumo do projeto ${project.title}` : title,
-    content,
-    coveredItemIds: coveredItemIds.length === 0 ? items.map((item) => item.id) : coveredItemIds,
-    provenance: {
-      harnessSessionId: result.provenance.harnessSessionId,
-      usage: result.provenance.usage,
-    },
-  });
+  await porta("resumo", () =>
+    locked.upsertSummary({
+      distillationRunId,
+      title: title.length === 0 ? `Resumo do projeto ${project.title}` : title,
+      content,
+      coveredItemIds: coveredItemIds.length === 0 ? items.map((item) => item.id) : coveredItemIds,
+      provenance: {
+        harnessSessionId: result.provenance.harnessSessionId,
+        usage: result.provenance.usage,
+      },
+    }),
+  );
   tally.summaryRegenerated = true;
 }
 
@@ -453,7 +497,7 @@ async function forjar(
   tally: BatchTally,
   anotarProvenance: (provenance: LlmProvenance | null) => void,
 ): Promise<void> {
-  const facts = await locked.notableFacts();
+  const facts = await porta("forja", () => locked.notableFacts());
   const notable = detectNotableResult(facts);
   if (notable === null) return;
 
@@ -490,6 +534,6 @@ async function forjar(
   });
   if (forged === null) throw new Error("o modelo devolveu uma carta com campo vazio");
 
-  const created = await locked.createForgedAchievement(forged);
+  const created = await porta("forja", () => locked.createForgedAchievement(forged));
   tally.forgedAchievementId = created.id;
 }

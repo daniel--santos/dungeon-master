@@ -1,5 +1,6 @@
 import { buildFtsQuery } from "@dungeon-master/context";
 import type { KnowledgeItemType, RunContext, RunResult } from "@dungeon-master/contracts";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
 import { createDatabase, type DatabaseHandle } from "../src/client.js";
@@ -14,7 +15,8 @@ import {
   writeRunTerminalStatus,
 } from "../src/run.js";
 import { createDatabaseContextStore, getRunContext, saveRunContext } from "../src/run-context.js";
-import { addTaskDependency, createTask } from "../src/task.js";
+import { taskDependencies, tasks } from "../src/schema/task.js";
+import { addTaskDependency, createTask, getTaskDetail } from "../src/task.js";
 import {
   criarEquipamento,
   criarProjectComWorkspace,
@@ -434,6 +436,55 @@ describe("a porta ContextStore sobre o PostgreSQL", () => {
     expect(
       await store.listPriorArtifacts({ taskIds: [], excludeRunId: runCorrente, limit: 2 }),
     ).toEqual([]);
+  });
+
+  it("a linhagem para na fronteira do Project, mesmo com a aresta já no banco", async () => {
+    const outro = await criarProjectComWorkspace(handle.db, {
+      title: "Outra Campanha",
+      workspacePath: "C:\\repos\\outro",
+    });
+
+    const daqui = exigirOk(
+      await createTask(handle.db, { userId: USER, projectId, title: "Desta Campanha" }),
+      "a Task daqui",
+    );
+    const dela = exigirOk(
+      await createTask(handle.db, {
+        userId: USER,
+        projectId: outro.id,
+        title: "Segredo da outra Campanha",
+        description: "O texto que não pode atravessar.",
+      }),
+      "a Task de lá",
+    );
+
+    // A porta recusa a aresta entre Projects diferentes...
+    const recusa = await addTaskDependency(handle.db, {
+      userId: USER,
+      taskId: daqui.id,
+      dependsOnTaskId: dela.id,
+    });
+    expect(recusa).toMatchObject({ ok: false, failure: { code: "DEPENDENCY_IN_OTHER_PROJECT" } });
+
+    // ...e a leitura também, porque uma versão anterior deixou a aresta gravada.
+    await handle.db
+      .insert(taskDependencies)
+      .values({ userId: USER, taskId: daqui.id, dependsOnTaskId: dela.id });
+    await handle.db
+      .update(tasks)
+      .set({ parentTaskId: dela.id })
+      .where(and(eq(tasks.id, daqui.id), eq(tasks.userId, USER)));
+
+    const store = createDatabaseContextStore(handle.db, { userId: USER });
+    expect(await store.loadTaskLineage({ taskId: daqui.id })).toEqual({
+      parent: null,
+      dependencies: [],
+    });
+
+    const detalhe = await getTaskDetail(handle.db, { userId: USER, taskId: daqui.id });
+    expect(detalhe?.dependencies).toEqual([]);
+    const deLa = await getTaskDetail(handle.db, { userId: USER, taskId: dela.id });
+    expect(deLa?.dependents).toEqual([]);
   });
 });
 

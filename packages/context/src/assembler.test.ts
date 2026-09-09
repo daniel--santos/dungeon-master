@@ -8,6 +8,7 @@ import {
   createMemoryContextStore,
   type MemoryContextStoreOptions,
 } from "./testing/memory-store.js";
+import { fastEstimateTokens } from "./token-estimate.js";
 import type { AssembleRunContextInput } from "./types.js";
 
 const RUN = "01990000-0000-7000-8000-000000000100";
@@ -91,6 +92,7 @@ const GRIMORIO: MemoryContextStoreOptions = {
   tasks: [
     {
       id: PARENT,
+      projectId: PROJECT,
       title: "Épico dos widgets",
       description: null,
       status: "RUNNING",
@@ -101,6 +103,7 @@ const GRIMORIO: MemoryContextStoreOptions = {
     },
     {
       id: DEP,
+      projectId: PROJECT,
       title: "Subir o serviço",
       description: null,
       status: "COMPLETED",
@@ -111,6 +114,7 @@ const GRIMORIO: MemoryContextStoreOptions = {
     },
     {
       id: TASK,
+      projectId: PROJECT,
       title: "Registrar a porta",
       description: null,
       status: "RUNNING",
@@ -159,7 +163,11 @@ describe("assembleRunContext", () => {
     ]);
     expect(contexto.excluded).toEqual([]);
     expect(contexto.usage.itemCount).toBe(7);
+    // A mesma régua com que o teto foi aplicado: o painel "Provisões da
+    // Expedição" não pode passar de 100% do orçamento sem o orçamento ter
+    // sido estourado.
     expect(contexto.usage.estimatedTokens).toBeGreaterThan(0);
+    expect(contexto.usage.estimatedTokens).toBe(fastEstimateTokens(contexto.text));
     expect(contexto.budget.totalTokens).toBe(6000);
     expect(contexto.inheritedFromRunId).toBeNull();
     expect(contexto.error).toBeNull();
