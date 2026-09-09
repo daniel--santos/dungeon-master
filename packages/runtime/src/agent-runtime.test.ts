@@ -408,6 +408,37 @@ describe("resultado estruturado", () => {
     }
   });
 
+  it("completionMs é o teto do Run inteiro, e não de cada tentativa", async () => {
+    // O tipo promete "teto absoluto da execução inteira", e é esse número que a
+    // interface mostra. Com o teto recomeçando a cada tentativa, um Run com
+    // `maxRetries: 1` ocupava duas vezes o que o usuário autorizou.
+    const adapter = fakeHarness({ retryScript: "@@fake:hang" });
+    const completionMs = 3_000;
+
+    const inicio = Date.now();
+    const events = await collect(
+      adapter,
+      request("teto-do-run", {
+        prompt: '@@fake:sleep 2500\n@@fake:block {"answer":123}',
+        outputSchema: { schema, maxRetries: 1 },
+        timeouts: { idleMs: 30_000, completionMs },
+      }),
+    );
+    const decorrido = Date.now() - inicio;
+
+    const last = events.at(-1);
+    expect(last?.type).toBe("RunTimedOut");
+    if (last?.type === "RunTimedOut") {
+      expect(last.kind).toBe("COMPLETION");
+      expect(last.limitMs).toBe(completionMs);
+      // O tempo relatado é o do Run, e não o da segunda tentativa.
+      expect(last.elapsedMs).toBeGreaterThanOrEqual(completionMs);
+    }
+    // A folga cobre dois spawns de Node; o que ela não cobre é um segundo teto
+    // inteiro, que é o defeito.
+    expect(decorrido).toBeLessThan(completionMs + 2_000);
+  });
+
   it("sem correção, falha sem retentativa e guarda o texto bruto", async () => {
     const events = await collect(
       fakeHarness(),

@@ -578,6 +578,7 @@ interface RunAttemptOptions {
   readonly timeouts: Required<ExecutionTimeouts>;
   readonly clock: Clock;
   readonly control: RunControl;
+  /** Início do **Run**, não desta tentativa: é dele que sai o teto de conclusão. */
   readonly startedAt: number;
 }
 
@@ -595,8 +596,12 @@ interface RunAttemptOptions {
  */
 async function* runAttempt(options: RunAttemptOptions): AsyncGenerator<AttemptStep> {
   const { adapter, request, timeouts, clock, control } = options;
-  const attemptStartedAt = clock.now();
-  const completionDeadline = attemptStartedAt + timeouts.completionMs;
+  // O teto de conclusão conta do início do **Run**, e não desta tentativa: o
+  // contrato de `ExecutionTimeouts` promete "o teto absoluto da execução
+  // inteira", e é esse número que a interface mostra. Recomeçá-lo a cada
+  // tentativa daria a um Run com `maxRetries: n` até `(n+1)` vezes o tempo de
+  // máquina que o usuário autorizou.
+  const completionDeadline = options.startedAt + timeouts.completionMs;
 
   let iterator: AsyncIterator<HarnessEvent>;
   try {
@@ -683,7 +688,9 @@ async function* runAttempt(options: RunAttemptOptions): AsyncGenerator<AttemptSt
       }
 
       if (winner.kind === "timeout") {
-        const elapsed = clock.now() - attemptStartedAt;
+        // `elapsedMs` e `limitMs` andam juntos no contrato do `RunTimedOut`, e
+        // por isso medem a mesma coisa: o tempo do Run.
+        const elapsed = clock.now() - options.startedAt;
         const timeoutKind: RuntimeTimeoutKind =
           remainingCompletion <= idleLimit ? "COMPLETION" : "IDLE";
         const cancel = await kill();
