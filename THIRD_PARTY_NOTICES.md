@@ -322,9 +322,32 @@ injeção, e o pacote roda inteiro em teste sem infraestrutura.
   não do original — o Sandcastle usa `docker run -d` mais `docker exec` sobre uma imagem
   com `ENTRYPOINT ["sleep","infinity"]`, e aqui é um `docker run --rm` por Run, porque o
   `docker exec` de lá não aceita `-e` e o `env` do provider não chega a container longevo
-  (documento técnico, seção 18.1). O `docker/agent.Dockerfile` segue o contrato de UID/GID
-  de `.sandcastle/Dockerfile` (ADR 0005 e ADR 0014 de lá), com a atribuição no cabeçalho
-  do próprio arquivo.
+  (documento técnico, seção 18.1). O `docker/agent.Dockerfile` tem entrada própria,
+  logo abaixo.
+
+#### `docker/agent.Dockerfile`
+
+- Origem: Sandcastle — `.sandcastle/Dockerfile@e99f832` (v0.12.0)
+- Copyright: (c) 2026 Matt Pocock. Licensed under the MIT License.
+- Modo: adaptar
+- Fase: 2C
+- Testes: não há teste unitário de Dockerfile na origem. O que a origem garante por
+  convenção, aqui é verificado pelo preflight de `packages/runtime`, que lê
+  `docker image inspect --format '{{.Config.User}}'` e compara o `UID:GID` da imagem com
+  o do worker antes de aceitar o modo container.
+- Changes: base Node 24 em vez de 22; as CLIs são instaladas com versão fixa em vez de
+  instalador remoto (npm para as três de Node, objeto versionado com SHA-512 conferido
+  para o Antigravity); `gh` removido; `ENTRYPOINT ["sleep","infinity"]` removido porque
+  aqui o container é de uma execução só (`docker run --rm`) e não um container longevo
+  com `docker exec`; os diretórios de configuração das CLIs são criados no build para que
+  um file mount não os crie como `root:root`.
+
+  O que veio da origem é o **contrato de UID/GID** (ADR 0005 e ADR 0014 de lá): UID e GID
+  como build args, o usuário `node` da imagem base renomeado para `agent` e realinhado, e
+  `groupmod -o`/`usermod -o` obrigatórios — sem `-o` o build morre no macOS, onde o GID
+  primário do usuário é 20 (`staff`), que a imagem base já entrega a `dialout`. O `USER`
+  numérico, e não `USER agent`, é decisão nossa: é o que faz o `docker image inspect`
+  devolver um `UID:GID` parseável para o preflight.
 
 ### TencentDB Agent Memory — packages/knowledge (Fase 6)
 
