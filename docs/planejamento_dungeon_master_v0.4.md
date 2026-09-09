@@ -849,6 +849,98 @@ Pendências que ficam registradas:
 
 **Fases 0 a 7 concluídas.** A Fase 8 (Loadouts avançados, Skills e Tools) aguarda decisão.
 
+## Rodada de correção (08/09/2026)
+
+Uma auditoria de oito frentes sobre a `main` em `059876e` levantou **77 achados** (5 CRÍTICO,
+18 ALTO, 29 MÉDIO, 25 BAIXO), no relatório fora do repositório
+`dungeon-master-revisao-2026-09-08.md`. Esta rodada corrigiu **os 5 críticos, os 18 altos e a
+maioria dos médios e baixos**, em oito branches por área, cada correção com teste vermelho
+provado antes e verde depois, e post-mortem numerado onde houve incidente (`#2` a `#24`).
+
+**Os cinco críticos.**
+
+- **O `.env` da raiz nunca era lido.** O README mandava copiar para a raiz do monorepo; o
+  dotenv resolve `path.resolve(cwd, ".env")` e o `pnpm --filter` roda com o cwd no diretório
+  do pacote. Todo processo caía no banco padrão em silêncio — inclusive quem apontasse o
+  `DATABASE_URL` para um banco de sondagem antes de verificar a migração de uma branch, que é
+  o que a seção 4 do `CLAUDE.md` manda fazer e chama de irrecuperável quando dá errado. Novo
+  `packages/platform/src/workspace-env.ts` acha a raiz pelo `pnpm-workspace.yaml` e os cinco
+  pontos de entrada carregam `[.env do pacote, .env da raiz]`, nessa ordem de precedência. O
+  dotenv entra por injeção: o `platform` continua importando só builtins.
+- **A ordem do "Como subir" quebrava num clone limpo.** Os comandos de banco vinham antes do
+  `pnpm build`, e os scripts de migração importam `contracts` e `achievements` de `dist/`, que
+  não é versionado. O `build` virou o passo 2.
+- **Run de Task mãe com subtarefa aberta nunca gravava o desfecho.** `checkRunCreation` deixava
+  criar o Run e `checkTaskTransition` recusava o `COMPLETED` do desfecho com
+  `CHILDREN_NOT_SETTLED`: o domínio autorizava começar o que ele mesmo recusaria terminar, e
+  `run.result`, as `ProposedTask` e os `KnowledgeCandidate` se perdiam sem uma linha de log. O
+  desfecho passa a levar a Task a `BLOCKED`, que diz a verdade e não é terminal; `applyRunStatus`
+  lê as filhas **antes** de decidir o alvo, senão a regra do domínio fica inerte.
+- **Cancelamento perdido na fila de capacidade.** O `AbortController` nascia dentro de
+  `executar`, que a `CapacityLock` adia: o Run enfileirado entrava em `cancelados` sem sinal,
+  `checarCancelamentos` nunca o revisitava, e ele rodava até o fim gravando `SUCCEEDED`. O sinal
+  passou para o `pump`, antes do `acquireLock`, e o Run que espera na fila é fechado como
+  `CANCELLED` sem esperar a trava liberar. Pela mesma raiz, o desligamento **iniciava** Runs em
+  vez de encerrá-los.
+- **A reconciliação de partida matava Run de Worker vivo.** Sem heartbeat nem lease,
+  `claimed_by <> meu workerId` era tratado como prova de morte, e um segundo Worker na mesma
+  máquina fechava como `WORKER_LOST` os Runs vivos do primeiro. Agora um `workerId` desta
+  máquina com PID vivo não é órfão. O lease completo (`heartbeat_at` renovado por tique) pede
+  schema e ficou registrado como desenho, não feito.
+
+**Os dezoito altos**, por área: `writeTerminal` descartava o `Result` de
+`writeRunTerminalStatus` e marcava sucesso na recusa, que é o que transformava qualquer recusa
+de domínio em perda silenciosa; `pump` reentrante furava `maxConcurrentRuns`; `run.result` era
+gravado sem o sanitizador de credenciais que `error` e `run_step` já usavam, e voltava cru aos
+prompts de Runs futuros; falha no replay do SSE virava 200 com stream vazio e religamento
+infinito; `hasMore` era sempre `false` no limite padrão, truncando o log sem aviso; o projetor
+de Conquistas varria `activity` e `run_event` inteiras a cada tique (migração **0014**, só
+índices); `killGraceMs`/`killConfirmMs` eram validados e nunca chegavam ao kill, enquanto o
+Diagnostic anunciava o número que ninguém usou; abandonar o stream deixava o processo do agente
+órfão e fora do alcance de `cancel()`; a linhagem de Task atravessava a fronteira de Project e
+levava texto de outra Campanha para o bloco `<context>` e para o `get_task_context`;
+`list_decisions` devolvia sempre as decisões mais antigas; e cinco defeitos da interface eram a
+mesma raiz — um efeito que copiava `query.data` para o estado local sem marca de edição
+pendente, apagando o que o usuário digitava — resolvida com um `useHydratedForm` só, em vez de
+cinco guardas.
+
+Dois achados marcados como prováveis **se confirmaram**, e os dois eram sobre a regra "segredo
+nunca vai no argv": URL de servidor MCP `HTTP` do Loadout chegava crua à linha de comando, e as
+variáveis `GIT_CONFIG_*` atravessavam para o container apontando para caminho do host.
+
+**Um achado não se confirmou**: o `docker/agent.Dockerfile` estava sem `Changes:`. Está lá
+desde o commit original; faltavam só o `@commit` no cabeçalho e a entrada no
+`THIRD_PARTY_NOTICES.md`.
+
+**O que ficou registrado e não feito:**
+
+- **Renomear `hero_stats`, a rota `/api/v1/heroes/stats` e as chaves `expeditions`/
+  `monstersSlain`.** A regra da seção 1 do `CLAUDE.md` está furada nas três camadas. O
+  [ADR 0003](./adr/0003-hero-stats-e-a-regra-de-vocabulario.md) levanta a superfície completa,
+  mede o custo (migração `0015` escrita à mão, porque o gerador emite `DROP`+`CREATE` e não
+  `RENAME`, mais um `UPDATE dashboard_event` para o histórico não ficar órfão) e recomenda
+  renomear, junto com reescrever a regra para falar de conceito e não de grafia — hoje ela
+  lista termos em português, o que a torna contornável por tradução. Decisão do dono, e um
+  commit largo com o repositório parado.
+- **Token no caminho de uma URL de MCP `HTTP` ainda vai ao argv.** A correção recusa
+  `usuário:senha@` e avisa sobre query, mas um segredo no path é indistinguível de um path
+  comum. Fechar de vez pede separar a especificação em URL + token por variável de ambiente,
+  o que é mudança de contrato.
+- **Heartbeat/lease de Worker** (acima), e os médios e baixos que sobraram do Worker: o
+  `Diagnostic` impreciso quando a rede `NO_TERMINAL_EVENT` dispara numa recusa, `run_step`
+  órfão no `catch` do Workflow, exit 0 em `uncaughtException`, `recoverLostAttempt` sem log,
+  `rejected-queue-full`, handlers de sinal instalados depois do boot, e as duas escritas
+  separadas da reconciliação.
+
+**Ponto cego que a rodada tornou visível:** as suítes de contrato de harness
+(`runtime-sandcastle`, `runtime-antigravity`) se desligam quando `CI` está definido, por
+decisão do projeto — elas sobem agentes de verdade. O verde do GitHub nunca as cobre, e elas só
+rodam quando alguém as pede à mão com `DM_HARNESS_CONTRACT=1`.
+
+Verificação final na `main` integrada: `lint`, `typecheck` 37/37, `test` 37/37, `build` 19/19,
+`gen:check` sem diff, `db:check` em dia, `format:check` limpo e **19/19 no e2e**. CI verde no
+Windows e no macOS.
+
 ## Andamento anterior da Fase 2 (histórico)
 
 Mergeadas e verdes no CI: 2A (modelo, banco, API), 2B (runtime e adapters de host; ADR em `packages/runtime-sandcastle/README.md`: os adapters não dependem do Sandcastle em runtime), o Worker (laço, reconciliação, cancelamento confirmado, shutdown gracioso, `resumeFromRunId`, marca d'água do poller) e as telas (cadastros, Nova Expedição com aceite do modo host, Expedições, Cristal de Visão com diário ao vivo e AlertDialog de cancelamento).
