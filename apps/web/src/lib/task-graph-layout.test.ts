@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   dependenciesOf,
+  dependencyEdge,
   dependencyEdgeId,
+  dependencyIdsOf,
   layoutTaskGraph,
   NODE_WIDTH,
   parentEdgeId,
@@ -100,5 +102,34 @@ describe("dependenciesOf", () => {
   it("lê das arestas quem precisa terminar antes de uma Task", () => {
     expect(dependenciesOf(GRAPH, GATE_TASK_ID)).toEqual([FORGE_TASK_ID]);
     expect(dependenciesOf(GRAPH, FORGE_TASK_ID)).toEqual([]);
+  });
+});
+
+describe("dependencyIdsOf", () => {
+  it("lê do desenho na tela, incluindo a aresta otimista que o servidor ainda não conhece", () => {
+    const { edges } = layoutTaskGraph(GRAPH);
+
+    // Duas ligações seguidas para a mesma Task, antes de a releitura voltar.
+    // O `PUT` substitui o conjunto inteiro, então o segundo pedido precisa
+    // levar a primeira aresta junto, ou ela é apagada em silêncio.
+    const afterFirst = [...edges, dependencyEdge(ORIGIN_TASK_ID, GATE_TASK_ID)];
+    expect(dependencyIdsOf(afterFirst, GATE_TASK_ID)).toEqual([FORGE_TASK_ID, ORIGIN_TASK_ID]);
+
+    const afterSecond = [...afterFirst, dependencyEdge(CHILD_TASK_ID, GATE_TASK_ID)];
+    expect(dependencyIdsOf(afterSecond, GATE_TASK_ID)).toEqual([
+      FORGE_TASK_ID,
+      ORIGIN_TASK_ID,
+      CHILD_TASK_ID,
+    ]);
+
+    // O grafo do servidor continua sem saber das duas: é dele que o pedido
+    // saía, e por isso a primeira dependência sumia.
+    expect(dependenciesOf(GRAPH, GATE_TASK_ID)).toEqual([FORGE_TASK_ID]);
+  });
+
+  it("ignora a aresta de hierarquia: mãe e filha não são dependência", () => {
+    const { edges } = layoutTaskGraph(GRAPH);
+
+    expect(dependencyIdsOf(edges, CHILD_TASK_ID)).toEqual([]);
   });
 });

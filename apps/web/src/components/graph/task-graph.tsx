@@ -35,8 +35,8 @@ import type { TaskGraphRecord } from "@/lib/api-types";
 import { useGlossary } from "@/lib/glossary";
 import { DependencyCycleError, describeCyclePath, useReplaceDependencies } from "@/lib/task-graph";
 import {
-  dependenciesOf,
   dependencyEdge,
+  dependencyIdsOf,
   layoutTaskGraph,
   type TaskFlowEdge,
   type TaskFlowNode,
@@ -116,6 +116,9 @@ export function TaskGraph({ graph, statuses, className }: TaskGraphProps) {
   const isValidConnection = useCallback<IsValidConnection<TaskFlowEdge>>(
     (connection) => {
       if (connection.source === connection.target) return false;
+      // Uma ligação por vez: o `PUT` substitui o conjunto inteiro, e duas em
+      // voo ao mesmo tempo se sobrescreveriam.
+      if (replace.isPending) return false;
       // A mesma aresta duas vezes não diz nada novo; a inversa, e o ciclo
       // que ela fecharia, quem decide é o servidor.
       return !edges.some(
@@ -125,7 +128,7 @@ export function TaskGraph({ graph, statuses, className }: TaskGraphProps) {
           edge.target === connection.target,
       );
     },
-    [edges],
+    [edges, replace.isPending],
   );
 
   const onConnect = useCallback(
@@ -133,10 +136,18 @@ export function TaskGraph({ graph, statuses, className }: TaskGraphProps) {
       const from = connection.source;
       const to = connection.target;
       const optimistic = dependencyEdge(from, to);
-      setEdges((current) => addEdge(optimistic, current));
+      // post-mortem #18 (08/09/2026): o conjunto ia montado de
+      // `dependenciesOf(graph, …)`, que é a última resposta do servidor. Duas
+      // arestas arrastadas para a mesma Task antes de a releitura voltar
+      // faziam o segundo `PUT` mandar o conjunto sem a primeira — e a rota
+      // substitui o conjunto inteiro, então a dependência recém-criada era
+      // apagada em silêncio, com as duas arestas ainda desenhadas na tela. O
+      // pedido agora sai do desenho, que já tem a aresta otimista.
+      const next = addEdge(optimistic, edges);
+      setEdges(next);
 
       replace.mutate(
-        { id: to, dependsOn: [...dependenciesOf(graph, to), from] },
+        { id: to, dependsOn: dependencyIdsOf(next, to) },
         {
           onError: (error: Error) => {
             setEdges((current) => current.filter((edge) => edge.id !== optimistic.id));
@@ -152,7 +163,7 @@ export function TaskGraph({ graph, statuses, className }: TaskGraphProps) {
         },
       );
     },
-    [format, graph, replace, setEdges, t, titles],
+    [edges, format, replace, setEdges, t, titles],
   );
 
   function confirmRemoval() {
@@ -161,7 +172,8 @@ export function TaskGraph({ graph, statuses, className }: TaskGraphProps) {
     replace.mutate(
       {
         id: edge.target,
-        dependsOn: dependenciesOf(graph, edge.target).filter((id) => id !== edge.source),
+        // Pelo mesmo motivo do `onConnect`: o conjunto certo é o desenhado.
+        dependsOn: dependencyIdsOf(edges, edge.target).filter((id) => id !== edge.source),
       },
       {
         onSuccess: () => {
@@ -205,7 +217,7 @@ export function TaskGraph({ graph, statuses, className }: TaskGraphProps) {
           minZoom={0.2}
           nodeTypes={NODE_TYPES}
           nodes={nodes}
-          nodesConnectable
+          nodesConnectable={!replace.isPending}
           nodesDraggable
           onConnect={onConnect}
           onEdgesChange={onEdgesChange}

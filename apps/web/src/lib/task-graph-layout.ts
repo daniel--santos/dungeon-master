@@ -143,3 +143,17 @@ export function layoutTaskGraph(
 export function dependenciesOf(graph: TaskGraphRecord, taskId: string): string[] {
   return graph.edges.filter((edge) => edge.to === taskId).map((edge) => edge.from);
 }
+
+/**
+ * As Tasks das quais `taskId` depende, lidas do **desenho na tela**.
+ *
+ * É a leitura que o `PUT` de dependências precisa: ele substitui o conjunto
+ * inteiro, e o conjunto certo é o que está desenhado — que já inclui a aresta
+ * otimista da ligação anterior, ainda não confirmada pelo servidor. A aresta
+ * de hierarquia fica de fora: mãe e filha não são dependência.
+ */
+export function dependencyIdsOf(edges: readonly TaskFlowEdge[], taskId: string): string[] {
+  return edges
+    .filter((edge) => edge.data?.kind === "dependency" && edge.target === taskId)
+    .map((edge) => edge.source);
+}
