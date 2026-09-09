@@ -28,7 +28,7 @@ import {
   registerLoadoutRoutes,
   registerModelRoutes,
 } from "./handlers/registry.js";
-import { registerRunRoutes } from "./handlers/runs.js";
+import { registerRunRoutes, resolveStreamCursor } from "./handlers/runs.js";
 import { registerTaskGraphRoutes } from "./handlers/task-graph.js";
 import { registerTaskRoutes } from "./handlers/tasks.js";
 import {
@@ -59,6 +59,7 @@ import {
 import { eventsPingRoute, eventsStreamRoute } from "./routes/events.js";
 import { healthRoute } from "./routes/health.js";
 import { settingsReadRoute, settingsUpdateRoute } from "./routes/settings.js";
+import { reportStreamFailure } from "./sse/failure.js";
 import { HonoSseWriter } from "./sse/hono-writer.js";
 
 export type { DatabaseProbe } from "./ports.js";
@@ -187,55 +188,76 @@ export function createApp(options: CreateAppOptions) {
     const query = c.req.valid("query");
     const headers = c.req.valid("header");
 
-    // O `Last-Event-ID` ganha do `since`: numa reconexão automática o browser
-    // repete a URL da primeira tentativa, que já está velha, mas manda o header
-    // com o último id que realmente recebeu. O `since` continua valendo no
-    // primeiro connect e para quem testa com curl.
-    const fromHeader = Number.parseInt(headers["last-event-id"] ?? "", 10);
-    const since =
-      Number.isSafeInteger(fromHeader) && fromHeader >= 0
-        ? fromHeader
-        : Number.parseInt(query.since ?? "0", 10);
+    // Uma função só resolve o cursor das duas rotas de stream. A cópia que
+    // morava aqui tinha perdido a guarda de `Number.isSafeInteger` no ramo da
+    // query, e um `?since=` de 19 dígitos — que o `StreamQuerySchema` aceita —
+    // descia até o `bigint` do PostgreSQL e estourava dentro do stream, no
+    // buraco que o post-mortem #9 fechou.
+    const since = resolveStreamCursor({
+      header: headers["last-event-id"],
+      query: query.since,
+    });
 
     return streamSSE(c, async (stream) => {
-      const writer = new HonoSseWriter(stream);
-      const subscription = events.transport.subscribe({ writer, since });
+      // post-mortem #9 (08/09/2026): sem isto, uma falha aqui virava um 200
+      // com stream vazio e um `console.error` do Hono. Veja `sse/failure.ts`.
+      const relatarFalha = (error: unknown): Promise<void> =>
+        reportStreamFailure({
+          stream,
+          error,
+          message: "sse de dashboard falhou",
+          ...(logger === undefined ? {} : { logger }),
+          requestId: c.get("requestId"),
+          context: { since },
+        });
 
       try {
-        // Buffer primeiro: uma reconexão rápida costuma caber na memória e não
-        // precisa de ida ao banco. `null` é "não dá para provar que cobre", e
-        // aí o banco resolve — a dúvida sempre custa uma consulta, nunca um
-        // evento perdido.
-        const buffered = events.transport.replaySince(since);
+        const writer = new HonoSseWriter(stream);
+        const subscription = events.transport.subscribe({ writer, since });
 
-        if (buffered === null) {
-          let cursor = since;
-          for (;;) {
-            const page = await events.listSince(cursor, REPLAY_PAGE_SIZE);
-            if (page.length === 0) break;
-            await subscription.deliverAll(page);
-            cursor = page[page.length - 1]!.sequence;
-            if (page.length < REPLAY_PAGE_SIZE) break;
+        try {
+          // Buffer primeiro: uma reconexão rápida costuma caber na memória e não
+          // precisa de ida ao banco. `null` é "não dá para provar que cobre", e
+          // aí o banco resolve — a dúvida sempre custa uma consulta, nunca um
+          // evento perdido.
+          const buffered = events.transport.replaySince(since);
+
+          if (buffered === null) {
+            let cursor = since;
+            for (;;) {
+              const page = await events.listSince(cursor, REPLAY_PAGE_SIZE);
+              if (page.length === 0) break;
+              await subscription.deliverAll(page);
+              cursor = page[page.length - 1]!.sequence;
+              if (page.length < REPLAY_PAGE_SIZE) break;
+            }
+          } else {
+            await subscription.deliverAll(buffered);
           }
-        } else {
-          await subscription.deliverAll(buffered);
+
+          // Só agora o que chegou durante o replay é liberado, em ordem e sem
+          // repetir o que o replay já entregou.
+          await subscription.goLive();
+
+          logger?.info(
+            { requestId: c.get("requestId"), since, cursor: subscription.cursor },
+            "sse conectado",
+          );
+
+          // Segura o handler até o cliente sumir. Sem isto o `streamSSE` fecha a
+          // resposta assim que o callback resolve.
+          await writer.whenClosed;
+        } catch (error) {
+          // Antes do `finally`, e não depois: fechar a assinatura fecha o
+          // stream, e um quadro escrito depois disso não chega a ninguém.
+          await relatarFalha(error);
+        } finally {
+          await subscription.close();
+          logger?.info({ requestId: c.get("requestId") }, "sse desconectado");
         }
-
-        // Só agora o que chegou durante o replay é liberado, em ordem e sem
-        // repetir o que o replay já entregou.
-        await subscription.goLive();
-
-        logger?.info(
-          { requestId: c.get("requestId"), since, cursor: subscription.cursor },
-          "sse conectado",
-        );
-
-        // Segura o handler até o cliente sumir. Sem isto o `streamSSE` fecha a
-        // resposta assim que o callback resolve.
-        await writer.whenClosed;
-      } finally {
-        await subscription.close();
-        logger?.info({ requestId: c.get("requestId") }, "sse desconectado");
+      } catch (error) {
+        // Falhou antes de haver assinatura, ou dentro da própria limpeza.
+        await relatarFalha(error);
       }
     });
   });
