@@ -3,6 +3,7 @@ import { z } from "zod";
 import { PreflightProblemSchema } from "./docker-preflight.js";
 import { EnforcementLevelSchema, ExecutionModeSchema } from "./execution-profile.js";
 import {
+  HarnessAuthStatusSchema,
   HarnessCapabilitiesSchema,
   HarnessCapabilityKeySchema,
   HarnessKeySchema,
@@ -130,6 +131,13 @@ export const CliPreflightSchema = z
       .boolean()
       .nullable()
       .describe("Resultado da checagem de credencial do adapter. Nulo quando ela não existe."),
+    authReason: z
+      .string()
+      .nullable()
+      .describe(
+        "Como o adapter chegou a `authenticated`, numa frase sem segredo (Fase 8B): o comando " +
+          "local e o que ele respondeu. Nulo quando não houve checagem.",
+      ),
     timedOut: z.boolean().describe("O adapter não respondeu dentro do teto."),
     problems: z.array(PreflightProblemSchema),
   })
@@ -157,6 +165,12 @@ export const LoadoutPreflightSchema = z
         .nullable()
         .describe("O que o Worker gravou no último preflight de boot."),
       checkedAt: z.iso.datetime().nullable(),
+      authStatus: HarnessAuthStatusSchema.nullable().describe(
+        "A credencial da CLI no host, gravada pelo Worker no último boot (Fase 8B). Nulo " +
+          "enquanto nenhum Worker mediu; é o complemento de `cli`, que é medido na chamada.",
+      ),
+      authCheckedAt: z.iso.datetime().nullable(),
+      authReason: z.string().nullable(),
     }),
     executionProfile: z.object({
       id: z.uuid(),

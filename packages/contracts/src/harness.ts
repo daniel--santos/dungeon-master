@@ -91,6 +91,32 @@ export type HarnessCapabilityKey = z.infer<typeof HarnessCapabilityKeySchema>;
 
 export type HarnessCapabilities = z.infer<typeof HarnessCapabilitiesSchema>;
 
+/**
+ * O estado da credencial da CLI **nesta máquina**, medido pelo Worker no boot
+ * (planejamento v0.4, Fase 8B).
+ *
+ * É o que cada adapter consegue saber barato e sem chamar modelo: `claude auth
+ * status`, `codex login status`, `pi auth check --json`, `agy models`. `UNKNOWN`
+ * é a resposta honesta quando a checagem não existe, não respondeu ou a CLI não
+ * está instalada; um `NOT_AUTHENTICATED` sem prova travaria Runs que
+ * funcionariam. Difere de `ProviderAuthStatus`, que é sobre o Provider do
+ * Model e inclui a variável de ambiente presente na API.
+ */
+export const HARNESS_AUTH_STATUS_VALUES = [
+  "AUTHENTICATED",
+  "NOT_AUTHENTICATED",
+  "UNKNOWN",
+] as const;
+
+export const HarnessAuthStatusSchema = z.enum(HARNESS_AUTH_STATUS_VALUES).meta({
+  id: "HarnessAuthStatus",
+  description:
+    "O que a CLI do Harness respondeu sobre a credencial dela no último preflight de boot " +
+    "do Worker. `UNKNOWN` quando não há checagem barata ou ela não respondeu.",
+});
+
+export type HarnessAuthStatus = z.infer<typeof HarnessAuthStatusSchema>;
+
 export const HarnessSchema = z
   .object({
     id: z.uuid().describe("UUIDv7 do Harness."),
@@ -105,6 +131,25 @@ export const HarnessSchema = z
       .datetime()
       .nullable()
       .describe("Último preflight, em UTC (ISO 8601). Nulo enquanto ninguém checou."),
+    /**
+     * Os três campos de autenticação são opcionais no contrato só porque a
+     * interface (8C) e as fixtures dela ainda não os conhecem; a API sempre os
+     * devolve, nulos enquanto nenhum Worker mediu. A 8C pode torná-los
+     * obrigatórios ao acompanhar.
+     */
+    authStatus: HarnessAuthStatusSchema.nullable()
+      .optional()
+      .describe("A credencial da CLI nesta máquina, pelo último boot do Worker."),
+    authCheckedAt: z.iso
+      .datetime()
+      .nullable()
+      .optional()
+      .describe("Quando a credencial foi medida, em UTC. Nulo enquanto nenhum Worker mediu."),
+    authReason: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("Como o estado foi medido, numa frase sem segredo: o comando e o que respondeu."),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
   })
@@ -116,8 +161,8 @@ export type Harness = z.infer<typeof HarnessSchema>;
  * O único campo editável de um Harness.
  *
  * `capabilities` e `key` são do adapter, não do usuário: editar a matriz pela
- * API produziria uma promessa que o código não cumpre. `installedVersion` e
- * `checkedAt` são escritos pelo preflight.
+ * API produziria uma promessa que o código não cumpre. `installedVersion`,
+ * `checkedAt` e os campos `auth*` são escritos pelo preflight do Worker.
  */
 export const UpdateHarnessSchema = z
   .object({
