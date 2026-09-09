@@ -2,6 +2,7 @@ import {
   AGENT_ROLE_VALUES,
   ENFORCEMENT_LEVEL_VALUES,
   EXECUTION_MODE_VALUES,
+  HARNESS_AUTH_STATUS_VALUES,
   HARNESS_KEY_VALUES,
   type ContextPolicy,
   type EnvironmentPolicy,
@@ -46,6 +47,7 @@ import { users } from "./user.js";
  */
 
 export const harnessKey = pgEnum("harness_key", HARNESS_KEY_VALUES);
+export const harnessAuthStatus = pgEnum("harness_auth_status", HARNESS_AUTH_STATUS_VALUES);
 export const agentRole = pgEnum("agent_role", AGENT_ROLE_VALUES);
 export const executionMode = pgEnum("execution_mode", EXECUTION_MODE_VALUES);
 export const workspaceStrategy = pgEnum("workspace_strategy", WORKSPACE_STRATEGY_VALUES);
@@ -62,6 +64,12 @@ export const enforcementLevel = pgEnum("enforcement_level", ENFORCEMENT_LEVEL_VA
  * e não em onze colunas booleanas porque ela cresce a cada capability nova, e
  * uma migração por booleano seria só cerimônia; o fechamento vale no tipo
  * `HarnessCapabilities`, que é obrigatório na escrita.
+ *
+ * `auth_status`, `auth_checked_at` e `auth_reason` (migração `0016`, Fase 8B)
+ * são o que a CLI respondeu sobre a credencial dela no boot do Worker desta
+ * máquina. Colunas próprias, e não chaves dentro de `capabilities`: a matriz
+ * diz o que o código sabe fazer e é mesclada chave a chave; a credencial é um
+ * estado medido, com instante, e não uma capability.
  */
 export const harnesses = pgTable(
   "harness",
@@ -76,6 +84,10 @@ export const harnesses = pgTable(
     capabilities: jsonb("capabilities").$type<HarnessCapabilities>().notNull(),
     installedVersion: text("installed_version"),
     checkedAt: timestamp("checked_at", { withTimezone: true, mode: "date" }),
+    authStatus: harnessAuthStatus("auth_status"),
+    authCheckedAt: timestamp("auth_checked_at", { withTimezone: true, mode: "date" }),
+    /** Uma frase sem segredo: o comando local e o que ele respondeu. */
+    authReason: text("auth_reason"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
       .notNull()

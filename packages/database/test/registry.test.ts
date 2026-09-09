@@ -120,6 +120,48 @@ describe("a semente da Fase 8A", () => {
     expect(depois?.capabilities.forkSession).toBe(true);
     expect(depois?.capabilities.mcpServers).toBe(true);
     expect(toHarness(depois!).installedVersion).toBe("2.1.263");
+    // Um Worker anterior não mede credencial, e não apaga o que ninguém gravou.
+    expect(toHarness(depois!)).toMatchObject({
+      authStatus: null,
+      authCheckedAt: null,
+      authReason: null,
+    });
+  });
+
+  it("o preflight grava a credencial da CLI com instante e motivo (Fase 8B)", async () => {
+    const codex = await harnessPorKey("CODEX");
+    const medidoEm = new Date("2026-09-09T12:00:00.000Z");
+
+    await recordHarnessPreflight(handle.db, {
+      userId: USER,
+      harnessId: codex.id,
+      installedVersion: "0.147.0",
+      auth: {
+        status: "NOT_AUTHENTICATED",
+        reason: '`codex login status` saiu com código 1: "Not logged in"',
+        checkedAt: medidoEm,
+      },
+    });
+
+    const depois = toHarness(
+      (await findHarnessRow(handle.db, { userId: USER, harnessId: codex.id }))!,
+    );
+    expect(depois.authStatus).toBe("NOT_AUTHENTICATED");
+    expect(depois.authCheckedAt).toBe(medidoEm.toISOString());
+    expect(depois.authReason).toContain("codex login status");
+
+    // Um boot seguinte sem checagem (`auth` ausente) preserva a medição.
+    await recordHarnessPreflight(handle.db, {
+      userId: USER,
+      harnessId: codex.id,
+      installedVersion: "0.148.0",
+    });
+    const preservado = toHarness(
+      (await findHarnessRow(handle.db, { userId: USER, harnessId: codex.id }))!,
+    );
+    expect(preservado.installedVersion).toBe("0.148.0");
+    expect(preservado.authStatus).toBe("NOT_AUTHENTICATED");
+    expect(preservado.authCheckedAt).toBe(medidoEm.toISOString());
   });
 });
 

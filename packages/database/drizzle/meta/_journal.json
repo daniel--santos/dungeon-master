@@ -113,6 +113,13 @@
       "when": 1788976964033,
       "tag": "0015_registros_e_versoes_de_loadout",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788980674392,
+      "tag": "0016_autenticacao_do_harness",
+      "breakpoints": true
     }
   ]
 }

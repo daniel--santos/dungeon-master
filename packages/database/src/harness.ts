@@ -1,4 +1,10 @@
-import type { Harness, HarnessCapabilities, HarnessKey, Model } from "@dungeon-master/contracts";
+import type {
+  Harness,
+  HarnessAuthStatus,
+  HarnessCapabilities,
+  HarnessKey,
+  Model,
+} from "@dungeon-master/contracts";
 import { and, asc, eq, ne, type SQL, sql } from "drizzle-orm";
 
 import type { Database } from "./client.js";
@@ -18,6 +24,9 @@ export function toHarness(row: HarnessRow): Harness {
     capabilities: row.capabilities,
     installedVersion: row.installedVersion,
     checkedAt: row.checkedAt?.toISOString() ?? null,
+    authStatus: row.authStatus,
+    authCheckedAt: row.authCheckedAt?.toISOString() ?? null,
+    authReason: row.authReason,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -131,6 +140,11 @@ export async function setHarnessEnabled(
  * antes da Fase 8A — que descarta `forkSession` antes de gravar — apagaria no
  * primeiro boot as duas chaves que a semente e a migração `0015` puseram, e a
  * API passaria a servir uma matriz que o contrato recusa.
+ *
+ * `auth` (Fase 8B) é o que a CLI respondeu sobre a credencial dela, com o
+ * instante e o motivo. Opcional pelo mesmo motivo de `capabilities`: um Worker
+ * anterior grava só versão e matriz, e não apaga o que outro mediu. Quando vem,
+ * grava os três campos juntos — um status sem instante não diz de quando é.
  */
 export async function recordHarnessPreflight(
   db: DatabaseExecutor,
@@ -140,6 +154,12 @@ export async function recordHarnessPreflight(
     installedVersion: string | null;
     capabilities?: HarnessCapabilities;
     checkedAt?: Date;
+    auth?: {
+      status: HarnessAuthStatus;
+      /** Uma frase sem segredo. Nulo quando não houve checagem. */
+      reason: string | null;
+      checkedAt?: Date;
+    };
   },
 ): Promise<void> {
   const merged: SQL | undefined =
@@ -153,6 +173,13 @@ export async function recordHarnessPreflight(
       installedVersion: input.installedVersion,
       checkedAt: input.checkedAt ?? new Date(),
       ...(merged === undefined ? {} : { capabilities: merged }),
+      ...(input.auth === undefined
+        ? {}
+        : {
+            authStatus: input.auth.status,
+            authCheckedAt: input.auth.checkedAt ?? input.checkedAt ?? new Date(),
+            authReason: input.auth.reason,
+          }),
     })
     .where(and(eq(harnesses.id, input.harnessId), eq(harnesses.userId, input.userId)));
 }
