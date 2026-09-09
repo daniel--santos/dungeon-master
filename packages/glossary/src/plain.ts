@@ -50,6 +50,8 @@ export const plain: Record<GlossaryKey, string> = {
   "entity.tool.plural": "Ferramentas",
   "entity.mcpServer": "Servidor MCP",
   "entity.mcpServer.plural": "Servidores MCP",
+  "entity.provider": "Provedor",
+  "entity.provider.plural": "Provedores",
   "entity.knowledge": "Conhecimento do projeto",
   "entity.knowledgeItem": "Item de conhecimento",
   "entity.knowledgeItem.plural": "Itens de conhecimento",
@@ -487,6 +489,7 @@ export const plain: Record<GlossaryKey, string> = {
   "nav.agents": "Agentes",
   "nav.loadouts": "Loadouts",
   "nav.workflows": "Workflows",
+  "nav.registry": "Registros",
   "nav.hall": "Conquistas",
   "nav.settings": "Configurações",
 
@@ -526,6 +529,225 @@ export const plain: Record<GlossaryKey, string> = {
   "loadout.policy.maxTokens": "Orçamento próprio",
   "loadout.policy.maxTokens.description":
     "Teto de tokens do contexto deste Loadout, quando menor que o das Configurações. 0 usa o das Configurações.",
+  "loadout.pin.latest": "Seguir a mais recente",
+  "loadout.pin.version": "Fixar na {version}",
+  "loadout.pin.pinned": "Fixada na {version}",
+  "loadout.pin.hint":
+    "Sem fixar, a execução parte com a versão mais recente da Skill na hora de partir. Fixar congela uma versão até você trocar.",
+  "loadout.refs.hint":
+    "Skills, Ferramentas e Servidores MCP vêm dos Registros. O que não existe lá ainda, cadastre primeiro.",
+  "loadout.model.anyProvider": "Qualquer Provedor",
+  "loadout.compat.title": "Compatibilidade",
+  "loadout.compat.description":
+    "O que o Harness declara contra o que este Loadout pede, a CLI no modo do perfil e a credencial do Provedor. Nenhum modelo é chamado.",
+  "loadout.compat.ready": "Pronto para executar",
+  "loadout.compat.blocked": "A execução não parte assim",
+  "loadout.compat.pending": "Parte, com pendências",
+  "loadout.compat.preview":
+    "Prévia pela matriz do Harness escolhido. A CLI e o Provedor só entram na verificação completa, depois de salvar.",
+  "loadout.compat.unsaved":
+    "Salve o Loadout para verificar a CLI e o Provedor com o Harness escolhido.",
+  "loadout.compat.check": "Verificar de novo",
+  "loadout.compat.checking": "Verificando o Harness, a CLI e o Provedor…",
+  "loadout.compat.checkedAt": "Verificado {when}, em {ms} ms",
+  "loadout.compat.blockers": "Bloqueios",
+  "loadout.compat.warnings": "Avisos",
+  "loadout.compat.none": "Nenhum descompasso entre o Loadout e o Harness.",
+  "loadout.compat.cli": "CLI do Harness",
+  "loadout.compat.cli.none": "Esta instância não tem adapter do Harness para este modo.",
+  "loadout.compat.cli.installed": "instalada",
+  "loadout.compat.cli.notInstalled": "não encontrada",
+  "loadout.compat.cli.timedOut": "não respondeu no tempo",
+  "loadout.compat.cli.authenticated": "autenticada",
+  "loadout.compat.cli.notAuthenticated": "sem credencial",
+  "loadout.compat.container": "Dentro do container",
+  "loadout.compat.container.daemon": "Daemon",
+  "loadout.compat.container.image": "Imagem",
+  "loadout.compat.provider.none": "Nenhum Provedor declara este Harness.",
+  "loadout.compat.provider.keys": "Variáveis que o Provedor declara: {keys}",
+  "loadout.compat.harnessDisabled": "O Harness está desligado.",
+  "loadout.compat.profileDisabled": "O perfil de execução está desligado.",
+  "loadout.history.title": "Versões do Loadout",
+  "loadout.history.description":
+    "Cada edição que muda alguma coisa guarda uma versão. Restaurar cria uma versão nova igual à antiga; nada é reescrito.",
+  "loadout.history.empty": "Nenhuma versão guardada ainda.",
+  "loadout.history.current": "versão em uso",
+  "loadout.history.first": "Nasceu assim",
+  "loadout.history.noChanges": "Igual à versão anterior",
+  "loadout.history.restore": "Restaurar",
+  "loadout.change.added": "Entra {names}",
+  "loadout.change.removed": "Sai {names}",
+  "loadout.change.pin": "{name}: de {from} para {to}",
+  "loadout.change.field": "{field}: de {from} para {to}",
+  "loadout.change.policy": "A política de contexto mudou",
+  "loadout.change.default.on": "Passa a ser o Loadout padrão",
+  "loadout.change.default.off": "Deixa de ser o Loadout padrão",
+  "loadout.restore.title": "Restaurar a {version}?",
+  "loadout.restore.body":
+    "O Loadout ganha uma versão nova, igual à {version}; a {current} continua no histórico e as execuções já feitas não mudam. Uma Skill apagada desde então torna a versão irrestaurável, e a API diz qual.",
+  "loadout.restore.action": "Restaurar como versão nova",
+  "loadout.restore.done": "Restaurada: o Loadout agora está na {version}.",
+  "loadout.restore.same": "Nada a restaurar: a {version} é igual à atual.",
+
+  // ---------------------------------------------------------------- registry
+  "registry.description":
+    "O que um agente pode levar numa execução: Skills versionadas, Ferramentas, Servidores MCP e os Provedores que servem os modelos.",
+
+  // ------------------------------------------------------------------- skill
+  "skill.description":
+    "Instruções em markdown que o agente recebe. O texto vive em versões imutáveis: publicar acrescenta, nunca reescreve, e o Loadout pode fixar uma versão.",
+  "skill.list.empty":
+    "Nenhuma Skill ainda. Escreva a primeira e ela nasce na v1; o Loadout a leva pela versão mais recente ou por uma fixada.",
+  "skill.latestVersion": "Versão mais recente",
+  "skill.version.pinned": "fixada no Loadout",
+  "skill.version.latestAtDeparture": "a mais recente na partida",
+  "skill.content.title": "Texto da Skill",
+  "skill.content.empty": "Esta versão está em branco. Publique uma versão nova com o texto.",
+  "skill.history.title": "Versões da Skill",
+  "skill.history.changelog.none": "Sem nota de versão",
+  "skill.publish.action": "Publicar versão nova",
+  "skill.publish.title": "Publicar a {version} da Skill",
+  "skill.publish.body":
+    "A versão anterior continua existindo, e as execuções que a levaram não mudam. Os Loadouts que seguem a mais recente passam a levar esta na próxima partida.",
+  "skill.publish.changelog": "O que mudou nesta versão",
+  "skill.publish.changelog.hint": "Obrigatório: é o que quem fixa uma versão no Loadout vai ler.",
+  "skill.publish.confirm": "Publicar {version}",
+  "skill.publish.done": "{version} publicada.",
+  "skill.publish.conflict":
+    "Outra mão publicou antes da sua: a versão mais recente já é a {version}. Releia o texto antes de publicar de novo.",
+  "skill.publish.unchanged": "O texto é igual ao da versão mais recente.",
+  "skill.diff.title": "Comparar duas versões",
+  "skill.diff.from": "Da versão",
+  "skill.diff.to": "Para a versão",
+  "skill.diff.summary": "{added} linhas acrescentadas · {removed} removidas",
+  "skill.diff.same": "As duas versões têm exatamente o mesmo texto.",
+  "skill.create.title": "Nova Skill",
+  "skill.create.body":
+    "Nasce na v1 com o texto abaixo. Depois, cada mudança de texto é uma versão nova.",
+  "skill.create.done": "Skill criada na v1.",
+  "skill.edit.done": "Skill salva.",
+  "skill.delete.title": "Apagar a Skill?",
+  "skill.delete.body":
+    "Todas as versões somem. Um Loadout que ainda a leva impede a exclusão, e a API diz qual. As execuções já feitas guardam o texto que levaram.",
+  "skill.delete.done": "Skill apagada.",
+
+  // -------------------------------------------------------------------- tool
+  "tool.description":
+    "O que o agente pode usar: um prefixo de comando liberado, no mesmo formato da lista do perfil, ou uma ferramenta que um Servidor MCP anuncia.",
+  "tool.kind.command": "Comando liberado",
+  "tool.kind.mcpTool": "Ferramenta MCP",
+  "tool.command": "Prefixo de comando",
+  "tool.command.hint": "Palavras separadas por espaço, sem shell: `git add`, nunca `git` inteiro.",
+  "tool.toolName": "Nome anunciado pelo Servidor MCP",
+  "tool.toolName.hint": "Exatamente como o servidor o anuncia, por exemplo `search_knowledge`.",
+  "tool.kindLocked": "A espécie da Ferramenta não muda: para trocar, apague e crie outra.",
+  "tool.list.empty":
+    "Nenhuma Ferramenta ainda. Os Registros nascem com os cinco comandos de git liberados.",
+  "tool.create.title": "Nova Ferramenta",
+  "tool.edit.title": "Editar a Ferramenta",
+  "tool.save.done": "Ferramenta salva.",
+  "tool.delete.title": "Apagar a Ferramenta?",
+  "tool.delete.body":
+    "Um Loadout que ainda a leva impede a exclusão, e a API diz qual. As execuções já feitas guardam a definição que levaram.",
+  "tool.delete.done": "Ferramenta apagada.",
+
+  // --------------------------------------------------------------- mcpServer
+  "mcpServer.description":
+    "Como cada Servidor MCP é iniciado: comando e argumentos separados, ou uma URL. Segredos nunca ficam aqui: só os nomes das variáveis de ambiente que ele enxerga.",
+  "mcpServer.name.hint":
+    "Minúsculas, dígitos, hífen e sublinhado, começando por letra: é a chave que a CLI do Harness registra.",
+  "mcpServer.args": "Argumentos",
+  "mcpServer.args.hint": "Um por linha. Nunca um segredo: a linha de comando é pública na máquina.",
+  "mcpServer.url.hint":
+    "Começa por http:// ou https://, sem usuário e senha: a URL vai inteira à linha de comando.",
+  "mcpServer.envKeys": "Variáveis de ambiente que o servidor enxerga",
+  "mcpServer.envKeys.hint":
+    "Só os nomes, em maiúsculas. O valor nunca é gravado nem mostrado: fica no ambiente de quem executa.",
+  "mcpServer.readOnly": "Só leitura",
+  "mcpServer.builtIn": "Nasce com o sistema",
+  "mcpServer.builtIn.hint":
+    "O Worker sabe iniciar este servidor sozinho. Só a descrição se edita, e ele não se apaga.",
+  "mcpServer.transportLocked": "O transporte não muda: para trocar, apague e crie outro.",
+  "mcpServer.list.empty":
+    "Nenhum Servidor MCP ainda além do de conhecimento, que nasce com o sistema.",
+  "mcpServer.create.title": "Novo Servidor MCP",
+  "mcpServer.edit.title": "Editar o Servidor MCP",
+  "mcpServer.save.done": "Servidor MCP salvo.",
+  "mcpServer.delete.title": "Apagar o Servidor MCP?",
+  "mcpServer.delete.body":
+    "Uma Ferramenta ou um Loadout que ainda o referencia impede a exclusão, e a API diz qual. As execuções já feitas guardam a definição que levaram.",
+  "mcpServer.delete.done": "Servidor MCP apagado.",
+
+  // ---------------------------------------------------------------- provider
+  "provider.description":
+    "Quem serve os modelos e como se autentica: pela assinatura da CLI, por uma chave de API ou localmente. Só os nomes das variáveis ficam aqui; o valor nunca.",
+  "provider.kind.subscription": "Assinatura da CLI",
+  "provider.kind.apiKey": "Chave de API",
+  "provider.kind.local": "Local, sem credencial",
+  "provider.auth.envKeyPresent": "Chave presente no ambiente",
+  "provider.auth.cliAuthenticated": "CLI autenticada",
+  "provider.auth.cliNotAuthenticated": "CLI sem credencial",
+  "provider.auth.notRequired": "Não exige credencial",
+  "provider.auth.unknown": "Credencial não verificada",
+  "provider.auth.checkedAt": "Verificado {when}",
+  "provider.auth.hint":
+    "O estado vem do preflight de um Loadout cujo Harness este Provedor declara; nenhum modelo é chamado.",
+  "provider.auth.check": "Verificar a credencial",
+  "provider.auth.checking": "Verificando a credencial…",
+  "provider.auth.noLoadout":
+    "Nenhum Loadout usa um Harness deste Provedor. Monte um para poder verificar.",
+  "provider.authEnvKeys": "Variáveis que carregam a credencial",
+  "provider.authEnvKeys.hint":
+    "Só os nomes, em maiúsculas. Qualquer uma presente no ambiente basta.",
+  "provider.harnesses": "Harnesses que este Provedor serve",
+  "provider.docsUrl": "Onde está explicado como autenticar",
+  "provider.list.empty":
+    "Nenhum Provedor ainda. Os Registros nascem com Anthropic, OpenAI, Google e Local.",
+  "provider.create.title": "Novo Provedor",
+  "provider.edit.title": "Editar o Provedor",
+  "provider.save.done": "Provedor salvo.",
+  "provider.delete.title": "Apagar o Provedor?",
+  "provider.delete.body":
+    "Um modelo que ainda aponta para ele impede a exclusão, e a API diz qual. Nenhuma credencial é apagada: ela nunca esteve aqui.",
+  "provider.delete.done": "Provedor apagado.",
+  "provider.toast.lost": "{name} ficou sem autenticação",
+  "provider.toast.lost.body":
+    "O preflight encontrou a CLI do Harness sem credencial. Entre de novo na CLI ou defina uma das variáveis do Provedor.",
+
+  // -------------------------------------------------------------- capability
+  "capability.severity.blocker": "Bloqueio",
+  "capability.severity.warning": "Aviso",
+  "capability.causedBy": "Causado por",
+  "capability.code.dockerUnsupported": "O harness não roda em Docker",
+  "capability.code.hostUnsupported": "O harness não roda no host",
+  "capability.code.structuredOutputRequired":
+    "O Loadout exige saída estruturada e o harness não a declara",
+  "capability.code.mcpUnsupported": "O harness não sobe Servidores MCP por execução",
+  "capability.code.modelSelectionUnsupported": "O harness não aceita escolher o modelo",
+  "capability.code.commandToolsAdvisory":
+    "As Ferramentas de comando são só recomendação neste harness",
+  "capability.code.resumeUnsupported": "O harness não retoma sessão",
+
+  // ------------------------------------------------------------ run.preflight
+  "run.preflight.title": "Compatibilidade da execução",
+  "run.preflight.checking": "Verificando o Loadout com o Harness, a CLI e o Provedor…",
+  "run.preflight.blocked": "A execução não pode partir com este Loadout neste ambiente.",
+  "run.preflight.warnings": "A execução parte; os avisos ficam registrados na linha do tempo.",
+  "run.preflight.ready": "Nada impede a partida.",
+  "run.preflight.failed":
+    "Não foi possível verificar antes de partir. A API confere de novo na partida e recusa se houver bloqueio.",
+  "run.preflight.rejected": "A partida foi recusada pela API:",
+  "run.departed.warnings": "A execução partiu com {n} avisos, registrados na linha do tempo.",
+
+  // --------------------------------------------------------------- run.frozen
+  "run.frozen.title": "Loadout congelado",
+  "run.frozen.description":
+    "O que a execução levou, exatamente como estava na partida. Editar o Loadout, a Skill ou o Servidor MCP depois não muda nada aqui.",
+  "run.frozen.legacy":
+    "Execução anterior à Fase 8: o snapshot guarda só os nomes, sem o texto das Skills nem a definição das Ferramentas.",
+  "run.frozen.show": "Mostrar o texto",
+  "run.frozen.hide": "Esconder o texto",
+  "run.frozen.none": "Nenhuma",
 
   // -------------------------------------------------------------- settings
   "settings.theme.toggle": "Tema Dungeon Master",
