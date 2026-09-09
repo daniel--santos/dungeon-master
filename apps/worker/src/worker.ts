@@ -27,6 +27,8 @@ import { startIdleLoop, type IdleLoop } from "./idle-loop.js";
 import type { Logger } from "./logger.js";
 import { runBootPreflight, type PreflightOutcome } from "./preflight.js";
 import { reconcileOrphanRuns, type ReconciledRun } from "./reconcile.js";
+import { toRunEventInput, workerRunCancelled } from "./run-events.js";
+import { createRunOutcomeWriter } from "./run-writers.js";
 
 /**
  * O laço do Worker: a fila, a capacidade, o cancelamento e o desligamento.
@@ -154,11 +156,31 @@ export function createWorker(options: CreateWorkerOptions): Worker {
    * o runtime matar.
    */
   const sinais = new Map<string, AbortController>();
+  /**
+   * Runs cuja execução de fato começou.
+   *
+   * Um Run reclamado pode estar em voo sem estar executando: a `CapacityLock`
+   * o segura na fila até a chave do checkout ou o teto liberarem. A diferença
+   * decide quem escreve o desfecho de um cancelamento — o runtime, que já tem
+   * processo para matar, ou o próprio Worker, que fecha o Run sem subir nada.
+   */
+  const emExecucao = new Set<string>();
+  /**
+   * Runs já fechados como cancelados sem terem começado.
+   *
+   * O trabalho continua na fila da `CapacityLock`, que não sabe desenfileirar;
+   * esta marca é o que faz o handler sair sem executar quando a trava liberar.
+   */
+  const descartados = new Set<string>();
 
   let loop: IdleLoop | undefined;
   let stopping = false;
   let queueListener: PgNotifyListener | undefined;
   let cancelListener: PgNotifyListener | undefined;
+  /** O `pump` em andamento. Serializa o tique, o `NOTIFY` e o desligamento. */
+  let bombeando: Promise<void> | undefined;
+  /** Chegou pedido de `pump` enquanto o anterior corria. */
+  let bombearDeNovo = false;
 
   /**
    * Dispara o projetor de Conquistas sem deixar nada escapar.
@@ -195,13 +217,99 @@ export function createWorker(options: CreateWorkerOptions): Worker {
     });
   };
 
+  /**
+   * Fecha, aqui mesmo, o Run cancelado que nunca chegou a executar.
+   *
+   * Nada subiu: não há evento terminal vindo do runtime, e sem esta escrita o
+   * Run ficaria em `PREPARING` até a reconciliação da próxima partida.
+   * Devolve se o desfecho foi mesmo gravado.
+   */
+  const descartarCancelado = async (claimed: ClaimedRun): Promise<boolean> => {
+    const runId = claimed.run.id;
+    const motivo = cancelReasons.get(runId) ?? "user_request";
+    const desligando = motivo === "worker_shutdown";
+
+    const writer = createRunOutcomeWriter({
+      db,
+      userId,
+      run: claimed.run,
+      logger,
+      startedAt: Date.now(),
+    });
+
+    await writer.diagnostic(
+      "INFO",
+      desligando
+        ? "O Worker foi desligado enquanto este Run esperava na fila de capacidade; " +
+            "nenhum processo de agente chegou a subir."
+        : "O Run foi cancelado enquanto esperava na fila de capacidade; nenhum processo de " +
+            "agente chegou a subir.",
+    );
+
+    await writer.writeTerminal({
+      status: "CANCELLED",
+      error: {
+        code: desligando ? "WORKER_SHUTDOWN" : "CANCELLED",
+        message: desligando
+          ? "O Worker foi desligado antes de este Run começar a executar."
+          : "O Run foi cancelado antes de começar a executar.",
+        reason: motivo,
+        // Trabalho interrompido pelo operador é retentável; desistência do
+        // usuário não é. É a mesma regra do desfecho vindo do runtime.
+        retryable: desligando,
+        processTreeTerminated: true,
+      },
+      events: [
+        toRunEventInput(workerRunCancelled({ harness: claimed.run.harnessKey, reason: motivo })),
+      ],
+    });
+
+    return writer.terminalWritten;
+  };
+
+  /**
+   * Fecha os Runs cancelados que ainda esperam na fila da `CapacityLock`.
+   *
+   * post-mortem #4 (08/09/2026): o `AbortController` nascia dentro de
+   * `executar`, que a `CapacityLock` adia. Um Run já reclamado mas ainda
+   * enfileirado não tinha sinal: `cancelar` gravava em `cancelados` de forma
+   * definitiva, o `abort()` era no-op, o `runtime.cancel` voltava na hora
+   * porque não havia execução, e `checarCancelamentos` nunca mais o revisitava.
+   * Quando a trava liberava, o Run cancelado subia o agente, rodava até o fim e
+   * era gravado `SUCCEEDED` — e no desligamento a `drain()` fazia a mesma coisa,
+   * iniciando Runs em vez de encerrá-los. Agora o sinal nasce no `pump` e o
+   * desfecho é escrito aqui, sem esperar a trava.
+   *
+   * A marca entra em `descartados` **antes** do `await`: é ela que impede o
+   * handler enfileirado de fechar o mesmo Run duas vezes se a trava liberar no
+   * meio desta escrita.
+   */
+  const descartarNaFila = async (): Promise<void> => {
+    for (const [runId, claimed] of [...emVoo]) {
+      if (!cancelados.has(runId) || emExecucao.has(runId) || descartados.has(runId)) continue;
+      descartados.add(runId);
+
+      const fechado = await descartarCancelado(claimed);
+      if (!fechado) {
+        logger?.error(
+          { runId },
+          "não consegui fechar o run cancelado que esperava na fila; ficará para a " +
+            "reconciliação da próxima partida",
+        );
+      }
+      emVoo.delete(runId);
+    }
+  };
+
   /** Observa `cancel_requested_at` dos Runs deste Worker. */
   const checarCancelamentos = async (): Promise<void> => {
     const ids = [...emVoo.keys()].filter((id) => !cancelados.has(id));
-    if (ids.length === 0) return;
+    if (ids.length > 0) {
+      const pedidos = await listCancelRequestedRunIds(db, { userId, runIds: ids });
+      for (const runId of pedidos) cancelar(runId, "user_request");
+    }
 
-    const pedidos = await listCancelRequestedRunIds(db, { userId, runIds: ids });
-    for (const runId of pedidos) cancelar(runId, "user_request");
+    await descartarNaFila();
   };
 
   /**
@@ -238,10 +346,26 @@ export function createWorker(options: CreateWorkerOptions): Worker {
     }
   };
 
-  const executar = async (claimed: ClaimedRun): Promise<void> => {
-    const controller = new AbortController();
-    sinais.set(claimed.run.id, controller);
+  const executar = async (claimed: ClaimedRun, controller: AbortController): Promise<void> => {
+    const runId = claimed.run.id;
     try {
+      // O trabalho pode ter esperado horas na fila da `CapacityLock`. Se o
+      // cancelamento chegou nesse meio-tempo, nada sobe: ou o desfecho já foi
+      // escrito pelo caminho ansioso, ou é escrito aqui.
+      if (descartados.has(runId)) return;
+      if (controller.signal.aborted || cancelados.has(runId)) {
+        descartados.add(runId);
+        if (!(await descartarCancelado(claimed))) {
+          logger?.error(
+            { runId },
+            "não consegui fechar o run cancelado que saiu da fila; ficará para a " +
+              "reconciliação da próxima partida",
+          );
+        }
+        return;
+      }
+
+      emExecucao.add(runId);
       await executeRun(
         {
           db,
@@ -260,19 +384,19 @@ export function createWorker(options: CreateWorkerOptions): Worker {
         claimed,
       );
     } finally {
-      emVoo.delete(claimed.run.id);
-      cancelados.delete(claimed.run.id);
-      cancelReasons.delete(claimed.run.id);
-      sinais.delete(claimed.run.id);
+      emVoo.delete(runId);
+      cancelados.delete(runId);
+      cancelReasons.delete(runId);
+      sinais.delete(runId);
+      emExecucao.delete(runId);
+      descartados.delete(runId);
       // O desfecho acabou de ser gravado: projetar agora é o que faz o toast
       // chegar junto do fim da Expedição, e não no tique seguinte.
       projetar();
     }
   };
 
-  const pump = async (): Promise<void> => {
-    if (stopping) return;
-
+  const umaPassada = async (): Promise<void> => {
     while (emVoo.size < config.maxConcurrentRuns && !stopping) {
       const claimed = await claimNextQueuedRun(db, { userId, claimedBy: config.workerId });
       if (claimed === null) break;
@@ -286,9 +410,26 @@ export function createWorker(options: CreateWorkerOptions): Worker {
           ? workspace.worktreePathFor(repoPath, claimed.run.id)
           : repoPath;
 
+      // post-mortem #4 (08/09/2026): o sinal nasce aqui, junto do `emVoo.set` e
+      // **antes** do `acquireLock`, e não mais dentro do handler que a trava
+      // adia. Entre reclamar e começar a executar pode passar uma execução
+      // inteira, e nesse intervalo o Run precisa ter como ser cancelado.
+      const controller = new AbortController();
+      sinais.set(claimed.run.id, controller);
       emVoo.set(claimed.run.id, claimed);
 
-      const { status } = capacity.acquireLock(chave, () => executar(claimed));
+      // post-mortem #5 (08/09/2026): o `stopping` é lido de novo **depois** do
+      // claim. A leitura do topo do laço vale para antes do `await`, e o
+      // desligamento pode ter começado enquanto a transação estava em voo — era
+      // por aí que um `NOTIFY` durante o `stop` fazia o Worker subir worktree e
+      // processo de agente no meio do desligamento. O Run já saiu de `QUEUED` e
+      // não volta: ele é fechado como cancelado, sem executar.
+      if (stopping) {
+        cancelar(claimed.run.id, "worker_shutdown");
+        break;
+      }
+
+      const { status } = capacity.acquireLock(chave, () => executar(claimed, controller));
       logger?.info(
         {
           runId: claimed.run.id,
@@ -311,6 +452,43 @@ export function createWorker(options: CreateWorkerOptions): Worker {
     // um Run cancelado ainda na fila — e para o atraso de segurança do cursor,
     // que segura por um segundo o que acabou de ser commitado.
     projetar();
+  };
+
+  /**
+   * Uma passada de claim, serializada.
+   *
+   * `pump` era reentrante: o `PgNotifyListener` dispara `void drainNow()` sem
+   * serializar, e a leitura de `emVoo.size` e o `emVoo.set` estão separados
+   * pelo `await` do claim. Com o teto em 1, o tique e um `NOTIFY` viam os dois
+   * `0 < 1`, reclamavam linhas diferentes
+   * (`FOR UPDATE SKIP LOCKED` garante que sejam diferentes) e o Worker ficava
+   * com dois Runs em voo — o segundo em `PREPARING` no banco e parado na
+   * memória, exatamente o "Preparando sem nada acontecendo" que o cabeçalho
+   * deste arquivo proíbe, e sem volta para `QUEUED`. É a mesma guarda que o
+   * Distiller já tinha (`apps/worker/src/distiller.ts`), com o bit de "chegou
+   * pedido novo" para que um `NOTIFY` durante a passada não se perca.
+   */
+  const pump = async (): Promise<void> => {
+    if (stopping) return;
+
+    if (bombeando !== undefined) {
+      bombearDeNovo = true;
+      await bombeando;
+      return;
+    }
+
+    bombeando = (async () => {
+      try {
+        do {
+          bombearDeNovo = false;
+          await umaPassada();
+        } while (bombearDeNovo && !stopping);
+      } finally {
+        bombeando = undefined;
+      }
+    })();
+
+    await bombeando;
   };
 
   return {
@@ -361,8 +539,15 @@ export function createWorker(options: CreateWorkerOptions): Worker {
         queueListener = new PgNotifyListener({
           notifier,
           drainable: {
+            // O `PgNotifyListener` dispara `void drainNow()`: uma rejeição que
+            // saísse daqui viraria `unhandledRejection`, e o processo trata
+            // isso como fatal.
             drainNow: async () => {
-              await pump();
+              try {
+                await pump();
+              } catch (error) {
+                logger?.error({ err: error }, "erro no pump disparado pelo NOTIFY da fila");
+              }
             },
           },
           channel: RUN_QUEUE_CHANNEL,
@@ -373,8 +558,12 @@ export function createWorker(options: CreateWorkerOptions): Worker {
           notifier,
           drainable: {
             drainNow: async () => {
-              await checarCancelamentos();
-              await cancelarEmEspera();
+              try {
+                await checarCancelamentos();
+                await cancelarEmEspera();
+              } catch (error) {
+                logger?.error({ err: error }, "erro ao observar cancelamentos pelo NOTIFY");
+              }
             },
           },
           channel: RUN_CANCEL_CHANNEL,
@@ -412,6 +601,19 @@ export function createWorker(options: CreateWorkerOptions): Worker {
       queueListener?.stop();
       cancelListener?.stop();
       await loop?.stop();
+
+      // post-mortem #5 (08/09/2026): o desligamento **iniciava** Runs em vez de
+      // encerrá-los. Um `pump` disparado pelo `NOTIFY` (`void drainNow()`, que
+      // ninguém esperava) podia estar dentro do `await` do claim quando o laço
+      // de `cancelar` percorria `emVoo`: o Run entrava depois, escapava do
+      // cancelamento e começava a executar durante o desligamento. Esperar o
+      // `pump` em voo é o que garante que `emVoo` esteja completo aqui.
+      try {
+        await bombeando;
+      } catch (error) {
+        logger?.error({ err: error }, "o pump em voo falhou durante o desligamento");
+      }
+
       // O passe em andamento termina antes de o pool fechar; se ele não
       // terminar, o cursor não avança e o passe seguinte refaz o mesmo lote.
       try {
@@ -424,6 +626,15 @@ export function createWorker(options: CreateWorkerOptions): Worker {
       // acabarem, e um agente de quarenta minutos não acaba sozinho porque o
       // Worker pediu licença.
       for (const runId of emVoo.keys()) cancelar(runId, "worker_shutdown");
+
+      // E fechar aqui o que ainda não começou: a `capacity.drain()` espera a
+      // fila **e a desenfileira**, então sem esta passagem o desligamento
+      // subiria worktree e processo de agente para os Runs que só esperavam.
+      try {
+        await descartarNaFila();
+      } catch (error) {
+        logger?.error({ err: error }, "falha ao fechar os runs cancelados que esperavam na fila");
+      }
 
       if (emVoo.size === 0) return;
 

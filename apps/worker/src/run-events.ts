@@ -56,6 +56,31 @@ export function workerDiagnostic(input: {
   };
 }
 
+/**
+ * Um `RunCancelled` sintético, para o Run cancelado antes de qualquer processo.
+ *
+ * O evento do runtime só existe quando houve execução para cancelar. Um Run
+ * cancelado enquanto esperava na fila de capacidade nunca chegou ao runtime, e
+ * mesmo assim precisa do evento terminal: é ele que fecha a timeline e o que a
+ * tela lê para dizer por que a Expedição parou. `processTreeTerminated` é
+ * `true` por definição — não há árvore, e afirmar o contrário faria a interface
+ * avisar sobre processos sobrando que nunca existiram.
+ */
+export function workerRunCancelled(input: {
+  harness: HarnessKey;
+  reason: string;
+  elapsedMs?: number;
+}): ExecutionEvent {
+  return {
+    type: "RunCancelled",
+    timestamp: new Date().toISOString(),
+    harness: input.harness,
+    reason: input.reason,
+    processTreeTerminated: true,
+    elapsedMs: Math.max(0, Math.trunc(input.elapsedMs ?? 0)),
+  };
+}
+
 /** Um `RunFailed` sintético, para um Run que morreu sem o runtime ver. */
 export function workerRunFailed(input: {
   harness: HarnessKey;
