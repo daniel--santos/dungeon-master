@@ -354,7 +354,11 @@ export function mcpAllowedToolsFor(servers: readonly McpServerSpec[] | undefined
  * temporário: a CLI aceita as duas formas ("JSON files or strings"), a string
  * não deixa nada para limpar no fim do Run, e é a mesma nos dois modos de
  * execução — dentro do container não haveria como apontar para um arquivo do
- * host. O JSON só carrega comando, argumentos e ids; nunca um segredo.
+ * host. De um servidor `STDIO` o JSON carrega só comando, argumentos e ids;
+ * de um `HTTP` ele carrega a **URL**, que é onde um MCP remoto costuma pôr o
+ * token. Quem barra a URL com credencial embutida é o `AgentRuntime`, antes de
+ * a lista chegar aqui (`resolveMcpServers`); este arquivo não é o lugar da
+ * regra porque ela vale para os três harnesses.
  *
  * `--strict-mcp-config` desliga o que o usuário tiver configurado na conta
  * dele: o Run recebe exatamente os servidores do pedido, e o diário mostra só

@@ -46,7 +46,13 @@ import type {
   ResolvedPermission,
 } from "./harness.js";
 import { isHarnessFinished, RuntimeRequestError } from "./harness.js";
-import { applyMcpInstruction, mcpEnv, mcpEnvKeys, type McpServerSpec } from "./mcp.js";
+import {
+  applyMcpInstruction,
+  mcpEnv,
+  mcpEnvKeys,
+  mcpUrlExposure,
+  type McpServerSpec,
+} from "./mcp.js";
 import type { HarnessRegistry } from "./registry.js";
 import type { StructuredOutputResult } from "./structured-output.js";
 import {
@@ -248,7 +254,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       // servidor MCP em modo headless perde as ferramentas e ganha um aviso no
       // diário. Nunca uma falha — o Run sem Grimório ainda é o Run pedido.
       const mcpServers = resolveMcpServers(request.mcpServers, adapter);
-      if (mcpServers.note !== undefined) yield diagnostic("WARN", mcpServers.note);
+      for (const note of mcpServers.notes) yield diagnostic("WARN", note);
 
       // ------------------------------------------------------------- ambiente
       // `AGENT_GIT_ENV_KEYS` entra em todo harness, e não só nos que declaram
@@ -1006,7 +1012,8 @@ function adapterEnvKeys(adapter: HarnessAdapter): readonly string[] {
 interface ResolvedMcpServers {
   /** A lista que vai ao adapter; `undefined` quando não há o que subir. */
   readonly servers: readonly McpServerSpec[] | undefined;
-  readonly note?: string;
+  /** O que o usuário precisa saber sobre o que sobrou da lista pedida. */
+  readonly notes: readonly string[];
 }
 
 /**
@@ -1016,20 +1023,55 @@ interface ResolvedMcpServers {
  * aviso, nunca promessa. Um pedido com servidores para um adapter sem a
  * capability produz um `Diagnostic` que nomeia os servidores perdidos, e o
  * Run segue com o que a CLI sabe fazer.
+ *
+ * A outra guarda é de credencial. A URL de um servidor `HTTP` é escrita na
+ * linha de comando do harness, que qualquer processo da máquina lê — é a mesma
+ * exposição que a regra `-e NOME` do modo Docker existe para evitar (CLAUDE.md,
+ * seção 8). Uma URL com `usuário:senha@` é recusada aqui, e não no adapter,
+ * porque a regra vale para os três harnesses e não para a CLI de um deles.
  */
 export function resolveMcpServers(
   requested: readonly McpServerSpec[] | undefined,
   adapter: HarnessAdapter,
 ): ResolvedMcpServers {
-  if (requested === undefined || requested.length === 0) return { servers: undefined };
-  if (adapter.capabilities.mcpServers) return { servers: requested };
-  const nomes = requested.map((server) => server.name).join(", ");
-  return {
-    servers: undefined,
-    note:
-      `O adapter ${adapter.id} não sobe servidores MCP em modo headless; o Run segue sem ` +
-      `as ferramentas de: ${nomes}. Veja a matriz de capabilities do harness.`,
-  };
+  if (requested === undefined || requested.length === 0) {
+    return { servers: undefined, notes: [] };
+  }
+  if (!adapter.capabilities.mcpServers) {
+    const nomes = requested.map((server) => server.name).join(", ");
+    return {
+      servers: undefined,
+      notes: [
+        `O adapter ${adapter.id} não sobe servidores MCP em modo headless; o Run segue sem ` +
+          `as ferramentas de: ${nomes}. Veja a matriz de capabilities do harness.`,
+      ],
+    };
+  }
+
+  const notes: string[] = [];
+  const servers: McpServerSpec[] = [];
+  for (const server of requested) {
+    // A mensagem nunca repete a URL: um aviso que imprime a credencial que
+    // acusa a copia do argv para o Diário, que é persistido.
+    const exposicao = server.transport === "HTTP" ? mcpUrlExposure(server.url) : undefined;
+    if (exposicao === "USERINFO") {
+      notes.push(
+        `O servidor MCP ${server.name} foi recusado: a URL dele embute usuário e senha, e ela ` +
+          "vai inteira para a linha de comando do harness, que qualquer processo da máquina " +
+          "lê. Cadastre a URL sem `usuário:senha@` e entregue a credencial por cabeçalho.",
+      );
+      continue;
+    }
+    if (exposicao === "QUERY") {
+      notes.push(
+        `A URL do servidor MCP ${server.name} tem query, e ela vai para a linha de comando do ` +
+          "harness, onde qualquer processo da máquina a lê. Se houver token ali, ele está exposto.",
+      );
+    }
+    servers.push(server);
+  }
+
+  return { servers: servers.length === 0 ? undefined : servers, notes };
 }
 
 function lastNonEmptyText(text: string): string {
