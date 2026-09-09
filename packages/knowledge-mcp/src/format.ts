@@ -1,4 +1,4 @@
-import { escapeXmlTags } from "@dungeon-master/context";
+import { sanitizeForContext } from "@dungeon-master/context";
 
 import type {
   KnowledgeToolItem,
@@ -15,13 +15,15 @@ import type {
  * custaria mais do que a página que o agente queria. A busca traz um trecho
  * e o id; quem quer a página inteira pede por id.
  *
- * Todo texto passa por `escapeXmlTags` **na saída**, mesmo o que já foi
- * escapado ao persistir: a função é idempotente (`&lt;` fica `&lt;`), e a
+ * Todo texto passa por `sanitizeForContext` **na saída**, mesmo o que já foi
+ * escapado ao persistir: a cadeia é idempotente (`&lt;` fica `&lt;`), e a
  * regra "texto escrito por modelo nunca volta a um prompt sem sanitizar"
  * (planejamento v0.4, Fase 7) é mais fácil de provar aqui, numa porta só,
- * do que confiando em quem gravou. Título e descrição de Task são texto do
- * usuário e passam igual: um `</system>` numa descrição de Missão fecharia a
- * seção do prompt do mesmo jeito.
+ * do que confiando em quem gravou. É a mesma função do bloco de contexto,
+ * de propósito: os dois caminhos montam o mesmo campo e não podem divergir.
+ * Título e descrição de Task são texto do usuário e passam igual: um
+ * `</system>` numa descrição de Missão fecharia a seção do prompt do mesmo
+ * jeito.
  */
 
 /** Trecho de conteúdo que acompanha cada resultado de busca. */
@@ -39,12 +41,29 @@ export const DECISIONS_DEFAULT_LIMIT = 10;
 export const DECISIONS_MAX_LIMIT = 50;
 export const QUERY_MAX_CHARS = 200;
 
-/** Escapa as tags de fronteira e apara. Nunca lança e nunca devolve `null`. */
+/**
+ * A mesma cadeia do bloco de contexto. Nunca lança e nunca devolve `null`.
+ *
+ * post-mortem #21 (2026-09-08): aqui era `escapeXmlTags(text).trim()`, e só.
+ * Uma página do Grimório com `ESC[2J` no conteúdo saía limpa pelo montador de
+ * contexto (`sanitizeForContext` remove os controles) e saía com os controles
+ * intactos por estas ferramentas, direto para o stream do harness — a
+ * assimetria "sanitizado no caminho A, não no B, e os dois montam o mesmo
+ * campo". Uma função só, importada de onde ela já mora.
+ */
 export function clean(text: string): string {
-  return escapeXmlTags(text).trim();
+  return sanitizeForContext(text);
 }
 
-/** Corta em `max` caracteres e marca o corte, sem partir uma tag escapada no meio. */
+/**
+ * Corta em `max` caracteres e marca o corte.
+ *
+ * O corte é seguro porque `clean` roda antes e nunca deixa um `<` de tag de
+ * fronteira cru: partir um `&lt;` ao meio deixa `&l`, que é feio e inerte, e
+ * nunca reabre um `<`. (O comentário antigo prometia "sem partir uma tag
+ * escapada no meio", o que a implementação não faz — e é o tipo de garantia
+ * em que uma mudança futura se apoiaria.)
+ */
 export function truncate(text: string, max: number): string {
   if (text.length <= max) return text;
   return `${text.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
