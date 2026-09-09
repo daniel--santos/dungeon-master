@@ -22,6 +22,7 @@ import {
   DEDUP_JUDGE_RULES,
   formatCandidatePools,
 } from "./dedup-judge.js";
+import { formatProjectBlock } from "./project-block.js";
 
 /** Os tipos que um candidato pode virar. `SUMMARY` é só do resumo do Project. */
 export const DISTILL_ITEM_TYPES = [
@@ -176,13 +177,7 @@ export function buildDistillPrompt(input: DistillPromptInput): DistillPrompt {
     ].join("\n");
   });
 
-  const projeto = [
-    `## Project`,
-    `Título: ${input.project.title}`,
-    ...(input.project.description === null || input.project.description.trim().length === 0
-      ? []
-      : [`Descrição: ${input.project.description.trim()}`]),
-  ].join("\n");
+  const projeto = formatProjectBlock(input.project);
 
   const prompt = [
     DISTILL_SYSTEM_PROMPT,

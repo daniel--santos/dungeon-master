@@ -18,6 +18,7 @@ import { z } from "zod";
 
 import type { ExistingKnowledgeItem, ProjectContext } from "../types.js";
 import { itemKey } from "./dedup-judge.js";
+import { formatProjectBlock } from "./project-block.js";
 
 export const SUMMARY_TITLE_MAX_LENGTH = 200;
 export const SUMMARY_CONTENT_MAX_LENGTH = 12_000;
@@ -97,13 +98,7 @@ export function buildProjectSummaryPrompt(input: ProjectSummaryPromptInput): Pro
     return `[${key}] (${item.type}) ${escapeXmlTags(item.title)}\n${escapeXmlTags(item.content)}`;
   });
 
-  const projeto = [
-    `## Project`,
-    `Título: ${input.project.title}`,
-    ...(input.project.description === null || input.project.description.trim().length === 0
-      ? []
-      : [`Descrição: ${input.project.description.trim()}`]),
-  ].join("\n");
+  const projeto = formatProjectBlock(input.project);
 
   const anterior =
     input.currentSummary === null
