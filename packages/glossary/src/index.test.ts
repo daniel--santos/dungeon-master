@@ -122,6 +122,25 @@ describe("regra de segurança da seção 14", () => {
     }
   });
 
+  it("todo 'Campo aberto' dos dois glossários vem com o aviso ao lado", () => {
+    // A regra não abre exceção por chave: se o rótulo aparecer num segundo
+    // lugar — as capabilities de Harness eram esse lugar —, o aviso tem que
+    // existir ali também. Varrer os valores é o que pega o próximo.
+    let encontrados = 0;
+    for (const theme of themes) {
+      const glossario = getGlossary(theme);
+      for (const key of GLOSSARY_KEYS) {
+        if (glossario[key] !== "Campo aberto") continue;
+        encontrados += 1;
+        const aviso = `${key}.warning`;
+        expect(GLOSSARY_KEYS as readonly string[], `${key} sem aviso`).toContain(aviso);
+        expect(t(theme, aviso as GlossaryKey), aviso).toBe("sem isolamento");
+      }
+    }
+    // O `env.host` do tema é o lugar onde o rótulo deve estar.
+    expect(encontrados).toBe(1);
+  });
+
   it("o badge mantém o texto canônico nos dois modos", () => {
     for (const theme of themes) {
       expect(t(theme, "env.host.canonical")).toBe("HOST · UNISOLATED");

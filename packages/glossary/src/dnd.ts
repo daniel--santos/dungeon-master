@@ -5,7 +5,10 @@ import type { GlossaryKey } from "./keys.js";
  *
  * Regra de segurança da seção 14: "Campo aberto" nunca aparece sozinho.
  * `env.host.warning` acompanha sempre, e `env.host.canonical` mantém o texto
- * canônico do badge ao lado, idêntico nos dois glossários.
+ * canônico do badge ao lado, idêntico nos dois glossários. Por isso o rótulo
+ * existe num lugar só — `env.host`, que tem o aviso ao lado —, e o teste varre
+ * os dois glossários atrás de um segundo: a lista de capabilities de Harness
+ * já foi esse segundo lugar.
  */
 export const dnd: Record<GlossaryKey, string> = {
   // ---------------------------------------------------------------- system
@@ -454,8 +457,13 @@ export const dnd: Record<GlossaryKey, string> = {
   "harness.capability.modelSelection": "Escolha de Patrono",
   "harness.capability.agentSelection": "Escolha de sub-Herói",
   "harness.capability.nativePermissions": "Permissões próprias",
-  "harness.capability.hostExecution": "Campo aberto",
-  "harness.capability.dockerExecution": "Masmorra selada",
+  // Iguais ao `plain`, de propósito: a capability é a lista do que o Harness
+  // sabe fazer, e não o badge do modo de execução — não há lugar para o aviso
+  // "sem isolamento" ao lado dela. Tematizar "Campo aberto" aqui era mostrar o
+  // rótulo bonito sozinho, contra a regra da seção 2 do CLAUDE.md. Isolamento é
+  // informação de segurança, como `enforcement.*`, que já não é tematizado.
+  "harness.capability.hostExecution": "Host",
+  "harness.capability.dockerExecution": "Docker",
 
   // ------------------------------------------------------------------ hero
   "hero.xp": "Experiência",
