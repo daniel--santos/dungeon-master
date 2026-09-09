@@ -3,7 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import type { Database } from "./client.js";
 import type { DatabaseExecutor } from "./dashboard-event.js";
 import { newId } from "./ids.js";
-import { DEFAULT_CONTEXT_POLICY, findLoadoutRow } from "./loadout.js";
+import { DEFAULT_CONTEXT_POLICY, findLoadoutRow, insertLoadoutRecord } from "./loadout.js";
 import {
   agents,
   executionProfiles,
@@ -107,26 +107,24 @@ export async function seedKnowledgeLoadout(
     });
   }
 
-  const loadoutId = newId();
-  await db.insert(loadouts).values({
-    id: loadoutId,
+  // Pela mesma peça de `createLoadout`, para a versão 1 nascer registrada em
+  // `loadout_version` como a de qualquer Loadout; sem evento, porque semente
+  // não é edição.
+  const loadout = await insertLoadoutRecord(db, {
     userId,
     name: KNOWLEDGE_SCRIBE_LOADOUT_NAME,
     agentId,
     harnessId: harness.id,
     modelId: null,
     executionProfileId: perfil.id,
-    skills: [],
-    tools: [],
-    mcpServers: [],
+    refs: { skillRefs: [], toolIds: [], mcpServerIds: [] },
     // O Escriba não recebe Grimório no prompt: ele é quem o escreve.
     knowledgePolicy: { includeProjectSummary: false, includeDecisions: false, maxItems: 0 },
     contextPolicy: DEFAULT_CONTEXT_POLICY,
-    version: 1,
     isDefault: false,
   });
 
-  return { loadoutId, created: true, reason: null };
+  return { loadoutId: loadout.id, created: true, reason: null };
 }
 
 /**

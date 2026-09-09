@@ -1,6 +1,8 @@
 import {
+  type CapabilityIssue,
   type HarnessKey,
   type Run,
+  type RunCreated,
   type RunError,
   type RunListItem,
   type RunResult,
@@ -13,6 +15,7 @@ import {
   checkTaskTransition,
   isPreExecutionRunStatus,
   isTerminalRunStatus,
+  matchCapabilities,
   type RunCreationRejection,
   type RunTransitionRejection,
   type TaskTransitionRejection,
@@ -40,6 +43,8 @@ import { runSteps } from "./schema/run-step.js";
 import { taskDependencies, tasks } from "./schema/task.js";
 import { insertRunEvent, type RunEventInput } from "./run-event.js";
 import { persistRunResultOutputs } from "./run-result-outputs.js";
+import { KNOWLEDGE_SCRIBE_LOADOUT_NAME } from "./seed-knowledge.js";
+import { readUserSettings } from "./user-setting.js";
 import { captureWorkflowVersion } from "./workflow.js";
 import { releaseWorkspaceLock } from "./workspace-lock.js";
 
@@ -104,6 +109,14 @@ export type RunWriteFailure =
       /** A Task aponta para um Workflow que não existe mais para este usuário. */
       readonly code: "WORKFLOW_NOT_FOUND";
       readonly workflowId: string;
+    }
+  | {
+      /**
+       * O capability matching (Fase 8A) achou pelo menos um blocker: o Loadout
+       * pede o que o Harness não declara. A lista inteira vai no `409`.
+       */
+      readonly code: "CAPABILITY_BLOCKED";
+      readonly blockers: readonly CapabilityIssue[];
     };
 
 // --------------------------------------------------------------------------
@@ -414,17 +427,40 @@ export function defaultRunPrompt(task: { title: string; description: string | nu
 }
 
 /**
+ * O Loadout é o do Escriba do Grimório?
+ *
+ * É o que decide `requiresStructuredOutput` no capability matching: o Escriba
+ * responde JSON validado, e sem `structuredOutput` o lote não tem como ser
+ * lido. Vale o escolhido em `knowledge.loadoutId` ou, na falta dele, o
+ * semeado pelo nome — a mesma regra de `findKnowledgeScribeLoadout`.
+ */
+export async function isKnowledgeScribeLoadout(
+  db: DatabaseExecutor,
+  input: { userId: string; loadout: { id: string; name: string } },
+): Promise<boolean> {
+  const settings = await readUserSettings(db, { userId: input.userId });
+  const escolhido = settings["knowledge.loadoutId"];
+  if (escolhido !== null) return escolhido === input.loadout.id;
+  return input.loadout.name === KNOWLEDGE_SCRIBE_LOADOUT_NAME;
+}
+
+/**
  * Cria um Run já em `QUEUED` e leva a Task junto.
  *
  * O Run nasce em `CREATED` e vai a `QUEUED` na mesma transação, em vez de
  * nascer direto em `QUEUED`: a aresta `CREATED → QUEUED` da máquina de estados
  * é percorrida de verdade, e o log de `run.status_changed` conta a história
  * desde o começo em vez de começar no meio.
+ *
+ * Antes de inserir, o capability matching (Fase 8A) compara o snapshot
+ * resolvido com a matriz do Harness: um blocker recusa a criação com a lista;
+ * os avisos voltam junto do Run, e o Worker os recomputa sobre os snapshots
+ * congelados para gravá-los como `Diagnostic`.
  */
 export async function createRun(
   db: Database,
   input: CreateRunInput,
-): Promise<Result<Run, RunWriteFailure> | null> {
+): Promise<Result<RunCreated, RunWriteFailure> | null> {
   return await db.transaction(async (tx) => {
     // A linha da Task é travada antes de qualquer leitura: `attempt` é
     // `max + 1`, e duas criações simultâneas sem a trava calculariam o mesmo
@@ -555,6 +591,22 @@ export async function createRun(
       capturedAt,
     });
 
+    const report = matchCapabilities({
+      snapshot: loadoutSnapshot,
+      harnessCapabilities: harness.capabilities,
+      executionProfile: { mode: profile.mode },
+      intent: {
+        resume: origem !== null,
+        requiresStructuredOutput: await isKnowledgeScribeLoadout(tx, {
+          userId: input.userId,
+          loadout,
+        }),
+      },
+    });
+    if (report.blockers.length > 0) {
+      return failed<RunWriteFailure>({ code: "CAPABILITY_BLOCKED", blockers: report.blockers });
+    }
+
     // A captura congelada (planejamento v0.4, Fase 4): a definição vigente do
     // Workflow da Task vira uma versão imutável **nesta transação**, e é ela
     // que o Run referencia. Editar o Workflow depois não alcança este Run.
@@ -658,7 +710,7 @@ export async function createRun(
       );
     }
 
-    return ok(toRun(enfileirado.value, task.projectId));
+    return ok({ ...toRun(enfileirado.value, task.projectId), warnings: report.warnings });
   });
 }
 
