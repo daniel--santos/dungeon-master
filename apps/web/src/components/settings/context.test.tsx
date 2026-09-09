@@ -1,11 +1,12 @@
 import { dnd } from "@dungeon-master/glossary";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { ContextSection } from "@/components/settings/context";
 import { Toaster } from "@/components/ui/sonner";
+import { useSettings } from "@/lib/settings";
 
 /**
  * O bloco das provisões em Settings (Fase 7C): hidrata do servidor, valida o
@@ -13,16 +14,32 @@ import { Toaster } from "@/components/ui/sonner";
  * `PUT`) e aceita `0` num teto, que é o valor que desliga a seção.
  */
 
-const mocks = vi.hoisted(() => ({
-  fetchSettings: vi.fn(),
-  updateSetting: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  const listeners = new Set<(event: { type: string }) => void>();
+  return {
+    fetchSettings: vi.fn(),
+    updateSetting: vi.fn(),
+    listeners,
+    // Identidade estável: `useSettings` inscreve o ouvinte num efeito com
+    // `addListener` na dependência.
+    addListener: (listener: (event: { type: string }) => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+});
 
 vi.mock("@dungeon-master/api-client", () => ({
   createApiClient: () => ({}),
   EVENTS_STREAM_PATH: "/api/v1/events/stream",
   fetchSettings: mocks.fetchSettings,
   updateSetting: mocks.updateSetting,
+}));
+
+/** O stream de eventos, para o teste poder empurrar um `settings.changed`. */
+vi.mock("@/lib/events", () => ({
+  useEventsStore: (selector: (state: { addListener: typeof mocks.addListener }) => unknown) =>
+    selector({ addListener: mocks.addListener }),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -70,6 +87,20 @@ function Wrapper({ children }: { readonly children: ReactNode }) {
   );
 }
 
+/**
+ * Lê a mesma query da seção, para o teste saber quando a releitura chegou.
+ *
+ * Sem isso, esperar pela chamada de `fetchSettings` é uma corrida: a chamada
+ * acontece antes de a resposta virar dado no cache, e a asserção passaria
+ * mesmo com a seção prestes a ser reescrita.
+ */
+function Sonda() {
+  const { query } = useSettings();
+  return <span data-sonda>{String(query.data?.["context.maxDecisions"] ?? "")}</span>;
+}
+
+const sonda = () => document.querySelector("[data-sonda]");
+
 function montar(settings = SETTINGS) {
   mocks.fetchSettings.mockResolvedValue(settings);
   mocks.updateSetting.mockImplementation((_client: unknown, key: string, value: unknown) =>
@@ -79,6 +110,7 @@ function montar(settings = SETTINGS) {
   return render(
     <Wrapper>
       <ContextSection />
+      <Sonda />
     </Wrapper>,
   );
 }
@@ -158,6 +190,45 @@ describe("bloco das provisões em Settings", () => {
       ]);
     });
     expect(await screen.findByText(dnd["settings.context.saved"])).toBeTruthy();
+  });
+
+  it("não apaga o que está sendo digitado quando uma releitura chega", async () => {
+    montar();
+    await waitFor(() => {
+      expect(field("budget-tokens").value).toBe("6000");
+    });
+
+    fireEvent.change(field("budget-tokens"), { target: { value: "12000" } });
+
+    // Outro bloco de Settings salvou (ou outra aba mexeu): o `settings.changed`
+    // invalida a query desta seção, que relê e devolve outro objeto.
+    mocks.fetchSettings.mockResolvedValue({ ...SETTINGS, "context.maxDecisions": 7 });
+    act(() => {
+      for (const listener of mocks.listeners) listener({ type: "settings.changed" });
+    });
+
+    // A releitura chegou ao cache: é agora que o efeito de hidratação decide.
+    await waitFor(() => {
+      expect(sonda()?.textContent).toBe("7");
+    });
+    expect(field("budget-tokens").value).toBe("12000");
+    expect(saveButton().disabled).toBe(false);
+  });
+
+  it("uma mudança de fora chega aos campos que ninguém tocou", async () => {
+    montar();
+    await waitFor(() => {
+      expect(field("budget-tokens").value).toBe("6000");
+    });
+
+    mocks.fetchSettings.mockResolvedValue({ ...SETTINGS, "context.budgetTokens": 9000 });
+    act(() => {
+      for (const listener of mocks.listeners) listener({ type: "settings.changed" });
+    });
+
+    await waitFor(() => {
+      expect(field("budget-tokens").value).toBe("9000");
+    });
   });
 
   it("mostra o erro do servidor sem perder o que foi digitado", async () => {

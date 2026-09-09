@@ -10,7 +10,7 @@ import {
   ListChecks,
   Play,
 } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { RunStatusChip } from "@/components/execution/chips";
 import { EnvBadge } from "@/components/execution/env-badge";
@@ -30,12 +30,13 @@ import { Button } from "@/components/ui/button";
 import type { RunRecord } from "@/lib/api-types";
 import { useRunGates } from "@/lib/approvals";
 import { formatDateTime } from "@/lib/datetime";
-import { eventPresentation, isLiveRunStatus, WORKSPACE_STRATEGY } from "@/lib/execution-domain";
+import { isLiveRunStatus, WORKSPACE_STRATEGY } from "@/lib/execution-domain";
 import { useGlossary } from "@/lib/glossary";
 import { KNOWLEDGE_COLOR } from "@/lib/knowledge-domain";
 import { countKnowledgeToolCalls } from "@/lib/knowledge-tools";
 import { useProject } from "@/lib/projects";
 import { useRunEvents } from "@/lib/run-events";
+import { hasWorkflowEventAfter } from "@/lib/run-timeline";
 import { canResumeRun, runKeys, useRun } from "@/lib/runs";
 import { runDetailSearchSchema } from "@/lib/search";
 import { useTask } from "@/lib/tasks";
@@ -108,16 +109,25 @@ function Cockpit({ run }: { run: RunRecord }) {
   // O Diário chega primeiro; a lista de passos é lida do banco. Um evento do
   // motor no stream é o sinal de que o banco mudou, e a releitura sai na hora
   // em vez de esperar o próximo ciclo.
+  //
+  // A varredura é sobre tudo que chegou desde a releitura anterior: no replay
+  // um lote inteiro entra na mesma renderização, e olhar só o último evento
+  // perdia o `StepFinished` seguido de um `TextDelta` do agente — a lista de
+  // passos ficava até três segundos atrás do Diário, esperando o
+  // `refetchInterval`.
   const queryClient = useQueryClient();
-  const lastEventType = events.events.at(-1)?.type;
+  const runEvents = events.events;
   const lastSequence = events.lastSequence;
+  const scanned = useRef(0);
   useEffect(() => {
-    if (!guided || lastEventType === undefined) return;
-    if (eventPresentation(lastEventType).group !== "workflow") return;
+    if (!guided) return;
+    const since = scanned.current;
+    scanned.current = lastSequence;
+    if (!hasWorkflowEventAfter(runEvents, since)) return;
     void queryClient.invalidateQueries({ queryKey: runKeys.steps(run.id) });
     void queryClient.invalidateQueries({ queryKey: runKeys.gates(run.id) });
     void queryClient.invalidateQueries({ queryKey: runKeys.detail(run.id) });
-  }, [guided, lastEventType, lastSequence, queryClient, run.id]);
+  }, [guided, runEvents, lastSequence, queryClient, run.id]);
 
   // Decisão de UX da Fase 2: retomar só aparece quando a Guilda declara
   // `resume` e uma sessão foi capturada. Um botão que sempre existe e às vezes

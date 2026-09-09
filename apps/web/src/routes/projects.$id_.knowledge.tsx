@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { BookOpen, ChevronRight } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import { DecisionsTimeline } from "@/components/knowledge/decisions-timeline";
 import { DistillButton } from "@/components/knowledge/distill-button";
@@ -45,13 +45,18 @@ function ProjectKnowledgePage() {
   const pending = usePendingKnowledge(id);
   const pendingCount = pending.data?.total ?? 0;
 
-  const filters: KnowledgeFilterValue = {
-    type: search.type,
-    status: search.status,
-    review: search.review,
-    q: search.q,
-    page: search.page,
-  };
+  // Memoizado sobre os campos da URL, como em `runs.index.tsx` e `hall.tsx`: um
+  // objeto novo a cada render entra em toda dependência lá embaixo.
+  const filters = useMemo<KnowledgeFilterValue>(
+    () => ({
+      type: search.type,
+      status: search.status,
+      review: search.review,
+      q: search.q,
+      page: search.page,
+    }),
+    [search.type, search.status, search.review, search.q, search.page],
+  );
 
   const onFiltersChange = useCallback(
     (next: KnowledgeFilterValue) => {

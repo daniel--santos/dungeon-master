@@ -2,6 +2,21 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { useEventsStore } from "@/lib/events";
+import { invalidateExecution } from "@/lib/execution";
+
+/**
+ * Os prefixos de `RegistryEventType` que não são de Workflow.
+ *
+ * `workflow.` também é cadastro, mas tem tela e chave próprias e continua no
+ * ramo dele, logo acima.
+ */
+const REGISTRY_PREFIXES = [
+  "harness.",
+  "model.",
+  "agent.",
+  "execution_profile.",
+  "loadout.",
+] as const;
 
 /**
  * Invalida as queries afetadas por cada evento de domínio do SSE.
@@ -41,10 +56,34 @@ export function useLiveQueries(): void {
         return;
       }
 
+      // post-mortem #17 (08/09/2026): não havia ramo para `run.`. Uma Expedição
+      // reclamada pelo Worker e encerrada ficava desenhada em "Na fila" na
+      // lista de `/runs` até uma navegação de página inteira: `useRuns` não tem
+      // `refetchInterval` e só `approval.*` invalidava `["runs"]`, de carona —
+      // o que existe apenas em Run com Ritual. O cockpit tinha stream próprio e
+      // escondia o defeito de quem olhava só uma Expedição.
+      if (event.type.startsWith("run.")) {
+        // O mesmo conjunto que `useCreateRun` invalida: a Expedição muda a sua
+        // lista, o estado da Missão de origem e as contagens da Campanha.
+        void queryClient.invalidateQueries({ queryKey: ["runs"] });
+        void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+        void queryClient.invalidateQueries({ queryKey: ["projects"] });
+        return;
+      }
+
       if (event.type.startsWith("workflow.")) {
         // Criar, editar ou apagar um Workflow muda a lista, o detalhe e as
         // escolhas que a Task oferece.
         void queryClient.invalidateQueries({ queryKey: ["workflows"] });
+        return;
+      }
+
+      if (REGISTRY_PREFIXES.some((prefix) => event.type.startsWith(prefix))) {
+        // Os cadastros de execução existem, no contrato, só para a tela deles
+        // se atualizar sozinha: uma mudança feita em outra aba, pelo `db:seed`
+        // ou pela CLI precisa chegar sem navegação. O conjunto de chaves é o
+        // mesmo das mutações locais, e por isso vem de lá.
+        invalidateExecution(queryClient);
         return;
       }
 

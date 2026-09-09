@@ -240,7 +240,12 @@ export const achievementKeys = {
   all: ["achievements"] as const,
   list: (filters: HallFilters) => ["achievements", "list", filters] as const,
   unlocks: ["achievements", "unlocks"] as const,
-  unlockPage: (page: number) => ["achievements", "unlocks", page] as const,
+  // O tamanho entra na chave porque duas telas leem esta rota com tamanhos
+  // diferentes: o Hall pede 50 para decidir o ponto de "ainda não vista" e a
+  // Crônica pede 25 por página. Sem ele, uma entrada de cache serviria às duas
+  // com o tamanho de quem chegasse primeiro.
+  unlockPage: (page: number, pageSize: number | undefined) =>
+    ["achievements", "unlocks", page, pageSize] as const,
 };
 
 export const heroKeys = { stats: ["heroes", "stats"] as const };
@@ -303,7 +308,7 @@ export function useUnlocks(params: UnlockPageParams): UseQueryResult<Achievement
   const { page, pageSize } = params;
 
   return useQuery({
-    queryKey: achievementKeys.unlockPage(page),
+    queryKey: achievementKeys.unlockPage(page, pageSize),
     queryFn: async () => {
       const { data, error, response } = await api.GET("/api/v1/achievements/unlocks", {
         params: {

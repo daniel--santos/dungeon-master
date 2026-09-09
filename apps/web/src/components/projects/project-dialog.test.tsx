@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { ProjectDialog } from "@/components/projects/project-dialog";
@@ -127,6 +128,30 @@ describe("diálogo de Project", () => {
         },
       });
     });
+  });
+
+  it("uma releitura do Project não reinicia o formulário aberto", async () => {
+    // A tela de detalhe passa o registro vivo: um evento do SSE invalida
+    // `["projects"]`, `useProject` relê e o objeto ganha identidade nova.
+    let relerNoServidor = (project: ProjectRecord) => {
+      void project;
+    };
+    function Detalhe() {
+      const [project, setProject] = useState(PROJECT);
+      relerNoServidor = setProject;
+      return <ProjectDialog open onOpenChange={vi.fn()} project={project} />;
+    }
+
+    renderInRouter(<Detalhe />);
+
+    const path = await screen.findByLabelText("Caminho");
+    fireEvent.change(path, { target: { value: "D:\\Dev\\forja" } });
+
+    act(() => {
+      relerNoServidor({ ...PROJECT, updatedAt: "2026-09-08T12:00:00.000Z" });
+    });
+
+    expect((path as HTMLInputElement).value).toBe("D:\\Dev\\forja");
   });
 
   it("na criação não pede workspace: a rota de POST não o aceita", () => {

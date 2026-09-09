@@ -5,7 +5,7 @@ import type {
 } from "@dungeon-master/contracts";
 import { Link } from "@tanstack/react-router";
 import { BookOpen, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { KnowledgeStatusChip, KnowledgeTypeChip } from "@/components/knowledge/knowledge-chips";
@@ -76,16 +76,26 @@ export function KnowledgeList({ projectId, value, onChange }: KnowledgeListProps
     setQuery(value.q ?? "");
   }, [value.q]);
 
+  // O filtro e o `onChange` entram por ref, e não pelas dependências: a rota
+  // monta `value` a cada render, e enquanto o Distiller trabalha cada evento
+  // `knowledge.*` a re-renderiza. Com o objeto nas dependências, o efeito
+  // reiniciava o timer a cada evento e a busca só saía quando o fluxo parasse.
+  const latest = useRef({ value, onChange });
+  useEffect(() => {
+    latest.current = { value, onChange };
+  });
+
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed === (value.q ?? "")) return;
     const timer = setTimeout(() => {
-      onChange({ ...value, q: trimmed === "" ? undefined : trimmed, page: 1 });
+      const { value: current, onChange: notify } = latest.current;
+      notify({ ...current, q: trimmed === "" ? undefined : trimmed, page: 1 });
     }, SEARCH_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
     };
-  }, [query, value, onChange]);
+  }, [query, value.q]);
 
   const items = page.data?.items ?? [];
   const total = page.data?.total ?? 0;
