@@ -33,7 +33,7 @@ function DashboardPage() {
     <>
       <PageHeader
         title={t("nav.dashboard")}
-        description={format("Onde o trabalho está agora. Sem execução ainda: isso é a Fase 2.", {})}
+        description={format("Onde o trabalho está agora.", {})}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
