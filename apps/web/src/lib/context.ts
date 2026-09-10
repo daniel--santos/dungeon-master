@@ -37,7 +37,7 @@ import { runKeys } from "@/lib/runs";
  */
 
 /** A cor das provisões: o mesmo eixo dos acentos do canvas, no matiz do ciano. */
-export const CONTEXT_COLOR = "oklch(0.72 0.13 200)";
+export const CONTEXT_COLOR = "var(--accent-teal)";
 
 /* -------------------------------------------------------------- leitura */
 

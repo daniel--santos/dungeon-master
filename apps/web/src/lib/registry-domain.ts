@@ -20,9 +20,9 @@ import type { McpServerRegistryRecord } from "@/lib/api-types";
  */
 
 /** A cor dos registros: o mesmo eixo dos acentos do canvas, no matiz do violeta. */
-export const REGISTRY_COLOR = "oklch(0.72 0.13 305)";
-export const ACCENT_GREEN = "oklch(0.72 0.13 150)";
-export const ACCENT_AMBER = "oklch(0.72 0.13 75)";
+export const REGISTRY_COLOR = "var(--accent-violet)";
+export const ACCENT_GREEN = "var(--accent-green)";
+export const ACCENT_AMBER = "var(--accent-amber)";
 
 /* -------------------------------------------------------------- tool.kind */
 

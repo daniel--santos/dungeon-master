@@ -47,7 +47,7 @@ export function SkillDiff({
       </span>
 
       {!same && (
-        <pre className="border-border m-0 max-h-[32rem] overflow-auto rounded-[10px] border bg-white/[0.03] py-2 font-mono text-[11.5px] leading-4.5 whitespace-pre-wrap">
+        <pre className="border-border m-0 max-h-[32rem] overflow-auto rounded-lg border bg-white/[0.03] py-2 font-mono text-[11.5px] leading-4.5 whitespace-pre-wrap">
           {lines.map((line, index) => {
             const color =
               line.kind === "added"

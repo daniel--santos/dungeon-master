@@ -147,7 +147,7 @@ function HarnessRow({
                 aria-hidden
                 className={cn(
                   "size-3 flex-none",
-                  on && harness.enabled ? "text-[oklch(0.72_0.13_150)]" : "text-muted-foreground",
+                  on && harness.enabled ? "text-accent-green" : "text-muted-foreground",
                 )}
                 strokeWidth={2.4}
               />

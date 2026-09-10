@@ -31,7 +31,7 @@ export interface EnvBadgeProps {
 /** O acento do modo: vermelho para o host sem isolamento, azul para o container. */
 const ACCENT: Record<ExecutionMode, string> = {
   HOST: "var(--destructive)",
-  DOCKER: "oklch(0.72 0.13 250)",
+  DOCKER: "var(--accent-blue)",
 };
 
 const ICON: Record<ExecutionMode, typeof ShieldAlert> = {
@@ -95,7 +95,7 @@ export function EnvBadge({ mode, size = "md", className }: EnvBadgeProps) {
 
   return (
     <span
-      className={cn("flex w-fit items-center rounded-[10px] border", s.pad, className)}
+      className={cn("flex w-fit items-center rounded-lg border", s.pad, className)}
       data-env-badge={mode}
       style={
         {

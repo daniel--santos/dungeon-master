@@ -39,11 +39,11 @@ import {
  */
 
 /** A família de acentos do canvas: mesma luminosidade e croma, só o matiz muda. */
-const ACCENT_BLUE = "oklch(0.72 0.13 250)";
-const ACCENT_VIOLET = "oklch(0.72 0.13 305)";
-const ACCENT_AMBER = "oklch(0.72 0.13 75)";
+const ACCENT_BLUE = "var(--accent-blue)";
+const ACCENT_VIOLET = "var(--accent-violet)";
+const ACCENT_AMBER = "var(--accent-amber)";
 /** A Vitória precisava de um matiz próprio, no mesmo eixo (canvas da Fase 2). */
-const ACCENT_GREEN = "oklch(0.72 0.13 150)";
+const ACCENT_GREEN = "var(--accent-green)";
 
 /* ------------------------------------------------------------ run.status */
 
@@ -151,12 +151,12 @@ export const ENFORCEMENT: Record<EnforcementLevel, EnforcementPresentation> = {
   HARNESS_NATIVE: {
     label: "enforcement.harnessNative",
     canonical: "harness-native",
-    className: "text-[oklch(0.72_0.13_75)]",
+    className: "text-accent-amber",
   },
   SANDBOX_ENFORCED: {
     label: "enforcement.sandboxEnforced",
     canonical: "sandbox-enforced",
-    className: "text-[oklch(0.72_0.13_150)]",
+    className: "text-accent-green",
   },
 };
 

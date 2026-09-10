@@ -85,7 +85,7 @@ export function LoadoutHistory({ loadout, onRestored }: LoadoutHistoryProps) {
   }
 
   return (
-    <div className="border-border flex flex-col rounded-[10px] border" data-loadout-history>
+    <div className="border-border flex flex-col rounded-lg border" data-loadout-history>
       <div className="border-border flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
         <div className="flex flex-col gap-0.5">
           <span className="flex items-center gap-2 text-[13px] font-medium">

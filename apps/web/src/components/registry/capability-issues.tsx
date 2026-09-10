@@ -54,7 +54,7 @@ export function CapabilityIssueList({
         return (
           <li
             key={`${issue.severity}:${issue.code}:${issue.causedBy.join(",")}`}
-            className="flex items-start gap-2.5 rounded-[10px] border px-3 py-2.5"
+            className="flex items-start gap-2.5 rounded-lg border px-3 py-2.5"
             data-capability-issue={issue.code}
             data-capability-severity={issue.severity}
             style={{ borderColor: tint(color, 40), backgroundColor: tint(color, 8) }}

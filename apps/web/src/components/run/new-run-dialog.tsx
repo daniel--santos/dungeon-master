@@ -229,7 +229,7 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="border-border flex items-center gap-2.5 rounded-[10px] border bg-white/[0.035] px-3 py-2.25">
+        <div className="border-border flex items-center gap-2.5 rounded-lg border bg-white/[0.035] px-3 py-2.25">
           <KindChip kind={task.kind} />
           <span className="min-w-0 flex-1 truncate text-[13px]">{task.title}</span>
           <PriorityText className="flex-none text-[11.5px]" priority={task.priority} />
@@ -251,9 +251,9 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
           </Select>
 
           {loadout !== undefined && (
-            <div className="border-input flex items-center gap-3 rounded-[10px] border bg-white/[0.045] px-3 py-2.5">
-              <span className="border-border flex size-8.5 flex-none items-center justify-center rounded-[9px] border bg-[oklch(0.72_0.13_305)]/12">
-                <Package aria-hidden className="size-4.25 text-[oklch(0.72_0.13_305)]" />
+            <div className="border-input flex items-center gap-3 rounded-lg border bg-white/[0.045] px-3 py-2.5">
+              <span className="border-border flex size-8.5 flex-none items-center justify-center rounded-[9px] border bg-accent-violet/12">
+                <Package aria-hidden className="size-4.25 text-accent-violet" />
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="truncate text-[13.5px] font-medium">{loadout.name}</span>
@@ -299,11 +299,11 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
 
         {task.workflowId !== null && (
           <div
-            className="border-border flex items-start gap-3 rounded-[10px] border bg-white/[0.035] px-3 py-2.5"
+            className="border-border flex items-start gap-3 rounded-lg border bg-white/[0.035] px-3 py-2.5"
             data-run-workflow={task.workflowId}
           >
-            <span className="border-border flex size-8.5 flex-none items-center justify-center rounded-[9px] border bg-[oklch(0.72_0.13_75)]/12">
-              <WandSparkles aria-hidden className="size-4.25 text-[oklch(0.72_0.13_75)]" />
+            <span className="border-border flex size-8.5 flex-none items-center justify-center rounded-[9px] border bg-accent-amber/12">
+              <WandSparkles aria-hidden className="size-4.25 text-accent-amber" />
             </span>
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="text-muted-foreground text-[11px] tracking-[0.04em] uppercase">
@@ -352,7 +352,7 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
 
         {needsAcceptance && (
           <label
-            className="border-destructive/38 bg-destructive/9 flex cursor-pointer items-start gap-3 rounded-[10px] border px-3 py-3"
+            className="border-destructive/38 bg-destructive/9 flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3"
             data-host-acknowledgement
           >
             <Checkbox
@@ -507,7 +507,7 @@ function PreflightBlock({
 
   return (
     <div
-      className="flex flex-col gap-2.5 rounded-[10px] border px-3 py-2.5"
+      className="flex flex-col gap-2.5 rounded-lg border px-3 py-2.5"
       data-run-preflight={state}
       style={{ borderColor: `color-mix(in oklch, ${color} 40%, transparent)` }}
     >
@@ -567,12 +567,12 @@ function ModeOption({
 }) {
   const { t } = useGlossary();
   const { label, canonical, warning } = EXECUTION_MODE[mode];
-  const accent = mode === "HOST" ? "var(--destructive)" : "oklch(0.72 0.13 250)";
+  const accent = mode === "HOST" ? "var(--destructive)" : "var(--accent-blue)";
 
   return (
     <label
       className={cn(
-        "flex items-start gap-3 rounded-[10px] border px-3 py-2.75",
+        "flex items-start gap-3 rounded-lg border px-3 py-2.75",
         disabled ? "border-border cursor-not-allowed opacity-50" : "cursor-pointer",
       )}
       data-mode-option={mode}

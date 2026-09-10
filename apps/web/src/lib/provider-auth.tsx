@@ -78,7 +78,7 @@ export function useProviderAuth(providerId: string): ProviderAuthEntry | undefin
   return useProviderAuthStore((state) => state.entries[providerId]);
 }
 
-const AMBER = "oklch(0.72 0.13 75)";
+const AMBER = "var(--accent-amber)";
 const tint = (percent: number) => `color-mix(in oklab, ${AMBER} ${String(percent)}%, transparent)`;
 
 function ProviderLostToast({ lost, onOpen }: { lost: ProviderAuthLost; onOpen: () => void }) {

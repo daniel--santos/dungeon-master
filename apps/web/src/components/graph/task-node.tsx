@@ -29,7 +29,7 @@ export function TaskNodeView({ data, selected }: NodeProps<TaskFlowNode>) {
   return (
     <div
       className={cn(
-        "bg-card border-border flex flex-col gap-1.5 rounded-[10px] border px-3 py-2 shadow-sm transition-[border-color,box-shadow]",
+        "bg-card border-border flex flex-col gap-1.5 rounded-lg border px-3 py-2 shadow-sm transition-[border-color,box-shadow]",
         "hover:border-ring",
         selected && "border-ring ring-ring/40 ring-2",
         closed && "opacity-75",

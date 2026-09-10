@@ -72,7 +72,7 @@ export function AchievementCard({ card, unseen = false }: AchievementCardProps) 
 
   return (
     <article
-      className="bg-card flex h-full flex-col gap-3 rounded-[14px] p-4"
+      className="bg-card flex h-full flex-col gap-3 rounded-xl p-4"
       data-achievement={card.key}
       data-state={card.state}
       style={{

@@ -20,7 +20,7 @@ import {
 import { useGlossary } from "@/lib/glossary";
 import { cn } from "@/lib/utils";
 
-const ACCENT_GREEN = "oklch(0.72 0.13 150)";
+const ACCENT_GREEN = "var(--accent-green)";
 
 const tint = (color: string, percent: number) =>
   `color-mix(in oklab, ${color} ${String(percent)}%, transparent)`;
@@ -137,7 +137,7 @@ function ForgedCard({
 
   return (
     <li
-      className="bg-card flex h-full flex-col gap-3 rounded-[14px] p-4"
+      className="bg-card flex h-full flex-col gap-3 rounded-xl p-4"
       data-forged={achievement.id}
       style={{
         border: `1px dashed ${tint(color, 55)}`,

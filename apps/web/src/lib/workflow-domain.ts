@@ -26,10 +26,10 @@ import {
  * em vez de `undefined` numa lista.
  */
 
-const ACCENT_BLUE = "oklch(0.72 0.13 250)";
-const ACCENT_VIOLET = "oklch(0.72 0.13 305)";
-const ACCENT_AMBER = "oklch(0.72 0.13 75)";
-const ACCENT_GREEN = "oklch(0.72 0.13 150)";
+const ACCENT_BLUE = "var(--accent-blue)";
+const ACCENT_VIOLET = "var(--accent-violet)";
+const ACCENT_AMBER = "var(--accent-amber)";
+const ACCENT_GREEN = "var(--accent-green)";
 
 /* --------------------------------------------------------- runStep.status */
 
