@@ -69,10 +69,10 @@ export const ACHIEVEMENT_RARITIES = ["COMMON", "RARE", "EPIC", "LEGENDARY"] as c
  * então nenhuma raridade grita mais alto que a outra por acidente de contraste.
  */
 export const RARITY_COLOR: Record<AchievementRarity, string> = {
-  COMMON: "oklch(0.704 0.04 256.788)",
-  RARE: "oklch(0.72 0.13 250)",
-  EPIC: "oklch(0.72 0.13 305)",
-  LEGENDARY: "oklch(0.72 0.13 75)",
+  COMMON: "var(--muted-foreground)",
+  RARE: "var(--accent-blue)",
+  EPIC: "var(--accent-violet)",
+  LEGENDARY: "var(--accent-amber)",
 };
 
 /** Cor neutra da carta oculta: uma carta oculta não vaza a raridade. */

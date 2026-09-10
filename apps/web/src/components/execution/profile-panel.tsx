@@ -232,7 +232,7 @@ function ProfileDialog({
 
         {profile !== null && (
           <div className="flex flex-col gap-5">
-            <div className="border-border flex flex-wrap items-center gap-3 rounded-[10px] border bg-white/[0.03] px-3 py-2.5">
+            <div className="border-border flex flex-wrap items-center gap-3 rounded-lg border bg-white/[0.03] px-3 py-2.5">
               <EnvBadge mode={profile.mode} size="sm" />
               <span className="text-[11px]">
                 <EnforcementText level={profile.enforcement} />

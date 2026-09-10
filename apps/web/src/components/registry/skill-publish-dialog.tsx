@@ -101,7 +101,7 @@ export function SkillPublishDialog({ skill, onOpenChange, onPublished }: SkillPu
 
           {conflict !== null && (
             <div
-              className="border-destructive/40 bg-destructive/8 flex flex-col gap-1 rounded-[10px] border px-3 py-2.5"
+              className="border-destructive/40 bg-destructive/8 flex flex-col gap-1 rounded-lg border px-3 py-2.5"
               data-skill-publish-conflict
               role="alert"
             >

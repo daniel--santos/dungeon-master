@@ -43,12 +43,11 @@ export const TASK_KINDS = Object.keys(TASK_KIND) as readonly TaskKind[];
 /**
  * A família de acentos do design: mesma luminosidade e croma, só o matiz muda.
  *
- * Os valores são literais e não variáveis do tema porque não existem como
- * token do shadcn — são a paleta derivada que o canvas da Fase 1 fixou.
+ * Os valores vivem em styles.css como --accent-*.
  */
-const ACCENT_BLUE = "oklch(0.72 0.13 250)";
-const ACCENT_VIOLET = "oklch(0.72 0.13 305)";
-const ACCENT_AMBER = "oklch(0.72 0.13 75)";
+const ACCENT_BLUE = "var(--accent-blue)";
+const ACCENT_VIOLET = "var(--accent-violet)";
+const ACCENT_AMBER = "var(--accent-amber)";
 
 interface StatusPresentation {
   readonly label: GlossaryKey;

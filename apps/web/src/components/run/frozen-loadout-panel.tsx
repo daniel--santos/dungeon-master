@@ -234,7 +234,7 @@ function SkillRow({ skill }: { skill: SkillVersionSnapshotRecord }) {
       </div>
       {open && (
         <pre
-          className="border-border m-0 max-h-80 overflow-auto rounded-[10px] border bg-white/[0.03] px-3 py-2.5 font-mono text-[11px] leading-4.5 whitespace-pre-wrap"
+          className="border-border m-0 max-h-80 overflow-auto rounded-lg border bg-white/[0.03] px-3 py-2.5 font-mono text-[11px] leading-4.5 whitespace-pre-wrap"
           data-run-frozen-skill-content
         >
           {skill.content === "" ? t("skill.content.empty") : skill.content}

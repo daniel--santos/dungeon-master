@@ -93,12 +93,12 @@ export function Timeline({ state, filter, onFilterChange, live }: TimelineProps)
           {live ? (
             <span
               className="flex items-center gap-1.5 text-[11px]"
-              style={{ color: "oklch(0.72 0.13 250)" }}
+              style={{ color: "var(--accent-blue)" }}
             >
               <span
                 aria-hidden
                 className="size-1.5 animate-pulse rounded-full"
-                style={{ backgroundColor: "oklch(0.72 0.13 250)" }}
+                style={{ backgroundColor: "var(--accent-blue)" }}
               />
               <span>ao vivo</span>
             </span>
@@ -215,9 +215,9 @@ export function Timeline({ state, filter, onFilterChange, live }: TimelineProps)
 function ConnectionDot({ state }: { state: RunEventsState }) {
   const color =
     state.status === "open"
-      ? "oklch(0.72 0.13 150)"
+      ? "var(--accent-green)"
       : state.status === "reconnecting"
-        ? "oklch(0.72 0.13 75)"
+        ? "var(--accent-amber)"
         : "var(--muted-foreground)";
 
   return (

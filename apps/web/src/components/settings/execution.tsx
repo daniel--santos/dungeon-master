@@ -33,7 +33,7 @@ export function ExecutionSection() {
   const harnessItems = harnesses.data?.items ?? [];
 
   return (
-    <section className="bg-card border-border flex max-w-190 flex-col gap-4.5 rounded-[14px] border p-6 shadow-sm">
+    <section className="bg-card border-border flex max-w-190 flex-col gap-4.5 rounded-xl border p-6 shadow-sm">
       <div className="flex flex-col gap-1">
         <span className="text-base font-semibold">Ambiente de execução</span>
         <span className="text-muted-foreground text-[13px]">
@@ -154,11 +154,11 @@ function PreflightRow({
 }) {
   return (
     <li
-      className="border-border flex items-center gap-3 rounded-[10px] border bg-white/[0.025] px-3 py-2"
+      className="border-border flex items-center gap-3 rounded-lg border bg-white/[0.025] px-3 py-2"
       data-docker-preflight-ok={String(ok)}
       {...rest}
     >
-      <span className={ok ? "text-[oklch(0.72_0.13_150)] flex" : "text-muted-foreground flex"}>
+      <span className={ok ? "text-accent-green flex" : "text-muted-foreground flex"}>
         {ok ? <Check aria-hidden className="size-3.5" /> : <X aria-hidden className="size-3.5" />}
       </span>
       <span className="min-w-0 flex-1 truncate text-[13px]">{label}</span>

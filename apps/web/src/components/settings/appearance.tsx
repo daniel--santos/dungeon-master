@@ -26,7 +26,7 @@ export function AppearanceSection() {
   const { theme, change, isLoading, isSaving, error } = useThemeSetting();
 
   return (
-    <section className="bg-card border-border flex max-w-[760px] flex-col gap-[18px] rounded-[14px] border p-6 shadow-sm">
+    <section className="bg-card border-border flex max-w-[760px] flex-col gap-[18px] rounded-xl border p-6 shadow-sm">
       <div className="flex flex-col gap-1">
         <span className="text-base font-semibold">Aparência</span>
         <span className="text-muted-foreground text-[13px]">Como o produto fala com você.</span>
@@ -55,7 +55,7 @@ export function AppearanceSection() {
       </div>
 
       <div className="flex flex-col gap-2.5">
-        <div className="border-border bg-input/20 flex items-center rounded-[10px] border px-5 py-4">
+        <div className="border-border bg-input/20 flex items-center rounded-lg border px-5 py-4">
           <PreviewHalf term={PREVIEW.dnd} caption="Interruptor ligado" display />
           <span aria-hidden className="bg-border w-px self-stretch" />
           <PreviewHalf term={PREVIEW.plain} caption="Interruptor desligado" />

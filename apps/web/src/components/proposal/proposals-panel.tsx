@@ -140,7 +140,7 @@ function ProposalRow({
 
           {proposal.rationale !== null && proposal.rationale !== "" && (
             <div
-              className="flex flex-col gap-0.5 rounded-[8px] border px-2.5 py-2"
+              className="flex flex-col gap-0.5 rounded-md border px-2.5 py-2"
               data-proposal-rationale
               style={{ borderColor: tint(30), backgroundColor: tint(6) }}
             >

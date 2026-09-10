@@ -440,13 +440,13 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
 
         {withoutNativePermissions && (
           <div
-            className="flex items-start gap-2.5 rounded-[10px] border border-[oklch(0.72_0.13_75)]/40 bg-[oklch(0.72_0.13_75)]/8 px-3 py-2.5 sm:col-span-2"
+            className="flex items-start gap-2.5 rounded-lg border border-accent-amber/40 bg-accent-amber/8 px-3 py-2.5 sm:col-span-2"
             data-loadout-permission-warning={harness.key}
             role="note"
           >
             <ShieldAlert
               aria-hidden
-              className="mt-0.5 size-3.5 flex-none text-[oklch(0.72_0.13_75)]"
+              className="mt-0.5 size-3.5 flex-none text-accent-amber"
             />
             <div className="flex min-w-0 flex-col gap-1">
               <span className="text-[12.5px] font-medium">
@@ -477,7 +477,7 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
       </div>
 
       {profile !== undefined && (
-        <div className="border-border flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[10px] border bg-white/[0.03] px-3 py-2.5">
+        <div className="border-border flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-white/[0.03] px-3 py-2.5">
           <EnvBadge mode={profile.mode} size="sm" />
           <span className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
             <span>Workspace</span>
@@ -514,7 +514,7 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
       />
 
       <div
-        className="border-border flex flex-col gap-3 rounded-[10px] border px-3.5 py-3"
+        className="border-border flex flex-col gap-3 rounded-lg border px-3.5 py-3"
         data-loadout-policy
       >
         <div className="flex flex-col gap-0.5">

@@ -12,7 +12,7 @@ import { useOpenProposalCount } from "@/lib/proposals";
 import { useProjects } from "@/lib/projects";
 import { WEB_VERSION } from "@/lib/version";
 
-const AMBER = "oklch(0.72 0.13 75)";
+const AMBER = "var(--accent-amber)";
 
 /** Quantos Projects o contador do Grimório soma. Um usuário só não passa disso. */
 const PROJECT_PAGE_SIZE = 100;

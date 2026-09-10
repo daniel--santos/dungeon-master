@@ -32,15 +32,15 @@ export function FailurePanel({ run, onResume }: FailurePanelProps) {
   return (
     <div className="flex flex-col gap-4">
       <section
-        className="flex items-start gap-3.5 rounded-[14px] border px-4.5 py-3.5"
+        className="flex items-start gap-3.5 rounded-xl border px-4.5 py-3.5"
         style={{
-          borderColor: `color-mix(in oklch, ${timedOut ? "oklch(0.72 0.13 75)" : "var(--destructive)"} 38%, transparent)`,
-          backgroundColor: `color-mix(in oklch, ${timedOut ? "oklch(0.72 0.13 75)" : "var(--destructive)"} 10%, transparent)`,
+          borderColor: `color-mix(in oklch, ${timedOut ? "var(--accent-amber)" : "var(--destructive)"} 38%, transparent)`,
+          backgroundColor: `color-mix(in oklch, ${timedOut ? "var(--accent-amber)" : "var(--destructive)"} 10%, transparent)`,
         }}
       >
         <span
           className="mt-0.25 flex-none"
-          style={{ color: timedOut ? "oklch(0.72 0.13 75)" : "var(--destructive)" }}
+          style={{ color: timedOut ? "var(--accent-amber)" : "var(--destructive)" }}
         >
           {timedOut ? (
             <Hourglass aria-hidden className="size-4.5" />
@@ -83,7 +83,7 @@ export function FailurePanel({ run, onResume }: FailurePanelProps) {
             <FolderOpen
               aria-hidden
               className="size-3.75"
-              style={{ color: "oklch(0.72 0.13 250)" }}
+              style={{ color: "var(--accent-blue)" }}
             />
             <span className="text-sm font-medium">O workspace foi preservado</span>
           </div>

@@ -30,7 +30,7 @@ import {
 import { useKnowledgeCandidates } from "@/lib/proposals";
 import { useTask } from "@/lib/tasks";
 
-const ACCENT_GREEN = "oklch(0.72 0.13 150)";
+const ACCENT_GREEN = "var(--accent-green)";
 
 /** Quantos candidatos do Project a gaveta lê para nomear os fundidos. */
 const CANDIDATE_PAGE_SIZE = 100;
@@ -287,7 +287,7 @@ export function KnowledgeItemSheet({ itemId, projectId, onOpenChange }: Knowledg
                 </p>
 
                 {data.reviewNote !== null && data.reviewNote !== "" && (
-                  <div className="border-border flex flex-col gap-0.5 rounded-[8px] border px-2.5 py-2">
+                  <div className="border-border flex flex-col gap-0.5 rounded-md border px-2.5 py-2">
                     <span className="text-muted-foreground text-[10.5px] tracking-[0.06em] uppercase">
                       {format("Nota da revisão · {when}", {
                         when: data.reviewedAt === null ? "—" : formatDateTime(data.reviewedAt),

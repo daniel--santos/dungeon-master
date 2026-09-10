@@ -196,7 +196,7 @@ function ProviderRow({
       className={cn("flex items-start gap-3 py-3", !first && "border-border border-t")}
       data-provider={provider.name}
     >
-      <span className="border-border flex size-8 flex-none items-center justify-center rounded-lg border bg-[oklch(0.72_0.13_305)]/12">
+      <span className="border-border flex size-8 flex-none items-center justify-center rounded-lg border bg-accent-violet/12">
         <Landmark aria-hidden className="size-3.75" style={{ color: REGISTRY_COLOR }} />
       </span>
 

@@ -114,7 +114,7 @@ function StepNodeView({ data }: NodeProps<StepNode>) {
 
   return (
     <div
-      className="bg-card flex flex-col gap-1.5 rounded-[10px] border px-3 py-2"
+      className="bg-card flex flex-col gap-1.5 rounded-lg border px-3 py-2"
       data-step-node={data.key}
       data-step-type={data.type}
       style={{ width: NODE_WIDTH, borderColor: tint(color, 45) }}
