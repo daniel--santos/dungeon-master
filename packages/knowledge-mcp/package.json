@@ -12,9 +12,6 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "dungeon-master-knowledge-mcp": "./dist/bin.js"
-  },
   "files": [
     "dist"
   ],
