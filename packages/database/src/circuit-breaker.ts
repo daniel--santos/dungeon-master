@@ -1,0 +1,498 @@
+import type {
+  BreakerAdmission,
+  BreakerScope,
+  BreakerState,
+  BreakerTriggers,
+  CircuitBreaker,
+  HarnessKey,
+} from "@dungeon-master/contracts";
+import { admitThroughBreaker, type BreakerAdmission as DomainAdmission } from "@dungeon-master/domain";
+import { and, asc, count, eq, or, type SQL, sql } from "drizzle-orm";
+
+import type { AutonomyWriteFailure } from "./autonomy-failure.js";
+import type { Database } from "./client.js";
+import { appendDashboardEvent, type DatabaseExecutor } from "./dashboard-event.js";
+import { newId } from "./ids.js";
+import { findLoadoutRow } from "./loadout.js";
+import { findProjectRow } from "./project.js";
+import { failed, ok, type PageInput, type PageResult, type Result } from "./result.js";
+import { type CircuitBreakerRow, circuitBreakers } from "./schema/autonomy.js";
+
+/**
+ * CircuitBreaker: o disjuntor por escopo (planejamento v0.4, Fase 9A).
+ *
+ * **Todo estado muda por CAS.** A admissão em `POST /runs` (esta fase), o
+ * desfecho gravado pelo Worker (9B) e o reset disputam a mesma linha; a
+ * condição `WHERE state = <esperado>` é o que impede uma transição decidida
+ * sobre um retrato velho. A máquina de estados é do domínio; aqui só se
+ * aplica o que ela decidiu, com o evento de painel na mesma transação.
+ */
+
+export const DEFAULT_COOLDOWN_MS = 15 * 60 * 1_000;
+
+export function toCircuitBreaker(row: CircuitBreakerRow): CircuitBreaker {
+  return {
+    id: row.id,
+    name: row.name,
+    scope: row.scope,
+    projectId: row.projectId,
+    loadoutId: row.loadoutId,
+    harnessKey: row.harnessKey,
+    triggers: row.triggers,
+    cooldownMs: row.cooldownMs,
+    state: row.state,
+    openedAt: row.openedAt?.toISOString() ?? null,
+    reason: row.reason,
+    probeRunId: row.probeRunId,
+    consecutiveFailures: row.consecutiveFailures,
+    stateChangedAt: row.stateChangedAt.toISOString(),
+    enabled: row.enabled,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export async function findCircuitBreakerRow(
+  db: DatabaseExecutor,
+  input: { userId: string; circuitBreakerId: string },
+): Promise<CircuitBreakerRow | null> {
+  const [row] = await db
+    .select()
+    .from(circuitBreakers)
+    .where(
+      and(eq(circuitBreakers.id, input.circuitBreakerId), eq(circuitBreakers.userId, input.userId)),
+    );
+  return row ?? null;
+}
+
+export interface CircuitBreakerFilters {
+  scope?: BreakerScope | undefined;
+  state?: BreakerState | undefined;
+  projectId?: string | undefined;
+}
+
+export interface ListCircuitBreakersInput extends PageInput {
+  userId: string;
+  filters?: CircuitBreakerFilters;
+}
+
+export async function listCircuitBreakers(
+  db: DatabaseExecutor,
+  input: ListCircuitBreakersInput,
+): Promise<PageResult<CircuitBreaker>> {
+  const filters = input.filters ?? {};
+  const conditions: SQL[] = [eq(circuitBreakers.userId, input.userId)];
+  if (filters.scope !== undefined) conditions.push(eq(circuitBreakers.scope, filters.scope));
+  if (filters.state !== undefined) conditions.push(eq(circuitBreakers.state, filters.state));
+  if (filters.projectId !== undefined) {
+    conditions.push(eq(circuitBreakers.projectId, filters.projectId));
+  }
+  const where = and(...conditions);
+
+  const rows = await db
+    .select()
+    .from(circuitBreakers)
+    .where(where)
+    .orderBy(asc(circuitBreakers.name), asc(circuitBreakers.id))
+    .limit(input.pageSize)
+    .offset((input.page - 1) * input.pageSize);
+
+  const [counted] = await db.select({ total: count() }).from(circuitBreakers).where(where);
+
+  return { items: rows.map(toCircuitBreaker), total: counted?.total ?? 0 };
+}
+
+/**
+ * Os disjuntores ligados que alcançam um Run, **travados** para o resto da
+ * transação, em ordem de id: quem consulta o estado para admitir um Run
+ * precisa que ninguém o mude antes do COMMIT, e travar sempre na mesma ordem
+ * é o que evita deadlock entre duas criações simultâneas.
+ */
+export async function lockApplicableBreakers(
+  db: DatabaseExecutor,
+  input: { userId: string; projectId: string | null; loadoutId: string | null; harnessKey: HarnessKey },
+): Promise<CircuitBreakerRow[]> {
+  const escopos: SQL[] = [eq(circuitBreakers.harnessKey, input.harnessKey)];
+  if (input.projectId !== null) escopos.push(eq(circuitBreakers.projectId, input.projectId));
+  if (input.loadoutId !== null) escopos.push(eq(circuitBreakers.loadoutId, input.loadoutId));
+
+  return await db
+    .select()
+    .from(circuitBreakers)
+    .where(
+      and(
+        eq(circuitBreakers.userId, input.userId),
+        eq(circuitBreakers.enabled, true),
+        or(...escopos),
+      ),
+    )
+    .orderBy(asc(circuitBreakers.id))
+    .for("update");
+}
+
+export function toBreakerAdmission(
+  breaker: Pick<CircuitBreakerRow, "id" | "name">,
+  admission: DomainAdmission,
+): BreakerAdmission {
+  return {
+    breakerId: breaker.id,
+    name: breaker.name,
+    state: admission.state,
+    probe: admission.admit ? admission.probe : false,
+    decidedBy: `BREAKER:${breaker.id}`,
+    reason: admission.reason,
+  };
+}
+
+export type BreakersAdmissionResult =
+  | { readonly admitted: false; readonly refused: BreakerAdmission }
+  | {
+      readonly admitted: true;
+      /** Os disjuntores que vão tomar o Run novo como sondagem, já travados. */
+      readonly probes: { readonly breaker: CircuitBreakerRow; readonly admission: DomainAdmission & { admit: true } }[];
+    };
+
+/**
+ * Consulta todos os disjuntores do Run, sem gravar nada.
+ *
+ * A gravação da sondagem (`markBreakerProbe`) fica para depois do `INSERT`
+ * do Run, porque `probe_run_id` é chave estrangeira; as linhas continuam
+ * travadas até lá, então o retrato não envelhece.
+ */
+export function admitRunThroughBreakers(
+  breakers: readonly CircuitBreakerRow[],
+  now: Date,
+): BreakersAdmissionResult {
+  const probes: { breaker: CircuitBreakerRow; admission: DomainAdmission & { admit: true } }[] = [];
+
+  for (const breaker of breakers) {
+    const admission = admitThroughBreaker(
+      {
+        state: breaker.state,
+        openedAt: breaker.openedAt,
+        cooldownMs: breaker.cooldownMs,
+        probeRunId: breaker.probeRunId,
+      },
+      now,
+    );
+    if (!admission.admit) {
+      return { admitted: false, refused: toBreakerAdmission(breaker, admission) };
+    }
+    if (admission.probe) probes.push({ breaker, admission });
+  }
+
+  return { admitted: true, probes };
+}
+
+/**
+ * Marca o Run como sondagem do disjuntor, movendo-o a `HALF_OPEN` se o
+ * cooldown acabou de passar. CAS sobre o estado e sobre a ausência de
+ * sondagem; zero linhas é defeito, porque a linha estava travada.
+ */
+export async function markBreakerProbe(
+  db: DatabaseExecutor,
+  input: { userId: string; breaker: CircuitBreakerRow; runId: string; now: Date },
+): Promise<CircuitBreakerRow> {
+  const { breaker } = input;
+  const [row] = await db
+    .update(circuitBreakers)
+    .set({
+      state: "HALF_OPEN",
+      probeRunId: input.runId,
+      ...(breaker.state === "HALF_OPEN" ? {} : { stateChangedAt: input.now }),
+    })
+    .where(
+      and(
+        eq(circuitBreakers.id, breaker.id),
+        eq(circuitBreakers.userId, input.userId),
+        eq(circuitBreakers.state, breaker.state),
+        sql`${circuitBreakers.probeRunId} is null`,
+      ),
+    )
+    .returning();
+
+  if (row === undefined) {
+    throw new Error(`O disjuntor ${breaker.id} mudou sob a trava; a sondagem não foi marcada.`);
+  }
+
+  if (breaker.state !== "HALF_OPEN") {
+    await appendDashboardEvent(db, {
+      userId: input.userId,
+      type: "breaker.half_open",
+      payload: {
+        breakerId: row.id,
+        name: row.name,
+        scope: row.scope,
+        from: breaker.state,
+        to: "HALF_OPEN",
+        probeRunId: input.runId,
+        decidedBy: `BREAKER:${row.id}`,
+      },
+    });
+  }
+
+  return row;
+}
+
+// --------------------------------------------------------------------------
+// Escrita
+// --------------------------------------------------------------------------
+
+export interface CreateCircuitBreakerInput {
+  userId: string;
+  name: string;
+  scope: BreakerScope;
+  projectId?: string | null;
+  loadoutId?: string | null;
+  harnessKey?: HarnessKey | null;
+  consecutiveFailures?: number | null;
+  failuresInWindow?: { count: number; windowMs: number } | null;
+  permissionDeniedInWindow?: { count: number; windowMs: number } | null;
+  authNotAuthenticated?: boolean;
+  cooldownMs?: number;
+  enabled?: boolean;
+}
+
+function semGatilho(triggers: BreakerTriggers): boolean {
+  return (
+    triggers.consecutiveFailures === null &&
+    triggers.failuresInWindow === null &&
+    triggers.permissionDeniedInWindow === null &&
+    !triggers.authNotAuthenticated
+  );
+}
+
+async function conferirEscopo(
+  db: DatabaseExecutor,
+  input: {
+    userId: string;
+    scope: BreakerScope;
+    projectId: string | null;
+    loadoutId: string | null;
+    harnessKey: HarnessKey | null;
+  },
+): Promise<AutonomyWriteFailure | null> {
+  const { scope } = input;
+  const campos = [
+    ["PROJECT", "projectId", input.projectId] as const,
+    ["LOADOUT", "loadoutId", input.loadoutId] as const,
+    ["HARNESS", "harnessKey", input.harnessKey] as const,
+  ];
+  for (const [doEscopo, field, valor] of campos) {
+    if ((scope === doEscopo) !== (valor !== null)) {
+      return {
+        code: "SCOPE_MISMATCH",
+        scope,
+        field,
+        expected: scope === doEscopo ? "required" : "forbidden",
+      };
+    }
+  }
+  if (input.projectId !== null) {
+    const project = await findProjectRow(db, { userId: input.userId, projectId: input.projectId });
+    if (project === null) return { code: "PROJECT_NOT_FOUND", projectId: input.projectId };
+  }
+  if (input.loadoutId !== null) {
+    const loadout = await findLoadoutRow(db, { userId: input.userId, loadoutId: input.loadoutId });
+    if (loadout === null) return { code: "LOADOUT_NOT_FOUND", loadoutId: input.loadoutId };
+  }
+  return null;
+}
+
+export async function createCircuitBreaker(
+  db: Database,
+  input: CreateCircuitBreakerInput,
+): Promise<Result<CircuitBreaker, AutonomyWriteFailure>> {
+  return await db.transaction(async (tx) => {
+    const projectId = input.projectId ?? null;
+    const loadoutId = input.loadoutId ?? null;
+    const harnessKey = input.harnessKey ?? null;
+    const triggers: BreakerTriggers = {
+      consecutiveFailures: input.consecutiveFailures ?? null,
+      failuresInWindow: input.failuresInWindow ?? null,
+      permissionDeniedInWindow: input.permissionDeniedInWindow ?? null,
+      authNotAuthenticated: input.authNotAuthenticated ?? false,
+    };
+
+    const recusa = await conferirEscopo(tx, { userId: input.userId, scope: input.scope, projectId, loadoutId, harnessKey });
+    if (recusa !== null) return failed(recusa);
+    if (semGatilho(triggers)) return failed<AutonomyWriteFailure>({ code: "BREAKER_WITHOUT_TRIGGER" });
+
+    const [row] = await tx
+      .insert(circuitBreakers)
+      .values({
+        id: newId(),
+        userId: input.userId,
+        name: input.name,
+        scope: input.scope,
+        projectId,
+        loadoutId,
+        harnessKey,
+        triggers,
+        cooldownMs: input.cooldownMs ?? DEFAULT_COOLDOWN_MS,
+        enabled: input.enabled ?? true,
+      })
+      .returning();
+
+    if (row === undefined) throw new Error("A inserção em circuit_breaker não devolveu linha.");
+
+    await appendDashboardEvent(tx, {
+      userId: input.userId,
+      type: "registry.changed",
+      payload: { kind: "circuit_breaker", id: row.id, action: "created" },
+    });
+
+    return ok(toCircuitBreaker(row));
+  });
+}
+
+export interface UpdateCircuitBreakerPatch {
+  name?: string;
+  consecutiveFailures?: number | null;
+  failuresInWindow?: { count: number; windowMs: number } | null;
+  permissionDeniedInWindow?: { count: number; windowMs: number } | null;
+  authNotAuthenticated?: boolean;
+  cooldownMs?: number;
+  enabled?: boolean;
+}
+
+export async function updateCircuitBreaker(
+  db: Database,
+  input: { userId: string; circuitBreakerId: string; patch: UpdateCircuitBreakerPatch },
+): Promise<Result<CircuitBreaker, AutonomyWriteFailure> | null> {
+  return await db.transaction(async (tx) => {
+    const current = await findCircuitBreakerRow(tx, input);
+    if (current === null) return null;
+
+    const { patch } = input;
+    const triggers: BreakerTriggers = {
+      consecutiveFailures:
+        patch.consecutiveFailures === undefined
+          ? current.triggers.consecutiveFailures
+          : patch.consecutiveFailures,
+      failuresInWindow:
+        patch.failuresInWindow === undefined ? current.triggers.failuresInWindow : patch.failuresInWindow,
+      permissionDeniedInWindow:
+        patch.permissionDeniedInWindow === undefined
+          ? current.triggers.permissionDeniedInWindow
+          : patch.permissionDeniedInWindow,
+      authNotAuthenticated:
+        patch.authNotAuthenticated === undefined
+          ? current.triggers.authNotAuthenticated
+          : patch.authNotAuthenticated,
+    };
+    if (semGatilho(triggers)) return failed<AutonomyWriteFailure>({ code: "BREAKER_WITHOUT_TRIGGER" });
+
+    const [row] = await tx
+      .update(circuitBreakers)
+      .set({
+        ...(patch.name === undefined ? {} : { name: patch.name }),
+        triggers,
+        ...(patch.cooldownMs === undefined ? {} : { cooldownMs: patch.cooldownMs }),
+        ...(patch.enabled === undefined ? {} : { enabled: patch.enabled }),
+      })
+      .where(
+        and(eq(circuitBreakers.id, input.circuitBreakerId), eq(circuitBreakers.userId, input.userId)),
+      )
+      .returning();
+
+    if (row === undefined) throw new Error("A atualização de circuit_breaker não devolveu linha.");
+
+    await appendDashboardEvent(tx, {
+      userId: input.userId,
+      type: "registry.changed",
+      payload: { kind: "circuit_breaker", id: row.id, action: "updated" },
+    });
+
+    return ok(toCircuitBreaker(row));
+  });
+}
+
+export async function deleteCircuitBreaker(
+  db: Database,
+  input: { userId: string; circuitBreakerId: string },
+): Promise<boolean> {
+  return await db.transaction(async (tx) => {
+    const current = await findCircuitBreakerRow(tx, input);
+    if (current === null) return false;
+
+    await tx
+      .delete(circuitBreakers)
+      .where(
+        and(eq(circuitBreakers.id, input.circuitBreakerId), eq(circuitBreakers.userId, input.userId)),
+      );
+
+    await appendDashboardEvent(tx, {
+      userId: input.userId,
+      type: "registry.changed",
+      payload: { kind: "circuit_breaker", id: input.circuitBreakerId, action: "deleted" },
+    });
+
+    return true;
+  });
+}
+
+/**
+ * O reset manual: de qualquer estado para `CLOSED`, zerando instante, motivo,
+ * sondagem e contador. Idempotente: um disjuntor já fechado devolve o mesmo
+ * e não grava um segundo fato. `breaker.closed` sai na mesma transação.
+ */
+export async function resetCircuitBreaker(
+  db: Database,
+  input: { userId: string; circuitBreakerId: string },
+): Promise<CircuitBreaker | null> {
+  return await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(circuitBreakers)
+      .where(
+        and(eq(circuitBreakers.id, input.circuitBreakerId), eq(circuitBreakers.userId, input.userId)),
+      )
+      .for("update");
+    if (current === undefined) return null;
+
+    if (current.state === "CLOSED" && current.consecutiveFailures === 0) {
+      return toCircuitBreaker(current);
+    }
+
+    const agora = new Date();
+    const [row] = await tx
+      .update(circuitBreakers)
+      .set({
+        state: "CLOSED",
+        openedAt: null,
+        reason: null,
+        probeRunId: null,
+        consecutiveFailures: 0,
+        stateChangedAt: agora,
+      })
+      .where(
+        and(
+          eq(circuitBreakers.id, current.id),
+          eq(circuitBreakers.userId, input.userId),
+          eq(circuitBreakers.state, current.state),
+        ),
+      )
+      .returning();
+
+    if (row === undefined) throw new Error("O reset do disjuntor perdeu o CAS sob a trava.");
+
+    if (current.state !== "CLOSED") {
+      await appendDashboardEvent(tx, {
+        userId: input.userId,
+        type: "breaker.closed",
+        payload: {
+          breakerId: row.id,
+          name: row.name,
+          scope: row.scope,
+          from: current.state,
+          to: "CLOSED",
+          decidedBy: "RESET",
+          reason: "Reset manual pela API.",
+        },
+      });
+    }
+
+    return toCircuitBreaker(row);
+  });
+}

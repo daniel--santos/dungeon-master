@@ -1,6 +1,7 @@
 import {
   type ExecutionProfileSnapshot,
   type LoadoutSnapshot,
+  RUN_CREATED_BY_VALUES,
   RUN_STATUS_VALUES,
   type RunError,
   type RunResult,
@@ -27,6 +28,7 @@ import { users } from "./user.js";
 import { workflowVersions } from "./workflow.js";
 
 export const runStatus = pgEnum("run_status", RUN_STATUS_VALUES);
+export const runCreatedBy = pgEnum("run_created_by", RUN_CREATED_BY_VALUES);
 
 /**
  * Run é uma tentativa concreta de realizar uma Task (documento técnico, 5.1).
@@ -96,6 +98,19 @@ export const runs = pgTable(
     resumedFromRunId: uuid("resumed_from_run_id").references((): AnyPgColumn => runs.id, {
       onDelete: "set null",
     }),
+    /**
+     * Origem e parentesco (Fase 9A). `created_by` diz quem pediu o Run:
+     * `USER` pela API, `POLICY` pelo auto-despacho (9B), `DELEGATION` por um
+     * agente pela ferramenta de delegação (9B). `parent_run_id` e
+     * `parent_step_key` são o fio da delegação: o Run mãe e o step dele que
+     * abriram este; nulos em todo Run da API. `set null` pelo mesmo motivo de
+     * `resumed_from_run_id`: perder o vínculo é melhor que perder o Run.
+     */
+    createdBy: runCreatedBy("created_by").notNull().default("USER"),
+    parentRunId: uuid("parent_run_id").references((): AnyPgColumn => runs.id, {
+      onDelete: "set null",
+    }),
+    parentStepKey: text("parent_step_key"),
     loadoutId: uuid("loadout_id")
       .notNull()
       .references(() => loadouts.id, { onDelete: "restrict" }),
@@ -123,6 +138,10 @@ export const runs = pgTable(
     // A fila e os filtros da tela de Expedições usam exatamente estas colunas.
     index("run_user_status_idx").on(table.userId, table.status, table.createdAt),
     unique("run_task_attempt_uq").on(table.taskId, table.attempt),
+    // "Quais Runs este Run delegou?" é a pergunta da 9B; sem índice seria
+    // varredura da maior tabela de estado do sistema.
+    index("run_parent_idx").on(table.parentRunId),
+    check("run_parent_step_ck", sql`"parent_step_key" is null or "parent_run_id" is not null`),
   ],
 );
 

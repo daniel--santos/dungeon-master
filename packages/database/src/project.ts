@@ -24,6 +24,7 @@ export function toProject(row: ProjectRow): Project {
     status: row.status,
     workspaceKind: row.workspaceKind,
     workspacePath: row.workspacePath,
+    autonomyLevel: row.autonomyLevel,
     archivedAt: row.archivedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

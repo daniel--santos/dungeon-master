@@ -3,6 +3,7 @@ import {
   DEFAULT_TASK_SORT_ORDER,
   type SortOrder,
   type Task,
+  type TaskCreatedBy,
   type TaskDetail,
   type TaskKind,
   type TaskPriority,
@@ -62,6 +63,7 @@ export function toTask(row: TaskRow): Task {
     kind: row.kind,
     status: row.status,
     priority: row.priority,
+    createdBy: row.createdBy,
     completedAt: row.completedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -139,6 +141,7 @@ export interface TaskFilters {
   parentTaskId?: string | undefined;
   kind?: TaskKind | undefined;
   priority?: TaskPriority | undefined;
+  createdBy?: TaskCreatedBy | undefined;
   status?: readonly TaskStatus[] | undefined;
   /**
    * Estados escondidos, aplicados depois de `status`.
@@ -272,6 +275,7 @@ export async function listTasks(
   }
   if (filters.kind !== undefined) conditions.push(eq(tasks.kind, filters.kind));
   if (filters.priority !== undefined) conditions.push(eq(tasks.priority, filters.priority));
+  if (filters.createdBy !== undefined) conditions.push(eq(tasks.createdBy, filters.createdBy));
   if (filters.status !== undefined && filters.status.length > 0) {
     conditions.push(inArray(tasks.status, [...filters.status]));
   }

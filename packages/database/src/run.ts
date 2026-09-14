@@ -1,8 +1,17 @@
+import { fastEstimateTokens } from "@dungeon-master/context";
 import {
+  type BreakerAdmission,
+  type BudgetBreach,
   type CapabilityIssue,
+  type DiagnosticEvent,
   type HarnessKey,
+  type LoadoutSnapshot,
+  type PolicyDecision,
+  type RoutingDecision,
+  type RuleFacts,
   type Run,
   type RunCreated,
+  type RunCreatedBy,
   type RunError,
   type RunListItem,
   type RunResult,
@@ -13,6 +22,7 @@ import {
   checkRunCreation,
   checkRunTransition,
   checkTaskTransition,
+  decideApproval,
   isPreExecutionRunStatus,
   isTerminalRunStatus,
   matchCapabilities,
@@ -30,10 +40,19 @@ import { and, asc, count, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 
 import { recordDomainEvent } from "./activity.js";
 import { findAgentRow } from "./agent.js";
+import { listPoliciesForDecision } from "./approval-policy.js";
+import { routeModelForLoadout } from "./autonomy.js";
+import { checkBudgetsForNewRun } from "./budget.js";
+import {
+  admitRunThroughBreakers,
+  lockApplicableBreakers,
+  markBreakerProbe,
+  toBreakerAdmission,
+} from "./circuit-breaker.js";
 import type { Database } from "./client.js";
-import type { DatabaseExecutor } from "./dashboard-event.js";
+import { appendDashboardEvent, type DatabaseExecutor } from "./dashboard-event.js";
 import { findExecutionProfileRow, toExecutionProfileSnapshot } from "./execution-profile.js";
-import { findHarnessRow } from "./harness.js";
+import { findHarnessRow, findModelRow } from "./harness.js";
 import { newId } from "./ids.js";
 import { buildLoadoutSnapshot, findLoadoutRow } from "./loadout.js";
 import { failed, ok, type PageInput, type PageResult, type Result } from "./result.js";
@@ -71,6 +90,9 @@ export function toRun(row: RunRow, projectId: string | null): Run {
     workspacePath: row.workspacePath,
     workflowVersionId: row.workflowVersionId,
     resumedFromRunId: row.resumedFromRunId,
+    createdBy: row.createdBy,
+    parentRunId: row.parentRunId,
+    parentStepKey: row.parentStepKey,
     loadoutId: row.loadoutId,
     loadoutVersion: row.loadoutVersion,
     loadoutSnapshot: row.loadoutSnapshot,
@@ -117,6 +139,21 @@ export type RunWriteFailure =
        */
       readonly code: "CAPABILITY_BLOCKED";
       readonly blockers: readonly CapabilityIssue[];
+    }
+  | {
+      /** Um orçamento `BLOCK` está no teto (Fase 9A). O consumo e o teto vão no `409`. */
+      readonly code: "BUDGET_EXCEEDED";
+      readonly breach: BudgetBreach;
+    }
+  | {
+      /** Um disjuntor `OPEN`, ou `HALF_OPEN` com sondagem em voo, recusou (Fase 9A). */
+      readonly code: "BREAKER_OPEN";
+      readonly breaker: BreakerAdmission;
+    }
+  | {
+      /** Uma política `RUN_START` com `DENY` casou (Fase 9A). */
+      readonly code: "POLICY_DENIED";
+      readonly decision: PolicyDecision;
     };
 
 // --------------------------------------------------------------------------
@@ -153,6 +190,7 @@ export interface RunFilters {
   projectId?: string | undefined;
   harnessKey?: HarnessKey | undefined;
   status?: readonly RunStatus[] | undefined;
+  createdBy?: RunCreatedBy | undefined;
 }
 
 export interface ListRunsInput extends PageInput {
@@ -185,6 +223,7 @@ export async function listRuns(
   if (filters.status !== undefined && filters.status.length > 0) {
     conditions.push(inArray(runs.status, [...filters.status]));
   }
+  if (filters.createdBy !== undefined) conditions.push(eq(runs.createdBy, filters.createdBy));
 
   const where = and(...conditions);
 
@@ -413,6 +452,14 @@ export interface CreateRunInput {
    * o `harness_session_id` a passar para a CLI.
    */
   resumeFromRunId?: string | undefined;
+  /**
+   * Origem e parentesco (Fase 9A). A API cria sempre `USER`; o auto-despacho
+   * (9B) passa `POLICY`, e a delegação (9B) passa `DELEGATION` com o Run mãe
+   * e o step que abriu este.
+   */
+  createdBy?: RunCreatedBy | undefined;
+  parentRunId?: string | undefined;
+  parentStepKey?: string | undefined;
 }
 
 /**
@@ -456,6 +503,16 @@ export async function isKnowledgeScribeLoadout(
  * resolvido com a matriz do Harness: um blocker recusa a criação com a lista;
  * os avisos voltam junto do Run, e o Worker os recomputa sobre os snapshots
  * congelados para gravá-los como `Diagnostic`.
+ *
+ * A autonomia controlada (Fase 9A) entra na mesma transação, nesta ordem:
+ * os **disjuntores** do Project, do Loadout e do Harness, travados (`OPEN`
+ * recusa; `HALF_OPEN` deixa passar uma sondagem); os **orçamentos**
+ * aplicáveis, medidos (`BLOCK` no teto recusa; `WARN` avisa); o
+ * **roteamento** do Model, quando o Loadout o deixa nulo, com a pressão de
+ * orçamento como fato; e a **política de partida** (`DENY` recusa;
+ * `AUTO_APPROVE` só vale no nível 3 e, para um Run pedido pela API, é só
+ * registro — quem pediu já aprovou). Cada decisão vai ao painel e ao diário
+ * do Run. Uma recusa devolve `failed` e commita só o evento que a explica.
  */
 export async function createRun(
   db: Database,
@@ -583,13 +640,140 @@ export async function createRun(
       return failed<RunWriteFailure>({ code: "EXECUTION_PROFILE_DISABLED", executionProfileId });
     }
 
+    if (project === undefined) {
+      // `checkRunCreation` exigiu Project ativo com workspace; chegar aqui é defeito.
+      throw new Error(`A Task ${task.id} passou na checagem de criação sem Project.`);
+    }
+
     const capturedAt = new Date();
-    const loadoutSnapshot = await buildLoadoutSnapshot(tx, {
+    const agora = capturedAt;
+    const prompt = input.prompt ?? defaultRunPrompt(task);
+    let loadoutSnapshot: LoadoutSnapshot = await buildLoadoutSnapshot(tx, {
       loadout,
       agent,
       harness,
       capturedAt,
     });
+
+    // ---------------------------------------------------------- disjuntores
+    // Travados até o COMMIT: o retrato que decide a admissão não pode
+    // envelhecer entre a consulta e a marcação da sondagem.
+    const breakers = await lockApplicableBreakers(tx, {
+      userId: input.userId,
+      projectId: task.projectId,
+      loadoutId: loadout.id,
+      harnessKey: harness.key,
+    });
+    const admissao = admitRunThroughBreakers(breakers, agora);
+    if (!admissao.admitted) {
+      return failed<RunWriteFailure>({ code: "BREAKER_OPEN", breaker: admissao.refused });
+    }
+
+    // ----------------------------------------------------------- orçamentos
+    const orcamentos = await checkBudgetsForNewRun(tx, {
+      userId: input.userId,
+      projectId: task.projectId,
+      loadoutId: loadout.id,
+      now: agora,
+    });
+    if (orcamentos.blocked !== null) {
+      // O evento sai e o `failed` commita só ele: a recusa fica auditável
+      // mesmo sem Run.
+      await appendDashboardEvent(tx, {
+        userId: input.userId,
+        type: "budget.exceeded",
+        payload: {
+          budgetId: orcamentos.blocked.budgetId,
+          name: orcamentos.blocked.name,
+          taskId: task.id,
+          projectId: task.projectId,
+          loadoutId: loadout.id,
+          limit: orcamentos.blocked.limit,
+          limitValue: orcamentos.blocked.limitValue,
+          current: orcamentos.blocked.current,
+          decidedBy: orcamentos.blocked.decidedBy,
+          reason: orcamentos.blocked.reason,
+        },
+      });
+      return failed<RunWriteFailure>({ code: "BUDGET_EXCEEDED", breach: orcamentos.blocked });
+    }
+
+    // ---------------------------------------------------------------- fatos
+    const facts: RuleFacts = {
+      projectId: project.id,
+      loadoutId: loadout.id,
+      taskKind: task.kind,
+      taskPriority: task.priority,
+      executionMode: profile.mode,
+      harnessKey: harness.key,
+      enforcement: profile.enforcement,
+      hasCommandTools: (loadoutSnapshot.toolDefinitions ?? []).some(
+        (tool) => tool.kind === "COMMAND",
+      ),
+      estimatedTokens: fastEstimateTokens(prompt),
+      budgetPressure: orcamentos.pressure,
+    };
+
+    // ----------------------------------------------------------- roteamento
+    // Só quando o Loadout deixa o Model nulo: um Model pinado é decisão
+    // humana, e o snapshot diz de qualquer jeito quem escolheu.
+    let modelRouting: RoutingDecision | null = null;
+    if (loadout.modelId === null) {
+      modelRouting = await routeModelForLoadout(tx, {
+        userId: input.userId,
+        loadout,
+        facts,
+        projectId: task.projectId,
+      });
+      const escolhido =
+        modelRouting.selectedId === null
+          ? null
+          : await findModelRow(tx, { userId: input.userId, modelId: modelRouting.selectedId });
+      loadoutSnapshot = {
+        ...loadoutSnapshot,
+        model: escolhido === null ? null : { id: escolhido.id, key: escolhido.key, name: escolhido.name },
+        modelSelectedBy:
+          modelRouting.ruleId !== null
+            ? modelRouting.decidedBy
+            : escolhido === null
+              ? "NONE"
+              : "HARNESS_DEFAULT",
+        modelSelectionReason: modelRouting.reason,
+      };
+    } else {
+      loadoutSnapshot = {
+        ...loadoutSnapshot,
+        modelSelectedBy: "LOADOUT",
+        modelSelectionReason: "O Loadout pina o Model.",
+      };
+    }
+
+    // --------------------------------------------------- política de partida
+    const policies = await listPoliciesForDecision(tx, {
+      userId: input.userId,
+      projectId: task.projectId,
+    });
+    const policyDecision = decideApproval({
+      subject: "RUN_START",
+      policies,
+      facts,
+      autonomyLevel: project.autonomyLevel,
+      now: agora,
+    });
+    if (policyDecision.action === "DENY") {
+      await appendDashboardEvent(tx, {
+        userId: input.userId,
+        type: "policy.decided",
+        payload: {
+          taskId: task.id,
+          projectId: task.projectId,
+          loadoutId: loadout.id,
+          runId: null,
+          ...policyDecision,
+        },
+      });
+      return failed<RunWriteFailure>({ code: "POLICY_DENIED", decision: policyDecision });
+    }
 
     const report = matchCapabilities({
       snapshot: loadoutSnapshot,
@@ -641,7 +825,10 @@ export async function createRun(
         executionProfileSnapshot: toExecutionProfileSnapshot(profile, capturedAt),
         ...(origem === null ? {} : { resumedFromRunId: origem.id }),
         ...(captured === null ? {} : { workflowVersionId: captured.version.id }),
-        prompt: input.prompt ?? defaultRunPrompt(task),
+        createdBy: input.createdBy ?? "USER",
+        parentRunId: input.parentRunId ?? null,
+        parentStepKey: input.parentStepKey ?? null,
+        prompt,
         attempt,
       })
       .returning();
@@ -682,7 +869,9 @@ export async function createRun(
         harnessKey: harness.key,
         executionMode: profile.mode,
         attempt,
+        createdBy: criado.createdBy,
         ...(origem === null ? {} : { resumedFromRunId: origem.id }),
+        ...(criado.parentRunId === null ? {} : { parentRunId: criado.parentRunId }),
         ...(captured === null
           ? {}
           : {
@@ -692,6 +881,87 @@ export async function createRun(
             }),
       },
     });
+
+    // ------------------------------------------------ sondagens e auditoria
+    // A sondagem é marcada só agora porque `probe_run_id` é chave estrangeira;
+    // as linhas dos disjuntores continuam travadas desde a consulta.
+    let breaker: BreakerAdmission | null = null;
+    for (const probe of admissao.probes) {
+      const marcado = await markBreakerProbe(tx, {
+        userId: input.userId,
+        breaker: probe.breaker,
+        runId: criado.id,
+        now: agora,
+      });
+      breaker ??= toBreakerAdmission(marcado, probe.admission);
+    }
+
+    const diario: { level: DiagnosticEvent["level"]; code: string; message: string }[] = [];
+
+    if (policyDecision.decidedBy !== "DEFAULT") {
+      await appendDashboardEvent(tx, {
+        userId: input.userId,
+        type: "policy.decided",
+        payload: {
+          taskId: task.id,
+          projectId: task.projectId,
+          loadoutId: loadout.id,
+          runId: criado.id,
+          ...policyDecision,
+        },
+      });
+      diario.push({ level: "INFO", code: "POLICY_DECIDED", message: policyDecision.reason });
+    }
+
+    for (const aviso of orcamentos.warnings) {
+      await appendDashboardEvent(tx, {
+        userId: input.userId,
+        type: "budget.warned",
+        payload: {
+          budgetId: aviso.budgetId,
+          name: aviso.name,
+          taskId: task.id,
+          projectId: task.projectId,
+          loadoutId: loadout.id,
+          runId: criado.id,
+          limit: aviso.limit,
+          limitValue: aviso.limitValue,
+          current: aviso.current,
+          decidedBy: aviso.decidedBy,
+          reason: aviso.reason,
+        },
+      });
+      diario.push({ level: "WARN", code: "BUDGET_WARNED", message: aviso.reason });
+    }
+
+    if (modelRouting !== null && modelRouting.ruleId !== null) {
+      diario.push({ level: "INFO", code: "MODEL_ROUTED", message: modelRouting.reason });
+    }
+
+    if (breaker !== null) {
+      diario.push({
+        level: "WARN",
+        code: "BREAKER_PROBE",
+        message: `${breaker.decidedBy}: ${breaker.reason}`,
+      });
+    }
+
+    for (const entrada of diario) {
+      const evento: DiagnosticEvent = {
+        type: "Diagnostic",
+        timestamp: agora.toISOString(),
+        harness: harness.key,
+        level: entrada.level,
+        source: "RUNTIME",
+        code: entrada.code,
+        message: entrada.message,
+      };
+      await insertRunEvent(tx, {
+        userId: input.userId,
+        runId: criado.id,
+        event: { type: evento.type, timestamp: agora, payload: evento },
+      });
+    }
 
     const enfileirado = await applyRunStatus(tx, {
       userId: input.userId,
@@ -710,7 +980,14 @@ export async function createRun(
       );
     }
 
-    return ok({ ...toRun(enfileirado.value, task.projectId), warnings: report.warnings });
+    return ok({
+      ...toRun(enfileirado.value, task.projectId),
+      warnings: report.warnings,
+      policyDecision,
+      modelRouting,
+      budgetWarnings: orcamentos.warnings,
+      breaker,
+    });
   });
 }
 

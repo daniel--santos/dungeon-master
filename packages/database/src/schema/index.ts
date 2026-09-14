@@ -14,3 +14,4 @@ export * from "./knowledge-item.js";
 export * from "./distillation.js";
 export * from "./knowledge-candidate.js";
 export * from "./run-context.js";
+export * from "./autonomy.js";
