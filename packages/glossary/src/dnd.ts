@@ -1012,6 +1012,7 @@ export const dnd: Record<GlossaryKey, string> = {
   "task.origin.proposal": "Nascida de uma Pista aprovada",
   "task.origin.policy": "Criada por Édito",
   "task.origin.policy.short": "por Édito",
+  "task.origin.delegation": "Criada por delegação de um Herói",
   "proposal.autoApproved": "Aprovada por Édito",
 
   // -------------------------------------------------------------- diagnostic

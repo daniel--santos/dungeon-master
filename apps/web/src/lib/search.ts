@@ -28,7 +28,7 @@ const TASK_STATUS_VALUES = [
   "CANCELLED",
 ] as const;
 
-const TASK_CREATED_BY_VALUES = ["USER", "PROPOSAL", "POLICY"] as const;
+const TASK_CREATED_BY_VALUES = ["USER", "PROPOSAL", "POLICY", "DELEGATION"] as const;
 const RUN_CREATED_BY_VALUES = ["USER", "POLICY", "DELEGATION"] as const;
 
 export const taskSearchSchema = z.object({

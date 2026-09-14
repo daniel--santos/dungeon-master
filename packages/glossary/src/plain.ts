@@ -995,6 +995,7 @@ export const plain: Record<GlossaryKey, string> = {
   "task.origin.proposal": "Nascida de uma proposta aprovada",
   "task.origin.policy": "Criada por política",
   "task.origin.policy.short": "por política",
+  "task.origin.delegation": "Criada por delegação de um agente",
   "proposal.autoApproved": "Aprovada por política",
 
   // -------------------------------------------------------------- diagnostic

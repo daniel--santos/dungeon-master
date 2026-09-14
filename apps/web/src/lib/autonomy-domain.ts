@@ -347,6 +347,7 @@ export const TASK_CREATED_BY: Record<TaskCreatedBy, GlossaryKey> = {
   USER: "task.origin.user",
   PROPOSAL: "task.origin.proposal",
   POLICY: "task.origin.policy",
+  DELEGATION: "task.origin.delegation",
 };
 
 export const TASK_CREATED_BY_VALUES = Object.keys(TASK_CREATED_BY) as readonly TaskCreatedBy[];

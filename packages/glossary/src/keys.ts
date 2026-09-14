@@ -992,6 +992,7 @@ export const GLOSSARY_KEYS = [
   "task.origin.proposal",
   "task.origin.policy",
   "task.origin.policy.short",
+  "task.origin.delegation",
   "proposal.autoApproved",
 
   // -------------------------------------------------------------- diagnostic
