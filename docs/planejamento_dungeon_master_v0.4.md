@@ -980,6 +980,27 @@ Pendências que ficam registradas:
 
 **Fases 0 a 8 concluídas.** A Fase 9 (Autonomia e Agent-to-Agent) aguarda decisão.
 
+## Fechamento da Fase 9 (14/09/2026)
+
+**Critério de conclusão da Fase 9 cumprido**: os níveis 3 e 4 da escada de autonomia funcionam sob políticas, orçamentos e disjuntores, com delegação entre agentes que sobrevive a restart e tudo auditável. Provado com Claude Code real: numa Campanha de nível 3, o terceiro Run do dia foi recusado pelo orçamento e uma Pista de manutenção virou Missão por Édito; um Ritual `analyze → delegate(Revisor) → execute` fez a Expedição mãe esperar o filho, sobreviveu à derrubada do Worker no meio da espera, e o `execute` usou a saída do filho; um Selo foi concedido por Édito sem pausa, com a autoria no diário; um orçamento por Expedição derrubou o segundo passo sem subir agente; dois fracassos seguidos abriram uma Sentinela, o terceiro Run ficou na fila e a sondagem fechou a Sentinela; e no nível 4 o Claude Code chamou `delegate_task` e `await_run` e recebeu o resultado do filho.
+
+O que entrou, em três ondas:
+
+- **9A, regras**: nível de autonomia por Campanha (0 a 4; o 5 fica fora por decisão); Éditos com condições de vocabulário fechado, prioridade e ação, fail-closed; Tesouros por escopo e janela com consumo medido de tokens, Runs, tempo e simultâneos, e `tokensKnown` honesto; Sentinelas com estados, cooldown e sondagem; Encaminhamentos de Patrono, Equipamento e Ritual com fallback e pressão de orçamento; origem e parentesco de Run e Task; `POST /runs` recusando por orçamento, disjuntor e política, e devolvendo a decisão, o roteamento e os avisos; Pistas auto-aprovadas por Édito criando a Missão na transação do desfecho; migração `0017`.
+- **9B, movimento**: passo `delegate` com Run filho e estado `WAITING_CHILD` persistido, cascata de cancelamento e profundidade máxima 2; Selo concedido ou negado por Édito com `grantedBy`/`rejectedBy`; Sentinelas alimentadas pelos desfechos, recusa na reclamação e fechamento por sondagem; orçamentos re-checados na reclamação e por passo, com o orçamento por Expedição somando a família; auto-despacho no nível 3; `packages/orchestration-mcp` com `list_loadouts`, `delegate_task` e `await_run`, oferecido só no nível 4; `GET /runs/{id}/children`; migração `0018`.
+- **9C, web**: Rédea com os cinco degraus e confirmação para soltar; Éditos com editor de condições e o fail-closed à vista; Tesouros com barras por teto; Sentinelas com reset; Encaminhamentos; sugestões e cada recusa tratadas na Nova Expedição; Origem, mãe, filhas e diagnósticos no cockpit; origem nas listas; toasts; 24 testes de ponta a ponta.
+
+Correções no fechamento: a reclamação de Runs passou a travar um candidato por vez, porque travar a lista inteira deixava um segundo Worker de mãos vazias (post-mortem #26); folga de timer num teste do runtime no Windows; e a origem `DELEGATION` fechada na web e no glossário.
+
+Pendências que ficam registradas:
+
+- Restart com o filho em voo assenta `DELEGATION_FAILED` sem retentativa; `retry` não vale para `delegate`; a ferramenta de delegação não foi provada em Docker.
+- `GET /runs` sem filtro por mãe; `ProposedTask` sem quem decidiu; `PolicyDecision`, `BreakerAdmission` e `RoutingDecision` sem schema nomeado; `BreakerAdmission` sem `openedAt`; `GET /budgets/{id}/usage` em `PER_RUN` mede o último Run terminal.
+- `dispatch.skipped` sai a cada reavaliação; Task de `taskStrategy: CHILD` herda tipo e prioridade da mãe; `await_run` sonda o banco a cada segundo; `MODEL_SELECTION_UNSUPPORTED` avisa também quando o Model é só o padrão da Guilda.
+- ADR 0003 (renomear `hero_stats` e reescrever a regra de vocabulário) continua aguardando decisão.
+
+**Fases 0 a 9 concluídas.** A Fase 10 (Observabilidade avançada) aguarda decisão.
+
 ## Andamento anterior da Fase 2 (histórico)
 
 Mergeadas e verdes no CI: 2A (modelo, banco, API), 2B (runtime e adapters de host; ADR em `packages/runtime-sandcastle/README.md`: os adapters não dependem do Sandcastle em runtime), o Worker (laço, reconciliação, cancelamento confirmado, shutdown gracioso, `resumeFromRunId`, marca d'água do poller) e as telas (cadastros, Nova Expedição com aceite do modo host, Expedições, Cristal de Visão com diário ao vivo e AlertDialog de cancelamento).
