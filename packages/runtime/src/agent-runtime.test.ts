@@ -432,7 +432,9 @@ describe("resultado estruturado", () => {
       expect(last.kind).toBe("COMPLETION");
       expect(last.limitMs).toBe(completionMs);
       // O tempo relatado é o do Run, e não o da segunda tentativa.
-      expect(last.elapsedMs).toBeGreaterThanOrEqual(completionMs);
+      // No runner do Windows o timer disparou 1 ms antes do teto (2999 para
+      // 3000): a folga cobre a granularidade do relógio sem afrouxar o sentido.
+      expect(last.elapsedMs).toBeGreaterThanOrEqual(completionMs - 50);
     }
     // A folga cobre dois spawns de Node; o que ela não cobre é um segundo teto
     // inteiro, que é o defeito.
