@@ -20,6 +20,7 @@ const PROJECT: ProjectRecord = {
   status: "ACTIVE",
   workspaceKind: "GIT_REPO",
   workspacePath: null,
+  autonomyLevel: 2,
   archivedAt: null,
   createdAt: "2026-09-01T12:00:00.000Z",
   updatedAt: "2026-09-01T12:00:00.000Z",

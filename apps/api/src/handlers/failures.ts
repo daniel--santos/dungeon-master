@@ -1,5 +1,6 @@
 import type {
   ApprovalGateWriteFailure,
+  AutonomyWriteFailure,
   DependencyWriteFailure,
   ForgedAchievementWriteFailure,
   InboxFailure,
@@ -640,6 +641,126 @@ export function runFailureProblem(failure: RunWriteFailure): HttpProblem {
         title: "O Harness não sustenta o que o Loadout pede",
         detail: failure.blockers.map((issue) => issue.message).join(" "),
         extensions: { blockers: [...failure.blockers] },
+      });
+    // As três recusas da Fase 9A levam `code` e o objeto inteiro da decisão
+    // como extensão: a interface reconhece pelo código e mostra o orçamento,
+    // o consumo e o teto (ou o disjuntor, ou a política) sem reler o `detail`.
+    case "BUDGET_EXCEEDED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Orçamento no teto",
+        detail: failure.breach.reason,
+        extensions: { code: "BUDGET_EXCEEDED", budget: failure.breach },
+      });
+    case "BREAKER_OPEN":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Disjuntor aberto",
+        detail:
+          `O disjuntor "${failure.breaker.name}" (${failure.breaker.breakerId}) não deixa o Run ` +
+          `partir: ${failure.breaker.reason} Feche-o com POST /api/v1/circuit-breakers/{id}/reset ` +
+          "ou espere o cooldown.",
+        extensions: { code: "BREAKER_OPEN", breaker: failure.breaker },
+      });
+    case "POLICY_DENIED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Partida recusada por política",
+        detail: failure.decision.reason,
+        extensions: { code: "POLICY_DENIED", policyDecision: failure.decision },
+      });
+  }
+}
+
+/**
+ * Traduz as recusas das regras da Fase 9A.
+ *
+ * Os "não encontrado" são `404` porque o id veio no corpo; o resto é `409`,
+ * a regra de domínio que o estado não comporta.
+ */
+export function autonomyFailureProblem(failure: AutonomyWriteFailure): HttpProblem {
+  switch (failure.code) {
+    case "PROJECT_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Project não encontrado",
+        detail: `Não existe Project com o id ${failure.projectId}.`,
+      });
+    case "LOADOUT_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Loadout não encontrado",
+        detail: `Não existe Loadout com o id ${failure.loadoutId}.`,
+      });
+    case "ROUTING_TARGET_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Alvo do roteamento não encontrado",
+        detail:
+          `Não existe ${failure.kind === "MODEL" ? "Model" : failure.kind === "LOADOUT" ? "Loadout" : "Workflow"} ` +
+          `com o id ${failure.targetId} para ser alvo de uma regra ${failure.kind}.`,
+      });
+    case "SCOPE_MISMATCH":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Id de escopo não bate com o escopo",
+        detail:
+          failure.expected === "required"
+            ? `O escopo ${failure.scope} exige \`${failure.field}\`.`
+            : `O escopo ${failure.scope} não aceita \`${failure.field}\`; deixe-o de fora.`,
+      });
+    case "BUDGET_WITHOUT_LIMIT":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Orçamento sem teto",
+        detail:
+          "Um orçamento precisa de pelo menos um teto: `maxTokens`, `maxRuns`, " +
+          "`maxWallClockMs` ou `maxConcurrentRuns`.",
+      });
+    case "BUDGET_LIMIT_NOT_ALLOWED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Teto que a janela não aceita",
+        detail:
+          `A janela ${failure.window} não aceita \`${failure.limit}\`: um orçamento por Run só ` +
+          "limita `maxTokens` e `maxWallClockMs`.",
+      });
+    case "BREAKER_WITHOUT_TRIGGER":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Disjuntor sem gatilho",
+        detail:
+          "Um disjuntor precisa de pelo menos um gatilho: `consecutiveFailures`, " +
+          "`failuresInWindow`, `permissionDeniedInWindow` ou `authNotAuthenticated`.",
+      });
+    case "TASK_WITHOUT_PROJECT":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Task sem Project",
+        detail:
+          `A Task ${failure.taskId} não pertence a nenhum Project, e as sugestões dependem do ` +
+          "nível de autonomia e das regras dele. Promova a captura antes.",
+      });
+    case "AUTOMATION_NOT_ALLOWED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Nível de autonomia não libera",
+        detail:
+          `O Project está no nível ${String(failure.autonomyLevel)}, que não libera ` +
+          `${failure.automation}. Suba o nível em PATCH /api/v1/projects/{id}/autonomy.`,
+        extensions: { code: "AUTOMATION_NOT_ALLOWED", autonomyLevel: failure.autonomyLevel },
       });
   }
 }

@@ -1733,12 +1733,147 @@ foi derrubado pelo PID).
 Inalterada em relação à v0.2. Somente após execução, observabilidade e conhecimento maduros. É aqui que o orquestrador pode ganhar um turno de agente, no espírito do Archon, e não antes.
 
 - [ ] Agent delegation e Agent-to-Agent
-- [ ] Dynamic workflow e loadout selection
-- [ ] Model routing
-- [ ] Auto-created tasks
-- [ ] Approval policies
-- [ ] Budgets
-- [ ] Circuit breakers
+- [ ] Dynamic workflow e loadout selection (9A: regras e sugestões; 9B: aplicação)
+- [ ] Model routing (9A: em `POST /runs` quando o Loadout deixa o Model nulo)
+- [ ] Auto-created tasks (9A: por política no desfecho; 9B: auto-despacho)
+- [ ] Approval policies (9A: dados, decisão e partida; 9B: gates)
+- [ ] Budgets (9A: medida e recusa na criação; 9B: `PER_RUN` e re-checagem na reclamação)
+- [ ] Circuit breakers (9A: estado consultado, half-open e reset; 9B: alimentação pelos desfechos)
+
+## Andamento da Fase 9A (14/09/2026)
+
+Entregue na branch `feat/fase9-politicas`, no lado de contratos, domínio, banco e API; o
+Worker (9B) e a interface (9C) vêm depois e consomem o que ficou aqui. Nada de LLM: toda
+decisão é determinística sobre dados, auditável em evento de painel e, quando há Run, no
+diário dele como `Diagnostic` (`POLICY_DECIDED`, `BUDGET_WARNED`, `MODEL_ROUTED`,
+`BREAKER_PROBE`).
+
+**Regras são dados com vocabulário fechado.** As condições de políticas e de regras de
+roteamento vivem em `RuleConditions` (`packages/contracts/src/rule-condition.ts`):
+`executionMode`, `harnessKey`, `taskKind`, `taskPriority`, `hasCommandTools`, `enforcement`,
+`stepType`, `maxEstimatedTokens`, `loadoutId`, `projectId` e `minBudgetPressure` — um valor
+ou uma lista ("qualquer um destes"), conjunção, `strictObject` (chave fora do vocabulário é
+`400`). O casamento é função pura (`selectRule`, `packages/domain/src/rule-matching.ts`) e
+**fail-closed**: condição sobre fato que o contexto não mediu não casa; a regra ligada de
+maior prioridade que casa decide; empate na prioridade máxima não decide (revisão humana
+numa política, padrão do sistema num roteamento), e a resposta nomeia as regras empatadas.
+Os tipos de step saíram para `workflow-step-type.ts` para as condições não fecharem ciclo
+com `run.ts`; `delegate` (9B) é uma linha ali.
+
+**Escada de autonomia por Project.** `project.autonomy_level` (inteiro 0–4, `CHECK`, padrão
+2) e `AutonomyLevel` no contrato; o que cada degrau libera é **só** do domínio
+(`allowsAutomation`, `packages/domain/src/autonomy-levels.ts`): 1 `SUGGEST`; 3
+`AUTO_APPROVE_PROPOSAL`, `AUTO_APPROVE_GATE` e `AUTO_DISPATCH`; 4 `DELEGATE`; nível fora da
+escada não libera nada. `GET/PATCH /projects/{id}/autonomy` devolve o nível e o mapa
+`allows`, com `project.updated` no diário e `autonomy.changed` no painel.
+
+**Políticas de aprovação** (`approval_policy`: `subject` `PROPOSAL | RUN_START | GATE`,
+`project_id` nulo = global, `priority`, `conditions`, `action` `REQUIRE_APPROVAL |
+AUTO_APPROVE | DENY`). `decideApproval` devolve `PolicyDecision` com a ação **efetiva**, a
+política que casou, o que ela pedia e `decidedBy` (`POLICY:<id>`, `DEFAULT`, `TIE:<ids>`,
+`AUTONOMY:<nível>`): um `AUTO_APPROVE` só vale se o nível liberar a automação do assunto,
+senão vira revisão humana e a decisão diz que foi a autonomia; `DENY` nunca é rebaixado.
+`decideProposalPolicy` passou a ser isto com `subject: PROPOSAL` e os fatos da **origem**
+(Project, tipo e prioridade da Task, Loadout, Harness e modo do Run); no desfecho,
+`persistDiscoveredTasks` insere as propostas `PROPOSED` (idempotência por Run e posição
+intacta) e, só para as que **entraram agora**, `AUTO_APPROVE` cria a Task com `createdBy =
+POLICY`, filha da origem, e fecha a proposta como `APPROVED` com a política na nota;
+`DENY` fecha como `REJECTED` com o motivo — tudo na transação do desfecho, com
+`task.auto_created`, `task.proposal.resolved` e `policy.decided`. Project arquivado não
+autoriza criar Task (fail-closed).
+
+**Orçamentos** (`budget`: `scope` `GLOBAL | PROJECT | LOADOUT`, `window` `DAY | WEEK |
+MONTH | PER_RUN`, `max_tokens`/`max_wall_clock_ms` em `bigint`, `max_runs`,
+`max_concurrent_runs`, `action` `BLOCK | WARN`; `CHECK`s prendem o id ao escopo e exigem um
+teto; `PER_RUN` só aceita tokens e tempo). **O consumo é medido pelo que já existe**, numa
+função só, `computeBudgetUsage`: tokens de `run.result.usage` (`totalTokens`, senão a soma
+dos campos de `UsageSummary`), Runs por `created_at` na janela de **calendário em UTC**
+(`DAY` à meia-noite, `WEEK` na segunda ISO, `MONTH` no dia 1), duração somada com os vivos
+contados até agora, e Runs vivos sem janela. Fail-closed em consumo desconhecido: um Run que
+**começou** e terminou sem número deixa `tokensKnown` falso, e um orçamento com `maxTokens`
+não libera (`BLOCK` recusa, `WARN` avisa) dizendo quantos Runs ficaram sem medida. Em
+`POST /runs`, `maxRuns` e `maxConcurrentRuns` contam o Run pedido (teto 2, o terceiro
+estoura); `maxTokens` e `maxWallClockMs` olham o já consumido (no teto, nenhum cabe);
+`BLOCK` é `409` com `code: BUDGET_EXCEEDED` e `budget` (o `BudgetBreach`: teto, valor,
+consumo já com o Run pedido e o `BudgetUsage` inteiro) mais `budget.exceeded`; `WARN` volta
+em `budgetWarnings[]` com `budget.warned`. `PER_RUN` não tem o que medir na criação e é da
+9B. `GET /budgets/{id}/usage` é a mesma medida.
+
+**Disjuntores** (`circuit_breaker`: `scope` `PROJECT | LOADOUT | HARNESS`, `triggers` em
+`jsonb` com `consecutiveFailures`, `failuresInWindow`, `permissionDeniedInWindow` e
+`authNotAuthenticated`, `cooldown_ms`, `state` `CLOSED | OPEN | HALF_OPEN`, `opened_at`,
+`reason`, `probe_run_id`, `consecutive_failures`; `CHECK`s: `OPEN`/`HALF_OPEN` têm instante,
+só `HALF_OPEN` tem sondagem). A máquina de estados é pura
+(`packages/domain/src/circuit-breakers.ts`: `evaluateBreakerTriggers` abre por evidência e
+sinal não medido não dispara; `admitThroughBreaker`; `nextBreakerState` para a 9B). Em
+`POST /runs` os disjuntores do Project, do Loadout e do Harness são **travados** (`FOR
+UPDATE`, em ordem de id) até o COMMIT: `OPEN` dentro do cooldown recusa com `409` `code:
+BREAKER_OPEN` e `breaker` (quanto falta); `OPEN` com o cooldown vencido vira `HALF_OPEN` por
+CAS e o Run nasce como **sondagem** (`probe_run_id`, marcado só depois do `INSERT` porque é
+chave estrangeira; `breaker.half_open`; `RunCreated.breaker.probe = true`); `HALF_OPEN` com
+sondagem em voo recusa (uma por vez); estado desconhecido ou `OPEN` sem instante não libera.
+`POST /circuit-breakers/{id}/reset` fecha de qualquer estado, idempotente, com
+`breaker.closed`. Quem abre e quem fecha pela sondagem é a 9B; sem ela, um `HALF_OPEN` cuja
+sondagem já terminou só sai pelo reset.
+
+**Roteamento e sugestão** (`routing_rule`: `kind` `MODEL | LOADOUT | WORKFLOW`, `target_id`
+e `fallback_ids` sem chave estrangeira — a tabela depende de `kind` —, conferidos na escrita
+e de novo na hora de rotear). `routeTarget` (puro) tenta o alvo preferido e os fallbacks em
+ordem pelo `resolve` de quem chama, e devolve `RoutingDecision` com `attempts[]` e
+`decidedBy` (`ROUTING:<id>`, `DEFAULT`, `TIE:<ids>`). Em `POST /runs` só `MODEL` é avaliada,
+e **só quando o Loadout deixa o Model nulo** — um Model pinado é decisão humana —, aceitando
+só Models do Harness do Loadout; a escolha vai ao snapshot em `modelSelectedBy`
+(`LOADOUT`, `HARNESS_DEFAULT`, `ROUTING:<id>`, `NONE`) e `modelSelectionReason`, e ao
+`run.model_key`. A pressão de orçamento (`budgetPressure`, a maior razão consumo/teto entre
+os orçamentos aplicáveis) é fato: uma regra `minBudgetPressure: 0.8` troca para o Model
+barato quando a janela aperta. `POST /tasks/{id}/suggestions` avalia as três espécies com
+os fatos da Task (nível ≥ 1; `409 AUTOMATION_NOT_ALLOWED` abaixo): Loadout pela regra ou o
+`isDefault`; Workflow pela regra ou o da Task; Model pela mesma função da partida, sobre o
+Loadout sugerido. Nada é gravado.
+
+**Origem e parentesco.** `run.created_by` (`USER | POLICY | DELEGATION`), `run.parent_run_id`
+(`set null`, índice) e `run.parent_step_key` (`CHECK`: só com o mãe); `task.created_by`
+(`USER | PROPOSAL | POLICY`); backfill `USER` pelos `DEFAULT` da migração **`0017`**.
+`createRun` aceita os três para a 9B; a API cria sempre `USER`. Filtro `createdBy` em
+`GET /runs` e `GET /tasks`. `POST /runs` responde `RunCreated` com `policyDecision` (a de
+`RUN_START`; `DENY` é `409` `code: POLICY_DENIED`; para um Run pedido pela API o
+`AUTO_APPROVE`/`REQUIRE_APPROVAL` é só registro — quem pediu já aprovou), `modelRouting`,
+`budgetWarnings` e `breaker`. Ordem na transação: disjuntores → orçamentos → fatos →
+roteamento → política → capability matching → captura do Workflow → `INSERT` → sondagens e
+eventos → `QUEUED`. Uma recusa devolve `failed` e commita só o evento que a explica.
+
+**Rotas novas** (a spec passou de 80 para 92 caminhos): `/approval-policies`, `/budgets`
+(+ `{id}/usage`), `/circuit-breakers` (+ `{id}/reset`), `/routing-rules`, todas com
+`GET/POST/GET {id}/PATCH/DELETE`; `GET/PATCH /projects/{id}/autonomy`;
+`POST /tasks/{id}/suggestions`. Eventos de painel: `policy.decided`, `budget.exceeded`,
+`budget.warned`, `breaker.opened` (9B), `breaker.closed`, `breaker.half_open`,
+`task.auto_created`, `autonomy.changed`; os quatro cadastros saem em `registry.changed` com
+`kind` `approval_policy | budget | circuit_breaker | routing_rule`. Sem seed de regras: o
+usuário cria; o nível 2 é o `DEFAULT` da coluna.
+
+**Fora do escopo declarado, pelo typecheck:** as fixtures de teste da web ganharam
+`createdBy`, `parentRunId`/`parentStepKey`, `autonomyLevel` e as decisões em `RunCreated`,
+num commit próprio; nenhum componente mudou. `AutonomyLevel` precisou ser união de literais:
+`z.literal([0, 1, 2, 3, 4])` saía como `enum: [0]` no conversor OpenAPI do Hono.
+
+**O que a 9B e a 9C consomem.** 9B: `createRun({ createdBy, parentRunId, parentStepKey })`;
+`computeBudgetUsage`/`checkBudgetsForNewRun` para re-checar na reclamação e aplicar
+`PER_RUN`; `evaluateBreakerTriggers` + `nextBreakerState` + CAS sobre `circuit_breaker`
+(`probe_run_id` diz qual desfecho fecha ou reabre; `breaker.opened` é o evento a emitir);
+`decideApproval({ subject: "GATE", facts: { stepType, … } })` para conceder Selos com
+`allowsAutomation(level, "AUTO_APPROVE_GATE")`; `listPoliciesForDecision` e
+`listRoutingRulesForDecision` leem "as do Project mais as globais". 9C: os quatro cadastros
+paginados, `ProjectAutonomy.allows`, `TaskSuggestions` com o motivo por espécie, os membros
+de extensão `code`/`budget`/`breaker`/`policyDecision` nos `409`, e os `Diagnostic` com
+código no diário do Run.
+
+**Pendências para 9B e 9C:** ninguém alimenta os gatilhos nem fecha um `HALF_OPEN` pela
+sondagem; `PER_RUN` não é aplicado; o auto-despacho não existe (um `AUTO_APPROVE` de
+`RUN_START` é só registro); `estimatedTokens` da partida é o estimador rápido sobre o prompt,
+não o contexto montado; `RunCreated.breaker` traz só o primeiro disjuntor que tomou o Run
+como sondagem quando dois o tomam; a política `PROPOSAL` decide uma vez por Run (os fatos
+são os da origem) e a Task auto-criada nasce `FEATURE`/`MEDIUM`; a interface não mostra nada
+disso ainda.
 
 ---
 

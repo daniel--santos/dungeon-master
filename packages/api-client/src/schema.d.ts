@@ -637,6 +637,8 @@ export interface paths {
                     kind?: components["schemas"]["TaskKind"];
                     /** @description Prioridade de uma Task. */
                     priority?: components["schemas"]["TaskPriority"];
+                    /** @description Só as Tasks com esta origem. */
+                    createdBy?: "USER" | "PROPOSAL" | "POLICY";
                     /** @description Filtra por um estado ou por vários, repetindo o parâmetro. */
                     status?: components["schemas"]["TaskStatus"] | components["schemas"]["TaskStatus"][];
                     /** @description Esconde um estado ou vários, repetindo o parâmetro. Aplicado depois de `status`. */
@@ -4722,6 +4724,8 @@ export interface paths {
                     harnessKey?: "CLAUDE_CODE" | "CODEX" | "PI" | "ANTIGRAVITY";
                     /** @description Filtra por um estado ou por vários, repetindo o parâmetro. */
                     status?: components["schemas"]["RunStatus"] | components["schemas"]["RunStatus"][];
+                    /** @description Só os Runs com esta origem. */
+                    createdBy?: "USER" | "POLICY" | "DELEGATION";
                 };
                 header?: never;
                 path?: never;
@@ -5658,6 +5662,1212 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/approval-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista as políticas de aprovação
+         * @description Da maior prioridade para a menor. `projectId` devolve as do Project **mais as globais**, que é exatamente o conjunto avaliado numa decisão.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                    /** @description Só as políticas deste Project, mais as globais. */
+                    projectId?: string;
+                    /** @description `PROPOSAL` decide uma proposta de Task; `RUN_START` a partida de um Run; `GATE` um ApprovalGate. */
+                    subject?: components["schemas"]["PolicySubject"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de políticas. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApprovalPolicyPage"];
+                    };
+                };
+                /** @description Filtro ou paginação inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria uma política de aprovação
+         * @description Condições no vocabulário fechado de `RuleConditions`, conjunção; a de maior prioridade que casa decide, e empate é revisão humana. `AUTO_APPROVE` só produz efeito quando o nível de autonomia do Project libera a automação do assunto (nível 3). `projectId` ausente cria uma política global.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateApprovalPolicy"];
+                };
+            };
+            responses: {
+                /** @description Política criada. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApprovalPolicy"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description O Project informado não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approval-policies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Uma política de aprovação */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A política. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApprovalPolicy"];
+                    };
+                };
+                /** @description Não existe ApprovalPolicy com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Apaga a política de aprovação */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Política apagada. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Não existe ApprovalPolicy com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Edita a política de aprovação
+         * @description `projectId: null` torna a política global. Emite `registry.changed`.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateApprovalPolicy"];
+                };
+            };
+            responses: {
+                /** @description A política depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApprovalPolicy"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe ApprovalPolicy com este id, ou o Project informado não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista os orçamentos
+         * @description Em ordem alfabética. `projectId` e `loadoutId` devolvem os do escopo **mais os globais**.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                    /** @description `GLOBAL` conta todo Run; `PROJECT` os do Project; `LOADOUT` os do Loadout. */
+                    scope?: components["schemas"]["BudgetScope"];
+                    /** @description Só os orçamentos deste Project, mais os globais. */
+                    projectId?: string;
+                    /** @description Só os orçamentos deste Loadout, mais os globais. */
+                    loadoutId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de orçamentos. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BudgetPage"];
+                    };
+                };
+                /** @description Filtro ou paginação inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria um orçamento
+         * @description Escopo `GLOBAL`, `PROJECT` (com `projectId`) ou `LOADOUT` (com `loadoutId`); janela de calendário em UTC (`DAY`, `WEEK`, `MONTH`) ou `PER_RUN`, que só aceita `maxTokens` e `maxWallClockMs` e é aplicada pelo Worker durante a execução. Pelo menos um teto. `BLOCK` recusa `POST /runs` com `409 BUDGET_EXCEEDED`; `WARN` deixa passar e avisa em `budgetWarnings[]`. Consumo desconhecido (Run que rodou sem reportar tokens) não libera um teto de tokens.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateBudget"];
+                };
+            };
+            responses: {
+                /** @description Orçamento criado. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Budget"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description O Project ou o Loadout informado não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Id de escopo que não bate com o escopo, nenhum teto, ou teto que a janela não aceita. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/budgets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Um orçamento */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O orçamento. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Budget"];
+                    };
+                };
+                /** @description Não existe Budget com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Apaga o orçamento */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Orçamento apagado. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Não existe Budget com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Edita o orçamento
+         * @description Escopo e janela não mudam: apague e crie de novo. Um teto `null` desliga o teto.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateBudget"];
+                };
+            };
+            responses: {
+                /** @description O orçamento depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Budget"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Budget com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Nenhum teto sobraria, ou teto que a janela não aceita. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/budgets/{id}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * O consumo do orçamento na janela atual
+         * @description Medido na chamada, pela mesma função que `POST /runs` usa: tokens de `run.result.usage`, Runs criados na janela, duração somada (os vivos contados até agora) e Runs vivos. `tokensKnown` é falso quando algum Run que rodou terminou sem reportar consumo. Em `PER_RUN`, mede o último Run terminal do escopo.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O consumo medido. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BudgetUsage"];
+                    };
+                };
+                /** @description Não existe Budget com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/circuit-breakers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista os disjuntores */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                    /** @description `PROJECT` os Runs do Project; `LOADOUT` os do Loadout; `HARNESS` os do Harness. */
+                    scope?: components["schemas"]["BreakerScope"];
+                    /** @description `CLOSED` deixa passar; `OPEN` recusa; `HALF_OPEN` deixa passar uma sondagem. */
+                    state?: components["schemas"]["BreakerState"];
+                    projectId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de disjuntores, em ordem alfabética. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CircuitBreakerPage"];
+                    };
+                };
+                /** @description Filtro ou paginação inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria um disjuntor
+         * @description Escopo `PROJECT`, `LOADOUT` ou `HARNESS`, com o id (ou a chave) do escopo; pelo menos um gatilho. Nasce `CLOSED`. `OPEN` recusa `POST /runs` com `409 BREAKER_OPEN`; passado o `cooldownMs`, o próximo pedido vira a sondagem do `HALF_OPEN`, uma por vez. Quem alimenta os gatilhos com os desfechos é o Worker.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateCircuitBreaker"];
+                };
+            };
+            responses: {
+                /** @description Disjuntor criado. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CircuitBreaker"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description O Project ou o Loadout informado não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Id de escopo que não bate com o escopo, ou nenhum gatilho. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/circuit-breakers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Um disjuntor */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O disjuntor, com o estado. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CircuitBreaker"];
+                    };
+                };
+                /** @description Não existe CircuitBreaker com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Apaga o disjuntor */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Disjuntor apagado. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Não existe CircuitBreaker com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Edita o disjuntor
+         * @description Nome, gatilhos, cooldown e interruptor. O estado não muda por aqui: só pelos desfechos e por `POST /circuit-breakers/{id}/reset`.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateCircuitBreaker"];
+                };
+            };
+            responses: {
+                /** @description O disjuntor depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CircuitBreaker"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe CircuitBreaker com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Nenhum gatilho sobraria. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/circuit-breakers/{id}/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fecha o disjuntor à mão
+         * @description De qualquer estado para `CLOSED`, zerando instante, motivo, sondagem e contador. Idempotente: um disjuntor já fechado devolve o mesmo e não grava um segundo fato. `breaker.closed` sai na mesma transação.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O disjuntor fechado. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CircuitBreaker"];
+                    };
+                };
+                /** @description Não existe CircuitBreaker com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/routing-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista as regras de roteamento
+         * @description Da maior prioridade para a menor. `projectId` devolve as do Project **mais as globais**.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Página desejada, começando em 1. Padrão: 1. */
+                    page?: string;
+                    /** @description Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto. */
+                    pageSize?: string;
+                    /** @description O que a regra escolhe: um Model, um Loadout ou um Workflow. */
+                    kind?: components["schemas"]["RoutingKind"];
+                    /** @description Só as regras deste Project, mais as globais. */
+                    projectId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uma página de regras. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoutingRulePage"];
+                    };
+                };
+                /** @description Filtro ou paginação inválidos. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Cria uma regra de roteamento
+         * @description `kind` `MODEL`, `LOADOUT` ou `WORKFLOW`; `targetId` e `fallbackIds` precisam existir na tabela da espécie. Em `POST /runs`, só `MODEL` é avaliada, e só quando o Loadout deixa o Model nulo; um Model de outro Harness é pulado para o fallback seguinte. `minBudgetPressure` nas condições permite preferir um Model mais barato quando a janela de orçamento aperta.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateRoutingRule"];
+                };
+            };
+            responses: {
+                /** @description Regra criada. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoutingRule"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description O Project, ou um dos alvos, não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/routing-rules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Uma regra de roteamento */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A regra. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoutingRule"];
+                    };
+                };
+                /** @description Não existe RoutingRule com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Apaga a regra de roteamento */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Regra apagada. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Não existe RoutingRule com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Edita a regra de roteamento
+         * @description `kind` não muda: apague e crie de novo.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do registro. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateRoutingRule"];
+                };
+            };
+            responses: {
+                /** @description A regra depois da edição. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoutingRule"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe RoutingRule com este id, ou o Project ou um alvo não existe. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/autonomy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** O nível de autonomia do Project e o que ele libera */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Project. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O nível e o mapa de automações liberadas. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProjectAutonomy"];
+                    };
+                };
+                /** @description Não existe Project com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Muda o nível de autonomia do Project
+         * @description 0 manual, 1 sugere, 2 propõe e o humano aprova (o padrão), 3 políticas autoaprovam e auto-despacho, 4 delegação Agent-to-Agent. Idempotente; grava `project.updated` no diário e `autonomy.changed` no stream, na mesma transação.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Project. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateProjectAutonomy"];
+                };
+            };
+            responses: {
+                /** @description O nível depois da mudança. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProjectAutonomy"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Project com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sugere Loadout, Workflow e Model para a Task
+         * @description Avalia as regras de roteamento das três espécies com os fatos da Task e a pressão de orçamento, e devolve cada escolha com o motivo (a regra, ou o padrão do sistema). Nada é gravado. Exige Project e nível de autonomia que libere `SUGGEST` (≥ 1).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 da Task. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description As sugestões, com o motivo de cada uma. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskSuggestions"];
+                    };
+                };
+                /** @description Não existe Task com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A Task não tem Project, ou o nível de autonomia não libera sugestões. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/achievements/catalog": {
         parameters: {
             query?: never;
@@ -6299,6 +7509,8 @@ export interface components {
             workspaceKind: components["schemas"]["WorkspaceKind"];
             /** @description Caminho absoluto do workspace na máquina local. Um Project sem ele não pode ter Run: não há onde o agente trabalhar. */
             workspacePath: string | null;
+            /** @description A escada de autonomia do Project (Fase 9A). Muda em `PATCH /projects/{id}/autonomy`. */
+            autonomyLevel: 0 | 1 | 2 | 3 | 4;
             /**
              * Format: date-time
              * @description Instante do arquivamento, em UTC (ISO 8601). Nulo enquanto ativo.
@@ -6354,6 +7566,8 @@ export interface components {
             workspaceKind: components["schemas"]["WorkspaceKind"];
             /** @description Caminho absoluto do workspace na máquina local. Um Project sem ele não pode ter Run: não há onde o agente trabalhar. */
             workspacePath: string | null;
+            /** @description A escada de autonomia do Project (Fase 9A). Muda em `PATCH /projects/{id}/autonomy`. */
+            autonomyLevel: 0 | 1 | 2 | 3 | 4;
             /**
              * Format: date-time
              * @description Instante do arquivamento, em UTC (ISO 8601). Nulo enquanto ativo.
@@ -6467,6 +7681,7 @@ export interface components {
             kind: components["schemas"]["TaskKind"];
             status: components["schemas"]["TaskStatus"];
             priority: components["schemas"]["TaskPriority"];
+            createdBy: components["schemas"]["TaskCreatedBy"];
             /**
              * Format: date-time
              * @description Instante em que entrou em `COMPLETED`, em UTC (ISO 8601).
@@ -6498,6 +7713,11 @@ export interface components {
          * @enum {string}
          */
         TaskPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+        /**
+         * @description `USER` à mão, `PROPOSAL` por aprovação humana, `POLICY` por política automática.
+         * @enum {string}
+         */
+        TaskCreatedBy: "USER" | "PROPOSAL" | "POLICY";
         /** @description As Tasks que já foram reabertas, com a contagem. */
         TaskReopeningList: {
             /** @description Uma entrada por Task reaberta, da reabertura mais recente para a mais antiga. */
@@ -6576,6 +7796,7 @@ export interface components {
             kind: components["schemas"]["TaskKind"];
             status: components["schemas"]["TaskStatus"];
             priority: components["schemas"]["TaskPriority"];
+            createdBy: components["schemas"]["TaskCreatedBy"];
             /**
              * Format: date-time
              * @description Instante em que entrou em `COMPLETED`, em UTC (ISO 8601).
@@ -8260,7 +9481,7 @@ export interface components {
             harnessKeys?: components["schemas"]["HarnessKey"][];
             docsUrl?: string | null;
         };
-        /** @description O Run recém-criado e os avisos de capability. */
+        /** @description O Run recém-criado, os avisos de capability e as decisões automáticas. */
         RunCreated: {
             /**
              * Format: uuid
@@ -8302,6 +9523,14 @@ export interface components {
              * @description Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero.
              */
             resumedFromRunId: string | null;
+            createdBy: components["schemas"]["RunCreatedBy"];
+            /**
+             * Format: uuid
+             * @description O Run que delegou este (Fase 9B). Nulo em todo Run criado pela API ou por política.
+             */
+            parentRunId: string | null;
+            /** @description A chave do step do Run mãe que abriu a delegação. Nulo sem `parentRunId`. */
+            parentStepKey: string | null;
             /** Format: uuid */
             loadoutId: string;
             /** @description Versão do Loadout no instante da criação. */
@@ -8335,12 +9564,79 @@ export interface components {
             updatedAt: string;
             /** @description Descompassos que não impedem a partida. O Worker os registra no diário. */
             warnings: components["schemas"]["CapabilityIssue"][];
+            /** @description A decisão das políticas `RUN_START` (Fase 9A). `DENY` nunca chega aqui: é o `409`. */
+            policyDecision: {
+                subject: components["schemas"]["PolicySubject"];
+                /**
+                 * @description A ação **efetiva**, depois do nível de autonomia.
+                 * @enum {string}
+                 */
+                action: "REQUIRE_APPROVAL" | "AUTO_APPROVE" | "DENY";
+                /**
+                 * Format: uuid
+                 * @description A política que casou, quando alguma casou.
+                 */
+                policyId: string | null;
+                /**
+                 * @description O que a política que casou pedia. Difere de `action` quando a autonomia rebaixou.
+                 * @enum {string|null}
+                 */
+                policyAction: "REQUIRE_APPROVAL" | "AUTO_APPROVE" | "DENY" | null;
+                /** @description `POLICY:<id>`, `DEFAULT`, `TIE:<id>,<id>` ou `AUTONOMY:<nível>`. */
+                decidedBy: string;
+                autonomyLevel: components["schemas"]["AutonomyLevel"];
+                /** @description A frase canônica do domínio, em português. */
+                reason: string;
+                /** Format: date-time */
+                decidedAt: string;
+            };
+            /** @description Como o Model foi escolhido quando o Loadout o deixa nulo. Nulo quando o Loadout o pina. */
+            modelRouting: {
+                kind: components["schemas"]["RoutingKind"];
+                /**
+                 * Format: uuid
+                 * @description O alvo escolhido. Nulo quando não há padrão.
+                 */
+                selectedId: string | null;
+                /** @description Nome (ou chave, num Model) do escolhido. */
+                selectedName: string | null;
+                /** Format: uuid */
+                ruleId: string | null;
+                /** @description `ROUTING:<id>`, `DEFAULT` ou `TIE:<id>,<id>`. */
+                decidedBy: string;
+                reason: string;
+                /** @description Alvo preferido e fallbacks, na ordem. */
+                attempts: components["schemas"]["RoutingAttempt"][];
+            } | null;
+            /** @description Orçamentos `WARN` atingidos por este Run. Um `BLOCK` é o `409 BUDGET_EXCEEDED`. */
+            budgetWarnings: components["schemas"]["BudgetBreach"][];
+            /** @description O disjuntor `HALF_OPEN` que deixou este Run passar como sondagem. Nulo sem sondagem. */
+            breaker: {
+                /** Format: uuid */
+                breakerId: string;
+                name: string;
+                /**
+                 * @description O estado depois da decisão.
+                 * @enum {string}
+                 */
+                state: "CLOSED" | "OPEN" | "HALF_OPEN";
+                /** @description Verdadeiro quando este Run é a sondagem do `HALF_OPEN`. */
+                probe: boolean;
+                /** @description `BREAKER:<id>`. */
+                decidedBy: string;
+                reason: string;
+            } | null;
         };
         /**
          * @description Estado de um Run na máquina de estados.
          * @enum {string}
          */
         RunStatus: "CREATED" | "QUEUED" | "PREPARING" | "RUNNING" | "WAITING_APPROVAL" | "SUCCEEDED" | "FAILED" | "TIMED_OUT" | "CANCELLED";
+        /**
+         * @description `USER` pela API, `POLICY` pelo auto-despacho, `DELEGATION` por outro agente.
+         * @enum {string}
+         */
+        RunCreatedBy: "USER" | "POLICY" | "DELEGATION";
         /** @description O Loadout como estava quando o Run foi criado, com tudo resolvido. */
         LoadoutSnapshot: {
             /** Format: uuid */
@@ -8368,6 +9664,10 @@ export interface components {
                 key: string;
                 name: string;
             } | null;
+            /** @description Quem escolheu o Model (Fase 9A): `LOADOUT`, `HARNESS_DEFAULT`, `ROUTING:<id>` ou `NONE`. Ausente em Runs anteriores ao roteamento. */
+            modelSelectedBy?: string;
+            /** @description A frase canônica da escolha do Model. Ausente em Runs anteriores. */
+            modelSelectionReason?: string;
             /** Format: uuid */
             executionProfileId: string;
             /** @description Os nomes das Skills, na ordem do Loadout. */
@@ -8484,6 +9784,110 @@ export interface components {
         } & {
             [key: string]: unknown;
         }) | null;
+        /**
+         * @description `PROPOSAL` decide uma proposta de Task; `RUN_START` a partida de um Run; `GATE` um ApprovalGate.
+         * @enum {string}
+         */
+        PolicySubject: "PROPOSAL" | "RUN_START" | "GATE";
+        /** @description 0 manual, 1 sugere, 2 propõe e o humano aprova, 3 políticas autoaprovam e auto-despacho, 4 delegação Agent-to-Agent. */
+        AutonomyLevel: 0 | 1 | 2 | 3 | 4;
+        /**
+         * @description O que a regra escolhe: um Model, um Loadout ou um Workflow.
+         * @enum {string}
+         */
+        RoutingKind: "MODEL" | "LOADOUT" | "WORKFLOW";
+        /** @description Um alvo tentado pelo roteamento. */
+        RoutingAttempt: {
+            /** Format: uuid */
+            targetId: string;
+            accepted: boolean;
+            /** @description Por que o alvo serviu ou não. */
+            reason: string;
+        };
+        /** @description Um orçamento atingido por um pedido de Run. */
+        BudgetBreach: {
+            /** Format: uuid */
+            budgetId: string;
+            name: string;
+            action: components["schemas"]["BudgetAction"];
+            /**
+             * @description O teto atingido. Nulo quando a recusa foi por consumo desconhecido.
+             * @enum {string|null}
+             */
+            limit: "maxTokens" | "maxRuns" | "maxWallClockMs" | "maxConcurrentRuns" | null;
+            limitValue: number | null;
+            /** @description O consumo medido, já contando o Run pedido. */
+            current: number;
+            /** @description `BUDGET:<id>`. */
+            decidedBy: string;
+            reason: string;
+            usage: components["schemas"]["BudgetUsage"];
+        };
+        /**
+         * @description `BLOCK` recusa o Run com `409`; `WARN` deixa passar e avisa.
+         * @enum {string}
+         */
+        BudgetAction: "BLOCK" | "WARN";
+        /** @description O consumo medido de um orçamento na janela atual. */
+        BudgetUsage: {
+            /** Format: uuid */
+            budgetId: string;
+            window: components["schemas"]["BudgetWindow"];
+            /**
+             * Format: date-time
+             * @description Começo da janela, em UTC. Nulo em `PER_RUN`.
+             */
+            windowStart: string | null;
+            /**
+             * Format: date-time
+             * @description Fim exclusivo da janela. Nulo em `PER_RUN`.
+             */
+            windowEnd: string | null;
+            /**
+             * Format: uuid
+             * @description Em `PER_RUN`, o Run medido: o pedido, ou o último terminal do escopo.
+             */
+            runId: string | null;
+            /** @description Soma de `inputTokens + outputTokens`. */
+            tokens: number;
+            /** @description Falso quando algum Run que rodou terminou sem reportar consumo. */
+            tokensKnown: boolean;
+            runsWithoutUsage: number;
+            /** @description Runs criados na janela. */
+            runs: number;
+            /** @description Duração somada dos Runs, com os vivos contados até agora. */
+            wallClockMs: number;
+            /** @description Runs vivos agora, sem janela. */
+            concurrentRuns: number;
+            limits: components["schemas"]["BudgetLimits"];
+            /** @description A maior razão consumo/teto entre os tetos definidos. `1` é no teto. */
+            pressure: number;
+            /** @description Os tetos já atingidos ou ultrapassados. */
+            exceeded: components["schemas"]["BudgetLimitKey"][];
+            /** Format: date-time */
+            computedAt: string;
+        };
+        /**
+         * @description Janela de calendário em UTC, ou `PER_RUN` para limitar cada Run isoladamente.
+         * @enum {string}
+         */
+        BudgetWindow: "DAY" | "WEEK" | "MONTH" | "PER_RUN";
+        /** @description Os tetos de um orçamento. Nulo é sem teto. */
+        BudgetLimits: {
+            /** @description Teto de tokens (`inputTokens + outputTokens`). */
+            maxTokens: number | null;
+            /** @description Teto de Runs criados na janela. */
+            maxRuns: number | null;
+            /** @description Teto de tempo de execução somado. */
+            maxWallClockMs: number | null;
+            /** @description Teto de Runs vivos ao mesmo tempo. */
+            maxConcurrentRuns: number | null;
+        };
+        /**
+         * @description Qual dos quatro tetos de um orçamento.
+         * @enum {string}
+         */
+        BudgetLimitKey: "maxTokens" | "maxRuns" | "maxWallClockMs" | "maxConcurrentRuns";
         /** @description Corpo de `POST /api/v1/tasks/{id}/runs`. */
         CreateRun: {
             /**
@@ -8557,6 +9961,14 @@ export interface components {
              * @description Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero.
              */
             resumedFromRunId: string | null;
+            createdBy: components["schemas"]["RunCreatedBy"];
+            /**
+             * Format: uuid
+             * @description O Run que delegou este (Fase 9B). Nulo em todo Run criado pela API ou por política.
+             */
+            parentRunId: string | null;
+            /** @description A chave do step do Run mãe que abriu a delegação. Nulo sem `parentRunId`. */
+            parentStepKey: string | null;
             /** Format: uuid */
             loadoutId: string;
             /** @description Versão do Loadout no instante da criação. */
@@ -8633,6 +10045,14 @@ export interface components {
              * @description Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero.
              */
             resumedFromRunId: string | null;
+            createdBy: components["schemas"]["RunCreatedBy"];
+            /**
+             * Format: uuid
+             * @description O Run que delegou este (Fase 9B). Nulo em todo Run criado pela API ou por política.
+             */
+            parentRunId: string | null;
+            /** @description A chave do step do Run mãe que abriu a delegação. Nulo sem `parentRunId`. */
+            parentStepKey: string | null;
             /** Format: uuid */
             loadoutId: string;
             /** @description Versão do Loadout no instante da criação. */
@@ -9448,6 +10868,523 @@ export interface components {
             decision: components["schemas"]["ApprovalDecision"];
             /** @description Justificativa. Vai para o evento de auditoria. */
             note?: string;
+        };
+        /** @description Uma página de políticas, da maior prioridade para a menor. */
+        ApprovalPolicyPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["ApprovalPolicy"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Uma regra de aprovação automática. */
+        ApprovalPolicy: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da política.
+             */
+            id: string;
+            name: string;
+            subject: components["schemas"]["PolicySubject"];
+            /**
+             * Format: uuid
+             * @description Nulo é uma política global.
+             */
+            projectId: string | null;
+            /** @description Prioridade explícita. A regra de maior prioridade que casa decide; empate é revisão humana. */
+            priority: number;
+            conditions: components["schemas"]["RuleConditions"];
+            action: components["schemas"]["PolicyAction"];
+            enabled: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description As condições de uma política ou regra de roteamento: vocabulário fechado, conjunção. */
+        RuleConditions: {
+            /** @description O modo do ExecutionProfile do Run. */
+            executionMode?: components["schemas"]["ExecutionMode"] | components["schemas"]["ExecutionMode"][];
+            /** @description O Harness do Loadout. */
+            harnessKey?: components["schemas"]["HarnessKey"] | components["schemas"]["HarnessKey"][];
+            /** @description A natureza da Task. */
+            taskKind?: components["schemas"]["TaskKind"] | components["schemas"]["TaskKind"][];
+            /** @description A prioridade da Task. */
+            taskPriority?: components["schemas"]["TaskPriority"] | components["schemas"]["TaskPriority"][];
+            /** @description O snapshot do Loadout carrega pelo menos uma Tool `COMMAND`. */
+            hasCommandTools?: boolean;
+            /** @description O nível de enforcement do ExecutionProfile. */
+            enforcement?: components["schemas"]["EnforcementLevel"] | components["schemas"]["EnforcementLevel"][];
+            /** @description O tipo do step de Workflow. Só existe em decisões sobre um gate. */
+            stepType?: components["schemas"]["WorkflowStepType"] | components["schemas"]["WorkflowStepType"][];
+            /** @description Casa quando a estimativa de tokens do pedido é menor ou igual a este teto. */
+            maxEstimatedTokens?: number;
+            /** @description O Loadout do Run. */
+            loadoutId?: string | string[];
+            /** @description O Project da Task. */
+            projectId?: string | string[];
+            /** @description Casa quando a pressão de orçamento (razão consumo/limite mais alta entre os orçamentos aplicáveis) é maior ou igual a este valor. `0.8` é 'a 80% de algum teto'. */
+            minBudgetPressure?: number;
+        };
+        /**
+         * @description `REQUIRE_APPROVAL` é revisão humana; `AUTO_APPROVE` decide sim; `DENY` decide não.
+         * @enum {string}
+         */
+        PolicyAction: "REQUIRE_APPROVAL" | "AUTO_APPROVE" | "DENY";
+        /** @description Corpo de `POST /api/v1/approval-policies`. */
+        CreateApprovalPolicy: {
+            name: string;
+            subject: components["schemas"]["PolicySubject"];
+            /**
+             * Format: uuid
+             * @description Ausente ou nulo cria uma política global.
+             */
+            projectId?: string | null;
+            /** @description Padrão: `100`. */
+            priority?: number;
+            /** @description Ausente é `{}`: casa com tudo. */
+            conditions?: {
+                /** @description O modo do ExecutionProfile do Run. */
+                executionMode?: components["schemas"]["ExecutionMode"] | components["schemas"]["ExecutionMode"][];
+                /** @description O Harness do Loadout. */
+                harnessKey?: components["schemas"]["HarnessKey"] | components["schemas"]["HarnessKey"][];
+                /** @description A natureza da Task. */
+                taskKind?: components["schemas"]["TaskKind"] | components["schemas"]["TaskKind"][];
+                /** @description A prioridade da Task. */
+                taskPriority?: components["schemas"]["TaskPriority"] | components["schemas"]["TaskPriority"][];
+                /** @description O snapshot do Loadout carrega pelo menos uma Tool `COMMAND`. */
+                hasCommandTools?: boolean;
+                /** @description O nível de enforcement do ExecutionProfile. */
+                enforcement?: components["schemas"]["EnforcementLevel"] | components["schemas"]["EnforcementLevel"][];
+                /** @description O tipo do step de Workflow. Só existe em decisões sobre um gate. */
+                stepType?: components["schemas"]["WorkflowStepType"] | components["schemas"]["WorkflowStepType"][];
+                /** @description Casa quando a estimativa de tokens do pedido é menor ou igual a este teto. */
+                maxEstimatedTokens?: number;
+                /** @description O Loadout do Run. */
+                loadoutId?: string | string[];
+                /** @description O Project da Task. */
+                projectId?: string | string[];
+                /** @description Casa quando a pressão de orçamento (razão consumo/limite mais alta entre os orçamentos aplicáveis) é maior ou igual a este valor. `0.8` é 'a 80% de algum teto'. */
+                minBudgetPressure?: number;
+            };
+            action: components["schemas"]["PolicyAction"];
+            /** @description Padrão: ligada. */
+            enabled?: boolean;
+        };
+        /** @description Corpo de `PATCH /api/v1/approval-policies/{id}`. */
+        UpdateApprovalPolicy: {
+            name?: string;
+            subject?: components["schemas"]["PolicySubject"];
+            /** Format: uuid */
+            projectId?: string | null;
+            /** @description Prioridade explícita. A regra de maior prioridade que casa decide; empate é revisão humana. */
+            priority?: number;
+            conditions?: components["schemas"]["RuleConditions"];
+            action?: components["schemas"]["PolicyAction"];
+            enabled?: boolean;
+        };
+        /** @description Uma página de orçamentos, em ordem alfabética. */
+        BudgetPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["Budget"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Um teto de consumo por escopo e janela. */
+        Budget: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do orçamento.
+             */
+            id: string;
+            name: string;
+            scope: components["schemas"]["BudgetScope"];
+            /**
+             * Format: uuid
+             * @description Só em `PROJECT`.
+             */
+            projectId: string | null;
+            /**
+             * Format: uuid
+             * @description Só em `LOADOUT`.
+             */
+            loadoutId: string | null;
+            window: components["schemas"]["BudgetWindow"];
+            limits: components["schemas"]["BudgetLimits"];
+            action: components["schemas"]["BudgetAction"];
+            enabled: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /**
+         * @description `GLOBAL` conta todo Run; `PROJECT` os do Project; `LOADOUT` os do Loadout.
+         * @enum {string}
+         */
+        BudgetScope: "GLOBAL" | "PROJECT" | "LOADOUT";
+        /** @description Corpo de `POST /api/v1/budgets`. Pelo menos um teto; `PER_RUN` só aceita `maxTokens` e `maxWallClockMs`. */
+        CreateBudget: {
+            name: string;
+            scope: components["schemas"]["BudgetScope"];
+            /**
+             * Format: uuid
+             * @description Obrigatório em `PROJECT`; recusado nos outros.
+             */
+            projectId?: string | null;
+            /**
+             * Format: uuid
+             * @description Obrigatório em `LOADOUT`; recusado nos outros.
+             */
+            loadoutId?: string | null;
+            window: components["schemas"]["BudgetWindow"];
+            maxTokens?: number | null;
+            maxRuns?: number | null;
+            maxWallClockMs?: number | null;
+            maxConcurrentRuns?: number | null;
+            /**
+             * @description Padrão: `BLOCK`.
+             * @enum {string}
+             */
+            action?: "BLOCK" | "WARN";
+            /** @description Padrão: ligado. */
+            enabled?: boolean;
+        };
+        /** @description Corpo de `PATCH /api/v1/budgets/{id}`. Escopo e janela não mudam: apague e crie de novo. */
+        UpdateBudget: {
+            name?: string;
+            maxTokens?: number | null;
+            maxRuns?: number | null;
+            maxWallClockMs?: number | null;
+            maxConcurrentRuns?: number | null;
+            action?: components["schemas"]["BudgetAction"];
+            enabled?: boolean;
+        };
+        /** @description Uma página de disjuntores, em ordem alfabética. */
+        CircuitBreakerPage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["CircuitBreaker"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Um disjuntor de execução por escopo. */
+        CircuitBreaker: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 do disjuntor.
+             */
+            id: string;
+            name: string;
+            scope: components["schemas"]["BreakerScope"];
+            /**
+             * Format: uuid
+             * @description Só em `PROJECT`.
+             */
+            projectId: string | null;
+            /**
+             * Format: uuid
+             * @description Só em `LOADOUT`.
+             */
+            loadoutId: string | null;
+            /**
+             * @description Só em `HARNESS`.
+             * @enum {string|null}
+             */
+            harnessKey: "CLAUDE_CODE" | "CODEX" | "PI" | "ANTIGRAVITY" | null;
+            triggers: components["schemas"]["BreakerTriggers"];
+            /** @description Quanto tempo `OPEN` dura até `HALF_OPEN`. */
+            cooldownMs: number;
+            state: components["schemas"]["BreakerState"];
+            /**
+             * Format: date-time
+             * @description Quando abriu. Nulo em `CLOSED`.
+             */
+            openedAt: string | null;
+            /** @description Por que abriu, na frase canônica do domínio. */
+            reason: string | null;
+            /**
+             * Format: uuid
+             * @description Em `HALF_OPEN`, o Run de sondagem em voo. Só um por vez.
+             */
+            probeRunId: string | null;
+            /** @description O contador que o Worker (9B) alimenta. Zera no reset. */
+            consecutiveFailures: number;
+            /** Format: date-time */
+            stateChangedAt: string;
+            enabled: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /**
+         * @description `PROJECT` os Runs do Project; `LOADOUT` os do Loadout; `HARNESS` os do Harness.
+         * @enum {string}
+         */
+        BreakerScope: "PROJECT" | "LOADOUT" | "HARNESS";
+        /** @description O que abre o disjuntor. */
+        BreakerTriggers: {
+            consecutiveFailures: number | null;
+            failuresInWindow: {
+                count: number;
+                windowMs: number;
+            } | null;
+            permissionDeniedInWindow: {
+                count: number;
+                windowMs: number;
+            } | null;
+            authNotAuthenticated: boolean;
+        };
+        /**
+         * @description `CLOSED` deixa passar; `OPEN` recusa; `HALF_OPEN` deixa passar uma sondagem.
+         * @enum {string}
+         */
+        BreakerState: "CLOSED" | "OPEN" | "HALF_OPEN";
+        /** @description Corpo de `POST /api/v1/circuit-breakers`. Pelo menos um gatilho. Nasce `CLOSED`. */
+        CreateCircuitBreaker: {
+            name: string;
+            scope: components["schemas"]["BreakerScope"];
+            /**
+             * Format: uuid
+             * @description Obrigatório em `PROJECT`; recusado nos outros.
+             */
+            projectId?: string | null;
+            /**
+             * Format: uuid
+             * @description Obrigatório em `LOADOUT`; recusado nos outros.
+             */
+            loadoutId?: string | null;
+            /**
+             * @description Obrigatório em `HARNESS`; recusado nos outros.
+             * @enum {string|null}
+             */
+            harnessKey?: "CLAUDE_CODE" | "CODEX" | "PI" | "ANTIGRAVITY" | null;
+            consecutiveFailures?: number | null;
+            failuresInWindow?: {
+                count: number;
+                windowMs: number;
+            } | null;
+            permissionDeniedInWindow?: {
+                count: number;
+                windowMs: number;
+            } | null;
+            authNotAuthenticated?: boolean;
+            /** @description Padrão: 900000 ms (15 minutos). */
+            cooldownMs?: number;
+            /** @description Padrão: ligado. */
+            enabled?: boolean;
+        };
+        /** @description Corpo de `PATCH /api/v1/circuit-breakers/{id}`. Escopo e estado não mudam por aqui: o estado só muda pelos desfechos e pelo reset. */
+        UpdateCircuitBreaker: {
+            name?: string;
+            consecutiveFailures?: number | null;
+            failuresInWindow?: {
+                count: number;
+                windowMs: number;
+            } | null;
+            permissionDeniedInWindow?: {
+                count: number;
+                windowMs: number;
+            } | null;
+            authNotAuthenticated?: boolean;
+            cooldownMs?: number;
+            enabled?: boolean;
+        };
+        /** @description Uma página de regras de roteamento, da maior prioridade para a menor. */
+        RoutingRulePage: {
+            /** @description Os itens desta página, na ordem da listagem. */
+            items: components["schemas"]["RoutingRule"][];
+            /** @description Página devolvida. */
+            page: number;
+            /** @description Itens por página efetivamente usados. */
+            pageSize: number;
+            /** @description Total de itens que casam com o filtro. */
+            total: number;
+        };
+        /** @description Uma regra de roteamento por condições. */
+        RoutingRule: {
+            /**
+             * Format: uuid
+             * @description UUIDv7 da regra.
+             */
+            id: string;
+            name: string;
+            kind: components["schemas"]["RoutingKind"];
+            /**
+             * Format: uuid
+             * @description Nulo é uma regra global.
+             */
+            projectId: string | null;
+            /** @description Prioridade explícita. A regra de maior prioridade que casa decide; empate é revisão humana. */
+            priority: number;
+            conditions: components["schemas"]["RuleConditions"];
+            /**
+             * Format: uuid
+             * @description O alvo preferido: id de Model, Loadout ou Workflow.
+             */
+            targetId: string;
+            /** @description Alvos tentados em ordem quando o preferido não serve. */
+            fallbackIds: string[];
+            enabled: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description Corpo de `POST /api/v1/routing-rules`. */
+        CreateRoutingRule: {
+            name: string;
+            kind: components["schemas"]["RoutingKind"];
+            /**
+             * Format: uuid
+             * @description Ausente ou nulo cria uma regra global.
+             */
+            projectId?: string | null;
+            /** @description Padrão: `100`. */
+            priority?: number;
+            /** @description Ausente é `{}`: casa com tudo. */
+            conditions?: {
+                /** @description O modo do ExecutionProfile do Run. */
+                executionMode?: components["schemas"]["ExecutionMode"] | components["schemas"]["ExecutionMode"][];
+                /** @description O Harness do Loadout. */
+                harnessKey?: components["schemas"]["HarnessKey"] | components["schemas"]["HarnessKey"][];
+                /** @description A natureza da Task. */
+                taskKind?: components["schemas"]["TaskKind"] | components["schemas"]["TaskKind"][];
+                /** @description A prioridade da Task. */
+                taskPriority?: components["schemas"]["TaskPriority"] | components["schemas"]["TaskPriority"][];
+                /** @description O snapshot do Loadout carrega pelo menos uma Tool `COMMAND`. */
+                hasCommandTools?: boolean;
+                /** @description O nível de enforcement do ExecutionProfile. */
+                enforcement?: components["schemas"]["EnforcementLevel"] | components["schemas"]["EnforcementLevel"][];
+                /** @description O tipo do step de Workflow. Só existe em decisões sobre um gate. */
+                stepType?: components["schemas"]["WorkflowStepType"] | components["schemas"]["WorkflowStepType"][];
+                /** @description Casa quando a estimativa de tokens do pedido é menor ou igual a este teto. */
+                maxEstimatedTokens?: number;
+                /** @description O Loadout do Run. */
+                loadoutId?: string | string[];
+                /** @description O Project da Task. */
+                projectId?: string | string[];
+                /** @description Casa quando a pressão de orçamento (razão consumo/limite mais alta entre os orçamentos aplicáveis) é maior ou igual a este valor. `0.8` é 'a 80% de algum teto'. */
+                minBudgetPressure?: number;
+            };
+            /** Format: uuid */
+            targetId: string;
+            fallbackIds?: string[];
+            /** @description Padrão: ligada. */
+            enabled?: boolean;
+        };
+        /** @description Corpo de `PATCH /api/v1/routing-rules/{id}`. `kind` não muda. */
+        UpdateRoutingRule: {
+            name?: string;
+            /** Format: uuid */
+            projectId?: string | null;
+            /** @description Prioridade explícita. A regra de maior prioridade que casa decide; empate é revisão humana. */
+            priority?: number;
+            conditions?: components["schemas"]["RuleConditions"];
+            /** Format: uuid */
+            targetId?: string;
+            fallbackIds?: string[];
+            enabled?: boolean;
+        };
+        /** @description O nível de autonomia de um Project e o que ele libera. */
+        ProjectAutonomy: {
+            /** Format: uuid */
+            projectId: string;
+            autonomyLevel: components["schemas"]["AutonomyLevel"];
+            /** @description O que o nível atual libera, calculado pelo domínio. */
+            allows: {
+                SUGGEST: boolean;
+                AUTO_APPROVE_PROPOSAL: boolean;
+                AUTO_APPROVE_GATE: boolean;
+                AUTO_DISPATCH: boolean;
+                DELEGATE: boolean;
+            };
+            /**
+             * Format: date-time
+             * @description Última escrita do Project, em UTC.
+             */
+            updatedAt: string;
+        };
+        /** @description Corpo de `PATCH /api/v1/projects/{id}/autonomy`. */
+        UpdateProjectAutonomy: {
+            autonomyLevel: components["schemas"]["AutonomyLevel"];
+        };
+        /** @description Loadout, Workflow e Model sugeridos para a Task. */
+        TaskSuggestions: {
+            /** Format: uuid */
+            taskId: string;
+            /** Format: uuid */
+            projectId: string;
+            autonomyLevel: components["schemas"]["AutonomyLevel"];
+            /** @description O Loadout sugerido, ou o padrão. */
+            loadout: {
+                kind: components["schemas"]["RoutingKind"];
+                /**
+                 * Format: uuid
+                 * @description O alvo escolhido. Nulo quando não há padrão.
+                 */
+                selectedId: string | null;
+                /** @description Nome (ou chave, num Model) do escolhido. */
+                selectedName: string | null;
+                /** Format: uuid */
+                ruleId: string | null;
+                /** @description `ROUTING:<id>`, `DEFAULT` ou `TIE:<id>,<id>`. */
+                decidedBy: string;
+                reason: string;
+                /** @description Alvo preferido e fallbacks, na ordem. */
+                attempts: components["schemas"]["RoutingAttempt"][];
+            };
+            /** @description O Workflow sugerido, o da Task, ou nenhum. */
+            workflow: {
+                kind: components["schemas"]["RoutingKind"];
+                /**
+                 * Format: uuid
+                 * @description O alvo escolhido. Nulo quando não há padrão.
+                 */
+                selectedId: string | null;
+                /** @description Nome (ou chave, num Model) do escolhido. */
+                selectedName: string | null;
+                /** Format: uuid */
+                ruleId: string | null;
+                /** @description `ROUTING:<id>`, `DEFAULT` ou `TIE:<id>,<id>`. */
+                decidedBy: string;
+                reason: string;
+                /** @description Alvo preferido e fallbacks, na ordem. */
+                attempts: components["schemas"]["RoutingAttempt"][];
+            };
+            /** @description O Model sugerido, compatível com o Harness do Loadout sugerido. */
+            model: {
+                kind: components["schemas"]["RoutingKind"];
+                /**
+                 * Format: uuid
+                 * @description O alvo escolhido. Nulo quando não há padrão.
+                 */
+                selectedId: string | null;
+                /** @description Nome (ou chave, num Model) do escolhido. */
+                selectedName: string | null;
+                /** Format: uuid */
+                ruleId: string | null;
+                /** @description `ROUTING:<id>`, `DEFAULT` ou `TIE:<id>,<id>`. */
+                decidedBy: string;
+                reason: string;
+                /** @description Alvo preferido e fallbacks, na ordem. */
+                attempts: components["schemas"]["RoutingAttempt"][];
+            };
+            /** @description A pressão de orçamento usada como fato: a maior razão consumo/teto. */
+            budgetPressure: number;
+            /** Format: date-time */
+            computedAt: string;
         };
         /** @description O catálogo versionado de Conquistas, já validado. */
         AchievementCatalog: {

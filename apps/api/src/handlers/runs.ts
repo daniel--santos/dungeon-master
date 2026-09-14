@@ -88,6 +88,7 @@ export function registerRunRoutes(
       projectId: query.projectId,
       harnessKey: query.harnessKey,
       status: normalizarStatus(query.status),
+      createdBy: query.createdBy,
     };
 
     const result = await runs.list({ page, pageSize, filters });

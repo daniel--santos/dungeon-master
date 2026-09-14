@@ -14,6 +14,7 @@ import { requestId } from "hono/request-id";
 
 import { API_BASE_PATH, API_VERSION } from "./config.js";
 import { registerAchievementRoutes } from "./handlers/achievements.js";
+import { registerAutonomyRoutes } from "./handlers/autonomy.js";
 import { registerInboxRoutes } from "./handlers/inbox.js";
 import { registerKnowledgeRoutes } from "./handlers/knowledge.js";
 import { registerMcpServerRoutes } from "./handlers/mcp-servers.js";
@@ -42,13 +43,15 @@ import {
   registerWorkflowRoutes,
 } from "./handlers/workflows.js";
 import type { Logger } from "./logger.js";
-import type {
-  AchievementsPort,
-  DashboardEventsPort,
-  DatabaseProbe,
-  ExecutionPort,
-  SettingsPort,
-  WorkPort,
+import {
+  type AchievementsPort,
+  type AutonomyPort,
+  createSpecPorts,
+  type DashboardEventsPort,
+  type DatabaseProbe,
+  type ExecutionPort,
+  type SettingsPort,
+  type WorkPort,
 } from "./ports.js";
 import type { AchievementCatalog } from "./routes/achievements.js";
 import {
@@ -90,6 +93,12 @@ export interface CreateAppOptions {
   work: WorkPort;
   /** Harness, Model, Agent, ExecutionProfile, Loadout e Run: a Fase 2A. */
   execution: ExecutionPort;
+  /**
+   * Políticas, orçamentos, disjuntores, roteamento e nível de autonomia (Fase
+   * 9A). Opcional: quem instancia a app só pelas rotas antigas — os testes de
+   * Settings e de stream — recebe a porta inerte, que lança se for chamada.
+   */
+  autonomy?: AutonomyPort;
   /**
    * O catálogo de Conquistas já validado.
    *
@@ -369,6 +378,10 @@ export function createApp(options: CreateAppOptions) {
   registerWorkflowRoutes(app, options.execution.workflows);
   registerApprovalGateRoutes(app, options.execution.approvalGates);
 
+  // ------------------------------------------- Autonomia controlada (9A)
+
+  registerAutonomyRoutes(app, options.autonomy ?? createSpecPorts().autonomy);
+
   // ------------------------------------------------------------- Conquistas
 
   registerAchievementRoutes(app, options.achievements, options.hall);
@@ -419,6 +432,12 @@ export function createApp(options: CreateAppOptions) {
           "O catálogo versionado de Conquistas, a projeção de progresso e as forjadas em revisão.",
       },
       { name: "heroes", description: "Estatísticas de Herói e de Equipamento. Projeção." },
+      {
+        name: "autonomy",
+        description:
+          "Autonomia controlada (Fase 9A): políticas de aprovação, orçamentos, disjuntores, " +
+          "regras de roteamento, o nível de autonomia do Project e as sugestões de uma Task.",
+      },
     ],
   });
 

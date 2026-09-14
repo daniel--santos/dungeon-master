@@ -196,7 +196,25 @@ export const PREFLIGHT_BLOCKED: LoadoutPreflightRecord = {
   ready: false,
 };
 
-export const RUN_CREATED: RunCreatedRecord = { ...RUN, warnings: [] };
+export const RUN_CREATED: RunCreatedRecord = {
+  ...RUN,
+  warnings: [],
+  // As decisões automáticas da Fase 9A, no caso mais comum: nenhuma política
+  // casou, o Loadout pina o Model, nenhum orçamento avisou, nenhum disjuntor.
+  policyDecision: {
+    subject: "RUN_START",
+    action: "REQUIRE_APPROVAL",
+    policyId: null,
+    policyAction: null,
+    decidedBy: "DEFAULT",
+    autonomyLevel: 2,
+    reason: "Nenhuma política de partida de Run casou; revisão humana por padrão.",
+    decidedAt: RUN.createdAt,
+  },
+  modelRouting: null,
+  budgetWarnings: [],
+  breaker: null,
+};
 
 const DEFINITION_V3 = {
   name: LOADOUT.name,

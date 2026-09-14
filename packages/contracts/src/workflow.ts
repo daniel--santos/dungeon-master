@@ -51,25 +51,15 @@ export const WorkflowKeySchema = z
     "Uma chave começa com letra minúscula e segue com letras minúsculas, dígitos ou hífens, com 2 a 41 caracteres.",
   );
 
-/**
- * Tipos de step. Cada um tem executor próprio no motor (Fase 4B).
- *
- * Minúsculo de propósito, como `RunResultStatus`: é vocabulário de um documento
- * escrito pelo usuário, e não um enum interno da máquina de estados.
- */
-export const WORKFLOW_STEP_TYPE_VALUES = [
-  "agent",
-  "command",
-  "validation",
-  "approval",
-  "knowledge",
-] as const;
+// Os tipos de step moram em `workflow-step-type.ts` (veja o porquê lá) e saem
+// daqui para quem sempre os importou deste módulo.
+import { WorkflowStepTypeSchema } from "./workflow-step-type.js";
 
-export const WorkflowStepTypeSchema = z
-  .enum(WORKFLOW_STEP_TYPE_VALUES)
-  .meta({ id: "WorkflowStepType", description: "Tipo de um step de Workflow." });
-
-export type WorkflowStepType = z.infer<typeof WorkflowStepTypeSchema>;
+export {
+  WORKFLOW_STEP_TYPE_VALUES,
+  type WorkflowStepType,
+  WorkflowStepTypeSchema,
+} from "./workflow-step-type.js";
 
 /** Limite de segurança para nomes, títulos e descrições de definição. */
 export const WORKFLOW_NAME_MAX_LENGTH = 120;

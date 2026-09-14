@@ -1,5 +1,11 @@
-import { PROJECT_STATUS_VALUES, WORKSPACE_KIND_VALUES } from "@dungeon-master/contracts";
-import { index, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  type AutonomyLevel,
+  DEFAULT_AUTONOMY_LEVEL,
+  PROJECT_STATUS_VALUES,
+  WORKSPACE_KIND_VALUES,
+} from "@dungeon-master/contracts";
+import { sql } from "drizzle-orm";
+import { check, index, integer, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { users } from "./user.js";
 
@@ -37,6 +43,16 @@ export const projects = pgTable(
     status: projectStatus("status").notNull().default("ACTIVE"),
     workspaceKind: workspaceKind("workspace_kind").notNull().default("GIT_REPO"),
     workspacePath: text("workspace_path"),
+    /**
+     * A escada de autonomia (Fase 9A; documento técnico, seção 40). Inteiro
+     * com `CHECK`, e não enum, porque a escada é ordinal — "nível 3 ou acima"
+     * é uma comparação, e `allowsAutomation` no domínio é a única fonte do que
+     * cada degrau libera. Nasce em 2: propõe, o humano decide.
+     */
+    autonomyLevel: integer("autonomy_level")
+      .$type<AutonomyLevel>()
+      .notNull()
+      .default(DEFAULT_AUTONOMY_LEVEL),
     archivedAt: timestamp("archived_at", { withTimezone: true, mode: "date" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
@@ -48,6 +64,7 @@ export const projects = pgTable(
     // A listagem é sempre "os Projects do usuário, opcionalmente filtrados por
     // status, do último editado para o mais antigo".
     index("project_user_status_idx").on(table.userId, table.status, table.updatedAt),
+    check("project_autonomy_level_ck", sql`"autonomy_level" between 0 and 4`),
   ],
 );
 

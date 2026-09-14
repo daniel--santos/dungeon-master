@@ -21,6 +21,12 @@ export * from "./workflow-graph.js";
 export * from "./predicates.js";
 export * from "./proposed-task-rules.js";
 export * from "./capability-matching.js";
+export * from "./rule-matching.js";
+export * from "./autonomy-levels.js";
+export * from "./approval-policies.js";
+export * from "./budgets.js";
+export * from "./circuit-breakers.js";
+export * from "./routing.js";
 
 /** Marca de que um valor é imutável do ponto de vista do domínio. */
 export type Readonly_<T> = { readonly [K in keyof T]: T[K] };

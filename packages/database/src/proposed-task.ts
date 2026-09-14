@@ -1,8 +1,10 @@
 import {
   type DiscoveredTask,
+  type PolicyDecision,
   type ProposedTask,
   type ProposedTaskListItem,
   type ProposedTaskStatus,
+  type RuleFacts,
   TASK_DESCRIPTION_MAX_LENGTH,
   TASK_TITLE_MAX_LENGTH,
   type TaskKind,
@@ -17,6 +19,7 @@ import { sanitizeCredentials } from "@dungeon-master/events";
 import { and, count, desc, eq, isNull, type SQL } from "drizzle-orm";
 
 import { recordDomainEvent } from "./activity.js";
+import { listPoliciesForDecision } from "./approval-policy.js";
 import type { Database } from "./client.js";
 import { appendDashboardEvent, type DatabaseExecutor } from "./dashboard-event.js";
 import { newId } from "./ids.js";
@@ -24,6 +27,7 @@ import { findProjectRow } from "./project.js";
 import { failed, ok, type PageInput, type PageResult, type Result } from "./result.js";
 import { projects } from "./schema/project.js";
 import { type ProposedTaskRow, proposedTasks } from "./schema/proposed-task.js";
+import { runs } from "./schema/run.js";
 import { taskDependencies, type TaskRow, tasks } from "./schema/task.js";
 import { findTaskRow, loadDependencyEdges, lockTaskGraph } from "./task.js";
 import { findWorkflowRow } from "./workflow.js";
@@ -109,7 +113,71 @@ function normalizarTexto(text: string | undefined): string | null {
 }
 
 /**
- * Grava os `discoveredTasks` de um resultado como propostas.
+ * A decisão das políticas `PROPOSAL` sobre as propostas de um desfecho.
+ *
+ * Os fatos são os da **origem** — Project, tipo e prioridade da Task, Loadout,
+ * Harness e modo do Run —, porque uma proposta ainda não tem tipo nem
+ * prioridade próprios. Uma decisão só para todas as propostas do Run: os
+ * fatos são os mesmos. Fail-closed: Project que sumiu ou arquivado não
+ * autoriza criar Task, e a decisão diz isso.
+ */
+async function decidirPropostas(
+  db: DatabaseExecutor,
+  input: PersistDiscoveredTasksInput,
+  now: Date,
+): Promise<PolicyDecision> {
+  const project = await findProjectRow(db, { userId: input.userId, projectId: input.projectId });
+  const origemTask = await findTaskRow(db, { userId: input.userId, taskId: input.originTaskId });
+  const [origemRun] = await db
+    .select({
+      loadoutId: runs.loadoutId,
+      harnessKey: runs.harnessKey,
+      executionMode: runs.executionMode,
+    })
+    .from(runs)
+    .where(and(eq(runs.id, input.originRunId), eq(runs.userId, input.userId)));
+  const policies = await listPoliciesForDecision(db, {
+    userId: input.userId,
+    projectId: input.projectId,
+  });
+
+  const facts: RuleFacts = {
+    projectId: input.projectId,
+    ...(origemTask === null
+      ? {}
+      : { taskKind: origemTask.kind, taskPriority: origemTask.priority }),
+    ...(origemRun === undefined
+      ? {}
+      : {
+          loadoutId: origemRun.loadoutId,
+          harnessKey: origemRun.harnessKey,
+          executionMode: origemRun.executionMode,
+        }),
+  };
+
+  const decision = decideProposalPolicy({
+    policies,
+    facts,
+    // Sem Project não há nível: o zero não libera nada.
+    autonomyLevel: project?.autonomyLevel ?? 0,
+    now,
+  });
+
+  if (decision.action === "AUTO_APPROVE" && (project === null || project.status === "ARCHIVED")) {
+    return {
+      ...decision,
+      action: "REQUIRE_APPROVAL",
+      decidedBy: "DEFAULT",
+      reason: `${decision.reason} O Project está arquivado e não aceita Task nova; revisão humana.`,
+    };
+  }
+
+  return decision;
+}
+
+/**
+ * Grava os `discoveredTasks` de um resultado como propostas — e, quando uma
+ * política autoriza, a Task de cada uma **na mesma transação** (Fase 9A).
  *
  * Recebe um `DatabaseExecutor` porque **nunca é chamada sozinha**: quem chama
  * está na transação do desfecho do Run, e uma proposta que commitasse
@@ -117,67 +185,208 @@ function normalizarTexto(text: string | undefined): string | null {
  * nada fire-and-forget no caminho de escrita de resultado).
  *
  * `ON CONFLICT DO NOTHING` sobre `(origin_run_id, position)` é a
- * idempotência. O evento de dashboard só sai quando alguma linha entrou de
- * fato, e leva a contagem: a tela mostra "N propostas novas" sem reler.
+ * idempotência. As propostas entram `PROPOSED` e só as que **entraram agora**
+ * recebem a decisão automática — reprocessar o mesmo resultado não cria uma
+ * segunda Task. `AUTO_APPROVE` cria a Task com `createdBy = POLICY`, filha da
+ * Task de origem, e fecha a proposta como `APPROVED` com a política na nota;
+ * `DENY` fecha como `REJECTED` com o motivo. O evento `task.proposed` sai
+ * como sempre, e cada decisão automática sai em `policy.decided`.
  */
 export async function persistDiscoveredTasks(
   db: DatabaseExecutor,
   input: PersistDiscoveredTasksInput,
-): Promise<{ inserted: number; proposedTaskIds: string[] }> {
-  if (input.discovered.length === 0) return { inserted: 0, proposedTaskIds: [] };
+): Promise<{ inserted: number; proposedTaskIds: string[]; autoCreatedTaskIds: string[] }> {
+  if (input.discovered.length === 0) {
+    return { inserted: 0, proposedTaskIds: [], autoCreatedTaskIds: [] };
+  }
 
-  const values = input.discovered.map((discovered, position) => {
-    const title = normalizarTitulo(discovered.title);
-    const rationale = normalizarTexto(discovered.rationale);
+  const agora = new Date();
+  const decision = await decidirPropostas(db, input, agora);
 
-    // O ponto de extensão da autoaprovação. Hoje só existe revisão humana; um
-    // valor novo aqui precisa de implementação na mesma transação, e não de um
-    // `if` esquecido que gravasse a proposta como se nada tivesse sido decidido.
-    const policy = decideProposalPolicy({
-      projectId: input.projectId,
-      originTaskId: input.originTaskId,
-      title,
-      rationale,
-    });
-    if (policy !== "human-review") {
-      throw new Error(`A política de proposta "${policy}" ainda não tem implementação.`);
-    }
-
-    return {
-      id: newId(),
-      userId: input.userId,
-      projectId: input.projectId,
-      originTaskId: input.originTaskId,
-      originRunId: input.originRunId,
-      position,
-      title,
-      description: normalizarTexto(discovered.description),
-      rationale,
-      status: "PROPOSED" as const,
-    };
-  });
+  const values = input.discovered.map((discovered, position) => ({
+    id: newId(),
+    userId: input.userId,
+    projectId: input.projectId,
+    originTaskId: input.originTaskId,
+    originRunId: input.originRunId,
+    position,
+    title: normalizarTitulo(discovered.title),
+    description: normalizarTexto(discovered.description),
+    rationale: normalizarTexto(discovered.rationale),
+    status: "PROPOSED" as const,
+  }));
 
   const inserted = await db
     .insert(proposedTasks)
     .values(values)
     .onConflictDoNothing({ target: [proposedTasks.originRunId, proposedTasks.position] })
-    .returning({ id: proposedTasks.id });
+    .returning();
 
-  if (inserted.length > 0) {
+  if (inserted.length === 0) return { inserted: 0, proposedTaskIds: [], autoCreatedTaskIds: [] };
+
+  await appendDashboardEvent(db, {
+    userId: input.userId,
+    type: "task.proposed",
+    payload: {
+      projectId: input.projectId,
+      taskId: input.originTaskId,
+      runId: input.originRunId,
+      count: inserted.length,
+      proposedTaskIds: inserted.map((row) => row.id),
+    },
+  });
+
+  const autoCreatedTaskIds: string[] = [];
+
+  if (decision.action === "AUTO_APPROVE") {
+    for (const proposal of inserted) {
+      const [task] = await db
+        .insert(tasks)
+        .values({
+          id: newId(),
+          userId: input.userId,
+          projectId: input.projectId,
+          parentTaskId: input.originTaskId,
+          title: proposal.title,
+          description: proposal.description,
+          kind: "FEATURE",
+          priority: "MEDIUM",
+          status: "READY",
+          createdBy: "POLICY",
+        })
+        .returning();
+      if (task === undefined) throw new Error("A inserção em task não devolveu linha.");
+      autoCreatedTaskIds.push(task.id);
+
+      await recordDomainEvent(db, {
+        userId: input.userId,
+        projectId: task.projectId,
+        taskId: task.id,
+        taskTitle: task.title,
+        type: "task.created",
+        payload: {
+          taskId: task.id,
+          projectId: task.projectId,
+          parentTaskId: task.parentTaskId,
+          workflowId: task.workflowId,
+          status: task.status,
+          kind: task.kind,
+          createdBy: task.createdBy,
+          proposedTaskId: proposal.id,
+          originTaskId: proposal.originTaskId,
+          originRunId: proposal.originRunId,
+          decidedBy: decision.decidedBy,
+        },
+      });
+
+      const [decided] = await db
+        .update(proposedTasks)
+        .set({
+          status: "APPROVED",
+          decidedAt: agora,
+          note: decision.reason,
+          createdTaskId: task.id,
+        })
+        .where(
+          and(
+            eq(proposedTasks.id, proposal.id),
+            eq(proposedTasks.status, "PROPOSED"),
+            isNull(proposedTasks.decidedAt),
+          ),
+        )
+        .returning();
+      if (decided === undefined) {
+        throw new Error(`A proposta ${proposal.id} recém-inserida já não estava PROPOSED.`);
+      }
+
+      await appendDashboardEvent(db, {
+        userId: input.userId,
+        type: "task.auto_created",
+        payload: {
+          taskId: task.id,
+          title: task.title,
+          projectId: task.projectId,
+          proposedTaskId: proposal.id,
+          originTaskId: proposal.originTaskId,
+          originRunId: proposal.originRunId,
+          policyId: decision.policyId,
+          decidedBy: decision.decidedBy,
+          reason: decision.reason,
+        },
+      });
+      await appendDashboardEvent(db, {
+        userId: input.userId,
+        type: "task.proposal.resolved",
+        payload: {
+          proposedTaskId: decided.id,
+          projectId: decided.projectId,
+          originTaskId: decided.originTaskId,
+          originRunId: decided.originRunId,
+          decision: "approve",
+          status: decided.status,
+          createdTaskId: task.id,
+          title: decided.title,
+          decidedBy: decision.decidedBy,
+        },
+      });
+    }
+  } else if (decision.action === "DENY") {
+    for (const proposal of inserted) {
+      const [decided] = await db
+        .update(proposedTasks)
+        .set({ status: "REJECTED", decidedAt: agora, note: decision.reason })
+        .where(
+          and(
+            eq(proposedTasks.id, proposal.id),
+            eq(proposedTasks.status, "PROPOSED"),
+            isNull(proposedTasks.decidedAt),
+          ),
+        )
+        .returning();
+      if (decided === undefined) {
+        throw new Error(`A proposta ${proposal.id} recém-inserida já não estava PROPOSED.`);
+      }
+      await appendDashboardEvent(db, {
+        userId: input.userId,
+        type: "task.proposal.resolved",
+        payload: {
+          proposedTaskId: decided.id,
+          projectId: decided.projectId,
+          originTaskId: decided.originTaskId,
+          originRunId: decided.originRunId,
+          decision: "reject",
+          status: decided.status,
+          createdTaskId: null,
+          title: decided.title,
+          decidedBy: decision.decidedBy,
+        },
+      });
+    }
+  }
+
+  // Toda decisão automática é auditável: sai quando uma política casou,
+  // empatou ou foi rebaixada pela autonomia. O padrão sem política não é
+  // uma decisão e não gera ruído.
+  if (decision.decidedBy !== "DEFAULT") {
     await appendDashboardEvent(db, {
       userId: input.userId,
-      type: "task.proposed",
+      type: "policy.decided",
       payload: {
         projectId: input.projectId,
         taskId: input.originTaskId,
         runId: input.originRunId,
-        count: inserted.length,
         proposedTaskIds: inserted.map((row) => row.id),
+        createdTaskIds: autoCreatedTaskIds,
+        ...decision,
       },
     });
   }
 
-  return { inserted: inserted.length, proposedTaskIds: inserted.map((row) => row.id) };
+  return {
+    inserted: inserted.length,
+    proposedTaskIds: inserted.map((row) => row.id),
+    autoCreatedTaskIds,
+  };
 }
 
 // --------------------------------------------------------------------------
@@ -453,6 +662,7 @@ export async function approveProposedTask(
           kind: input.kind ?? "FEATURE",
           priority: input.priority ?? "MEDIUM",
           status: "READY",
+          createdBy: "PROPOSAL",
         })
         .returning();
 
@@ -471,6 +681,7 @@ export async function approveProposedTask(
           workflowId: task.workflowId,
           status: task.status,
           kind: task.kind,
+          createdBy: task.createdBy,
           proposedTaskId: proposal.id,
           originTaskId: proposal.originTaskId,
           originRunId: proposal.originRunId,

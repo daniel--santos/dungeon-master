@@ -65,8 +65,22 @@ export const RegistryEventTypeSchema = z.enum(REGISTRY_EVENT_TYPE_VALUES).meta({
 
 export type RegistryEventType = z.infer<typeof RegistryEventTypeSchema>;
 
-/** Qual registro da Fase 8A mudou. São os nomes das tabelas. */
-export const REGISTRY_KIND_VALUES = ["skill", "tool", "mcp_server", "provider"] as const;
+/**
+ * Qual registro mudou. São os nomes das tabelas: os quatro da Fase 8A e as
+ * quatro regras da Fase 9A (política de aprovação, orçamento, disjuntor e
+ * regra de roteamento), que são cadastros pelo mesmo critério — não pertencem
+ * a um Project, mesmo quando escopadas por um.
+ */
+export const REGISTRY_KIND_VALUES = [
+  "skill",
+  "tool",
+  "mcp_server",
+  "provider",
+  "approval_policy",
+  "budget",
+  "circuit_breaker",
+  "routing_rule",
+] as const;
 
 export const RegistryKindSchema = z.enum(REGISTRY_KIND_VALUES).meta({
   id: "RegistryKind",
@@ -171,6 +185,35 @@ export const KnowledgeEventTypeSchema = z.enum(KNOWLEDGE_EVENT_TYPE_VALUES).meta
 
 export type KnowledgeEventType = z.infer<typeof KnowledgeEventTypeSchema>;
 
+/**
+ * O que a autonomia controlada emite (planejamento v0.4, Fase 9A).
+ *
+ * Toda decisão automática é auditável, e o evento de painel é metade dessa
+ * auditoria (a outra metade, quando há Run, é o diário dele): `policy.decided`
+ * sai quando uma política casou ou empatou, com quem decidiu e por quê;
+ * `budget.exceeded` num `BLOCK` e `budget.warned` num `WARN`; os três de
+ * `breaker.*` a cada transição de estado; `task.auto_created` quando uma
+ * política criou a Task sem passar pela proposta; `autonomy.changed` quando o
+ * nível do Project mudou. Todos saem na transação da decisão.
+ */
+export const AUTONOMY_EVENT_TYPE_VALUES = [
+  "policy.decided",
+  "budget.exceeded",
+  "budget.warned",
+  "breaker.opened",
+  "breaker.closed",
+  "breaker.half_open",
+  "task.auto_created",
+  "autonomy.changed",
+] as const;
+
+export const AutonomyEventTypeSchema = z.enum(AUTONOMY_EVENT_TYPE_VALUES).meta({
+  id: "AutonomyEventType",
+  description: "Eventos da autonomia controlada: políticas, orçamentos, disjuntores e nível.",
+});
+
+export type AutonomyEventType = z.infer<typeof AutonomyEventTypeSchema>;
+
 export const DASHBOARD_EVENT_TYPE_VALUES = [
   "system.ping",
   "settings.changed",
@@ -180,6 +223,7 @@ export const DASHBOARD_EVENT_TYPE_VALUES = [
   ...APPROVAL_EVENT_TYPE_VALUES,
   ...PROPOSAL_EVENT_TYPE_VALUES,
   ...KNOWLEDGE_EVENT_TYPE_VALUES,
+  ...AUTONOMY_EVENT_TYPE_VALUES,
 ] as const;
 
 export const DashboardEventTypeSchema = z

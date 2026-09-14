@@ -6,6 +6,35 @@ import {
   approveForgedAchievement,
   approveKnowledgeItem,
   approveProposedTask,
+  computeBudgetUsage,
+  computeTaskSuggestions,
+  createApprovalPolicy,
+  createBudget,
+  createCircuitBreaker,
+  createRoutingRule,
+  deleteApprovalPolicy,
+  deleteBudget,
+  deleteCircuitBreaker,
+  deleteRoutingRule,
+  findApprovalPolicyRow,
+  findBudgetRow,
+  findCircuitBreakerRow,
+  findRoutingRuleRow,
+  getProjectAutonomy,
+  listApprovalPolicies,
+  listBudgets,
+  listCircuitBreakers,
+  listRoutingRules,
+  resetCircuitBreaker,
+  toApprovalPolicy,
+  toBudget,
+  toCircuitBreaker,
+  toRoutingRule,
+  updateApprovalPolicy,
+  updateBudget,
+  updateCircuitBreaker,
+  updateProjectAutonomy,
+  updateRoutingRule,
   discardForgedAchievement,
   listAchievementUnlockPage,
   listAchievementViews,
@@ -130,6 +159,7 @@ import { createLoadoutPreflight } from "./loadout-preflight.js";
 import type { Logger } from "./logger.js";
 import type {
   AchievementsPort,
+  AutonomyPort,
   DockerPreflightPort,
   DashboardEventsPort,
   ExecutionPort,
@@ -630,6 +660,105 @@ export function createExecutionPort(options: ExecutionPortOptions): ExecutionPor
           filters: input.filters,
         }),
       resolve: (gateId, input) => resolveApprovalGate(db, { userId, gateId, ...input }),
+    },
+  };
+}
+
+export interface AutonomyPortOptions {
+  db: Database;
+  userId: string;
+}
+
+/**
+ * Liga as rotas da autonomia controlada (Fase 9A) ao repositório.
+ *
+ * O `userId` é fechado aqui, como nas outras portas. Nenhum método chama
+ * modelo nenhum: são cadastros, uma medida de consumo e duas computações
+ * sobre o que está gravado.
+ */
+export function createAutonomyPort(options: AutonomyPortOptions): AutonomyPort {
+  const { db, userId } = options;
+
+  return {
+    approvalPolicies: {
+      list: (input) =>
+        listApprovalPolicies(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          filters: input.filters,
+        }),
+      get: async (approvalPolicyId) => {
+        const row = await findApprovalPolicyRow(db, { userId, approvalPolicyId });
+        return row === null ? null : toApprovalPolicy(row);
+      },
+      create: (input) => createApprovalPolicy(db, { userId, ...input }),
+      update: (approvalPolicyId, patch) =>
+        updateApprovalPolicy(db, { userId, approvalPolicyId, patch }),
+      remove: (approvalPolicyId) => deleteApprovalPolicy(db, { userId, approvalPolicyId }),
+    },
+    budgets: {
+      list: (input) =>
+        listBudgets(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          filters: input.filters,
+        }),
+      get: async (budgetId) => {
+        const row = await findBudgetRow(db, { userId, budgetId });
+        return row === null ? null : toBudget(row);
+      },
+      usage: async (budgetId) => {
+        const budget = await findBudgetRow(db, { userId, budgetId });
+        if (budget === null) return null;
+        return await computeBudgetUsage(db, { userId, budget });
+      },
+      create: (input) => createBudget(db, { userId, ...input }),
+      update: (budgetId, patch) => updateBudget(db, { userId, budgetId, patch }),
+      remove: (budgetId) => deleteBudget(db, { userId, budgetId }),
+    },
+    circuitBreakers: {
+      list: (input) =>
+        listCircuitBreakers(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          filters: input.filters,
+        }),
+      get: async (circuitBreakerId) => {
+        const row = await findCircuitBreakerRow(db, { userId, circuitBreakerId });
+        return row === null ? null : toCircuitBreaker(row);
+      },
+      create: (input) => createCircuitBreaker(db, { userId, ...input }),
+      update: (circuitBreakerId, patch) =>
+        updateCircuitBreaker(db, { userId, circuitBreakerId, patch }),
+      remove: (circuitBreakerId) => deleteCircuitBreaker(db, { userId, circuitBreakerId }),
+      reset: (circuitBreakerId) => resetCircuitBreaker(db, { userId, circuitBreakerId }),
+    },
+    routingRules: {
+      list: (input) =>
+        listRoutingRules(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          filters: input.filters,
+        }),
+      get: async (routingRuleId) => {
+        const row = await findRoutingRuleRow(db, { userId, routingRuleId });
+        return row === null ? null : toRoutingRule(row);
+      },
+      create: (input) => createRoutingRule(db, { userId, ...input }),
+      update: (routingRuleId, patch) => updateRoutingRule(db, { userId, routingRuleId, patch }),
+      remove: (routingRuleId) => deleteRoutingRule(db, { userId, routingRuleId }),
+    },
+    projectAutonomy: {
+      get: (projectId) => getProjectAutonomy(db, { userId, projectId }),
+      update: (projectId, autonomyLevel) =>
+        updateProjectAutonomy(db, { userId, projectId, autonomyLevel }),
+    },
+    suggestions: {
+      compute: (taskId) => computeTaskSuggestions(db, { userId, taskId }),
     },
   };
 }

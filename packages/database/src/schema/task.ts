@@ -1,4 +1,5 @@
 import {
+  TASK_CREATED_BY_VALUES,
   TASK_KIND_VALUES,
   TASK_PRIORITY_VALUES,
   TASK_STATUS_VALUES,
@@ -23,6 +24,7 @@ import { workflows } from "./workflow.js";
 export const taskStatus = pgEnum("task_status", TASK_STATUS_VALUES);
 export const taskKind = pgEnum("task_kind", TASK_KIND_VALUES);
 export const taskPriority = pgEnum("task_priority", TASK_PRIORITY_VALUES);
+export const taskCreatedBy = pgEnum("task_created_by", TASK_CREATED_BY_VALUES);
 
 /**
  * Task é a única entidade de trabalho, e a Inbox são as Tasks em `INBOX`.
@@ -61,6 +63,12 @@ export const tasks = pgTable(
     kind: taskKind("kind").notNull().default("FEATURE"),
     status: taskStatus("status").notNull().default("READY"),
     priority: taskPriority("priority").notNull().default("MEDIUM"),
+    /**
+     * Quem criou (Fase 9A): `USER` à mão, `PROPOSAL` pela aprovação humana de
+     * uma proposta, `POLICY` por uma política no desfecho do Run. O backfill
+     * da migração `0017` é `USER`: tudo o que existia foi criado por alguém.
+     */
+    createdBy: taskCreatedBy("created_by").notNull().default("USER"),
     completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })

@@ -63,6 +63,22 @@ export const TaskPrioritySchema = z
 
 export type TaskPriority = z.infer<typeof TaskPrioritySchema>;
 
+/**
+ * Quem criou a Task (planejamento v0.4, Fase 9A).
+ *
+ * `USER` é `POST /tasks`, a Inbox e a edição à mão; `PROPOSAL` é a aprovação
+ * humana de uma ProposedTask; `POLICY` é uma política `AUTO_APPROVE` criando a
+ * Task no desfecho do Run, sem passar pela proposta.
+ */
+export const TASK_CREATED_BY_VALUES = ["USER", "PROPOSAL", "POLICY"] as const;
+
+export const TaskCreatedBySchema = z.enum(TASK_CREATED_BY_VALUES).meta({
+  id: "TaskCreatedBy",
+  description: "`USER` à mão, `PROPOSAL` por aprovação humana, `POLICY` por política automática.",
+});
+
+export type TaskCreatedBy = z.infer<typeof TaskCreatedBySchema>;
+
 /** Valores usados quando `POST /tasks` não diz nada a respeito. */
 export const DEFAULT_TASK_KIND: TaskKind = "FEATURE";
 export const DEFAULT_TASK_PRIORITY: TaskPriority = "MEDIUM";
@@ -98,6 +114,7 @@ export const TaskSchema = z
     kind: TaskKindSchema,
     status: TaskStatusSchema,
     priority: TaskPrioritySchema,
+    createdBy: TaskCreatedBySchema,
     completedAt: z.iso
       .datetime()
       .nullable()
@@ -281,6 +298,7 @@ export const TaskListQuerySchema = PageQuerySchema.extend({
   parentTaskId: z.uuid().optional().describe("Só as subtarefas desta Task mãe."),
   kind: TaskKindSchema.optional(),
   priority: TaskPrioritySchema.optional(),
+  createdBy: TaskCreatedBySchema.optional().describe("Só as Tasks com esta origem."),
   status: TaskStatusFilterSchema,
   /**
    * O avesso de `status`, para o caso mais comum da tela de Missões: "tudo

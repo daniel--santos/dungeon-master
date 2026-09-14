@@ -57,6 +57,12 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         description:
           "O catálogo versionado de Conquistas, a projeção de progresso e as forjadas em revisão.",
       },
+      {
+        name: "autonomy",
+        description:
+          "Autonomia controlada (Fase 9A): políticas de aprovação, orçamentos, disjuntores, " +
+          "regras de roteamento, o nível de autonomia do Project e as sugestões de uma Task.",
+      },
     ],
   }) as unknown as Record<string, unknown>;
 }
