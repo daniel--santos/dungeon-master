@@ -95,16 +95,16 @@ export function RunOriginPanel({ run, now }: RunOriginPanelProps) {
         </>
       )}
 
-      {modelSelectedBy !== null && (
+      {/* `NONE` (nem Equipamento, nem padrão da Guilda) não é uma escolha: a
+          linha some, e o Runtime ao lado já mostra o Patrono como "—". */}
+      {modelSelectedBy !== null && modelSelectedBy.kind !== "none" && (
         <MetaRow label={t("run.model.selectedBy")}>
           <span data-run-model-selected-by={run.loadoutSnapshot.modelSelectedBy}>
             {modelSelectedBy.kind === "loadout"
               ? t("run.model.loadout")
               : modelSelectedBy.kind === "harnessDefault"
                 ? t("run.model.harnessDefault")
-                : modelSelectedBy.kind === "routing"
-                  ? t("entity.routingRule")
-                  : "—"}
+                : t("entity.routingRule")}
           </span>
         </MetaRow>
       )}

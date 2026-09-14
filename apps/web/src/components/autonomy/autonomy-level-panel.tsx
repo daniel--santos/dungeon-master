@@ -167,7 +167,9 @@ export function AutonomyLevelPanel({ projectId }: AutonomyLevelPanelProps) {
                   </span>
                   {allowed.length > 0 && (
                     <span className="text-muted-foreground mt-auto text-[10.5px] tracking-[0.04em] uppercase">
-                      {format("{n} automações", { n: allowed.length })}
+                      {format(allowed.length === 1 ? "{n} automação" : "{n} automações", {
+                        n: allowed.length,
+                      })}
                     </span>
                   )}
                 </button>

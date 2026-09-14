@@ -14,7 +14,12 @@ import type {
   TaskDetailRecord,
   TaskSuggestionsRecord,
 } from "@/lib/api-types";
-import { SuggestionsNotAllowedError, useApprovalPolicy, useCircuitBreaker } from "@/lib/autonomy";
+import {
+  SuggestionsNotAllowedError,
+  useApprovalPolicy,
+  useCircuitBreaker,
+  useRoutingRules,
+} from "@/lib/autonomy";
 import {
   AUTONOMY_COLOR,
   BUDGET_LIMIT_KEY,
@@ -65,7 +70,16 @@ export function SuggestionsBlock({
 }: SuggestionsBlockProps) {
   const { t, format } = useGlossary();
   const update = useUpdateTask();
-  const decidedBy = useDecidedByText();
+  // Os nomes dos Encaminhamentos da Campanha (mais os globais), para
+  // `ROUTING:<id>` virar o nome da regra em vez do id.
+  const rules = useRoutingRules(task.projectId === null ? {} : { projectId: task.projectId });
+  const names = useMemo(
+    () => ({
+      routingRules: new Map((rules.data?.items ?? []).map((rule) => [rule.id, rule.name])),
+    }),
+    [rules.data],
+  );
+  const decidedBy = useDecidedByText(names);
 
   if (task.projectId === null) return null;
 

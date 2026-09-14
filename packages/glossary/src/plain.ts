@@ -785,7 +785,7 @@ export const plain: Record<GlossaryKey, string> = {
   "autonomy.scope.all": "Deste projeto e globais",
   "autonomy.scope.everything": "Todas, de qualquer projeto",
   "autonomy.failClosed": "Sem política que case, a decisão é revisão humana.",
-  "autonomy.decidedBy.default": "Nenhuma política casou; revisão humana por padrão",
+  "autonomy.decidedBy.default": "Nenhuma regra casou; vale o padrão",
   "autonomy.decidedBy.tie": "Políticas empatadas: {names}",
   "autonomy.decidedBy.autonomy": "O nível de autonomia {level} não libera a política",
   "autonomy.decidedBy.policy": "Política {name}",

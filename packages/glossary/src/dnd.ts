@@ -801,7 +801,7 @@ export const dnd: Record<GlossaryKey, string> = {
   "autonomy.scope.all": "Desta Campanha e globais",
   "autonomy.scope.everything": "Todas, de qualquer Campanha",
   "autonomy.failClosed": "Sem Édito que case, a decisão volta ao Mestre da Guilda: revisão humana.",
-  "autonomy.decidedBy.default": "Nenhum Édito casou; revisão humana por padrão",
+  "autonomy.decidedBy.default": "Nenhuma regra casou; vale o padrão",
   "autonomy.decidedBy.tie": "Éditos empatados: {names}",
   "autonomy.decidedBy.autonomy": "A rédea (nível {level}) segurou o Édito",
   "autonomy.decidedBy.policy": "Édito {name}",

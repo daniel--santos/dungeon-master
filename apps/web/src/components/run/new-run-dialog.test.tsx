@@ -69,7 +69,10 @@ const RESPONSES: Record<string, unknown> = {
 
 /** Quantas vezes a partida foi pedida, ignorando o `POST` das sugestões. */
 function runPosts(): number {
-  return client.POST.mock.calls.filter(([path]) => path === RUNS_PATH).length;
+  // O `POST` do cliente é genérico por caminho, e o Vitest tipa as chamadas
+  // do espião como `never`; a lista é lida como pares `[caminho, opções]`.
+  const calls = client.POST.mock.calls as unknown as readonly (readonly [string, unknown])[];
+  return calls.filter(([path]) => path === RUNS_PATH).length;
 }
 
 /**

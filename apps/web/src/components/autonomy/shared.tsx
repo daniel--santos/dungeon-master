@@ -92,10 +92,13 @@ export function useConditionValueLabel(): (key: RuleConditionKey, value: string)
 
     return (key, value) => {
       switch (key) {
-        case "executionMode":
-          return value in EXECUTION_MODE
-            ? t(EXECUTION_MODE[value as keyof typeof EXECUTION_MODE].label)
-            : value;
+        case "executionMode": {
+          if (!(value in EXECUTION_MODE)) return value;
+          // Segurança nunca é tematizada a ponto de sumir: "Campo aberto" vem
+          // sempre com "sem isolamento", também num chip de condição.
+          const mode = EXECUTION_MODE[value as keyof typeof EXECUTION_MODE];
+          return mode.warning === null ? t(mode.label) : `${t(mode.label)} · ${t(mode.warning)}`;
+        }
         case "harnessKey":
           return harnessNames.get(value) ?? value;
         case "taskKind":
