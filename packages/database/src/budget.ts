@@ -14,8 +14,11 @@ import {
   budgetPressure,
   budgetWindowBounds,
   checkBudgetForNewRun,
+  checkBudgetForRunningRun,
   evaluateBudget,
   isTerminalRunStatus,
+  LIVE_RUN_STATUSES,
+  MAX_DELEGATION_DEPTH,
   runTokenUsage,
 } from "@dungeon-master/domain";
 import { and, asc, count, desc, eq, gte, inArray, lt, or, type SQL } from "drizzle-orm";
@@ -29,6 +32,7 @@ import { findProjectRow } from "./project.js";
 import { failed, ok, type PageInput, type PageResult, type Result } from "./result.js";
 import { type BudgetRow, budgets } from "./schema/autonomy.js";
 import { runs } from "./schema/run.js";
+import { runSteps } from "./schema/run-step.js";
 import { tasks } from "./schema/task.js";
 
 /**
@@ -39,8 +43,6 @@ import { tasks } from "./schema/task.js";
  * função que `POST /runs`, `GET /budgets/{id}/usage` e a reclamação do Worker
  * (9B) compartilham. Uma medida só, para os três concordarem.
  */
-
-const LIVE_RUN_STATUSES = ["QUEUED", "PREPARING", "RUNNING", "WAITING_APPROVAL"] as const;
 
 export function toBudget(row: BudgetRow): Budget {
   return {
@@ -152,6 +154,12 @@ interface RunUsageRow {
   readonly startedAt: Date | null;
   readonly finishedAt: Date | null;
   readonly result: (typeof runs.$inferSelect)["result"];
+  /**
+   * O consumo dos passos já assentados de um Run **em voo** (Fase 9B): um Run
+   * com Workflow só grava `result.usage` no desfecho, e o `PER_RUN` precisa
+   * medir antes de cada passo. Nulo quando não há o que somar.
+   */
+  readonly stepTokens?: number | null;
 }
 
 const usageColumns = {
@@ -182,6 +190,7 @@ function somarConsumo(
     const usage = runTokenUsage(row.result?.usage);
     if (usage !== null) tokens += usage;
     else if (row.startedAt !== null && isTerminalRunStatus(row.status)) runsWithoutUsage += 1;
+    else if (row.stepTokens !== undefined && row.stepTokens !== null) tokens += row.stepTokens;
 
     if (row.startedAt !== null) {
       const fim = row.finishedAt ?? now;
@@ -204,6 +213,54 @@ export interface ComputeBudgetUsageInput {
   now?: Date;
   /** Em `PER_RUN`, o Run a medir. Ausente mede o último terminal do escopo. */
   runId?: string | undefined;
+}
+
+/**
+ * O Run e os descendentes que ele delegou (Fase 9B), até a profundidade
+ * máxima: um orçamento `PER_RUN` do Run mãe soma o que os filhos gastaram,
+ * senão delegar seria a forma de escapar do teto.
+ */
+export async function listRunFamilyIds(
+  db: DatabaseExecutor,
+  input: { userId: string; runId: string },
+): Promise<string[]> {
+  const familia = [input.runId];
+  let geracao = [input.runId];
+  for (let nivel = 0; nivel < MAX_DELEGATION_DEPTH && geracao.length > 0; nivel += 1) {
+    const filhos = await db
+      .select({ id: runs.id })
+      .from(runs)
+      .where(and(eq(runs.userId, input.userId), inArray(runs.parentRunId, geracao)));
+    geracao = filhos.map((row) => row.id);
+    familia.push(...geracao);
+  }
+  return familia;
+}
+
+/**
+ * Os tokens dos passos já assentados de cada Run, pelos `result.usage` de
+ * `run_step` (Fase 9B). É o que um `PER_RUN` lê de um Run em voo, cujo
+ * `result` ainda não existe. Passos de agente e de delegação carregam
+ * `usage`; os demais não consomem modelo.
+ */
+async function tokensDosPassos(
+  db: DatabaseExecutor,
+  input: { userId: string; runIds: readonly string[] },
+): Promise<Map<string, number>> {
+  const soma = new Map<string, number>();
+  if (input.runIds.length === 0) return soma;
+  const rows = await db
+    .select({ runId: runSteps.runId, result: runSteps.result })
+    .from(runSteps)
+    .where(and(eq(runSteps.userId, input.userId), inArray(runSteps.runId, [...input.runIds])));
+  for (const row of rows) {
+    const result = row.result;
+    if (result === null || (result.kind !== "agent" && result.kind !== "delegate")) continue;
+    const tokens = runTokenUsage(result.usage);
+    if (tokens === null) continue;
+    soma.set(row.runId, (soma.get(row.runId) ?? 0) + tokens);
+  }
+  return soma;
 }
 
 /**
@@ -234,26 +291,34 @@ export async function computeBudgetUsage(
   const concurrentRuns = vivos?.total ?? 0;
 
   if (budget.window === "PER_RUN") {
-    const rows =
-      input.runId === undefined
-        ? await db
-            .select(usageColumns)
-            .from(runs)
-            .innerJoin(tasks, eq(tasks.id, runs.taskId))
-            .where(
-              and(
-                eq(runs.userId, input.userId),
-                inArray(runs.status, ["SUCCEEDED", "FAILED", "TIMED_OUT", "CANCELLED"]),
-                ...escopo,
-              ),
-            )
-            .orderBy(desc(runs.createdAt), desc(runs.id))
-            .limit(1)
-        : await db
-            .select(usageColumns)
-            .from(runs)
-            .innerJoin(tasks, eq(tasks.id, runs.taskId))
-            .where(and(eq(runs.userId, input.userId), eq(runs.id, input.runId), ...escopo));
+    // O Run pedido é medido com a família dele — os filhos que delegou —,
+    // e sem o filtro de escopo: um filho com outro Loadout continua sendo
+    // gasto deste Run. O último terminal do escopo, sem `runId`, é a leitura
+    // de `GET /budgets/{id}/usage`.
+    let rows: RunUsageRow[];
+    if (input.runId === undefined) {
+      rows = await db
+        .select(usageColumns)
+        .from(runs)
+        .innerJoin(tasks, eq(tasks.id, runs.taskId))
+        .where(
+          and(
+            eq(runs.userId, input.userId),
+            inArray(runs.status, ["SUCCEEDED", "FAILED", "TIMED_OUT", "CANCELLED"]),
+            ...escopo,
+          ),
+        )
+        .orderBy(desc(runs.createdAt), desc(runs.id))
+        .limit(1);
+    } else {
+      const familia = await listRunFamilyIds(db, { userId: input.userId, runId: input.runId });
+      const daFamilia = await db
+        .select(usageColumns)
+        .from(runs)
+        .where(and(eq(runs.userId, input.userId), inArray(runs.id, familia)));
+      const passos = await tokensDosPassos(db, { userId: input.userId, runIds: familia });
+      rows = daFamilia.map((row) => ({ ...row, stepTokens: passos.get(row.id) ?? null }));
+    }
 
     const soma = somarConsumo(rows, now);
     const consumption: BudgetConsumption = { ...soma, concurrentRuns };
@@ -335,6 +400,66 @@ export async function checkBudgetsForNewRun(
     pressoes.push({ pressure: usage.pressure });
 
     const check = checkBudgetForNewRun({
+      budget: {
+        id: budget.id,
+        name: budget.name,
+        window: budget.window,
+        limits: usage.limits,
+        action: budget.action,
+      },
+      consumption: usage,
+    });
+    if (check.breach === null) continue;
+
+    const breach: BudgetBreach = {
+      budgetId: budget.id,
+      name: budget.name,
+      action: budget.action,
+      limit: check.breach.limit,
+      limitValue: check.breach.limitValue,
+      current: check.breach.current,
+      decidedBy: `BUDGET:${budget.id}`,
+      reason: check.breach.reason,
+      usage,
+    };
+    if (!check.admit) return { blocked: breach, warnings, pressure: budgetPressure(pressoes) };
+    warnings.push(breach);
+  }
+
+  return { blocked: null, warnings, pressure: budgetPressure(pressoes) };
+}
+
+/**
+ * Todos os orçamentos que alcançam um Run **que já existe**, medidos e
+ * decididos (Fase 9B): a re-checagem na reclamação e antes de cada passo de
+ * agente de um Workflow. `PER_RUN` entra, medido sobre o próprio Run e os
+ * filhos dele; as janelas de calendário entram com o Run já contado.
+ */
+export async function checkBudgetsForRunningRun(
+  db: DatabaseExecutor,
+  input: {
+    userId: string;
+    runId: string;
+    projectId: string | null;
+    loadoutId: string | null;
+    now?: Date;
+  },
+): Promise<NewRunBudgetsCheck> {
+  const now = input.now ?? new Date();
+  const aplicaveis = await listApplicableBudgets(db, input);
+  const warnings: BudgetBreach[] = [];
+  const pressoes: { pressure: number }[] = [];
+
+  for (const budget of aplicaveis) {
+    const usage = await computeBudgetUsage(db, {
+      userId: input.userId,
+      budget,
+      now,
+      ...(budget.window === "PER_RUN" ? { runId: input.runId } : {}),
+    });
+    pressoes.push({ pressure: usage.pressure });
+
+    const check = checkBudgetForRunningRun({
       budget: {
         id: budget.id,
         name: budget.name,

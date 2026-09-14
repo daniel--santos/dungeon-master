@@ -1,17 +1,25 @@
-import type {
-  ApprovalDecision,
-  ApprovalGate,
-  ApprovalGateListItem,
-  ApprovalGateStatus,
-  ApprovalGrantedEvent,
-  ApprovalRejectedEvent,
-  ApprovalRequestedEvent,
-  RunStatus,
-  StepFinishedEvent,
+import {
+  type ApprovalDecision,
+  type ApprovalGate,
+  type AutonomyLevel,
+  type ApprovalGateListItem,
+  type ApprovalGateStatus,
+  type ApprovalGrantedEvent,
+  type ApprovalRejectedEvent,
+  type ApprovalRequestedEvent,
+  type DiagnosticEvent,
+  GATE_DECIDER_POLICY_PREFIX,
+  GATE_DECIDER_USER,
+  type PolicyDecision,
+  type RuleFacts,
+  type RunStatus,
+  type StepFinishedEvent,
 } from "@dungeon-master/contracts";
+import { decideApproval } from "@dungeon-master/domain";
 import { sanitizeCredentials } from "@dungeon-master/events";
 import { and, asc, count, desc, eq, isNull, type SQL } from "drizzle-orm";
 
+import { listPoliciesForDecision } from "./approval-policy.js";
 import type { Database } from "./client.js";
 import { appendDashboardEvent, type DatabaseExecutor } from "./dashboard-event.js";
 import { newId } from "./ids.js";
@@ -24,8 +32,9 @@ import {
   type RunStepWriteFailure,
 } from "./run-step.js";
 import { applyRunStatus, lockRunRow, type RunWriteFailure } from "./run.js";
+import { projects } from "./schema/project.js";
 import { type ApprovalGateRow, approvalGates } from "./schema/run-step.js";
-import { runs } from "./schema/run.js";
+import { type RunRow, runs } from "./schema/run.js";
 import { tasks } from "./schema/task.js";
 import { workflows, workflowVersions } from "./schema/workflow.js";
 
@@ -219,6 +228,54 @@ export interface CreatedApprovalGate {
   readonly gate: ApprovalGate;
   /** `false` quando o gate já existia e nada foi escrito. */
   readonly created: boolean;
+  /**
+   * A decisão das políticas `GATE` (Fase 9B), quando o gate acabou de ser
+   * aberto. `AUTO_APPROVE` e `DENY` já vêm com o gate decidido; nulo num gate
+   * reencontrado, que já foi decidido — ou não — noutra ocasião.
+   */
+  readonly policyDecision: PolicyDecision | null;
+}
+
+/**
+ * Os fatos de um Run para a política de gate (Fase 9B): os mesmos da partida,
+ * lidos do que o Run congelou, mais `stepType: "approval"`.
+ */
+async function gateFacts(
+  db: DatabaseExecutor,
+  input: { userId: string; run: RunRow },
+): Promise<{ facts: RuleFacts; projectId: string | null; autonomyLevel: AutonomyLevel }> {
+  const { run } = input;
+  const [task] = await db
+    .select({ projectId: tasks.projectId, kind: tasks.kind, priority: tasks.priority })
+    .from(tasks)
+    .where(and(eq(tasks.id, run.taskId), eq(tasks.userId, input.userId)));
+  const [project] =
+    task?.projectId === undefined || task.projectId === null
+      ? []
+      : await db
+          .select({ id: projects.id, autonomyLevel: projects.autonomyLevel })
+          .from(projects)
+          .where(and(eq(projects.id, task.projectId), eq(projects.userId, input.userId)));
+
+  const facts: RuleFacts = {
+    ...(project === undefined ? {} : { projectId: project.id }),
+    loadoutId: run.loadoutId,
+    ...(task === undefined ? {} : { taskKind: task.kind, taskPriority: task.priority }),
+    executionMode: run.executionMode,
+    harnessKey: run.harnessKey,
+    enforcement: run.executionProfileSnapshot.enforcement,
+    hasCommandTools: (run.loadoutSnapshot.toolDefinitions ?? []).some(
+      (tool) => tool.kind === "COMMAND",
+    ),
+    stepType: "approval",
+  };
+
+  return {
+    facts,
+    projectId: project?.id ?? null,
+    // Sem Project não há nível: o zero não libera nada.
+    autonomyLevel: project?.autonomyLevel ?? 0,
+  };
 }
 
 /**
@@ -231,6 +288,16 @@ export interface CreatedApprovalGate {
  *
  * Exige o RunStep em `RUNNING` (o motor marca o início do step antes de pedir
  * o gate) e o Run em `RUNNING`. Devolve `null` quando o Run não existe.
+ *
+ * **Selo automático por política (Fase 9B).** Antes de pausar, as políticas
+ * `GATE` do Project mais as globais são consultadas com os fatos do Run e o
+ * nível de autonomia. `AUTO_APPROVE` (que só vale com `AUTO_APPROVE_GATE`
+ * liberado pelo nível) grava o gate já `GRANTED`, com `ApprovalRequested` e
+ * `ApprovalGranted` no diário — a autoria é `POLICY:<id>` — e **não** move o
+ * step nem o Run: o motor lê o gate decidido e assenta o passo, como faria
+ * com um gate reencontrado. `DENY` é o espelho, com `REJECTED` e
+ * `ApprovalRejected`. Revisão humana pausa como sempre; uma política que
+ * casou mas pediu revisão fica registrada em `policy.decided` e no diário.
  */
 export async function createApprovalGate(
   db: Database,
@@ -242,7 +309,9 @@ export async function createApprovalGate(
       if (run === null) return null;
 
       const existing = await findGateByKey(tx, input);
-      if (existing !== null) return ok({ gate: toApprovalGate(existing), created: false });
+      if (existing !== null) {
+        return ok({ gate: toApprovalGate(existing), created: false, policyDecision: null });
+      }
 
       const step = await findRunStepRow(tx, input);
       if (step === null) {
@@ -251,6 +320,155 @@ export async function createApprovalGate(
           runId: input.runId,
           stepKey: input.stepKey,
         });
+      }
+
+      // ------------------------------------------------ política de gate
+      const agora = new Date();
+      const { facts, projectId, autonomyLevel } = await gateFacts(tx, {
+        userId: input.userId,
+        run,
+      });
+      const policies = await listPoliciesForDecision(tx, { userId: input.userId, projectId });
+      const decision = decideApproval({
+        subject: "GATE",
+        policies,
+        facts,
+        autonomyLevel,
+        now: agora,
+      });
+
+      if (decision.decidedBy !== "DEFAULT") {
+        await appendDashboardEvent(tx, {
+          userId: input.userId,
+          type: "policy.decided",
+          payload: {
+            taskId: run.taskId,
+            projectId,
+            loadoutId: run.loadoutId,
+            runId: run.id,
+            gateKey: input.gateKey,
+            stepKey: input.stepKey,
+            ...decision,
+          },
+        });
+        const diagnostico: DiagnosticEvent = {
+          type: "Diagnostic",
+          timestamp: agora.toISOString(),
+          harness: run.harnessKey,
+          level: "INFO",
+          source: "RUNTIME",
+          code: "POLICY_DECIDED",
+          message: `Gate "${input.gateKey}": ${decision.reason}`,
+        };
+        await insertRunEvent(tx, {
+          userId: input.userId,
+          runId: run.id,
+          event: { type: diagnostico.type, timestamp: agora, payload: diagnostico },
+        });
+      }
+
+      if (decision.action === "AUTO_APPROVE" || decision.action === "DENY") {
+        if (decision.policyId === null) {
+          // `decideApproval` só devolve estas ações com uma política que casou.
+          throw new Error(
+            `A decisão ${decision.action} do gate "${input.gateKey}" veio sem política.`,
+          );
+        }
+        const status: ApprovalGateStatus =
+          decision.action === "AUTO_APPROVE" ? "GRANTED" : "REJECTED";
+        const [gate] = await tx
+          .insert(approvalGates)
+          .values({
+            id: newId(),
+            userId: input.userId,
+            runId: input.runId,
+            runStepId: step.id,
+            gateKey: input.gateKey,
+            title: input.title,
+            description: input.description ?? null,
+            status,
+            requestedAt: agora,
+            resolvedAt: agora,
+            note: decision.reason,
+          })
+          .returning();
+        if (gate === undefined) throw new Error("A inserção em approval_gate não devolveu linha.");
+
+        const requested: ApprovalRequestedEvent = {
+          type: "ApprovalRequested",
+          timestamp: agora.toISOString(),
+          harness: run.harnessKey,
+          approvalKey: gate.gateKey,
+          summary: gate.title,
+          gateId: gate.id,
+          stepKey: step.key,
+        };
+        await insertRunEvent(tx, {
+          userId: input.userId,
+          runId: input.runId,
+          event: { type: requested.type, timestamp: agora, payload: requested },
+        });
+
+        const autoria = `${GATE_DECIDER_POLICY_PREFIX}${decision.policyId}`;
+        const decided: ApprovalGrantedEvent | ApprovalRejectedEvent =
+          status === "GRANTED"
+            ? {
+                type: "ApprovalGranted",
+                timestamp: agora.toISOString(),
+                gateId: gate.id,
+                gateKey: gate.gateKey,
+                runStepId: step.id,
+                stepKey: step.key,
+                decidedBy: decision.policyId,
+                grantedBy: autoria,
+                note: decision.reason,
+                reason: decision.reason,
+              }
+            : {
+                type: "ApprovalRejected",
+                timestamp: agora.toISOString(),
+                gateId: gate.id,
+                gateKey: gate.gateKey,
+                runStepId: step.id,
+                stepKey: step.key,
+                decidedBy: decision.policyId,
+                rejectedBy: autoria,
+                note: decision.reason,
+                reason: decision.reason,
+              };
+        await insertRunEvent(tx, {
+          userId: input.userId,
+          runId: input.runId,
+          event: { type: decided.type, timestamp: agora, payload: decided },
+        });
+
+        await appendDashboardEvent(tx, {
+          userId: input.userId,
+          type: "approval.requested",
+          payload: {
+            runId: input.runId,
+            taskId: run.taskId,
+            gateId: gate.id,
+            gateKey: gate.gateKey,
+            title: gate.title,
+          },
+        });
+        await appendDashboardEvent(tx, {
+          userId: input.userId,
+          type: "approval.resolved",
+          payload: {
+            runId: input.runId,
+            taskId: run.taskId,
+            gateId: gate.id,
+            gateKey: gate.gateKey,
+            title: gate.title,
+            decision: status === "GRANTED" ? "approve" : "reject",
+            status,
+            decidedBy: autoria,
+          },
+        });
+
+        return ok({ gate: toApprovalGate(gate), created: true, policyDecision: decision });
       }
 
       const stepMoved = await applyRunStepTransition(tx, {
@@ -328,7 +546,7 @@ export async function createApprovalGate(
         },
       });
 
-      return ok({ gate: toApprovalGate(gate), created: true });
+      return ok({ gate: toApprovalGate(gate), created: true, policyDecision: decision });
     })
     .catch((error: unknown) => {
       if (error instanceof ApprovalGateRollback) return failed(error.failure);
@@ -508,8 +726,7 @@ export async function resolveApprovalGate(
       );
     }
 
-    const decision: ApprovalGrantedEvent | ApprovalRejectedEvent = {
-      type: input.decision === "approve" ? "ApprovalGranted" : "ApprovalRejected",
+    const base = {
       timestamp: agora.toISOString(),
       gateId: gate.id,
       gateKey: gate.gateKey,
@@ -518,6 +735,10 @@ export async function resolveApprovalGate(
       decidedBy: input.userId,
       note,
     };
+    const decision: ApprovalGrantedEvent | ApprovalRejectedEvent =
+      input.decision === "approve"
+        ? { type: "ApprovalGranted", ...base, grantedBy: GATE_DECIDER_USER }
+        : { type: "ApprovalRejected", ...base, rejectedBy: GATE_DECIDER_USER };
     await insertRunEvent(tx, {
       userId: input.userId,
       runId: run.id,

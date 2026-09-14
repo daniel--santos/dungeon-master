@@ -1,6 +1,8 @@
 import { fastEstimateTokens } from "@dungeon-master/context";
 import {
+  type AutonomyLevel,
   type BreakerAdmission,
+  type BreakerState,
   type BudgetBreach,
   type CapabilityIssue,
   type DiagnosticEvent,
@@ -19,13 +21,17 @@ import {
   type WorkspaceKind,
 } from "@dungeon-master/contracts";
 import {
+  admitThroughBreaker,
+  checkDelegationDepth,
   checkRunCreation,
   checkRunTransition,
   checkTaskTransition,
   decideApproval,
   isPreExecutionRunStatus,
   isTerminalRunStatus,
+  LIVE_RUN_STATUSES,
   matchCapabilities,
+  MAX_DELEGATION_DEPTH,
   type RunCreationRejection,
   type RunTransitionRejection,
   type TaskTransitionRejection,
@@ -45,6 +51,7 @@ import { routeModelForLoadout } from "./autonomy.js";
 import { checkBudgetsForNewRun } from "./budget.js";
 import {
   admitRunThroughBreakers,
+  feedBreakersWithRunOutcome,
   lockApplicableBreakers,
   markBreakerProbe,
   toBreakerAdmission,
@@ -56,6 +63,7 @@ import { findHarnessRow, findModelRow } from "./harness.js";
 import { newId } from "./ids.js";
 import { buildLoadoutSnapshot, findLoadoutRow } from "./loadout.js";
 import { failed, ok, type PageInput, type PageResult, type Result } from "./result.js";
+import { type CircuitBreakerRow } from "./schema/autonomy.js";
 import { projects } from "./schema/project.js";
 import { type RunRow, runs } from "./schema/run.js";
 import { runSteps } from "./schema/run-step.js";
@@ -154,6 +162,26 @@ export type RunWriteFailure =
       /** Uma política `RUN_START` com `DENY` casou (Fase 9A). */
       readonly code: "POLICY_DENIED";
       readonly decision: PolicyDecision;
+    }
+  | {
+      /**
+       * O auto-despacho (Fase 9B) exigiu `AUTO_APPROVE` da política de partida
+       * e a decisão foi revisão humana: o Run não nasce sozinho.
+       */
+      readonly code: "POLICY_REQUIRES_APPROVAL";
+      readonly decision: PolicyDecision;
+    }
+  | {
+      /** O Run mãe de uma delegação (Fase 9B) não existe para este usuário. */
+      readonly code: "PARENT_RUN_NOT_FOUND";
+      readonly parentRunId: string;
+    }
+  | {
+      /** A cadeia de delegação passaria da profundidade máxima (Fase 9B). */
+      readonly code: "DELEGATION_DEPTH_EXCEEDED";
+      readonly parentRunId: string;
+      readonly parentDepth: number;
+      readonly maxDepth: number;
     };
 
 // --------------------------------------------------------------------------
@@ -330,7 +358,14 @@ export async function applyRunStatus(
     resultStatus: resultado?.status ?? null,
     children: filhas,
   });
-  const moveTask = alvo !== null && alvo !== task.status;
+
+  // Um Run filho na **mesma** Task do Run mãe (Fase 9B, `taskStrategy: SAME`)
+  // não move a Task em transição nenhuma: a Task está em `RUNNING` pela mãe, e
+  // é o desfecho da mãe que responde por ela. Um filho numa Task filha própria
+  // (`CHILD`) é acoplado como qualquer Run.
+  const partilhaTaskComMae =
+    run.parentRunId !== null && (await parentSharesTask(db, input.userId, run));
+  const moveTask = !partilhaTaskComMae && alvo !== null && alvo !== task.status;
 
   if (moveTask) {
     const dependencias = await db
@@ -430,6 +465,108 @@ export async function applyRunStatus(
   return ok(atualizado);
 }
 
+/** O Run mãe deste Run existe e roda na mesma Task? */
+async function parentSharesTask(
+  db: DatabaseExecutor,
+  userId: string,
+  run: Pick<RunRow, "parentRunId" | "taskId">,
+): Promise<boolean> {
+  if (run.parentRunId === null) return false;
+  const [parent] = await db
+    .select({ taskId: runs.taskId })
+    .from(runs)
+    .where(and(eq(runs.id, run.parentRunId), eq(runs.userId, userId)));
+  return parent !== undefined && parent.taskId === run.taskId;
+}
+
+// --------------------------------------------------------------------------
+// Parentesco (Fase 9B)
+// --------------------------------------------------------------------------
+
+/**
+ * A profundidade de um Run na cadeia de delegação: 0 para um Run sem mãe, 1
+ * para o filho dele, e assim por diante. Sobe pela `parent_run_id` até a
+ * raiz, com o teto do domínio mais um de folga — uma cadeia mais longa que
+ * o permitido é defeito, e não motivo para um laço sem fim.
+ */
+export async function delegationDepthOf(
+  db: DatabaseExecutor,
+  input: { userId: string; runId: string },
+): Promise<number> {
+  let depth = 0;
+  let atual: string | null = input.runId;
+  while (atual !== null && depth <= MAX_DELEGATION_DEPTH + 1) {
+    const [row] = await db
+      .select({ parentRunId: runs.parentRunId })
+      .from(runs)
+      .where(and(eq(runs.id, atual), eq(runs.userId, input.userId)));
+    if (row === undefined || row.parentRunId === null) break;
+    depth += 1;
+    atual = row.parentRunId;
+  }
+  return depth;
+}
+
+/** Os filhos diretos de um Run, do mais antigo ao mais novo. */
+export async function listChildRuns(
+  db: DatabaseExecutor,
+  input: { userId: string; runId: string },
+): Promise<Run[]> {
+  const rows = await db
+    .select({ run: runs, projectId: tasks.projectId })
+    .from(runs)
+    .innerJoin(tasks, eq(tasks.id, runs.taskId))
+    .where(and(eq(runs.userId, input.userId), eq(runs.parentRunId, input.runId)))
+    .orderBy(asc(runs.createdAt), asc(runs.id));
+
+  return rows.map((row) => toRun(row.run, row.projectId));
+}
+
+/** As linhas dos filhos diretos ainda vivos: o que um cancelamento em cascata alcança. */
+export async function listLiveChildRunRows(
+  db: DatabaseExecutor,
+  input: { userId: string; runId: string },
+): Promise<RunRow[]> {
+  return await db
+    .select()
+    .from(runs)
+    .where(
+      and(
+        eq(runs.userId, input.userId),
+        eq(runs.parentRunId, input.runId),
+        inArray(runs.status, [...LIVE_RUN_STATUSES]),
+      ),
+    )
+    .orderBy(asc(runs.createdAt), asc(runs.id));
+}
+
+/**
+ * O Run filho que um step `delegate` abriu, pela chave do step no Run mãe.
+ *
+ * É por este par, e não por um id guardado em memória, que o motor reencontra
+ * o filho depois de um restart do Worker — nunca abre um segundo. O mais
+ * antigo vence se, por defeito, houver dois.
+ */
+export async function findChildRunRowByStep(
+  db: DatabaseExecutor,
+  input: { userId: string; parentRunId: string; parentStepKey: string },
+): Promise<RunRow | null> {
+  const [row] = await db
+    .select()
+    .from(runs)
+    .where(
+      and(
+        eq(runs.userId, input.userId),
+        eq(runs.parentRunId, input.parentRunId),
+        eq(runs.parentStepKey, input.parentStepKey),
+      ),
+    )
+    .orderBy(asc(runs.createdAt), asc(runs.id))
+    .limit(1);
+
+  return row ?? null;
+}
+
 // --------------------------------------------------------------------------
 // Criação
 // --------------------------------------------------------------------------
@@ -460,6 +597,13 @@ export interface CreateRunInput {
   createdBy?: RunCreatedBy | undefined;
   parentRunId?: string | undefined;
   parentStepKey?: string | undefined;
+  /**
+   * Exige que a política de partida (`RUN_START`) decida `AUTO_APPROVE`: é o
+   * auto-despacho (Fase 9B), em que ninguém pediu o Run. Uma decisão de
+   * revisão humana recusa com `POLICY_REQUIRES_APPROVAL` antes do `INSERT`.
+   * Pela API o campo não existe: quem pediu já aprovou.
+   */
+  requireAutoApproval?: boolean | undefined;
 }
 
 /**
@@ -518,7 +662,23 @@ export async function createRun(
   db: Database,
   input: CreateRunInput,
 ): Promise<Result<RunCreated, RunWriteFailure> | null> {
-  return await db.transaction(async (tx) => {
+  return await db.transaction(async (tx) => createRunWithin(tx, input));
+}
+
+/**
+ * `createRun` dentro da transação de quem chama (Fase 9B).
+ *
+ * Existe porque a delegação e o auto-despacho criam o Run **junto** de outras
+ * escritas — o step do Run mãe indo a `WAITING_CHILD`, a Task filha, o evento
+ * de despacho — e uma criação que commitasse sozinha poderia deixar um Run
+ * na fila cujo passo de origem nunca soube dele. As regras são exatamente as
+ * de `createRun`; só a fronteira da transação muda.
+ */
+export async function createRunWithin(
+  tx: DatabaseExecutor,
+  input: CreateRunInput,
+): Promise<Result<RunCreated, RunWriteFailure> | null> {
+  {
     // A linha da Task é travada antes de qualquer leitura: `attempt` é
     // `max + 1`, e duas criações simultâneas sem a trava calculariam o mesmo
     // número e a segunda quebraria no índice único.
@@ -550,12 +710,42 @@ export async function createRun(
       .innerJoin(tasks, eq(tasks.id, taskDependencies.dependsOnTaskId))
       .where(and(eq(taskDependencies.userId, input.userId), eq(taskDependencies.taskId, task.id)));
 
+    // ------------------------------------------------------------ parentesco
+    // Um Run filho (Fase 9B) exige a mãe viva para este usuário e uma cadeia
+    // dentro da profundidade máxima. Na mesma Task da mãe, a Task está em
+    // `RUNNING` por ela, e é isso que o filho exige; numa Task filha própria,
+    // vale a regra de sempre.
+    let parent: RunRow | null = null;
+    if (input.parentRunId !== undefined) {
+      parent = await findRunRow(tx, { userId: input.userId, runId: input.parentRunId });
+      if (parent === null) {
+        return failed<RunWriteFailure>({
+          code: "PARENT_RUN_NOT_FOUND",
+          parentRunId: input.parentRunId,
+        });
+      }
+      const parentDepth = await delegationDepthOf(tx, {
+        userId: input.userId,
+        runId: parent.id,
+      });
+      const profundidade = checkDelegationDepth(parentDepth);
+      if (!profundidade.ok) {
+        return failed<RunWriteFailure>({
+          code: "DELEGATION_DEPTH_EXCEEDED",
+          parentRunId: parent.id,
+          parentDepth: profundidade.parentDepth,
+          maxDepth: profundidade.maxDepth,
+        });
+      }
+    }
+
     const podeRodar = checkRunCreation({
       taskStatus: task.status,
       projectId: task.projectId,
       projectStatus: project?.status ?? "ARCHIVED",
       projectWorkspacePath: project?.workspacePath ?? null,
       dependencies: dependencias,
+      sharesTaskWithParent: parent !== null && parent.taskId === task.id,
     });
 
     if (!podeRodar.ok) {
@@ -777,6 +967,25 @@ export async function createRun(
       });
       return failed<RunWriteFailure>({ code: "POLICY_DENIED", decision: policyDecision });
     }
+    if (input.requireAutoApproval === true && policyDecision.action !== "AUTO_APPROVE") {
+      // O auto-despacho (Fase 9B) só parte com uma política que autorize e um
+      // nível que libere `AUTO_DISPATCH`; revisão humana é "o usuário decide".
+      await appendDashboardEvent(tx, {
+        userId: input.userId,
+        type: "policy.decided",
+        payload: {
+          taskId: task.id,
+          projectId: task.projectId,
+          loadoutId: loadout.id,
+          runId: null,
+          ...policyDecision,
+        },
+      });
+      return failed<RunWriteFailure>({
+        code: "POLICY_REQUIRES_APPROVAL",
+        decision: policyDecision,
+      });
+    }
 
     const report = matchCapabilities({
       snapshot: loadoutSnapshot,
@@ -797,12 +1006,17 @@ export async function createRun(
     // A captura congelada (planejamento v0.4, Fase 4): a definição vigente do
     // Workflow da Task vira uma versão imutável **nesta transação**, e é ela
     // que o Run referencia. Editar o Workflow depois não alcança este Run.
-    const captured =
-      task.workflowId === null
-        ? null
-        : await captureWorkflowVersion(tx, { userId: input.userId, workflowId: task.workflowId });
-    if (task.workflowId !== null && captured === null) {
-      return failed<RunWriteFailure>({ code: "WORKFLOW_NOT_FOUND", workflowId: task.workflowId });
+    //
+    // Um Run filho de uma delegação (Fase 9B) é sempre um Run simples, de um
+    // agente só, com o prompt que a mãe lhe deu: na mesma Task da mãe, herdar
+    // o Ritual dela faria o filho abrir o mesmo step `delegate` de novo — uma
+    // cadeia que só a profundidade máxima interromperia.
+    const capturaRitual = task.workflowId !== null && parent === null;
+    const captured = capturaRitual
+      ? await captureWorkflowVersion(tx, { userId: input.userId, workflowId: task.workflowId! })
+      : null;
+    if (capturaRitual && captured === null) {
+      return failed<RunWriteFailure>({ code: "WORKFLOW_NOT_FOUND", workflowId: task.workflowId! });
     }
 
     const [ultimo] = await tx
@@ -991,7 +1205,7 @@ export async function createRun(
       budgetWarnings: orcamentos.warnings,
       breaker,
     });
-  });
+  }
 }
 
 // --------------------------------------------------------------------------
@@ -1005,9 +1219,25 @@ export interface ClaimedRun {
     readonly id: string;
     readonly workspaceKind: WorkspaceKind;
     readonly workspacePath: string | null;
+    /** O nível de autonomia (Fase 9A): decide se a ferramenta de delegação é oferecida. */
+    readonly autonomyLevel: AutonomyLevel;
   };
   readonly task: { readonly id: string; readonly title: string };
+  /** A profundidade na cadeia de delegação (Fase 9B): 0 sem mãe, 1 filho, 2 neto. */
+  readonly delegationDepth: number;
 }
+
+/** Um Run da fila que um disjuntor não deixou reclamar (Fase 9B). */
+export interface RunClaimDeferral {
+  readonly runId: string;
+  readonly breakerId: string;
+  readonly breakerName: string;
+  readonly state: BreakerState;
+  readonly reason: string;
+}
+
+/** Quantos candidatos a reclamação examina antes de desistir da passada. */
+const CLAIM_CANDIDATES = 25;
 
 /**
  * Reclama o Run mais antigo da fila e o leva a `PREPARING`.
@@ -1023,77 +1253,143 @@ export interface ClaimedRun {
  * preenchido em `QUEUED` no instante entre o pedido e a transição imediata, mas
  * reclamar um Run que alguém acabou de cancelar seria subir processo para
  * matá-lo em seguida.
+ *
+ * **Disjuntores na reclamação (Fase 9B).** O mundo mudou desde o `POST /runs`:
+ * um disjuntor pode ter aberto com o Run já na fila. Um Run cujo disjuntor
+ * está `OPEN` dentro do cooldown — ou `HALF_OPEN` com outra sondagem em voo —
+ * **fica na fila** e o próximo candidato é examinado; `onDeferred` conta ao
+ * chamador, que grava um `Diagnostic` uma vez. Um Run que já é a sondagem do
+ * disjuntor passa; um `OPEN` com o cooldown vencido toma o Run como sondagem
+ * aqui, como a criação faria. Não há `PREPARING → QUEUED`, então a decisão
+ * precisa vir **antes** do claim.
  */
 export async function claimNextQueuedRun(
   db: Database,
-  input: { userId?: string; claimedBy?: string } = {},
+  input: {
+    userId?: string;
+    claimedBy?: string;
+    onDeferred?: ((deferral: RunClaimDeferral) => void) | undefined;
+    now?: Date;
+  } = {},
 ): Promise<ClaimedRun | null> {
   return await db.transaction(async (tx) => {
     const escopo = input.userId === undefined ? sql`` : sql` and ${runs.userId} = ${input.userId}`;
+    const agora = input.now ?? new Date();
 
-    const candidato = await tx.execute<{ id: string }>(
+    const candidatos = await tx.execute<{ id: string }>(
       sql`select ${runs.id} from ${runs}
           where ${runs.status} = 'QUEUED' and ${runs.cancelRequestedAt} is null${escopo}
           order by ${runs.createdAt} asc, ${runs.id} asc
           for update skip locked
-          limit 1`,
+          limit ${CLAIM_CANDIDATES}`,
     );
 
-    const id = candidato.rows[0]?.id;
-    if (id === undefined) return null;
+    for (const candidato of candidatos.rows) {
+      const [row] = await tx.select().from(runs).where(eq(runs.id, candidato.id));
+      if (row === undefined) continue;
 
-    const [row] = await tx.select().from(runs).where(eq(runs.id, id));
-    if (row === undefined) return null;
+      const [contexto] = await tx
+        .select({
+          taskId: tasks.id,
+          taskTitle: tasks.title,
+          projectId: projects.id,
+          workspaceKind: projects.workspaceKind,
+          workspacePath: projects.workspacePath,
+          autonomyLevel: projects.autonomyLevel,
+        })
+        .from(tasks)
+        .innerJoin(projects, eq(projects.id, tasks.projectId))
+        .where(eq(tasks.id, row.taskId));
 
-    // A marca de dono sai na **mesma transação** do `PREPARING`. Gravá-la
-    // depois deixaria uma janela em que o Run já está em preparação e ninguém
-    // o reclama como seu — que é exatamente o estado que a reconciliação de
-    // partida trata como órfão.
-    if (input.claimedBy !== undefined) {
-      await tx.update(runs).set({ claimedBy: input.claimedBy }).where(eq(runs.id, row.id));
-      row.claimedBy = input.claimedBy;
+      if (contexto === undefined) {
+        throw new Error(`O Run ${row.id} aponta para uma Task sem Project: não há onde executar.`);
+      }
+
+      // ---------------------------------------------------------- disjuntores
+      const breakers = await lockApplicableBreakers(tx, {
+        userId: row.userId,
+        projectId: contexto.projectId,
+        loadoutId: row.loadoutId,
+        harnessKey: row.harnessKey,
+      });
+      let recusado: RunClaimDeferral | null = null;
+      const sondagens: CircuitBreakerRow[] = [];
+      for (const breaker of breakers) {
+        // O Run que já é a sondagem deste disjuntor é exatamente o que ele
+        // espera ver rodar.
+        if (breaker.probeRunId === row.id) continue;
+        const admission = admitThroughBreaker(
+          {
+            state: breaker.state,
+            openedAt: breaker.openedAt,
+            cooldownMs: breaker.cooldownMs,
+            probeRunId: breaker.probeRunId,
+          },
+          agora,
+        );
+        if (!admission.admit) {
+          recusado = {
+            runId: row.id,
+            breakerId: breaker.id,
+            breakerName: breaker.name,
+            state: admission.state,
+            reason: admission.reason,
+          };
+          break;
+        }
+        if (admission.probe) sondagens.push(breaker);
+      }
+      if (recusado !== null) {
+        input.onDeferred?.(recusado);
+        continue;
+      }
+      for (const breaker of sondagens) {
+        await markBreakerProbe(tx, { userId: row.userId, breaker, runId: row.id, now: agora });
+      }
+
+      // A marca de dono sai na **mesma transação** do `PREPARING`. Gravá-la
+      // depois deixaria uma janela em que o Run já está em preparação e ninguém
+      // o reclama como seu — que é exatamente o estado que a reconciliação de
+      // partida trata como órfão.
+      if (input.claimedBy !== undefined) {
+        await tx.update(runs).set({ claimedBy: input.claimedBy }).where(eq(runs.id, row.id));
+        row.claimedBy = input.claimedBy;
+      }
+
+      const aplicado = await applyRunStatus(tx, {
+        userId: row.userId,
+        run: row,
+        to: "PREPARING",
+      });
+
+      if (!aplicado.ok) {
+        // A máquina de estados recusou uma transição que a consulta garantiu ser
+        // possível: é defeito, não estado. Abortar a transação devolve o Run à
+        // fila em vez de deixá-lo num limbo.
+        throw new Error(
+          `Run ${row.id} em QUEUED recusou a ida para PREPARING: ${JSON.stringify(aplicado.failure)}`,
+        );
+      }
+
+      const delegationDepth =
+        row.parentRunId === null
+          ? 0
+          : await delegationDepthOf(tx, { userId: row.userId, runId: row.id });
+
+      return {
+        run: toRun(aplicado.value, contexto.projectId),
+        project: {
+          id: contexto.projectId,
+          workspaceKind: contexto.workspaceKind,
+          workspacePath: contexto.workspacePath,
+          autonomyLevel: contexto.autonomyLevel,
+        },
+        task: { id: contexto.taskId, title: contexto.taskTitle },
+        delegationDepth,
+      };
     }
 
-    const aplicado = await applyRunStatus(tx, {
-      userId: row.userId,
-      run: row,
-      to: "PREPARING",
-    });
-
-    if (!aplicado.ok) {
-      // A máquina de estados recusou uma transição que a consulta garantiu ser
-      // possível: é defeito, não estado. Abortar a transação devolve o Run à
-      // fila em vez de deixá-lo num limbo.
-      throw new Error(
-        `Run ${id} em QUEUED recusou a ida para PREPARING: ${JSON.stringify(aplicado.failure)}`,
-      );
-    }
-
-    const [contexto] = await tx
-      .select({
-        taskId: tasks.id,
-        taskTitle: tasks.title,
-        projectId: projects.id,
-        workspaceKind: projects.workspaceKind,
-        workspacePath: projects.workspacePath,
-      })
-      .from(tasks)
-      .innerJoin(projects, eq(projects.id, tasks.projectId))
-      .where(eq(tasks.id, row.taskId));
-
-    if (contexto === undefined) {
-      throw new Error(`O Run ${id} aponta para uma Task sem Project: não há onde executar.`);
-    }
-
-    return {
-      run: toRun(aplicado.value, contexto.projectId),
-      project: {
-        id: contexto.projectId,
-        workspaceKind: contexto.workspaceKind,
-        workspacePath: contexto.workspacePath,
-      },
-      task: { id: contexto.taskId, title: contexto.taskTitle },
-    };
+    return null;
   });
 }
 
@@ -1254,6 +1550,36 @@ export async function writeRunTerminalStatus(
         .from(tasks)
         .where(eq(tasks.id, row.taskId));
 
+      // Os disjuntores aprendem com o desfecho **aqui**, e não num job depois
+      // (Fase 9B): um `FAILED` que commitasse sem alimentar o contador
+      // deixaria o disjuntor contando uma realidade que já não é a do banco.
+      const transicoes = await feedBreakersWithRunOutcome(tx, {
+        userId: input.userId,
+        run: aplicado.value,
+        projectId: task?.projectId ?? null,
+      });
+      for (const transicao of transicoes) {
+        const evento: DiagnosticEvent = {
+          type: "Diagnostic",
+          timestamp: new Date().toISOString(),
+          harness: row.harnessKey,
+          level: transicao.to === "OPEN" ? "WARN" : "INFO",
+          source: "RUNTIME",
+          code: transicao.to === "OPEN" ? "BREAKER_OPENED" : "BREAKER_CLOSED",
+          message: `${transicao.decidedBy}: ${transicao.reason}`,
+        };
+        await insertRunEvent(tx, {
+          userId: input.userId,
+          runId: row.id,
+          event: { type: evento.type, timestamp: new Date(), payload: evento },
+        });
+      }
+
+      // O Run mãe de uma delegação (Fase 9B) volta à fila na **mesma**
+      // transação do desfecho do filho: é o que garante que nenhum filho
+      // termina sem acordar quem o esperava.
+      await wakeParentAfterChildOutcome(tx, { userId: input.userId, child: aplicado.value });
+
       // O resultado alimenta o domínio aqui, e não num job depois: uma
       // proposta ou um candidato que commitasse separado do desfecho poderia
       // se perder sem ninguém notar (CLAUDE.md, seção 9).
@@ -1291,6 +1617,89 @@ export async function writeRunTerminalStatus(
 }
 
 /**
+ * Devolve o Run mãe à fila quando o filho que ele esperava terminou (Fase 9B).
+ *
+ * Chamada na transação do desfecho do filho, com a linha do filho já travada.
+ * A mãe é travada em seguida — sempre nesta ordem, filho e depois mãe; o
+ * cancelamento em cascata percorre o sentido contrário em transações
+ * **separadas**, e é isso que evita o abraço mortal entre os dois.
+ *
+ * Só age quando a mãe está em `WAITING_CHILD` **por este filho**: o step com
+ * a `parent_step_key` do filho em `WAITING_CHILD`. Uma mãe em `RUNNING` — a
+ * delegação pela ferramenta, com o agente da mãe vivo esperando `await_run`
+ * — não precisa de nada; uma mãe cancelada ou terminada também não. O step
+ * continua `WAITING_CHILD`: quem o assenta é o motor, ao reler o filho.
+ */
+async function wakeParentAfterChildOutcome(
+  db: DatabaseExecutor,
+  input: { userId: string; child: RunRow },
+): Promise<void> {
+  const { child } = input;
+  if (child.parentRunId === null || child.parentStepKey === null) return;
+
+  const parent = await lockRunRow(db, { userId: input.userId, runId: child.parentRunId });
+  if (parent === null || parent.status !== "WAITING_CHILD") return;
+
+  const [step] = await db
+    .select({ id: runSteps.id, status: runSteps.status, name: runSteps.name })
+    .from(runSteps)
+    .where(
+      and(
+        eq(runSteps.userId, input.userId),
+        eq(runSteps.runId, parent.id),
+        eq(runSteps.key, child.parentStepKey),
+      ),
+    );
+  if (step === undefined || step.status !== "WAITING_CHILD") return;
+
+  const devolvido = await applyRunStatus(db, { userId: input.userId, run: parent, to: "QUEUED" });
+  if (!devolvido.ok) {
+    // A aresta `WAITING_CHILD → QUEUED` existe e a Task não se mexe nela;
+    // chegar aqui é defeito, e o filho não pode commitar sem acordar a mãe.
+    throw new Error(
+      `O Run mãe ${parent.id} recusou a volta à fila após o filho ${child.id}: ` +
+        JSON.stringify(devolvido.failure),
+    );
+  }
+
+  const agora = new Date();
+  const diagnostico: DiagnosticEvent = {
+    type: "Diagnostic",
+    timestamp: agora.toISOString(),
+    harness: parent.harnessKey,
+    level: "INFO",
+    source: "RUNTIME",
+    code: "DELEGATION_FINISHED",
+    message:
+      `O Run filho ${child.id} do passo «${step.name}» (${child.parentStepKey}) terminou em ` +
+      `${child.status}; o Run volta à fila para continuar.`,
+  };
+  await insertRunEvent(db, {
+    userId: input.userId,
+    runId: parent.id,
+    event: { type: diagnostico.type, timestamp: agora, payload: diagnostico },
+  });
+
+  const [task] = await db
+    .select({ projectId: tasks.projectId })
+    .from(tasks)
+    .where(eq(tasks.id, parent.taskId));
+
+  await appendDashboardEvent(db, {
+    userId: input.userId,
+    type: "delegation.finished",
+    payload: {
+      runId: parent.id,
+      childRunId: child.id,
+      stepKey: child.parentStepKey,
+      taskId: parent.taskId,
+      projectId: task?.projectId ?? null,
+      childStatus: child.status,
+    },
+  });
+}
+
+/**
  * Marca o pedido de cancelamento.
  *
  * **Pedir não é cancelar.** A marca em `cancel_requested_at` é o que o worker
@@ -1303,8 +1712,28 @@ export async function writeRunTerminalStatus(
  * próximo ciclo dele para desfazer algo que nunca começou.
  *
  * Idempotente: pedir de novo devolve o mesmo Run sem gravar um segundo fato.
+ *
+ * **Cascata (Fase 9B).** Cancelar um Run mãe cancela os filhos vivos, cada um
+ * pelo mesmo caminho e em transação própria, **depois** do COMMIT da mãe: a
+ * ordem de travas "mãe, depois filho" aqui é a inversa da do desfecho do
+ * filho ("filho, depois mãe"), e mantê-las na mesma transação seria um abraço
+ * mortal esperando para acontecer.
  */
 export async function requestRunCancellation(
+  db: Database,
+  input: { userId: string; runId: string },
+): Promise<Result<Run, RunWriteFailure> | null> {
+  const pedido = await requestRunCancellationOnly(db, input);
+  if (pedido === null || !pedido.ok) return pedido;
+
+  const filhos = await listLiveChildRunRows(db, input);
+  for (const filho of filhos) {
+    await requestRunCancellation(db, { userId: input.userId, runId: filho.id });
+  }
+  return pedido;
+}
+
+async function requestRunCancellationOnly(
   db: Database,
   input: { userId: string; runId: string },
 ): Promise<Result<Run, RunWriteFailure> | null> {
@@ -1439,6 +1868,32 @@ export async function listCancelRequestedRunIds(
         sql`${runs.cancelRequestedAt} is not null`,
       ),
     );
+
+  return rows.map((row) => row.id);
+}
+
+/**
+ * Os Runs parados esperando — um gate ou um filho — com cancelamento pedido.
+ *
+ * Em `WAITING_APPROVAL` e `WAITING_CHILD` ninguém está executando: o Run
+ * soltou o Worker, e o pedido só marcou a coluna. O laço ocioso do Worker os
+ * fecha (`cancelWaitingRun`).
+ */
+export async function listWaitingRunsWithCancelRequested(
+  db: DatabaseExecutor,
+  input: { userId: string },
+): Promise<string[]> {
+  const rows = await db
+    .select({ id: runs.id })
+    .from(runs)
+    .where(
+      and(
+        eq(runs.userId, input.userId),
+        inArray(runs.status, ["WAITING_APPROVAL", "WAITING_CHILD"]),
+        sql`${runs.cancelRequestedAt} is not null`,
+      ),
+    )
+    .orderBy(asc(runs.createdAt), asc(runs.id));
 
   return rows.map((row) => row.id);
 }
