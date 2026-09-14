@@ -1008,9 +1008,10 @@
         "enum": [
           "USER",
           "PROPOSAL",
-          "POLICY"
+          "POLICY",
+          "DELEGATION"
         ],
-        "description": "`USER` à mão, `PROPOSAL` por aprovação humana, `POLICY` por política automática."
+        "description": "`USER` à mão, `PROPOSAL` por aprovação humana, `POLICY` por política automática, `DELEGATION` por um agente que delegou."
       },
       "TaskReopeningList": {
         "type": "object",
@@ -6132,6 +6133,7 @@
           "PREPARING",
           "RUNNING",
           "WAITING_APPROVAL",
+          "WAITING_CHILD",
           "SUCCEEDED",
           "FAILED",
           "TIMED_OUT",
@@ -7339,6 +7341,22 @@
         ],
         "description": "Uma tentativa concreta de realizar uma Task."
       },
+      "RunChildrenList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Run"
+            },
+            "description": "Os filhos diretos, do mais antigo ao mais novo."
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "Os Runs filhos de um Run."
+      },
       "RunContext": {
         "type": "object",
         "properties": {
@@ -7973,7 +7991,8 @@
           "command",
           "validation",
           "approval",
-          "knowledge"
+          "knowledge",
+          "delegate"
         ],
         "description": "Tipo de um step de Workflow."
       },
@@ -7983,6 +8002,7 @@
           "PENDING",
           "RUNNING",
           "WAITING_APPROVAL",
+          "WAITING_CHILD",
           "SUCCEEDED",
           "FAILED",
           "SKIPPED",
@@ -8222,6 +8242,100 @@
             "description": "Resultado de um step `knowledge`."
           },
           {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "delegate"
+                ]
+              },
+              "childRunId": {
+                "type": "string",
+                "format": "uuid",
+                "description": "O Run filho que este passo abriu."
+              },
+              "childTaskId": {
+                "type": "string",
+                "format": "uuid",
+                "description": "A Task em que o filho rodou."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "CREATED",
+                  "QUEUED",
+                  "PREPARING",
+                  "RUNNING",
+                  "WAITING_APPROVAL",
+                  "WAITING_CHILD",
+                  "SUCCEEDED",
+                  "FAILED",
+                  "TIMED_OUT",
+                  "CANCELLED"
+                ],
+                "description": "O estado terminal do filho."
+              },
+              "resultStatus": {
+                "type": "string",
+                "enum": [
+                  "completed",
+                  "blocked",
+                  "failed"
+                ],
+                "description": "O veredito do agente do filho, quando o filho terminou bem."
+              },
+              "summary": {
+                "type": "string",
+                "description": "O resumo do resultado do filho."
+              },
+              "usage": {
+                "type": "object",
+                "properties": {
+                  "inputTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Tokens de entrada não cacheados."
+                  },
+                  "outputTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Tokens gerados."
+                  },
+                  "cacheReadInputTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Tokens de entrada servidos do cache."
+                  },
+                  "cacheCreationInputTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Tokens de entrada gravados no cache."
+                  },
+                  "costUsd": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Custo informado pelo harness, quando existir."
+                  }
+                },
+                "required": [
+                  "inputTokens",
+                  "outputTokens",
+                  "cacheReadInputTokens",
+                  "cacheCreationInputTokens"
+                ],
+                "description": "Consumo de tokens do filho, quando medido."
+              }
+            },
+            "required": [
+              "kind",
+              "childRunId",
+              "childTaskId",
+              "status"
+            ],
+            "description": "Resultado de um step `delegate`: o desfecho do Run filho."
+          },
+          {
             "type": "null"
           }
         ],
@@ -8364,6 +8478,7 @@
                       "PENDING",
                       "RUNNING",
                       "WAITING_APPROVAL",
+                      "WAITING_CHILD",
                       "SUCCEEDED",
                       "FAILED",
                       "SKIPPED",
@@ -8729,6 +8844,9 @@
           },
           {
             "$ref": "#/components/schemas/KnowledgeStepDefinition"
+          },
+          {
+            "$ref": "#/components/schemas/DelegateStepDefinition"
           }
         ],
         "discriminator": {
@@ -8738,7 +8856,8 @@
             "command": "#/components/schemas/CommandStepDefinition",
             "validation": "#/components/schemas/ValidationStepDefinition",
             "approval": "#/components/schemas/ApprovalStepDefinition",
-            "knowledge": "#/components/schemas/KnowledgeStepDefinition"
+            "knowledge": "#/components/schemas/KnowledgeStepDefinition",
+            "delegate": "#/components/schemas/DelegateStepDefinition"
           }
         },
         "description": "Um step, discriminado por `type`."
@@ -9158,6 +9277,106 @@
           "mode"
         ],
         "description": "Consolida o que os agentes aprenderam."
+      },
+      "DelegateStepDefinition": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "delegate"
+            ]
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$",
+            "description": "Chave única na definição. É por ela que o Run acompanha o step."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Nome para leitura."
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,40}$"
+            },
+            "maxItems": 50,
+            "default": [],
+            "description": "Steps que precisam ter assentado antes deste rodar. Sem `when`, todos precisam ter terminado em `SUCCEEDED`; com `when`, os predicados decidem."
+          },
+          "when": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Predicate"
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "description": "Conjunção de predicados. Qualquer um falso pula o step."
+          },
+          "retry": {
+            "type": "object",
+            "properties": {
+              "maxAttempts": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5,
+                "description": "Tentativas no total, incluindo a primeira."
+              }
+            },
+            "required": [
+              "maxAttempts"
+            ],
+            "description": "Quantas vezes o step pode rodar antes de contar como `FAILED`."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 86400000,
+            "description": "Teto de duração de uma tentativa, em milissegundos."
+          },
+          "loadoutRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "O Loadout do Run filho: o id, ou o nome exato."
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000,
+            "description": "Prompt literal do filho. O motor anexa os resumos de `includeOutputsOf`."
+          },
+          "includeOutputsOf": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,40}$"
+            },
+            "maxItems": 50,
+            "description": "Steps cujo resumo de resultado o motor anexa ao prompt do filho."
+          },
+          "taskStrategy": {
+            "type": "string",
+            "enum": [
+              "SAME",
+              "CHILD"
+            ],
+            "default": "SAME",
+            "description": "Onde o filho roda. Padrão: a mesma Task do Run mãe."
+          }
+        },
+        "required": [
+          "type",
+          "key",
+          "name",
+          "loadoutRef",
+          "prompt"
+        ],
+        "description": "Um Run filho com outro Loadout; o Run mãe espera o desfecho."
       },
       "WorkflowDefinition": {
         "type": "object",
@@ -14228,7 +14447,8 @@
               "enum": [
                 "USER",
                 "PROPOSAL",
-                "POLICY"
+                "POLICY",
+                "DELEGATION"
               ],
               "description": "Só as Tasks com esta origem."
             },
@@ -18885,6 +19105,50 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Run"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Run com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{id}/children": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Os Runs filhos de uma execução",
+        "description": "Os Runs que este Run abriu por delegação (Fase 9B) — pelo step `delegate` de um Workflow ou pela ferramenta `delegate_task` —, do mais antigo ao mais novo. Cada um traz `parentRunId` e, quando veio de um step, `parentStepKey`. Vazio num Run que não delegou; o Run mãe de um filho está em `GET /runs/{id}`, em `parentRunId`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Run."
+            },
+            "required": true,
+            "description": "UUIDv7 do Run.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Os filhos diretos do Run.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunChildrenList"
                 }
               }
             }
