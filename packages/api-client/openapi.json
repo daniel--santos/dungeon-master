@@ -451,9 +451,37 @@
             "description": "Caminho absoluto do workspace na máquina local. Um Project sem ele não pode ter Run: não há onde o agente trabalhar."
           },
           "autonomyLevel": {
-            "type": "number",
-            "enum": [
-              0
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  0
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  2
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  3
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  4
+                ]
+              }
             ],
             "description": "A escada de autonomia do Project (Fase 9A). Muda em `PATCH /projects/{id}/autonomy`."
           },
@@ -599,9 +627,37 @@
             "description": "Caminho absoluto do workspace na máquina local. Um Project sem ele não pode ter Run: não há onde o agente trabalhar."
           },
           "autonomyLevel": {
-            "type": "number",
-            "enum": [
-              0
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  0
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  2
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  3
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  4
+                ]
+              }
             ],
             "description": "A escada de autonomia do Project (Fase 9A). Muda em `PATCH /projects/{id}/autonomy`."
           },
@@ -6528,9 +6584,37 @@
         "description": "`PROPOSAL` decide uma proposta de Task; `RUN_START` a partida de um Run; `GATE` um ApprovalGate."
       },
       "AutonomyLevel": {
-        "type": "number",
-        "enum": [
-          0
+        "anyOf": [
+          {
+            "type": "number",
+            "enum": [
+              0
+            ]
+          },
+          {
+            "type": "number",
+            "enum": [
+              1
+            ]
+          },
+          {
+            "type": "number",
+            "enum": [
+              2
+            ]
+          },
+          {
+            "type": "number",
+            "enum": [
+              3
+            ]
+          },
+          {
+            "type": "number",
+            "enum": [
+              4
+            ]
+          }
         ],
         "description": "0 manual, 1 sugere, 2 propõe e o humano aprova, 3 políticas autoaprovam e auto-despacho, 4 delegação Agent-to-Agent."
       },

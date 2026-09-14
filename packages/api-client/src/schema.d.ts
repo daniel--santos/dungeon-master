@@ -7509,11 +7509,8 @@ export interface components {
             workspaceKind: components["schemas"]["WorkspaceKind"];
             /** @description Caminho absoluto do workspace na máquina local. Um Project sem ele não pode ter Run: não há onde o agente trabalhar. */
             workspacePath: string | null;
-            /**
-             * @description A escada de autonomia do Project (Fase 9A). Muda em `PATCH /projects/{id}/autonomy`.
-             * @enum {number}
-             */
-            autonomyLevel: 0;
+            /** @description A escada de autonomia do Project (Fase 9A). Muda em `PATCH /projects/{id}/autonomy`. */
+            autonomyLevel: 0 | 1 | 2 | 3 | 4;
             /**
              * Format: date-time
              * @description Instante do arquivamento, em UTC (ISO 8601). Nulo enquanto ativo.
@@ -7569,11 +7566,8 @@ export interface components {
             workspaceKind: components["schemas"]["WorkspaceKind"];
             /** @description Caminho absoluto do workspace na máquina local. Um Project sem ele não pode ter Run: não há onde o agente trabalhar. */
             workspacePath: string | null;
-            /**
-             * @description A escada de autonomia do Project (Fase 9A). Muda em `PATCH /projects/{id}/autonomy`.
-             * @enum {number}
-             */
-            autonomyLevel: 0;
+            /** @description A escada de autonomia do Project (Fase 9A). Muda em `PATCH /projects/{id}/autonomy`. */
+            autonomyLevel: 0 | 1 | 2 | 3 | 4;
             /**
              * Format: date-time
              * @description Instante do arquivamento, em UTC (ISO 8601). Nulo enquanto ativo.
@@ -9795,11 +9789,8 @@ export interface components {
          * @enum {string}
          */
         PolicySubject: "PROPOSAL" | "RUN_START" | "GATE";
-        /**
-         * @description 0 manual, 1 sugere, 2 propõe e o humano aprova, 3 políticas autoaprovam e auto-despacho, 4 delegação Agent-to-Agent.
-         * @enum {number}
-         */
-        AutonomyLevel: 0;
+        /** @description 0 manual, 1 sugere, 2 propõe e o humano aprova, 3 políticas autoaprovam e auto-despacho, 4 delegação Agent-to-Agent. */
+        AutonomyLevel: 0 | 1 | 2 | 3 | 4;
         /**
          * @description O que a regra escolhe: um Model, um Loadout ou um Workflow.
          * @enum {string}
