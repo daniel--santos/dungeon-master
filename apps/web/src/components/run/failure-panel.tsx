@@ -80,11 +80,7 @@ export function FailurePanel({ run, onResume }: FailurePanelProps) {
       <div className="grid items-start gap-5 xl:grid-cols-2">
         <Panel className="flex flex-col gap-3 px-4.5 pt-4 pb-4.5">
           <div className="flex items-center gap-2">
-            <FolderOpen
-              aria-hidden
-              className="size-3.75"
-              style={{ color: "var(--accent-blue)" }}
-            />
+            <FolderOpen aria-hidden className="size-3.75" style={{ color: "var(--accent-blue)" }} />
             <span className="text-sm font-medium">O workspace foi preservado</span>
           </div>
 

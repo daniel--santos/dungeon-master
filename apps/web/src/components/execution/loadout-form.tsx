@@ -444,10 +444,7 @@ export function LoadoutForm({ loadout, onSaved, onCancel }: LoadoutFormProps) {
             data-loadout-permission-warning={harness.key}
             role="note"
           >
-            <ShieldAlert
-              aria-hidden
-              className="mt-0.5 size-3.5 flex-none text-accent-amber"
-            />
+            <ShieldAlert aria-hidden className="mt-0.5 size-3.5 flex-none text-accent-amber" />
             <div className="flex min-w-0 flex-col gap-1">
               <span className="text-[12.5px] font-medium">
                 {t("loadout.noNativePermissions.title")}
