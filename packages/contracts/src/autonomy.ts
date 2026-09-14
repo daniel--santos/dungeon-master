@@ -23,12 +23,18 @@ import { z } from "zod";
 
 export const AUTONOMY_LEVEL_VALUES = [0, 1, 2, 3, 4] as const;
 
-export const AutonomyLevelSchema = z.literal(AUTONOMY_LEVEL_VALUES).meta({
-  id: "AutonomyLevel",
-  description:
-    "0 manual, 1 sugere, 2 propõe e o humano aprova, 3 políticas autoaprovam e auto-despacho, " +
-    "4 delegação Agent-to-Agent.",
-});
+// Uma união de literais, e não `z.literal([0, 1, 2, 3, 4])`: o conversor
+// OpenAPI do Hono emite `enum: [0]` para a forma com lista — só o primeiro
+// valor —, e o cliente gerado tiparia o nível como `0`. A união sai como
+// `anyOf` de `const` e vira `0 | 1 | 2 | 3 | 4` no `schema.d.ts`.
+export const AutonomyLevelSchema = z
+  .union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
+  .meta({
+    id: "AutonomyLevel",
+    description:
+      "0 manual, 1 sugere, 2 propõe e o humano aprova, 3 políticas autoaprovam e auto-despacho, " +
+      "4 delegação Agent-to-Agent.",
+  });
 
 export type AutonomyLevel = z.infer<typeof AutonomyLevelSchema>;
 
