@@ -56,6 +56,12 @@ export type StepAttemptOutcome =
       /** Só o executor de `approval` produz: o Run solta o Worker até a decisão. */
       readonly kind: "paused";
       readonly gate: ApprovalGate;
+    }
+  | {
+      /** Só o executor de `delegate` produz: o Run solta o Worker até o filho terminar. */
+      readonly kind: "waiting";
+      readonly childRunId: string;
+      readonly stepKey: string;
     };
 
 export interface StepExecutionDeps {

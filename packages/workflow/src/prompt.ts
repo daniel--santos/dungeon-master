@@ -115,6 +115,16 @@ export function describeStepOutput(view: StepOutputView): string {
       }
       break;
     }
+    case "delegate": {
+      linhas.push(
+        `Run filho ${result.childRunId} terminou em ${result.status}` +
+          (result.resultStatus === undefined ? "" : ` (veredito: ${result.resultStatus})`),
+      );
+      if (result.summary !== undefined && result.summary.trim().length > 0) {
+        linhas.push("", result.summary.trim());
+      }
+      break;
+    }
   }
 
   linhas.push("");

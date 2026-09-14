@@ -16,6 +16,7 @@ import type {
 import {
   evaluatePredicates,
   evaluateStepReadiness,
+  isOpenRunStepStatus,
   isWorkflowSettled,
   skipReasonFor,
   topologicalOrder,
@@ -27,6 +28,7 @@ import { aggregateRunResult } from "./aggregate.js";
 import { agentStepExecutor } from "./executors/agent.js";
 import { approvalStepExecutor } from "./executors/approval.js";
 import { commandStepExecutor } from "./executors/command.js";
+import { delegateStepExecutor, outcomeFromChild } from "./executors/delegate.js";
 import { knowledgeStepExecutor } from "./executors/knowledge.js";
 import type { StepAttemptOutcome, StepExecutionDeps, StepExecutor } from "./executors/types.js";
 import { validationStepExecutor } from "./executors/validation.js";
@@ -97,6 +99,12 @@ export type WorkflowOutcome =
     }
   | { readonly kind: "paused"; readonly gate: ApprovalGate; readonly stepKey: string }
   | {
+      /** O Run solta o Worker até o Run filho de um step `delegate` terminar (Fase 9B). */
+      readonly kind: "waiting";
+      readonly childRunId: string;
+      readonly stepKey: string;
+    }
+  | {
       readonly kind: "cancelled";
       readonly reason?: string | undefined;
       readonly processTreeTerminated: boolean;
@@ -110,6 +118,13 @@ const TOUCHES_CHECKOUT = new Set<WorkflowStepDefinition["type"]>([
   "command",
   "validation",
 ]);
+
+/**
+ * Os tipos de step que consomem tokens e tempo de agente, e para os quais os
+ * orçamentos são re-checados antes de rodar (Fase 9B). Um comando não chama
+ * modelo; um gate e a consolidação de conhecimento não consomem nada.
+ */
+const CONSUMES_BUDGET = new Set<WorkflowStepDefinition["type"]>(["agent", "delegate"]);
 
 export async function runWorkflow(input: RunWorkflowInput): Promise<WorkflowOutcome> {
   const { run, store, logger } = input;
@@ -256,6 +271,51 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<WorkflowOutc
       continue;
     }
 
+    // (c2) Um passo esperando o Run filho (Fase 9B): o filho é reencontrado
+    // pela chave do passo. Terminou, o passo assenta pelo desfecho dele; ainda
+    // roda, o Run volta a soltar o Worker. Nunca um segundo filho.
+    const esperandoFilho = steps.find((step) => step.status === "WAITING_CHILD");
+    if (esperandoFilho !== undefined) {
+      const definition = definitionsByKey.get(esperandoFilho.key);
+      if (definition?.type !== "delegate") {
+        await settleLost(esperandoFilho, "FAILED", {
+          code: "STEP_NOT_DELEGATE",
+          message: `O step "${esperandoFilho.key}" está em WAITING_CHILD mas não é um step de delegação.`,
+          retryable: false,
+        });
+        continue;
+      }
+      const filho = await store.findChildRun(esperandoFilho.key);
+      if (filho === null) {
+        await settleLost(esperandoFilho, "FAILED", {
+          code: "CHILD_RUN_MISSING",
+          message: `O passo «${esperandoFilho.name}» (${esperandoFilho.key}) esperava um Run filho que não existe mais.`,
+          retryable: false,
+        });
+        continue;
+      }
+      const desfecho = outcomeFromChild(filho, esperandoFilho.key);
+      if (desfecho.kind === "waiting") {
+        logger?.info?.(
+          { runId: run.runId, stepKey: esperandoFilho.key, childRunId: filho.id },
+          "run filho ainda em voo; o Run continua esperando",
+        );
+        return { kind: "waiting", childRunId: filho.id, stepKey: esperandoFilho.key };
+      }
+      if (desfecho.kind === "succeeded") {
+        await settleLost(esperandoFilho, "SUCCEEDED", undefined, desfecho.result, desfecho.summary);
+      } else if (desfecho.kind === "failed") {
+        await settleLost(
+          esperandoFilho,
+          "FAILED",
+          desfecho.error,
+          desfecho.result,
+          desfecho.summary,
+        );
+      }
+      continue;
+    }
+
     // (d) Prontidão pelo domínio: quem pula, pula com motivo gravado.
     const readiness = evaluateStepReadiness(input.definition.steps, statusByKey);
     if (readiness.skipped.length > 0) {
@@ -394,6 +454,54 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<WorkflowOutc
         ? input.defaultStepTimeoutMs
         : undefined);
 
+    // (f.1) Orçamentos re-checados antes de gastar (Fase 9B): o mundo mudou
+    // desde a partida, e um `PER_RUN` só tem o que medir agora. `BLOCK` no
+    // teto assenta o passo em FAILED sem subir agente e sem retentar — uma
+    // retentativa consumiria o que o orçamento acabou de recusar; `WARN` vai
+    // ao diário e o passo roda.
+    if (CONSUMES_BUDGET.has(definition.type)) {
+      const budget = await store.checkStepBudget();
+      for (const aviso of budget.warnings) {
+        await append({
+          type: "Diagnostic",
+          timestamp: clock.nowIso(),
+          harness: run.harnessKey,
+          level: "WARN",
+          source: "RUNTIME",
+          code: "BUDGET_WARNED",
+          message: `Passo «${definition.name}» (${running.key}): ${aviso.reason}`,
+        });
+      }
+      if (budget.blocked !== null) {
+        await append({
+          type: "Diagnostic",
+          timestamp: clock.nowIso(),
+          harness: run.harnessKey,
+          level: "ERROR",
+          source: "RUNTIME",
+          code: "BUDGET_EXCEEDED",
+          message: `Passo «${definition.name}» (${running.key}) não rodou: ${budget.blocked.reason}`,
+        });
+        await finish(
+          running,
+          "FAILED",
+          `Orçamento no teto: ${budget.blocked.name}.`,
+          Math.max(0, clock.now() - iniciadoEm),
+          {
+            result: null,
+            error: {
+              code: "BUDGET_EXCEEDED",
+              message: budget.blocked.reason,
+              retryable: false,
+              budgetId: budget.blocked.budgetId,
+            },
+          },
+        );
+        await discardSnapshot(running.key);
+        return undefined;
+      }
+    }
+
     let outcome: StepAttemptOutcome;
     try {
       outcome = await executorFor(definition).execute({
@@ -426,6 +534,9 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<WorkflowOutc
     switch (outcome.kind) {
       case "paused":
         return { kind: "paused", gate: outcome.gate, stepKey: running.key };
+
+      case "waiting":
+        return { kind: "waiting", childRunId: outcome.childRunId, stepKey: running.key };
 
       case "succeeded": {
         await finish(running, "SUCCEEDED", outcome.summary, durationMs, {
@@ -574,7 +685,10 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<WorkflowOutc
         "estava em execução num Worker que terminou sem gravar o desfecho.",
       retryable: true,
     };
-    if (step.attempt < maxAttempts) {
+    // Um `delegate` perdido em RUNNING não chegou a abrir o filho (a abertura
+    // e a espera saem da mesma transação): voltar a PENDING nunca duplica, e
+    // o executor reencontra um filho que exista pela chave do passo.
+    if (step.attempt < maxAttempts || definition?.type === "delegate") {
       const voltou = await store.transitionRunStep({
         stepKey: step.key,
         from: "RUNNING",
@@ -598,6 +712,7 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<WorkflowOutc
     status: RunStepStatus,
     error: RunStepError | undefined,
     result?: RunStep["result"],
+    summary?: string,
   ): Promise<void> {
     const moved = await store.transitionRunStep({
       stepKey: step.key,
@@ -619,7 +734,7 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<WorkflowOutc
       stepKey: step.key,
       status,
       attempt: Math.max(step.attempt, 1),
-      summary: error?.message ?? `Assentado em ${status} por decisão já gravada.`,
+      summary: summary ?? error?.message ?? `Assentado em ${status} por decisão já gravada.`,
     };
     await append(finished);
     await discardSnapshot(step.key);
@@ -628,13 +743,7 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<WorkflowOutc
   /** Leva a `CANCELLED` tudo o que ainda não assentou. Devolve o estado final. */
   async function cancelPending(steps: readonly RunStep[], motivo: string): Promise<RunStep[]> {
     for (const step of steps) {
-      if (
-        step.status !== "PENDING" &&
-        step.status !== "RUNNING" &&
-        step.status !== "WAITING_APPROVAL"
-      ) {
-        continue;
-      }
+      if (!isOpenRunStepStatus(step.status)) continue;
       const moved = await store.transitionRunStep({
         stepKey: step.key,
         from: step.status,
@@ -700,6 +809,8 @@ function executorFor(definition: WorkflowStepDefinition): StepExecutor<WorkflowS
       return approvalStepExecutor as StepExecutor<WorkflowStepDefinition>;
     case "knowledge":
       return knowledgeStepExecutor as StepExecutor<WorkflowStepDefinition>;
+    case "delegate":
+      return delegateStepExecutor as StepExecutor<WorkflowStepDefinition>;
   }
 }
 

@@ -18,6 +18,7 @@ export * from "./artifact-probe.js";
 export * from "./executors/agent.js";
 export * from "./executors/approval.js";
 export * from "./executors/command.js";
+export * from "./executors/delegate.js";
 export * from "./executors/knowledge.js";
 export * from "./executors/types.js";
 export * from "./executors/validation.js";
