@@ -10,7 +10,7 @@ import {
   ListChecks,
   Play,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { RunStatusChip } from "@/components/execution/chips";
 import { EnvBadge } from "@/components/execution/env-badge";
@@ -38,7 +38,7 @@ import { KNOWLEDGE_COLOR } from "@/lib/knowledge-domain";
 import { countKnowledgeToolCalls } from "@/lib/knowledge-tools";
 import { useProject } from "@/lib/projects";
 import { useRunEvents } from "@/lib/run-events";
-import { hasWorkflowEventAfter } from "@/lib/run-timeline";
+import { gateDecisions, hasWorkflowEventAfter } from "@/lib/run-timeline";
 import { canResumeRun, runKeys, useRun } from "@/lib/runs";
 import { runDetailSearchSchema } from "@/lib/search";
 import { useTask } from "@/lib/tasks";
@@ -152,6 +152,10 @@ function Cockpit({ run }: { run: RunRecord }) {
   // ferramentas do servidor MCP do conhecimento, contadas sobre o Diário.
   const knowledgeCalls = countKnowledgeToolCalls(events.events);
 
+  // Quem decidiu cada Selo (Fase 9B): o usuário ou uma política, lido dos
+  // eventos `ApprovalGranted`/`ApprovalRejected` do Diário.
+  const decisions = useMemo(() => gateDecisions(events.events), [events.events]);
+
   return (
     <>
       <div className="flex flex-none flex-col gap-2">
@@ -258,7 +262,12 @@ function Cockpit({ run }: { run: RunRecord }) {
       </div>
 
       {guided && (run.status === "WAITING_APPROVAL" || holdingGate) && (
-        <ApprovalGateCard gates={gates.data?.items ?? []} onHoldingChange={onHoldingChange} />
+        <ApprovalGateCard
+          decisions={decisions}
+          gates={gates.data?.items ?? []}
+          onHoldingChange={onHoldingChange}
+          projectId={run.projectId}
+        />
       )}
 
       <div className="grid min-h-150 items-stretch gap-5 xl:grid-cols-[300px_minmax(0,1fr)_320px]">

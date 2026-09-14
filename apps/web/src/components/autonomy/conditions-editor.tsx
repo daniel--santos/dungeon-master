@@ -105,7 +105,7 @@ export function ConditionsEditor({ value, onChange, disabled = false }: Conditio
           <div
             key={key}
             className={cn(
-              "border-border flex flex-col gap-2 rounded-[10px] border px-3 py-2",
+              "border-border flex flex-col gap-2 rounded-lg border px-3 py-2",
               !enabled && "border-transparent",
             )}
             data-condition={key}

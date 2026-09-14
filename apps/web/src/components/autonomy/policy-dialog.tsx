@@ -204,17 +204,14 @@ export function PolicyDialog({
 
           {inert && (
             <div
-              className="flex items-start gap-2.5 rounded-[10px] border px-3 py-2.5"
+              className="flex items-start gap-2.5 rounded-lg border px-3 py-2.5"
               data-policy-inert
               style={{
-                borderColor: tint("oklch(0.72 0.13 75)", 45),
-                backgroundColor: tint("oklch(0.72 0.13 75)", 9),
+                borderColor: tint("var(--accent-amber)", 45),
+                backgroundColor: tint("var(--accent-amber)", 9),
               }}
             >
-              <ShieldAlert
-                aria-hidden
-                className="mt-0.5 size-3.5 flex-none text-[oklch(0.72_0.13_75)]"
-              />
+              <ShieldAlert aria-hidden className="mt-0.5 size-3.5 flex-none text-accent-amber" />
               <span className="flex flex-col gap-0.5">
                 <span className="text-[12.5px] font-medium">{t("policy.inert")}</span>
                 <span className="text-muted-foreground text-[11.5px] leading-4.5">

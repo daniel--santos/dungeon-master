@@ -46,11 +46,11 @@ import { TASK_KINDS, TASK_PRIORITIES } from "@/lib/domain";
  * compilação em vez de uma linha sem nome.
  */
 
-/** A cor da autonomia em toda a interface: um verde-azulado no eixo dos acentos. */
-export const AUTONOMY_COLOR = "oklch(0.72 0.13 195)";
-const ACCENT_GREEN = "oklch(0.72 0.13 150)";
-const ACCENT_AMBER = "oklch(0.72 0.13 75)";
-const ACCENT_BLUE = "oklch(0.72 0.13 250)";
+/** A cor da autonomia em toda a interface: o verde-azulado da família de acentos (token `--accent-teal`). */
+export const AUTONOMY_COLOR = "var(--accent-teal)";
+const ACCENT_GREEN = "var(--accent-green)";
+const ACCENT_AMBER = "var(--accent-amber)";
+const ACCENT_BLUE = "var(--accent-blue)";
 
 /* --------------------------------------------------------- autonomy.level */
 
@@ -347,6 +347,8 @@ export const TASK_CREATED_BY: Record<TaskCreatedBy, GlossaryKey> = {
   USER: "task.origin.user",
   PROPOSAL: "task.origin.proposal",
   POLICY: "task.origin.policy",
+  // A Task que um step `delegate` abriu para o Run filho (Fase 9B).
+  DELEGATION: "task.origin.delegation",
 };
 
 export const TASK_CREATED_BY_VALUES = Object.keys(TASK_CREATED_BY) as readonly TaskCreatedBy[];
@@ -419,12 +421,21 @@ export function parseModelSelectedBy(value: string | undefined): ModelSelectedBy
 
 /* ------------------------------------------------------------- diagnostic */
 
-/** Os códigos de `Diagnostic` que a partida grava no diário (Fase 9A). */
+/**
+ * Os códigos de `Diagnostic` da autonomia no diário: os quatro que a partida
+ * grava (Fase 9A) e os que o Worker grava durante a Expedição (Fase 9B) — o
+ * orçamento no teto na reclamação, o disjuntor que abriu, a delegação que
+ * começou e terminou.
+ */
 export const AUTONOMY_DIAGNOSTIC_CODES = [
   "POLICY_DECIDED",
   "BUDGET_WARNED",
+  "BUDGET_EXCEEDED",
   "MODEL_ROUTED",
   "BREAKER_PROBE",
+  "BREAKER_OPEN",
+  "DELEGATION_STARTED",
+  "DELEGATION_FINISHED",
 ] as const;
 
 export type AutonomyDiagnosticCode = (typeof AUTONOMY_DIAGNOSTIC_CODES)[number];
@@ -432,8 +443,12 @@ export type AutonomyDiagnosticCode = (typeof AUTONOMY_DIAGNOSTIC_CODES)[number];
 export const AUTONOMY_DIAGNOSTIC: Record<AutonomyDiagnosticCode, GlossaryKey> = {
   POLICY_DECIDED: "diagnostic.policyDecided",
   BUDGET_WARNED: "diagnostic.budgetWarned",
+  BUDGET_EXCEEDED: "diagnostic.budgetExceeded",
   MODEL_ROUTED: "diagnostic.modelRouted",
   BREAKER_PROBE: "diagnostic.breakerProbe",
+  BREAKER_OPEN: "diagnostic.breakerOpen",
+  DELEGATION_STARTED: "run.origin.delegation",
+  DELEGATION_FINISHED: "run.origin.delegation",
 };
 
 export function isAutonomyDiagnosticCode(value: unknown): value is AutonomyDiagnosticCode {
@@ -442,11 +457,26 @@ export function isAutonomyDiagnosticCode(value: unknown): value is AutonomyDiagn
   );
 }
 
-/** A cor de um destaque do diário pelo código: o aviso de orçamento é âmbar, o resto é a cor da autonomia. */
+/**
+ * A cor de um destaque do diário pelo código: o aviso de orçamento é âmbar,
+ * o teto atingido e o disjuntor que abriu levam a cor de destruição, o
+ * roteamento é azul, a delegação é o violeta do step `delegate`, e o resto
+ * é a cor da autonomia.
+ */
 export function diagnosticColor(code: AutonomyDiagnosticCode): string {
-  return code === "BUDGET_WARNED"
-    ? ACCENT_AMBER
-    : code === "MODEL_ROUTED"
-      ? ACCENT_BLUE
-      : AUTONOMY_COLOR;
+  switch (code) {
+    case "BUDGET_WARNED":
+      return ACCENT_AMBER;
+    case "BUDGET_EXCEEDED":
+    case "BREAKER_OPEN":
+      return "var(--destructive)";
+    case "MODEL_ROUTED":
+      return ACCENT_BLUE;
+    case "DELEGATION_STARTED":
+    case "DELEGATION_FINISHED":
+      return "var(--accent-violet)";
+    case "POLICY_DECIDED":
+    case "BREAKER_PROBE":
+      return AUTONOMY_COLOR;
+  }
 }

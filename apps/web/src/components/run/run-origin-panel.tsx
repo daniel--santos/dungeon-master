@@ -6,12 +6,14 @@ import { UsageBars } from "@/components/autonomy/budget-usage";
 import { CHIP, tint } from "@/components/autonomy/shared";
 import { RunStatusChip } from "@/components/execution/chips";
 import { Panel } from "@/components/panel";
-import type { BudgetRecord, RunListItemRecord, RunRecord } from "@/lib/api-types";
+import type { BudgetRecord, RunRecord } from "@/lib/api-types";
 import { useBudgets } from "@/lib/autonomy";
 import { AUTONOMY_COLOR, parseModelSelectedBy, RUN_CREATED_BY } from "@/lib/autonomy-domain";
 import { relativeTime } from "@/lib/datetime";
+import { isLiveRunStatus } from "@/lib/execution-domain";
 import { useGlossary } from "@/lib/glossary";
-import { runDurationMs, useRuns } from "@/lib/runs";
+import { runDurationMs, useRunChildren } from "@/lib/runs";
+import { useTasks } from "@/lib/tasks";
 
 export interface RunOriginPanelProps {
   readonly run: RunRecord;
@@ -19,7 +21,7 @@ export interface RunOriginPanelProps {
   readonly now: number;
 }
 
-/** Quantos Runs da Campanha a lista de filhos varre. */
+/** Quantas Tasks da Campanha são lidas para nomear as filhas. */
 const CHILDREN_SCAN_PAGE_SIZE = 100;
 
 /**
@@ -27,11 +29,11 @@ const CHILDREN_SCAN_PAGE_SIZE = 100;
  * usuário, uma política ou outro agente —, a Expedição mãe e o passo que
  * delegou, e as filhas que ela abriu.
  *
- * As filhas são as Expedições da mesma Campanha cujo `parentRunId` é este
- * Run. `GET /runs` não filtra por mãe ainda, então a lista vem da Campanha
- * inteira e é filtrada aqui; pendência de API registrada no relatório da
- * fase. Sem delegação (9B) a lista fica vazia, e o painel diz isso em vez de
- * sumir: a origem de um Run é sempre informação.
+ * As filhas vêm de `GET /runs/{id}/children` (Fase 9B): os Runs que um step
+ * `delegate` desta Expedição abriu, do mais antigo ao mais novo. A resposta
+ * traz o Run sem o título da Task; o título vem das Tasks da Campanha, numa
+ * leitura só. Sem delegação a lista fica vazia, e o painel diz isso em vez
+ * de sumir: a origem de um Run é sempre informação.
  *
  * Embaixo, o orçamento por Run (`PER_RUN`) que vale para esta Expedição, com
  * o consumo dela mesma medido contra o teto: tokens do resultado e a
@@ -44,14 +46,18 @@ export function RunOriginPanel({ run, now }: RunOriginPanelProps) {
   const origin = RUN_CREATED_BY[run.createdBy];
   const OriginIcon = origin.icon;
 
-  const siblings = useRuns({
-    ...(run.projectId === null ? { taskId: run.taskId } : { projectId: run.projectId }),
+  const children = useRunChildren(run.id, isLiveRunStatus(run.status));
+  // Os títulos das Tasks da Campanha, para nomear cada filha: a rota dos
+  // filhos devolve o Run, e o Run não carrega o título.
+  const tasks = useTasks({
+    ...(run.projectId === null ? {} : { projectId: run.projectId }),
     pageSize: CHILDREN_SCAN_PAGE_SIZE,
   });
-  const children = useMemo(
-    () => (siblings.data?.items ?? []).filter((item) => item.parentRunId === run.id),
-    [run.id, siblings.data],
+  const titles = useMemo(
+    () => new Map((tasks.data?.items ?? []).map((task) => [task.id, task.title])),
+    [tasks.data],
   );
+  const items = children.data ?? [];
 
   const modelSelectedBy = parseModelSelectedBy(run.loadoutSnapshot.modelSelectedBy);
 
@@ -109,22 +115,27 @@ export function RunOriginPanel({ run, now }: RunOriginPanelProps) {
         </MetaRow>
       )}
 
-      <div className="flex flex-col gap-1.5" data-run-children={children.length}>
+      <div className="flex flex-col gap-1.5" data-run-children={items.length}>
         <span className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
           {t("run.children.title")}
         </span>
-        {siblings.isError && (
-          <span className="text-destructive text-[12px]">{siblings.error.message}</span>
+        {children.isError && (
+          <span className="text-destructive text-[12px]">{children.error.message}</span>
         )}
-        {!siblings.isError && children.length === 0 && (
+        {!children.isError && items.length === 0 && (
           <span className="text-muted-foreground text-[12px]">
-            {siblings.isPending ? "Lendo…" : t("run.children.empty")}
+            {children.isPending ? "Lendo…" : t("run.children.empty")}
           </span>
         )}
-        {children.length > 0 && (
+        {items.length > 0 && (
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
-            {children.map((child) => (
-              <ChildRow key={child.id} child={child} now={now} />
+            {items.map((child) => (
+              <ChildRow
+                key={child.id}
+                child={child}
+                now={now}
+                title={titles.get(child.taskId) ?? child.loadoutSnapshot.agent.name}
+              />
             ))}
           </ul>
         )}
@@ -135,7 +146,7 @@ export function RunOriginPanel({ run, now }: RunOriginPanelProps) {
   );
 }
 
-function ChildRow({ child, now }: { child: RunListItemRecord; now: number }) {
+function ChildRow({ child, title, now }: { child: RunRecord; title: string; now: number }) {
   const { format } = useGlossary();
   const duration = runDurationMs(child, now);
 
@@ -146,7 +157,7 @@ function ChildRow({ child, now }: { child: RunListItemRecord; now: number }) {
         params={{ id: child.id }}
         to="/runs/$id"
       >
-        {child.taskTitle}
+        {title}
       </Link>
       {child.parentStepKey !== null && (
         <code className="text-muted-foreground font-mono text-[10.5px]">{child.parentStepKey}</code>

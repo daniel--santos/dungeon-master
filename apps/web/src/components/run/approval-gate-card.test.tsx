@@ -152,4 +152,76 @@ describe("Carta do Selo", () => {
       expect(onHoldingChange).toHaveBeenLastCalledWith(false);
     });
   });
+
+  /**
+   * A autoria do Selo (Fase 9B): o gate decidido diz quem decidiu — o
+   * usuário, ou a política pelo nome — e a frase canônica dela.
+   */
+  it("um Selo concedido por Édito diz qual, pelo nome, e por quê", async () => {
+    const policyId = "0199a900-0000-7000-8000-000000000001";
+    client.GET.mockResolvedValue(
+      ok({
+        items: [{ id: policyId, name: "Libera revisões de plano" }],
+        page: 1,
+        pageSize: 100,
+        total: 1,
+      }) as never,
+    );
+    const granted = {
+      ...GATE,
+      status: "GRANTED" as const,
+      resolvedAt: GATE.requestedAt,
+      note: null,
+    };
+    const decisions = new Map([
+      [
+        GATE.id,
+        {
+          decidedBy: `POLICY:${policyId}`,
+          reason: 'A política "Libera revisões de plano" casou e autoriza.',
+        },
+      ],
+    ]);
+
+    renderInRouter(
+      <ApprovalGateCard
+        decisions={decisions}
+        gates={[granted]}
+        onHoldingChange={vi.fn()}
+        projectId={GATE.runId}
+      />,
+    );
+
+    const decided = document.querySelector("[data-approval-decided]") as HTMLElement;
+    expect(decided.getAttribute("data-approval-decided-by")).toBe(`POLICY:${policyId}`);
+    expect(decided.textContent).toContain(dnd["approval.status.granted"]);
+    expect(decided.textContent).toContain("casou e autoriza");
+    await waitFor(() => {
+      expect(decided.textContent).toContain("pelo Édito Libera revisões de plano");
+    });
+    expect(screen.queryByRole("button", { name: dnd["approval.decision.approve"] })).toBeNull();
+  });
+
+  it("um Selo concedido pelo usuário diz isso sem nomear política", () => {
+    client.GET.mockResolvedValue(ok({ items: [], page: 1, pageSize: 100, total: 0 }) as never);
+    const granted = {
+      ...GATE,
+      status: "GRANTED" as const,
+      resolvedAt: GATE.requestedAt,
+      note: "Pode seguir.",
+    };
+
+    renderInRouter(
+      <ApprovalGateCard
+        decisions={new Map([[GATE.id, { decidedBy: "USER", reason: null }]])}
+        gates={[granted]}
+        onHoldingChange={vi.fn()}
+      />,
+    );
+
+    const decided = document.querySelector("[data-approval-decided]") as HTMLElement;
+    expect(decided.getAttribute("data-approval-decided-by")).toBe("USER");
+    expect(decided.textContent).toContain(dnd["approval.decidedBy.user"]);
+    expect(decided.textContent).toContain("Pode seguir.");
+  });
 });

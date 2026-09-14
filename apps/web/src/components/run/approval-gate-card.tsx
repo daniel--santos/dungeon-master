@@ -1,6 +1,6 @@
 import type { ApprovalDecision } from "@dungeon-master/contracts";
 import { Clock, ShieldHalf } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -18,8 +18,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { ApprovalGateRecord } from "@/lib/api-types";
 import { GateConflictError, useResolveGate } from "@/lib/approvals";
+import { useApprovalPolicies } from "@/lib/autonomy";
 import { formatDateTime } from "@/lib/datetime";
 import { useGlossary } from "@/lib/glossary";
+import type { GateDecision } from "@/lib/run-timeline";
 import { cn } from "@/lib/utils";
 import { APPROVAL_DECISION, APPROVAL_GATE_STATUS } from "@/lib/workflow-domain";
 
@@ -60,6 +62,13 @@ export interface ApprovalGateCardProps {
    * `QUEUED` por baixo desmontaria a carta no meio da decisão.
    */
   readonly onHoldingChange: (holding: boolean) => void;
+  /**
+   * Quem decidiu cada gate, por id, lido do diário (Fase 9B): o usuário ou
+   * uma política. O registro do gate não guarda isso.
+   */
+  readonly decisions?: ReadonlyMap<string, GateDecision>;
+  /** A Campanha do Run, para nomear a política que decidiu. */
+  readonly projectId?: string | null;
 }
 
 /**
@@ -72,9 +81,31 @@ export interface ApprovalGateCardProps {
  * esse estado com o aviso de que outra decisão chegou antes, em vez de tentar
  * de novo ou fingir que a sua valeu.
  */
-export function ApprovalGateCard({ gates, onHoldingChange }: ApprovalGateCardProps) {
+export function ApprovalGateCard({
+  gates,
+  onHoldingChange,
+  decisions,
+  projectId = null,
+}: ApprovalGateCardProps) {
   const { t, format } = useGlossary();
   const resolve = useResolveGate();
+
+  // Os nomes das políticas da Campanha (mais as globais), para `POLICY:<id>`
+  // virar "pelo Édito <nome>" na carta.
+  const policies = useApprovalPolicies(projectId === null ? {} : { projectId });
+  const policyNames = useMemo(
+    () => new Map((policies.data?.items ?? []).map((policy) => [policy.id, policy.name])),
+    [policies.data],
+  );
+
+  /** "pelo Mestre da Guilda", ou "pelo Édito <nome>" — quem decidiu o gate. */
+  function decidedByText(decision: GateDecision): string {
+    if (!decision.decidedBy.startsWith("POLICY:")) return t("approval.decidedBy.user");
+    const id = decision.decidedBy.slice("POLICY:".length);
+    return format(t("approval.decidedBy.policy"), {
+      name: policyNames.get(id) ?? `#${id.slice(0, 8)}`,
+    });
+  }
 
   const [note, setNote] = useState("");
   const [confirming, setConfirming] = useState<ApprovalDecision | null>(null);
@@ -125,6 +156,7 @@ export function ApprovalGateCard({ gates, onHoldingChange }: ApprovalGateCardPro
   }
 
   const decided = shown.status !== "PENDING";
+  const shownDecision = decisions?.get(shown.id);
   const confirmingDecision = confirming === null ? null : APPROVAL_DECISION[confirming];
 
   return (
@@ -193,11 +225,24 @@ export function ApprovalGateCard({ gates, onHoldingChange }: ApprovalGateCardPro
                 </Button>
               </div>
             ) : decided ? (
-              <p className="text-muted-foreground m-0 text-[12.5px]">
-                {shown.note === null || shown.note === ""
-                  ? t(APPROVAL_GATE_STATUS[shown.status].label)
-                  : `${t(APPROVAL_GATE_STATUS[shown.status].label)} · ${shown.note}`}
-              </p>
+              <div
+                className="flex flex-col gap-1"
+                data-approval-decided={shown.status}
+                data-approval-decided-by={shownDecision?.decidedBy}
+              >
+                <p className="text-muted-foreground m-0 text-[12.5px]">
+                  {[
+                    t(APPROVAL_GATE_STATUS[shown.status].label),
+                    ...(shownDecision === undefined ? [] : [decidedByText(shownDecision)]),
+                    ...(shown.note === null || shown.note === "" ? [] : [shown.note]),
+                  ].join(" · ")}
+                </p>
+                {shownDecision !== undefined && shownDecision.reason !== null && (
+                  <span className="text-muted-foreground text-[11.5px] leading-4.5">
+                    {shownDecision.reason}
+                  </span>
+                )}
+              </div>
             ) : (
               <>
                 <div className="flex flex-col gap-1.5">

@@ -81,9 +81,9 @@ export function UsageBars({
         )}
         {!tokensKnown && (
           <span
-            className={cn(CHIP, "text-[oklch(0.72_0.13_75)]")}
+            className={cn(CHIP, "text-accent-amber")}
             data-budget-tokens-unknown={String(runsWithoutUsage)}
-            style={{ borderColor: tint("oklch(0.72 0.13 75)", 45) }}
+            style={{ borderColor: tint("var(--accent-amber)", 45) }}
             title={format(t("budget.usage.unknown.hint"), { n: runsWithoutUsage })}
           >
             <CircleHelp aria-hidden className="size-3" />
