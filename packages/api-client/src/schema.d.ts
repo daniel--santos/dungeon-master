@@ -638,7 +638,7 @@ export interface paths {
                     /** @description Prioridade de uma Task. */
                     priority?: components["schemas"]["TaskPriority"];
                     /** @description Só as Tasks com esta origem. */
-                    createdBy?: "USER" | "PROPOSAL" | "POLICY";
+                    createdBy?: "USER" | "PROPOSAL" | "POLICY" | "DELEGATION";
                     /** @description Filtra por um estado ou por vários, repetindo o parâmetro. */
                     status?: components["schemas"]["TaskStatus"] | components["schemas"]["TaskStatus"][];
                     /** @description Esconde um estado ou vários, repetindo o parâmetro. Aplicado depois de `status`. */
@@ -4809,6 +4809,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{id}/children": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Os Runs filhos de uma execução
+         * @description Os Runs que este Run abriu por delegação (Fase 9B) — pelo step `delegate` de um Workflow ou pela ferramenta `delegate_task` —, do mais antigo ao mais novo. Cada um traz `parentRunId` e, quando veio de um step, `parentStepKey`. Vazio num Run que não delegou; o Run mãe de um filho está em `GET /runs/{id}`, em `parentRunId`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do Run. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Os filhos diretos do Run. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunChildrenList"];
+                    };
+                };
+                /** @description Não existe Run com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{id}/context": {
         parameters: {
             query?: never;
@@ -7714,10 +7765,10 @@ export interface components {
          */
         TaskPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
         /**
-         * @description `USER` à mão, `PROPOSAL` por aprovação humana, `POLICY` por política automática.
+         * @description `USER` à mão, `PROPOSAL` por aprovação humana, `POLICY` por política automática, `DELEGATION` por um agente que delegou.
          * @enum {string}
          */
-        TaskCreatedBy: "USER" | "PROPOSAL" | "POLICY";
+        TaskCreatedBy: "USER" | "PROPOSAL" | "POLICY" | "DELEGATION";
         /** @description As Tasks que já foram reabertas, com a contagem. */
         TaskReopeningList: {
             /** @description Uma entrada por Task reaberta, da reabertura mais recente para a mais antiga. */
@@ -9631,7 +9682,7 @@ export interface components {
          * @description Estado de um Run na máquina de estados.
          * @enum {string}
          */
-        RunStatus: "CREATED" | "QUEUED" | "PREPARING" | "RUNNING" | "WAITING_APPROVAL" | "SUCCEEDED" | "FAILED" | "TIMED_OUT" | "CANCELLED";
+        RunStatus: "CREATED" | "QUEUED" | "PREPARING" | "RUNNING" | "WAITING_APPROVAL" | "WAITING_CHILD" | "SUCCEEDED" | "FAILED" | "TIMED_OUT" | "CANCELLED";
         /**
          * @description `USER` pela API, `POLICY` pelo auto-despacho, `DELEGATION` por outro agente.
          * @enum {string}
@@ -10085,6 +10136,11 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        /** @description Os Runs filhos de um Run. */
+        RunChildrenList: {
+            /** @description Os filhos diretos, do mais antigo ao mais novo. */
+            items: components["schemas"]["Run"][];
+        };
         /** @description O contexto montado para um Run, com o registro. */
         RunContext: {
             /** Format: uuid */
@@ -10314,12 +10370,12 @@ export interface components {
          * @description Tipo de um step de Workflow.
          * @enum {string}
          */
-        WorkflowStepType: "agent" | "command" | "validation" | "approval" | "knowledge";
+        WorkflowStepType: "agent" | "command" | "validation" | "approval" | "knowledge" | "delegate";
         /**
          * @description Estado de um RunStep na máquina de estados.
          * @enum {string}
          */
-        RunStepStatus: "PENDING" | "RUNNING" | "WAITING_APPROVAL" | "SUCCEEDED" | "FAILED" | "SKIPPED" | "TIMED_OUT" | "CANCELLED";
+        RunStepStatus: "PENDING" | "RUNNING" | "WAITING_APPROVAL" | "WAITING_CHILD" | "SUCCEEDED" | "FAILED" | "SKIPPED" | "TIMED_OUT" | "CANCELLED";
         /** @description O resultado de um RunStep, por tipo de step. */
         RunStepResult: {
             /** @enum {string} */
@@ -10387,6 +10443,44 @@ export interface components {
             /** @enum {string} */
             kind: "knowledge";
             candidates: components["schemas"]["KnowledgeCandidateInput"][];
+        } | {
+            /** @enum {string} */
+            kind: "delegate";
+            /**
+             * Format: uuid
+             * @description O Run filho que este passo abriu.
+             */
+            childRunId: string;
+            /**
+             * Format: uuid
+             * @description A Task em que o filho rodou.
+             */
+            childTaskId: string;
+            /**
+             * @description O estado terminal do filho.
+             * @enum {string}
+             */
+            status: "CREATED" | "QUEUED" | "PREPARING" | "RUNNING" | "WAITING_APPROVAL" | "WAITING_CHILD" | "SUCCEEDED" | "FAILED" | "TIMED_OUT" | "CANCELLED";
+            /**
+             * @description O veredito do agente do filho, quando o filho terminou bem.
+             * @enum {string}
+             */
+            resultStatus?: "completed" | "blocked" | "failed";
+            /** @description O resumo do resultado do filho. */
+            summary?: string;
+            /** @description Consumo de tokens do filho, quando medido. */
+            usage?: {
+                /** @description Tokens de entrada não cacheados. */
+                inputTokens: number;
+                /** @description Tokens gerados. */
+                outputTokens: number;
+                /** @description Tokens de entrada servidos do cache. */
+                cacheReadInputTokens: number;
+                /** @description Tokens de entrada gravados no cache. */
+                cacheCreationInputTokens: number;
+                /** @description Custo informado pelo harness, quando existir. */
+                costUsd?: number;
+            };
         } | null;
         /** @description Um arquivo que a execução produziu. */
         TaskExecutionArtifact: {
@@ -10445,7 +10539,7 @@ export interface components {
                  * @description Estado terminal em que a dependência ficou.
                  * @enum {string}
                  */
-                status: "PENDING" | "RUNNING" | "WAITING_APPROVAL" | "SUCCEEDED" | "FAILED" | "SKIPPED" | "TIMED_OUT" | "CANCELLED";
+                status: "PENDING" | "RUNNING" | "WAITING_APPROVAL" | "WAITING_CHILD" | "SUCCEEDED" | "FAILED" | "SKIPPED" | "TIMED_OUT" | "CANCELLED";
             };
         } & {
             [key: string]: unknown;
@@ -10561,7 +10655,7 @@ export interface components {
             updatedAt: string;
         };
         /** @description Um step, discriminado por `type`. */
-        WorkflowStepDefinition: components["schemas"]["AgentStepDefinition"] | components["schemas"]["CommandStepDefinition"] | components["schemas"]["ValidationStepDefinition"] | components["schemas"]["ApprovalStepDefinition"] | components["schemas"]["KnowledgeStepDefinition"];
+        WorkflowStepDefinition: components["schemas"]["AgentStepDefinition"] | components["schemas"]["CommandStepDefinition"] | components["schemas"]["ValidationStepDefinition"] | components["schemas"]["ApprovalStepDefinition"] | components["schemas"]["KnowledgeStepDefinition"] | components["schemas"]["DelegateStepDefinition"];
         /** @description Um step executado por um agente. */
         AgentStepDefinition: {
             /**
@@ -10714,6 +10808,44 @@ export interface components {
              * @enum {string}
              */
             mode: "collect";
+        };
+        /** @description Um Run filho com outro Loadout; o Run mãe espera o desfecho. */
+        DelegateStepDefinition: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "delegate";
+            /** @description Chave única na definição. É por ela que o Run acompanha o step. */
+            key: string;
+            /** @description Nome para leitura. */
+            name: string;
+            /**
+             * @description Steps que precisam ter assentado antes deste rodar. Sem `when`, todos precisam ter terminado em `SUCCEEDED`; com `when`, os predicados decidem.
+             * @default []
+             */
+            dependsOn: string[];
+            /** @description Conjunção de predicados. Qualquer um falso pula o step. */
+            when?: components["schemas"]["Predicate"][];
+            /** @description Quantas vezes o step pode rodar antes de contar como `FAILED`. */
+            retry?: {
+                /** @description Tentativas no total, incluindo a primeira. */
+                maxAttempts: number;
+            };
+            /** @description Teto de duração de uma tentativa, em milissegundos. */
+            timeoutMs?: number;
+            /** @description O Loadout do Run filho: o id, ou o nome exato. */
+            loadoutRef: string;
+            /** @description Prompt literal do filho. O motor anexa os resumos de `includeOutputsOf`. */
+            prompt: string;
+            /** @description Steps cujo resumo de resultado o motor anexa ao prompt do filho. */
+            includeOutputsOf?: string[];
+            /**
+             * @description Onde o filho roda. Padrão: a mesma Task do Run mãe.
+             * @default SAME
+             * @enum {string}
+             */
+            taskStrategy: "SAME" | "CHILD";
         };
         /** @description A definição de um Workflow: dados validados, sem linguagem de expressão. É o documento que a captura congela em uma WorkflowVersion. */
         WorkflowDefinition: {

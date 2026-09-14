@@ -68,13 +68,17 @@ export type TaskPriority = z.infer<typeof TaskPrioritySchema>;
  *
  * `USER` é `POST /tasks`, a Inbox e a edição à mão; `PROPOSAL` é a aprovação
  * humana de uma ProposedTask; `POLICY` é uma política `AUTO_APPROVE` criando a
- * Task no desfecho do Run, sem passar pela proposta.
+ * Task no desfecho do Run, sem passar pela proposta; `DELEGATION` (9B) é a
+ * Task filha aberta por um step `delegate` ou pela ferramenta de delegação
+ * com `taskStrategy: "CHILD"`.
  */
-export const TASK_CREATED_BY_VALUES = ["USER", "PROPOSAL", "POLICY"] as const;
+export const TASK_CREATED_BY_VALUES = ["USER", "PROPOSAL", "POLICY", "DELEGATION"] as const;
 
 export const TaskCreatedBySchema = z.enum(TASK_CREATED_BY_VALUES).meta({
   id: "TaskCreatedBy",
-  description: "`USER` à mão, `PROPOSAL` por aprovação humana, `POLICY` por política automática.",
+  description:
+    "`USER` à mão, `PROPOSAL` por aprovação humana, `POLICY` por política automática, " +
+    "`DELEGATION` por um agente que delegou.",
 });
 
 export type TaskCreatedBy = z.infer<typeof TaskCreatedBySchema>;

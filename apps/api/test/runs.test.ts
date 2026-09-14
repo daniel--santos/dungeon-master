@@ -16,9 +16,11 @@ import {
 import {
   claimNextQueuedRun,
   createDatabase,
+  createRun,
   type DatabaseHandle,
   LOCAL_USER_ID,
   persistRunEvent,
+  transitionRun,
 } from "@dungeon-master/database";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -360,6 +362,68 @@ describe(`GET ${API_BASE_PATH}/runs/{id}`, () => {
       app,
       method: "GET",
       path: `${API_BASE_PATH}/runs/${ID_INEXISTENTE}`,
+    });
+    expect(response.status).toBe(404);
+  });
+});
+
+describe(`GET ${API_BASE_PATH}/runs/{id}/children`, () => {
+  it("lista os filhos de uma delegação, do mais antigo ao mais novo, e vazio sem delegação", async () => {
+    const task = await criarTask({ title: "Mãe" });
+    const mae = RunSchema.parse(await (await criarRun(task.id)).json());
+
+    // Sem filho: a lista é vazia, e não 404.
+    const vazia = await pedir({
+      app,
+      method: "GET",
+      path: `${API_BASE_PATH}/runs/${mae.id}/children`,
+    });
+    expect(vazia.status).toBe(200);
+    expect(await vazia.json()).toEqual({ items: [] });
+
+    // Um filho aberto pela delegação (Fase 9B): a mãe precisa estar em
+    // RUNNING, como o Worker a deixaria, e o filho nasce na mesma Task.
+    await claimNextQueuedRun(handle.db, { userId: LOCAL_USER_ID });
+    await transitionRun(handle.db, { userId: LOCAL_USER_ID, runId: mae.id, to: "RUNNING" });
+    const filho = await createRun(handle.db, {
+      userId: LOCAL_USER_ID,
+      taskId: task.id,
+      loadoutId,
+      prompt: "Revise.",
+      createdBy: "DELEGATION",
+      parentRunId: mae.id,
+      parentStepKey: "review",
+    });
+    expect(filho?.ok).toBe(true);
+
+    const response = await pedir({
+      app,
+      method: "GET",
+      path: `${API_BASE_PATH}/runs/${mae.id}/children`,
+    });
+    expect(response.status).toBe(200);
+    const { items } = (await response.json()) as { items: unknown[] };
+    expect(items).toHaveLength(1);
+    const [criado] = items.map((item) => RunSchema.parse(item));
+    expect(criado).toMatchObject({
+      parentRunId: mae.id,
+      parentStepKey: "review",
+      createdBy: "DELEGATION",
+      taskId: task.id,
+    });
+
+    // O pai continua em GET /runs/{id}, pelo parentRunId do filho.
+    const pai = RunSchema.parse(
+      await (await pedir({ app, method: "GET", path: `${API_BASE_PATH}/runs/${mae.id}` })).json(),
+    );
+    expect(pai.parentRunId).toBeNull();
+  });
+
+  it("404 para um Run que não existe", async () => {
+    const response = await pedir({
+      app,
+      method: "GET",
+      path: `${API_BASE_PATH}/runs/${ID_INEXISTENTE}/children`,
     });
     expect(response.status).toBe(404);
   });

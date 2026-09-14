@@ -26,10 +26,14 @@ const TRANSICOES_VALIDAS: ReadonlyArray<readonly [RunStepStatus, RunStepStatus]>
   ["RUNNING", "TIMED_OUT"],
   ["RUNNING", "CANCELLED"],
   ["RUNNING", "WAITING_APPROVAL"],
+  ["RUNNING", "WAITING_CHILD"],
   ["RUNNING", "PENDING"],
   ["WAITING_APPROVAL", "SUCCEEDED"],
   ["WAITING_APPROVAL", "FAILED"],
   ["WAITING_APPROVAL", "CANCELLED"],
+  ["WAITING_CHILD", "SUCCEEDED"],
+  ["WAITING_CHILD", "FAILED"],
+  ["WAITING_CHILD", "CANCELLED"],
 ];
 
 function ehValida(from: RunStepStatus, to: RunStepStatus): boolean {

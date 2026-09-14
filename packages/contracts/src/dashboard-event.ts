@@ -195,6 +195,14 @@ export type KnowledgeEventType = z.infer<typeof KnowledgeEventTypeSchema>;
  * `breaker.*` a cada transição de estado; `task.auto_created` quando uma
  * política criou a Task sem passar pela proposta; `autonomy.changed` quando o
  * nível do Project mudou. Todos saem na transação da decisão.
+ *
+ * A 9B acrescenta o que o Worker decide: `dispatch.created` quando o
+ * auto-despacho enfileirou um Run para uma Task criada por política, e
+ * `dispatch.skipped` quando não pôde (sem Loadout sugerido, política que exige
+ * revisão, orçamento, disjuntor); `delegation.started` quando um Run mãe abriu
+ * um filho e `delegation.finished` quando o desfecho do filho devolveu a mãe
+ * à fila. Um `dispatch.skipped` sai **uma vez** por Task e motivo por
+ * processo de Worker: o laço reavalia em silêncio.
  */
 export const AUTONOMY_EVENT_TYPE_VALUES = [
   "policy.decided",
@@ -205,6 +213,10 @@ export const AUTONOMY_EVENT_TYPE_VALUES = [
   "breaker.half_open",
   "task.auto_created",
   "autonomy.changed",
+  "dispatch.created",
+  "dispatch.skipped",
+  "delegation.started",
+  "delegation.finished",
 ] as const;
 
 export const AutonomyEventTypeSchema = z.enum(AUTONOMY_EVENT_TYPE_VALUES).meta({

@@ -247,6 +247,9 @@ importers:
       '@dungeon-master/knowledge-mcp':
         specifier: workspace:*
         version: link:../../packages/knowledge-mcp
+      '@dungeon-master/orchestration-mcp':
+        specifier: workspace:*
+        version: link:../../packages/orchestration-mcp
       '@dungeon-master/platform':
         specifier: workspace:*
         version: link:../../packages/platform
@@ -489,6 +492,43 @@ importers:
       '@dungeon-master/database':
         specifier: workspace:*
         version: link:../database
+      '@modelcontextprotocol/sdk':
+        specifier: 1.30.0
+        version: 1.30.0(zod@4.5.4)
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
+    devDependencies:
+      '@types/node':
+        specifier: 26.5.0
+        version: 26.5.0
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 5.0.0
+        version: 5.0.0(@types/node@26.5.0)(jsdom@30.0.1)(vite@8.2.2(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))
+
+  packages/orchestration-mcp:
+    dependencies:
+      '@dungeon-master/context':
+        specifier: workspace:*
+        version: link:../context
+      '@dungeon-master/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@dungeon-master/database':
+        specifier: workspace:*
+        version: link:../database
+      '@dungeon-master/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@modelcontextprotocol/sdk':
         specifier: 1.30.0
         version: 1.30.0(zod@4.5.4)

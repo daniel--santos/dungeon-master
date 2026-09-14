@@ -4,17 +4,23 @@ import type {
   RunStatus,
   StepFinishedEvent,
 } from "@dungeon-master/contracts";
+import { isOpenRunStepStatus, isWaitingRunStatus } from "@dungeon-master/domain";
 import { type EventsLogger, requireTerminalStatusWrite } from "@dungeon-master/events";
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 import type { Database } from "./client.js";
 import type { DatabaseExecutor } from "./dashboard-event.js";
 import { failed, ok, type Result } from "./result.js";
 import { insertRunEvent } from "./run-event.js";
 import { applyRunStepTransition } from "./run-step.js";
-import { applyRunStatus, lockRunRow, toRun, type RunWriteFailure } from "./run.js";
+import {
+  applyRunStatus,
+  listWaitingRunsWithCancelRequested,
+  lockRunRow,
+  toRun,
+  type RunWriteFailure,
+} from "./run.js";
 import { runSteps } from "./schema/run-step.js";
-import { runs } from "./schema/run.js";
 import { tasks } from "./schema/task.js";
 import { releaseWorkspaceLock } from "./workspace-lock.js";
 
@@ -22,12 +28,14 @@ import { releaseWorkspaceLock } from "./workspace-lock.js";
  * O que o Worker precisa de um Run com Workflow e o motor não sabe fazer: os
  * dois desfechos que acontecem **sem** um runner em pé.
  *
- * - **Cancelamento em `WAITING_APPROVAL`.** Ninguém está executando: o Run
- *   soltou o Worker ao abrir o gate. O pedido de cancelamento só marca
+ * - **Cancelamento em espera** (`WAITING_APPROVAL` ou, desde a Fase 9B,
+ *   `WAITING_CHILD`). Ninguém está executando: o Run soltou o Worker ao
+ *   abrir o gate ou o Run filho. O pedido de cancelamento só marca
  *   `cancel_requested_at`, e é o laço ocioso do Worker quem fecha o Run —
- *   passo do gate em `CANCELLED`, Run em `CANCELLED` com `RunCancelled` no
+ *   passo em espera em `CANCELLED`, Run em `CANCELLED` com `RunCancelled` no
  *   diário. O gate continua `PENDING`: uma decisão que chegue depois recebe
- *   `RUN_NOT_WAITING_APPROVAL` da resolução, que confere o status do Run.
+ *   `RUN_NOT_WAITING_APPROVAL` da resolução, que confere o status do Run. O
+ *   Run filho é cancelado pela cascata de `requestRunCancellation`.
  * - **Reconciliação de órfão.** Um Run com Workflow que ficou `RUNNING` num
  *   Worker que morreu tem RunSteps abertos junto; fechá-los antes do desfecho
  *   do Run é o que deixa a tela por passos coerente com o Run `FAILED`.
@@ -36,33 +44,21 @@ import { releaseWorkspaceLock } from "./workspace-lock.js";
 export type CancelWaitingRunFailure =
   | RunWriteFailure
   | {
-      readonly code: "RUN_NOT_WAITING_APPROVAL";
+      readonly code: "RUN_NOT_WAITING";
       readonly runId: string;
       readonly status: RunStatus;
     }
   | { readonly code: "CANCEL_NOT_REQUESTED"; readonly runId: string };
 
-/** Os Runs parados em gate com cancelamento pedido. O laço ocioso os fecha. */
-export async function listRunsWaitingApprovalWithCancelRequested(
+/** Os Runs parados em espera com cancelamento pedido. O laço ocioso os fecha. */
+export async function listRunsWaitingWithCancelRequested(
   db: DatabaseExecutor,
   input: { userId: string },
 ): Promise<string[]> {
-  const rows = await db
-    .select({ id: runs.id })
-    .from(runs)
-    .where(
-      and(
-        eq(runs.userId, input.userId),
-        eq(runs.status, "WAITING_APPROVAL"),
-        isNotNull(runs.cancelRequestedAt),
-      ),
-    )
-    .orderBy(asc(runs.createdAt), asc(runs.id));
-
-  return rows.map((row) => row.id);
+  return await listWaitingRunsWithCancelRequested(db, input);
 }
 
-export interface CancelRunWaitingApprovalInput {
+export interface CancelWaitingRunInput {
   userId: string;
   runId: string;
   /** Vai para o erro do Run e para o `RunCancelled`. Padrão: `user_request`. */
@@ -71,18 +67,18 @@ export interface CancelRunWaitingApprovalInput {
 }
 
 /**
- * Fecha como `CANCELLED` um Run parado em gate com cancelamento pedido.
+ * Fecha como `CANCELLED` um Run parado em espera com cancelamento pedido.
  *
  * Tudo ou nada, como toda escrita terminal: os RunSteps abertos, o Run, a
  * Task (que volta a `READY`, pela regra de sempre), os eventos e a trava de
  * workspace saem na mesma transação. `processTreeTerminated: true` porque
- * não há árvore: nenhum processo sustenta um Run em `WAITING_APPROVAL`.
+ * não há árvore: nenhum processo sustenta um Run em espera.
  *
  * @throws TerminalStatusWriteError
  */
-export async function cancelRunWaitingApproval(
+export async function cancelWaitingRun(
   db: Database,
-  input: CancelRunWaitingApprovalInput,
+  input: CancelWaitingRunInput,
 ): Promise<Result<Run, CancelWaitingRunFailure> | null> {
   const reason = input.reason ?? "user_request";
 
@@ -91,9 +87,9 @@ export async function cancelRunWaitingApproval(
       const run = await lockRunRow(tx, input);
       if (run === null) return null;
 
-      if (run.status !== "WAITING_APPROVAL") {
+      if (!isWaitingRunStatus(run.status)) {
         return failed<CancelWaitingRunFailure>({
-          code: "RUN_NOT_WAITING_APPROVAL",
+          code: "RUN_NOT_WAITING",
           runId: run.id,
           status: run.status,
         });
@@ -110,13 +106,8 @@ export async function cancelRunWaitingApproval(
         .orderBy(asc(runSteps.position));
 
       for (const step of steps) {
-        if (
-          step.status !== "PENDING" &&
-          step.status !== "RUNNING" &&
-          step.status !== "WAITING_APPROVAL"
-        ) {
-          continue;
-        }
+        if (!isOpenRunStepStatus(step.status)) continue;
+        const esperando = step.status === "WAITING_APPROVAL" || step.status === "WAITING_CHILD";
         const moved = await applyRunStepTransition(tx, {
           userId: input.userId,
           runId: run.id,
@@ -129,7 +120,9 @@ export async function cancelRunWaitingApproval(
               message:
                 step.status === "WAITING_APPROVAL"
                   ? "O Run foi cancelado enquanto esperava a aprovação."
-                  : "O Run foi cancelado antes deste passo rodar.",
+                  : step.status === "WAITING_CHILD"
+                    ? "O Run foi cancelado enquanto esperava o Run filho."
+                    : "O Run foi cancelado antes deste passo rodar.",
             },
           },
         });
@@ -138,7 +131,7 @@ export async function cancelRunWaitingApproval(
             `O RunStep ${step.id} recusou o cancelamento: ${JSON.stringify(moved?.failure ?? null)}`,
           );
         }
-        if (step.status === "WAITING_APPROVAL") {
+        if (esperando) {
           const finished: StepFinishedEvent = {
             type: "StepFinished",
             timestamp: agora.toISOString(),
@@ -146,7 +139,10 @@ export async function cancelRunWaitingApproval(
             stepKey: step.key,
             status: "CANCELLED",
             attempt: Math.max(step.attempt, 1),
-            summary: "Cancelado enquanto esperava a aprovação.",
+            summary:
+              step.status === "WAITING_APPROVAL"
+                ? "Cancelado enquanto esperava a aprovação."
+                : "Cancelado enquanto esperava o Run filho.",
           };
           await insertRunEvent(tx, {
             userId: input.userId,
@@ -163,7 +159,10 @@ export async function cancelRunWaitingApproval(
         patch: {
           error: {
             code: "CANCELLED",
-            message: "O Run foi cancelado a pedido enquanto esperava a aprovação.",
+            message:
+              run.status === "WAITING_CHILD"
+                ? "O Run foi cancelado a pedido enquanto esperava o Run filho."
+                : "O Run foi cancelado a pedido enquanto esperava a aprovação.",
             reason,
             retryable: false,
             processTreeTerminated: true,
@@ -197,7 +196,7 @@ export async function cancelRunWaitingApproval(
     }),
     {
       runId: input.runId,
-      site: "run.terminal_status_cancelled_waiting_approval",
+      site: "run.terminal_status_cancelled_waiting",
       ...(input.logger === undefined ? {} : { logger: input.logger }),
     },
   );
@@ -221,9 +220,9 @@ export interface SettledOrphanRunSteps {
  *
  * `RUNNING` vira `FAILED` com `WORKER_LOST` — a tentativa se perdeu com o
  * processo — e `PENDING` vira `CANCELLED`: nada mais vai rodar neste Run. Um
- * passo em `WAITING_APPROVAL` não é tocado, porque um Run órfão está em
- * `PREPARING`/`RUNNING` e um gate pendente ali seria estado que a reconciliação
- * não sabe explicar; ele fica visível como está.
+ * passo em `WAITING_APPROVAL` ou `WAITING_CHILD` não é tocado, porque um Run
+ * órfão está em `PREPARING`/`RUNNING` e uma espera ali seria estado que a
+ * reconciliação não sabe explicar; ele fica visível como está.
  */
 export async function settleOrphanRunSteps(
   db: Database,

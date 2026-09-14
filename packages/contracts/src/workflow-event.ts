@@ -89,29 +89,52 @@ export const StepSkippedEventSchema = z
   })
   .meta({ id: "StepSkippedEvent" });
 
+/**
+ * A autoria de uma decisão de gate (Fase 9B): `USER` quando um humano decidiu
+ * pela API; `POLICY:<id>` quando uma política de aprovação concedeu ou negou o
+ * gate na hora em que ele foi aberto. É o que a Carta do Selo e o diário
+ * mostram; `decidedBy` continua trazendo o id de quem decidiu.
+ */
+export const GATE_DECIDER_USER = "USER" as const;
+export const GATE_DECIDER_POLICY_PREFIX = "POLICY:" as const;
+
+export const GateDeciderSchema = z
+  .string()
+  .min(1)
+  .describe("`USER`, ou `POLICY:<id>` quando uma política decidiu.");
+
 const approvalDecisionBase = {
   timestamp: z.iso.datetime().describe("Instante da decisão, em UTC (ISO 8601)."),
   gateId: z.uuid(),
   gateKey: WorkflowKeySchema,
   runStepId: z.uuid(),
   stepKey: WorkflowKeySchema,
-  decidedBy: z.uuid().describe("Usuário que decidiu."),
+  decidedBy: z
+    .string()
+    .min(1)
+    .describe("O id do usuário que decidiu, ou o id da política quando ela decidiu."),
   note: z.string().nullable().describe("Justificativa, sanitizada."),
+  reason: z
+    .string()
+    .optional()
+    .describe("A frase canônica da política, quando uma política decidiu."),
 };
 
-/** Um humano aprovou o gate. Auditoria: gravado na mesma transação do CAS. */
+/** O gate foi aprovado, por um humano ou por uma política. Gravado na mesma transação do CAS. */
 export const ApprovalGrantedEventSchema = z
   .object({
     type: z.literal("ApprovalGranted"),
     ...approvalDecisionBase,
+    grantedBy: GateDeciderSchema,
   })
   .meta({ id: "ApprovalGrantedEvent" });
 
-/** Um humano recusou o gate. Auditoria: gravado na mesma transação do CAS. */
+/** O gate foi recusado, por um humano ou por uma política. Gravado na mesma transação do CAS. */
 export const ApprovalRejectedEventSchema = z
   .object({
     type: z.literal("ApprovalRejected"),
     ...approvalDecisionBase,
+    rejectedBy: GateDeciderSchema,
   })
   .meta({ id: "ApprovalRejectedEvent" });
 

@@ -268,12 +268,13 @@ packages/
   workflow/     motor de Workflows: runner determinístico e um executor por step
   knowledge/    Distiller do Grimório: prompts, dedup, resumo e forja, por portas
   knowledge-mcp/  servidor MCP somente leitura do Grimório, por stdio
+  orchestration-mcp/  servidor MCP de delegação Agent-to-Agent (escreve), por stdio
   context/      Context Engine: o bloco de contexto estável por Run, com orçamento, por portas
 docs/         planejamento, fundamentos, ADRs e as análises das referências
 docker/       o Dockerfile do agente e o contrato da imagem
 ```
 
-São dezesseis pacotes. Código novo de execução de agente vai em `packages/runtime` ou num
+São dezessete pacotes. Código novo de execução de agente vai em `packages/runtime` ou num
 adapter; tipo de step novo, em `packages/workflow`. Nada disso mora em `apps/worker`, que
 só faz a fiação — a fronteira de lint da seção 3 do [`CLAUDE.md`](./CLAUDE.md) recusa o
 contrário.

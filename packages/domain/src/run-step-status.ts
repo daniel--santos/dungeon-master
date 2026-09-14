@@ -5,9 +5,17 @@ import type { RunStepStatus } from "@dungeon-master/contracts";
  *
  * ```text
  * PENDING          → RUNNING | SKIPPED | CANCELLED
- * RUNNING          → SUCCEEDED | FAILED | TIMED_OUT | CANCELLED | WAITING_APPROVAL | PENDING
+ * RUNNING          → SUCCEEDED | FAILED | TIMED_OUT | CANCELLED | WAITING_APPROVAL | WAITING_CHILD | PENDING
  * WAITING_APPROVAL → SUCCEEDED | FAILED | CANCELLED
+ * WAITING_CHILD    → SUCCEEDED | FAILED | CANCELLED
  * ```
+ *
+ * `WAITING_CHILD` (Fase 9B) é o step `delegate` esperando o Run filho. Como o
+ * gate, só sai para os terminais: quem o assenta é o motor, quando reclama o
+ * Run mãe de novo e lê o desfecho do filho — `SUCCEEDED` quando o filho
+ * terminou bem, `FAILED` quando falhou ou foi cancelado —, ou o cancelamento
+ * em cascata. Não há retentativa de um `delegate`: uma segunda tentativa seria
+ * um segundo Run filho, e o primeiro continua existindo.
  *
  * `PENDING → SKIPPED` é o step que não vai rodar: um predicado de `when`
  * avaliou falso, ou uma dependência não terminou em `SUCCEEDED`. O motivo fica
@@ -31,8 +39,17 @@ import type { RunStepStatus } from "@dungeon-master/contracts";
  */
 export const RUN_STEP_TRANSITIONS = {
   PENDING: ["RUNNING", "SKIPPED", "CANCELLED"],
-  RUNNING: ["SUCCEEDED", "FAILED", "TIMED_OUT", "CANCELLED", "WAITING_APPROVAL", "PENDING"],
+  RUNNING: [
+    "SUCCEEDED",
+    "FAILED",
+    "TIMED_OUT",
+    "CANCELLED",
+    "WAITING_APPROVAL",
+    "WAITING_CHILD",
+    "PENDING",
+  ],
   WAITING_APPROVAL: ["SUCCEEDED", "FAILED", "CANCELLED"],
+  WAITING_CHILD: ["SUCCEEDED", "FAILED", "CANCELLED"],
   SUCCEEDED: [],
   FAILED: [],
   SKIPPED: [],
@@ -66,6 +83,21 @@ export const FAILED_RUN_STEP_STATUSES = [
 
 export function isFailedRunStepStatus(status: RunStepStatus): boolean {
   return (FAILED_RUN_STEP_STATUSES as readonly RunStepStatus[]).includes(status);
+}
+
+/**
+ * Os estados abertos de um step: os que um cancelamento do Run precisa
+ * fechar, e os que a reconciliação de um Run órfão encontra pela frente.
+ */
+export const OPEN_RUN_STEP_STATUSES = [
+  "PENDING",
+  "RUNNING",
+  "WAITING_APPROVAL",
+  "WAITING_CHILD",
+] as const satisfies readonly RunStepStatus[];
+
+export function isOpenRunStepStatus(status: RunStepStatus): boolean {
+  return (OPEN_RUN_STEP_STATUSES as readonly RunStepStatus[]).includes(status);
 }
 
 /** Os estados alcançáveis a partir de um estado. Vazio nos terminais. */

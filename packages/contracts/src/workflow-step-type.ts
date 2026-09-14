@@ -9,8 +9,9 @@ import { z } from "zod";
  * Mora em arquivo próprio, e não em `workflow.ts`, porque as condições das
  * políticas (`rule-condition.ts`, Fase 9A) falam de `stepType` e `run.ts`
  * carrega essas decisões: importar `workflow.ts` dali fecharia um ciclo com
- * `run.ts`, de onde o Workflow lê o teto do prompt. Acrescentar um tipo —
- * `delegate`, na 9B — é uma linha aqui e um executor no motor.
+ * `run.ts`, de onde o Workflow lê o teto do prompt. Acrescentar um tipo é uma
+ * linha aqui e um executor no motor: `delegate` (Fase 9B) abre um Run filho
+ * com outro Loadout e espera o desfecho dele.
  */
 export const WORKFLOW_STEP_TYPE_VALUES = [
   "agent",
@@ -18,6 +19,7 @@ export const WORKFLOW_STEP_TYPE_VALUES = [
   "validation",
   "approval",
   "knowledge",
+  "delegate",
 ] as const;
 
 export const WorkflowStepTypeSchema = z

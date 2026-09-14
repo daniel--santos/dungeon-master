@@ -227,3 +227,58 @@ export function checkBudgetForNewRun(input: CheckBudgetForNewRunInput): NewRunBu
 export function allowedLimitKeys(window: BudgetWindow): readonly BudgetLimitKey[] {
   return window === "PER_RUN" ? ["maxTokens", "maxWallClockMs"] : LIMIT_ORDER;
 }
+
+/**
+ * O orçamento deixa um Run **que já existe** seguir? (Fase 9B)
+ *
+ * É a re-checagem na reclamação e antes de cada passo de agente de um
+ * Workflow — o mundo mudou desde o `POST /runs`. A diferença para
+ * `checkBudgetForNewRun` é que o Run já está contado: `maxRuns` e
+ * `maxConcurrentRuns` só estouram quando o consumo **passa** do teto (o Run
+ * que chegou exatamente ao teto foi admitido na criação e continua valendo),
+ * enquanto `maxTokens` e `maxWallClockMs` estouram **no** teto, porque
+ * nenhum passo consome zero. Em `PER_RUN` o consumo é o do próprio Run,
+ * somando os filhos que ele delegou.
+ *
+ * Fail-closed em consumo desconhecido, como na criação: um teto de tokens
+ * sobre uma soma incompleta não libera.
+ */
+export function checkBudgetForRunningRun(input: CheckBudgetForNewRunInput): NewRunBudgetCheck {
+  const { budget, consumption } = input;
+  const nome = `O orçamento "${budget.name}" (${budget.id})`;
+  let breach: BudgetBreachCore | null = null;
+
+  if (budget.limits.maxTokens !== null && !consumption.tokensKnown) {
+    breach = {
+      limit: null,
+      limitValue: budget.limits.maxTokens,
+      current: consumption.tokens,
+      reason:
+        `${nome} tem teto de tokens e ${String(consumption.runsWithoutUsage)} Run(s) ` +
+        "terminaram sem reportar consumo; sem a soma completa o orçamento não libera.",
+    };
+  }
+
+  if (breach === null) {
+    for (const key of LIMIT_ORDER) {
+      const limite = budget.limits[key];
+      if (limite === null) continue;
+      const contagem = key === "maxRuns" || key === "maxConcurrentRuns";
+      const atual = consumoDe(key, consumption);
+      const estoura = contagem ? atual > limite : atual >= limite;
+      if (!estoura) continue;
+      breach = {
+        limit: key,
+        limitValue: limite,
+        current: atual,
+        reason:
+          `${nome} está no teto de ${key} (${String(atual)} de ${String(limite)}) na janela ` +
+          `${budget.window}.`,
+      };
+      break;
+    }
+  }
+
+  if (breach === null) return { admit: true, breach: null };
+  return budget.action === "BLOCK" ? { admit: false, breach } : { admit: true, breach };
+}

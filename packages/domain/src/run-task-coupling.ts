@@ -48,6 +48,19 @@ export function taskAcceptsNewRun(status: TaskStatus): boolean {
   return (RUN_CREATION_TASK_STATUSES as readonly TaskStatus[]).includes(status);
 }
 
+/**
+ * De quais estados uma Task aceita um Run **filho na mesma Task** (Fase 9B,
+ * `taskStrategy: "SAME"`).
+ *
+ * O Run mãe já a segura em `RUNNING`: o filho é parte da tentativa dele, e
+ * não uma tentativa nova do quadro. Por isso só `RUNNING` — um Run mãe que
+ * não estivesse rodando não teria de onde delegar — e por isso o filho não
+ * move a Task em nenhuma transição: quem responde pela Task é a mãe.
+ */
+export const DELEGATED_RUN_CREATION_TASK_STATUSES = [
+  "RUNNING",
+] as const satisfies readonly TaskStatus[];
+
 /** Por que a criação de um Run foi recusada. */
 export type RunCreationRejection =
   | {
@@ -80,6 +93,11 @@ export interface RunCreationInput {
   readonly projectWorkspacePath: string | null;
   /** Tasks das quais esta depende. Ausente é o mesmo que nenhuma. */
   readonly dependencies?: readonly TaskNode[];
+  /**
+   * O Run é filho de um Run mãe **na mesma Task** (Fase 9B). A Task está em
+   * `RUNNING` pela mãe, e é isso que o filho exige — não `READY`.
+   */
+  readonly sharesTaskWithParent?: boolean;
 }
 
 /**
@@ -90,13 +108,17 @@ export interface RunCreationInput {
  * pendente bloqueia os dois pelo mesmo motivo.
  */
 export function checkRunCreation(input: RunCreationInput): RunCreationCheck {
-  if (!taskAcceptsNewRun(input.taskStatus)) {
+  const allowed: readonly TaskStatus[] =
+    input.sharesTaskWithParent === true
+      ? DELEGATED_RUN_CREATION_TASK_STATUSES
+      : RUN_CREATION_TASK_STATUSES;
+  if (!allowed.includes(input.taskStatus)) {
     return {
       ok: false,
       rejection: {
         code: "TASK_NOT_RUNNABLE",
         status: input.taskStatus,
-        allowed: RUN_CREATION_TASK_STATUSES,
+        allowed,
       },
     };
   }
@@ -153,6 +175,9 @@ export function taskStatusForRun(
     case "RUNNING":
       return "RUNNING";
     case "WAITING_APPROVAL":
+    case "WAITING_CHILD":
+      // O gate é do Run, e a espera pelo filho também: o trabalho da Task
+      // continua em curso.
       return null;
     case "SUCCEEDED":
       // Sem resultado estruturado não dá para afirmar que o trabalho ficou
@@ -209,7 +234,14 @@ export interface RunTransitionInput {
  * para quem só conhece o estado de chegada.
  */
 export function taskStatusForRunTransition(input: RunTransitionInput): TaskStatus | null {
-  if (input.from === "WAITING_APPROVAL" && input.to === "QUEUED") return null;
+  // A volta à fila depois de uma espera — gate ou Run filho (Fase 9B) — não é
+  // um enfileiramento novo: a Task nunca saiu de `RUNNING`.
+  if (
+    (input.from === "WAITING_APPROVAL" || input.from === "WAITING_CHILD") &&
+    input.to === "QUEUED"
+  ) {
+    return null;
+  }
 
   const alvo = taskStatusForRun(input.to, input.resultStatus ?? null);
 

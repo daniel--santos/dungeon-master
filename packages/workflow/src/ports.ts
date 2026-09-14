@@ -20,9 +20,11 @@
 
 import type {
   ApprovalGate,
+  DelegationTaskStrategy,
   ExecutionEvent,
   ExecutionMode,
   HarnessKey,
+  PolicyDecision,
   RunStepError,
   RunEventPayload,
   RunStep,
@@ -30,6 +32,7 @@ import type {
   RunStepStatus,
   WorkspaceStrategy,
 } from "@dungeon-master/contracts";
+import type { ChildRunOutcomeView } from "@dungeon-master/domain";
 
 // --------------------------------------------------------------------------
 // O Run visto pelo motor
@@ -101,8 +104,56 @@ export type ApprovalGateOutcome =
       readonly gate: ApprovalGate;
       /** `false` quando o gate já existia para esta chave e nada foi escrito. */
       readonly created: boolean;
+      /**
+       * A decisão das políticas `GATE` (Fase 9B), quando o gate acabou de
+       * ser aberto: `AUTO_APPROVE` e `DENY` chegam com o gate já decidido.
+       * Ausente num gate reencontrado.
+       */
+      readonly policyDecision?: PolicyDecision | null | undefined;
     }
   | { readonly ok: false; readonly code: string; readonly detail: string };
+
+// --------------------------------------------------------------------------
+// Delegação (Fase 9B)
+// --------------------------------------------------------------------------
+
+/** O Run filho como o motor o enxerga: o suficiente para assentar o passo. */
+export type ChildRunView = ChildRunOutcomeView & {
+  readonly loadoutName: string;
+};
+
+export interface OpenDelegationInput {
+  readonly stepKey: string;
+  /** O id, ou o nome exato, do Loadout do filho. */
+  readonly loadoutRef: string;
+  /** O prompt completo do filho: o literal da definição mais os resumos anexados. */
+  readonly prompt: string;
+  readonly taskStrategy: DelegationTaskStrategy;
+}
+
+export type DelegationOutcome =
+  | {
+      readonly ok: true;
+      readonly child: ChildRunView;
+      /** `false` quando o step já tinha um filho e nada foi escrito. */
+      readonly created: boolean;
+    }
+  | { readonly ok: false; readonly code: string; readonly detail: string };
+
+/** Um orçamento no teto, visto pelo motor antes de um passo (Fase 9B). */
+export interface StepBudgetBreach {
+  readonly budgetId: string;
+  readonly name: string;
+  readonly action: "BLOCK" | "WARN";
+  readonly reason: string;
+}
+
+export interface StepBudgetCheck {
+  /** O primeiro `BLOCK` no teto. Com ele, o passo não roda. */
+  readonly blocked: StepBudgetBreach | null;
+  /** Os `WARN` no teto: o passo roda e cada um vira `Diagnostic`. */
+  readonly warnings: readonly StepBudgetBreach[];
+}
 
 /**
  * A persistência de um Run, já escopada nele.
@@ -123,6 +174,24 @@ export interface WorkflowStore {
    * e grava `ApprovalRequested` na mesma transação.
    */
   createApprovalGate(input: CreateApprovalGateInput): Promise<ApprovalGateOutcome>;
+  /**
+   * Abre o Run filho de um step `delegate` (Fase 9B), ou devolve o que já
+   * existe para a chave do step. **Propaga.**
+   *
+   * Contrato herdado de `openDelegation` do banco: exige o RunStep e o Run em
+   * `RUNNING`; ao criar, leva os dois a `WAITING_CHILD` e grava
+   * `DELEGATION_STARTED` na mesma transação. O filho passa pelas mesmas
+   * recusas de `POST /runs`, que voltam como `ok: false` com o código.
+   */
+  openDelegation(input: OpenDelegationInput): Promise<DelegationOutcome>;
+  /** O filho de um step `delegate`, pela chave do step. `null` sem filho. */
+  findChildRun(stepKey: string): Promise<ChildRunView | null>;
+  /**
+   * Os orçamentos que alcançam este Run, re-medidos agora (Fase 9B). Lido
+   * antes de cada passo de agente ou de delegação. Um orçamento `PER_RUN`
+   * conta o próprio Run e os filhos que ele delegou.
+   */
+  checkStepBudget(): Promise<StepBudgetCheck>;
   /** `cancel_requested_at` está marcado? Lido entre passos. */
   isCancelRequested(): Promise<boolean>;
   /** Grava um evento no log do Run. **Nunca lança.** */

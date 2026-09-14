@@ -116,6 +116,7 @@ import {
   listProjectActivity,
   listProjects,
   listProposedTasks,
+  listChildRuns,
   listRunApprovalGates,
   listRunEventsSince,
   listRuns,
@@ -635,6 +636,7 @@ export function createExecutionPort(options: ExecutionPortOptions): ExecutionPor
       steps: (runId) => listRunSteps(db, { userId, runId }),
       gates: (runId) => listRunApprovalGates(db, { userId, runId }),
       context: (runId) => getRunContext(db, { userId, runId }),
+      children: (runId) => listChildRuns(db, { userId, runId }),
     },
     workflows: {
       list: (page) => listWorkflows(db, { userId, ...page }),

@@ -304,6 +304,11 @@ export async function limpar(handle: DatabaseHandle): Promise<void> {
     "achievement_cursor",
     "achievement_definition",
     "hero_stats",
+    // As regras da Fase 9A vêm antes de Project, Loadout e Run, que elas referenciam.
+    "circuit_breaker",
+    "budget",
+    "approval_policy",
+    "routing_rule",
     "proposed_task",
     "knowledge_candidate",
     "knowledge_item",

@@ -558,6 +558,8 @@ export interface RunsPort {
   gates(runId: string): Promise<ApprovalGate[]>;
   /** O registro do Context Engine (Fase 7). `null` enquanto o Run não foi reclamado. */
   context(runId: string): Promise<RunContext | null>;
+  /** Os Runs filhos abertos por delegação (Fase 9B), do mais antigo ao mais novo. */
+  children(runId: string): Promise<Run[]>;
 }
 
 /**
@@ -904,6 +906,7 @@ export function createSpecPorts(): {
         steps: inerte("os steps de Run"),
         gates: inerte("os gates de Run"),
         context: inerte("o contexto de Run"),
+        children: inerte("os filhos de Run"),
       },
       workflows: {
         list: inerte("a listagem de Workflows"),

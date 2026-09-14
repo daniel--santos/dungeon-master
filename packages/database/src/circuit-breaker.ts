@@ -9,8 +9,12 @@ import type {
 import {
   admitThroughBreaker,
   type BreakerAdmission as DomainAdmission,
+  breakerOutcomeForRunStatus,
+  type BreakerSignals,
+  evaluateBreakerTriggers,
+  nextBreakerState,
 } from "@dungeon-master/domain";
-import { and, asc, count, eq, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, count, eq, gte, inArray, or, type SQL, sql } from "drizzle-orm";
 
 import type { AutonomyWriteFailure } from "./autonomy-failure.js";
 import type { Database } from "./client.js";
@@ -20,6 +24,9 @@ import { findLoadoutRow } from "./loadout.js";
 import { findProjectRow } from "./project.js";
 import { failed, ok, type PageInput, type PageResult, type Result } from "./result.js";
 import { type CircuitBreakerRow, circuitBreakers } from "./schema/autonomy.js";
+import { harnesses } from "./schema/execution.js";
+import { type RunRow, runEvents, runs } from "./schema/run.js";
+import { tasks } from "./schema/task.js";
 
 /**
  * CircuitBreaker: o disjuntor por escopo (planejamento v0.4, Fase 9A).
@@ -243,6 +250,341 @@ export async function markBreakerProbe(
   }
 
   return row;
+}
+
+// --------------------------------------------------------------------------
+// Alimentação pelos desfechos (Fase 9B)
+// --------------------------------------------------------------------------
+
+/** Uma transição de estado que um desfecho provocou. Vai ao diário do Run. */
+export interface BreakerTransition {
+  readonly breakerId: string;
+  readonly name: string;
+  readonly scope: BreakerScope;
+  readonly from: BreakerState;
+  readonly to: BreakerState;
+  readonly decidedBy: string;
+  readonly reason: string;
+}
+
+/** A condição de escopo de um disjuntor sobre `run` junto de `task`. */
+function escopoDoDisjuntor(breaker: CircuitBreakerRow): SQL | undefined {
+  switch (breaker.scope) {
+    case "PROJECT":
+      return breaker.projectId === null ? undefined : eq(tasks.projectId, breaker.projectId);
+    case "LOADOUT":
+      return breaker.loadoutId === null ? undefined : eq(runs.loadoutId, breaker.loadoutId);
+    case "HARNESS":
+      return breaker.harnessKey === null ? undefined : eq(runs.harnessKey, breaker.harnessKey);
+  }
+}
+
+/** Quantos Runs do escopo terminaram em `FAILED`/`TIMED_OUT` na janela. */
+async function contarFalhasNaJanela(
+  db: DatabaseExecutor,
+  input: { userId: string; breaker: CircuitBreakerRow; windowMs: number; now: Date },
+): Promise<number> {
+  const escopo = escopoDoDisjuntor(input.breaker);
+  const desde = new Date(input.now.getTime() - input.windowMs);
+  const [row] = await db
+    .select({ total: count() })
+    .from(runs)
+    .innerJoin(tasks, eq(tasks.id, runs.taskId))
+    .where(
+      and(
+        eq(runs.userId, input.userId),
+        inArray(runs.status, ["FAILED", "TIMED_OUT"]),
+        gte(runs.finishedAt, desde),
+        ...(escopo === undefined ? [] : [escopo]),
+      ),
+    );
+  return row?.total ?? 0;
+}
+
+/** Quantos `Diagnostic` com `PERMISSION_DENIED` o escopo produziu na janela. */
+async function contarPermissoesNegadasNaJanela(
+  db: DatabaseExecutor,
+  input: { userId: string; breaker: CircuitBreakerRow; windowMs: number; now: Date },
+): Promise<number> {
+  const escopo = escopoDoDisjuntor(input.breaker);
+  const desde = new Date(input.now.getTime() - input.windowMs);
+  const [row] = await db
+    .select({ total: count() })
+    .from(runEvents)
+    .innerJoin(runs, eq(runs.id, runEvents.runId))
+    .innerJoin(tasks, eq(tasks.id, runs.taskId))
+    .where(
+      and(
+        eq(runEvents.userId, input.userId),
+        eq(runEvents.type, "Diagnostic"),
+        sql`${runEvents.payload} ->> 'code' = 'PERMISSION_DENIED'`,
+        gte(runEvents.timestamp, desde),
+        ...(escopo === undefined ? [] : [escopo]),
+      ),
+    );
+  return row?.total ?? 0;
+}
+
+/**
+ * Alimenta os disjuntores do escopo do Run com o desfecho dele (Fase 9B).
+ *
+ * Chamada **na transação** do status terminal, com a linha do Run já
+ * gravada — é por isso que a falha deste Run já conta em `failuresInWindow`.
+ * Os disjuntores do Project, do Loadout e do Harness são travados em ordem
+ * de id, como na admissão, e cada um é movido por CAS.
+ *
+ * O que cada desfecho faz, pela máquina do domínio:
+ *
+ * - `SUCCEEDED`: a sondagem de um `HALF_OPEN` fecha o disjuntor e zera tudo
+ *   (`breaker.closed`); num `CLOSED`, a sequência de falhas volta a zero.
+ * - `FAILED`/`TIMED_OUT`: a sondagem de um `HALF_OPEN` reabre com o cooldown
+ *   renovado (`breaker.opened`); num `CLOSED`, a sequência sobe e os gatilhos
+ *   são avaliados com os sinais medidos agora — `consecutiveFailures` pelo
+ *   contador, `failuresInWindow` e `permissionDeniedInWindow` pelas
+ *   contagens do escopo, `authNotAuthenticated` pelo `auth_status` que o
+ *   preflight de boot mediu (Fase 8B). Disparou, abre (`breaker.opened`).
+ * - `CANCELLED`: nada. Cancelar não é evidência sobre o escopo.
+ *
+ * Um `OPEN` não se mexe por desfecho, e um `HALF_OPEN` só pela sondagem
+ * dele: um Run antigo que termina não decide por um disjuntor que já mudou.
+ */
+export async function feedBreakersWithRunOutcome(
+  db: DatabaseExecutor,
+  input: { userId: string; run: RunRow; projectId: string | null; now?: Date },
+): Promise<BreakerTransition[]> {
+  const outcome = breakerOutcomeForRunStatus(input.run.status);
+  if (outcome === null) return [];
+
+  const now = input.now ?? new Date();
+  const breakers = await lockApplicableBreakers(db, {
+    userId: input.userId,
+    projectId: input.projectId,
+    loadoutId: input.run.loadoutId,
+    harnessKey: input.run.harnessKey,
+  });
+  if (breakers.length === 0) return [];
+
+  const transicoes: BreakerTransition[] = [];
+
+  for (const breaker of breakers) {
+    const isProbe = breaker.probeRunId === input.run.id;
+    const decidedBy = `BREAKER:${breaker.id}`;
+
+    if (outcome === "SUCCEEDED") {
+      if (breaker.state === "HALF_OPEN" && isProbe) {
+        const reason = `A sondagem ${input.run.id} terminou em SUCCEEDED; o disjuntor fecha.`;
+        await aplicarTransicao(db, {
+          userId: input.userId,
+          breaker,
+          to: "CLOSED",
+          patch: { openedAt: null, reason: null, probeRunId: null, consecutiveFailures: 0 },
+          now,
+          event: "breaker.closed",
+          decidedBy,
+          reason,
+          probeRunId: input.run.id,
+        });
+        transicoes.push({
+          breakerId: breaker.id,
+          name: breaker.name,
+          scope: breaker.scope,
+          from: "HALF_OPEN",
+          to: "CLOSED",
+          decidedBy,
+          reason,
+        });
+      } else if (breaker.state === "CLOSED" && breaker.consecutiveFailures > 0) {
+        await db
+          .update(circuitBreakers)
+          .set({ consecutiveFailures: 0 })
+          .where(and(eq(circuitBreakers.id, breaker.id), eq(circuitBreakers.state, "CLOSED")));
+      }
+      continue;
+    }
+
+    // ------------------------------------------------------------- falha
+    if (breaker.state === "HALF_OPEN" && isProbe) {
+      const reason = `A sondagem ${input.run.id} terminou em ${input.run.status}; o disjuntor reabre.`;
+      await aplicarTransicao(db, {
+        userId: input.userId,
+        breaker,
+        to: "OPEN",
+        patch: {
+          openedAt: now,
+          reason,
+          probeRunId: null,
+          consecutiveFailures: breaker.consecutiveFailures + 1,
+        },
+        now,
+        event: "breaker.opened",
+        decidedBy,
+        reason,
+        probeRunId: input.run.id,
+      });
+      transicoes.push({
+        breakerId: breaker.id,
+        name: breaker.name,
+        scope: breaker.scope,
+        from: "HALF_OPEN",
+        to: "OPEN",
+        decidedBy,
+        reason,
+      });
+      continue;
+    }
+
+    if (breaker.state !== "CLOSED") continue;
+
+    const consecutivas = breaker.consecutiveFailures + 1;
+    const signals: BreakerSignals = { consecutiveFailures: consecutivas };
+    const sinais: BreakerSignals & {
+      failuresInWindow?: number;
+      permissionDeniedInWindow?: number;
+      authNotAuthenticated?: boolean;
+    } = { ...signals };
+    if (breaker.triggers.failuresInWindow !== null) {
+      sinais.failuresInWindow = await contarFalhasNaJanela(db, {
+        userId: input.userId,
+        breaker,
+        windowMs: breaker.triggers.failuresInWindow.windowMs,
+        now,
+      });
+    }
+    if (breaker.triggers.permissionDeniedInWindow !== null) {
+      sinais.permissionDeniedInWindow = await contarPermissoesNegadasNaJanela(db, {
+        userId: input.userId,
+        breaker,
+        windowMs: breaker.triggers.permissionDeniedInWindow.windowMs,
+        now,
+      });
+    }
+    if (breaker.triggers.authNotAuthenticated) {
+      const [harness] = await db
+        .select({ authStatus: harnesses.authStatus })
+        .from(harnesses)
+        .where(and(eq(harnesses.userId, input.userId), eq(harnesses.key, input.run.harnessKey)));
+      if (harness !== undefined && harness.authStatus !== null) {
+        sinais.authNotAuthenticated = harness.authStatus === "NOT_AUTHENTICATED";
+      }
+    }
+
+    const trip = evaluateBreakerTriggers(breaker.triggers, sinais);
+    const next = nextBreakerState({ state: "CLOSED", outcome, isProbe: false, tripped: trip.trip });
+
+    if (next === "OPEN" && trip.trip) {
+      await aplicarTransicao(db, {
+        userId: input.userId,
+        breaker,
+        to: "OPEN",
+        patch: { openedAt: now, reason: trip.reason, consecutiveFailures: consecutivas },
+        now,
+        event: "breaker.opened",
+        decidedBy,
+        reason: trip.reason,
+        probeRunId: null,
+        trigger: trip.trigger,
+      });
+      transicoes.push({
+        breakerId: breaker.id,
+        name: breaker.name,
+        scope: breaker.scope,
+        from: "CLOSED",
+        to: "OPEN",
+        decidedBy,
+        reason: trip.reason,
+      });
+      continue;
+    }
+
+    await db
+      .update(circuitBreakers)
+      .set({ consecutiveFailures: consecutivas })
+      .where(and(eq(circuitBreakers.id, breaker.id), eq(circuitBreakers.state, "CLOSED")));
+  }
+
+  return transicoes;
+}
+
+/** O CAS de uma transição de estado e o evento de painel que a anuncia. */
+async function aplicarTransicao(
+  db: DatabaseExecutor,
+  input: {
+    userId: string;
+    breaker: CircuitBreakerRow;
+    to: BreakerState;
+    patch: Partial<
+      Pick<CircuitBreakerRow, "openedAt" | "reason" | "probeRunId" | "consecutiveFailures">
+    >;
+    now: Date;
+    event: "breaker.opened" | "breaker.closed";
+    decidedBy: string;
+    reason: string;
+    probeRunId: string | null;
+    trigger?: keyof BreakerTriggers;
+  },
+): Promise<void> {
+  const [row] = await db
+    .update(circuitBreakers)
+    .set({ state: input.to, stateChangedAt: input.now, ...input.patch })
+    .where(
+      and(
+        eq(circuitBreakers.id, input.breaker.id),
+        eq(circuitBreakers.userId, input.userId),
+        eq(circuitBreakers.state, input.breaker.state),
+      ),
+    )
+    .returning();
+  if (row === undefined) {
+    throw new Error(
+      `O disjuntor ${input.breaker.id} mudou sob a trava; a transição não foi gravada.`,
+    );
+  }
+
+  await appendDashboardEvent(db, {
+    userId: input.userId,
+    type: input.event,
+    payload: {
+      breakerId: row.id,
+      name: row.name,
+      scope: row.scope,
+      from: input.breaker.state,
+      to: input.to,
+      decidedBy: input.decidedBy,
+      reason: input.reason,
+      probeRunId: input.probeRunId,
+      ...(input.trigger === undefined ? {} : { trigger: input.trigger }),
+      ...(input.to === "OPEN" ? { cooldownMs: row.cooldownMs } : {}),
+    },
+  });
+}
+
+/** O estado de cada disjuntor ligado, para o log de boot do Worker. */
+export async function listEnabledBreakerStates(
+  db: DatabaseExecutor,
+  input: { userId: string },
+): Promise<
+  ReadonlyArray<{
+    readonly id: string;
+    readonly name: string;
+    readonly scope: BreakerScope;
+    readonly state: BreakerState;
+    readonly openedAt: string | null;
+    readonly probeRunId: string | null;
+  }>
+> {
+  const rows = await db
+    .select()
+    .from(circuitBreakers)
+    .where(and(eq(circuitBreakers.userId, input.userId), eq(circuitBreakers.enabled, true)))
+    .orderBy(asc(circuitBreakers.scope), asc(circuitBreakers.name), asc(circuitBreakers.id));
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    scope: row.scope,
+    state: row.state,
+    openedAt: row.openedAt?.toISOString() ?? null,
+    probeRunId: row.probeRunId,
+  }));
 }
 
 // --------------------------------------------------------------------------

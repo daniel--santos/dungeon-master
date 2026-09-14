@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   admitThroughBreaker,
   breakerCooldownElapsed,
+  breakerOutcomeForRunStatus,
   evaluateBreakerTriggers,
   nextBreakerState,
 } from "./circuit-breakers.js";
@@ -155,5 +156,16 @@ describe("nextBreakerState", () => {
     expect(
       nextBreakerState({ state: "OPEN", outcome: "SUCCEEDED", isProbe: false, tripped: false }),
     ).toBe("OPEN");
+  });
+});
+
+describe("breakerOutcomeForRunStatus (Fase 9B)", () => {
+  it("SUCCEEDED é sucesso; FAILED e TIMED_OUT são falha; o resto não diz nada", () => {
+    expect(breakerOutcomeForRunStatus("SUCCEEDED")).toBe("SUCCEEDED");
+    expect(breakerOutcomeForRunStatus("FAILED")).toBe("FAILED");
+    expect(breakerOutcomeForRunStatus("TIMED_OUT")).toBe("FAILED");
+    expect(breakerOutcomeForRunStatus("CANCELLED")).toBeNull();
+    expect(breakerOutcomeForRunStatus("RUNNING")).toBeNull();
+    expect(breakerOutcomeForRunStatus("WAITING_CHILD")).toBeNull();
   });
 });

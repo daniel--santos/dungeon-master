@@ -58,3 +58,5 @@ export * from "./budget.js";
 export * from "./circuit-breaker.js";
 export * from "./routing-rule.js";
 export * from "./autonomy.js";
+export * from "./delegation.js";
+export * from "./dispatch.js";

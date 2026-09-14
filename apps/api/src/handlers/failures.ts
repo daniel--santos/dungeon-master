@@ -672,6 +672,33 @@ export function runFailureProblem(failure: RunWriteFailure): HttpProblem {
         detail: failure.decision.reason,
         extensions: { code: "POLICY_DENIED", policyDecision: failure.decision },
       });
+    case "POLICY_REQUIRES_APPROVAL":
+      // Só o auto-despacho (Worker, Fase 9B) pede `requireAutoApproval`; pela
+      // API o campo não existe. A tradução fica pela exaustividade do tipo.
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Partida exige revisão humana",
+        detail: failure.decision.reason,
+        extensions: { code: "POLICY_REQUIRES_APPROVAL", policyDecision: failure.decision },
+      });
+    case "PARENT_RUN_NOT_FOUND":
+      return new HttpProblem({
+        status: 404,
+        type: ProblemType.notFound,
+        title: "Run mãe não encontrado",
+        detail: `Não existe Run com o id ${failure.parentRunId} para ser mãe de uma delegação.`,
+      });
+    case "DELEGATION_DEPTH_EXCEEDED":
+      return new HttpProblem({
+        status: 409,
+        type: ProblemType.conflict,
+        title: "Profundidade de delegação excedida",
+        detail:
+          `O Run ${failure.parentRunId} está na profundidade ${String(failure.parentDepth)} ` +
+          `da cadeia de delegação, e um filho passaria do teto de ${String(failure.maxDepth)}.`,
+        extensions: { code: "DELEGATION_DEPTH_EXCEEDED" },
+      });
   }
 }
 

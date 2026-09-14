@@ -43,11 +43,23 @@ export function aggregateRunResult(steps: readonly RunStep[]): AggregatedRun {
   const failed = ordered.filter((step) => isFailedRunStepStatus(step.status));
   const status: AggregatedRun["status"] = failed.length === 0 ? "SUCCEEDED" : "FAILED";
 
+  // Um step `delegate` (Fase 9B) que terminou bem carrega o veredito e o
+  // resumo do agente do filho: para o agregado ele conta como um agente.
   const agentes = ordered.filter(
-    (step) => step.status === "SUCCEEDED" && step.result?.kind === "agent",
+    (step) =>
+      step.status === "SUCCEEDED" &&
+      (step.result?.kind === "agent" || step.result?.kind === "delegate"),
   );
   const ultimoAgente = agentes.at(-1);
-  const ultimoResultado = ultimoAgente?.result?.kind === "agent" ? ultimoAgente.result : undefined;
+  const ultimoResultado =
+    ultimoAgente?.result?.kind === "agent"
+      ? { status: ultimoAgente.result.status, summary: ultimoAgente.result.summary }
+      : ultimoAgente?.result?.kind === "delegate"
+        ? {
+            status: ultimoAgente.result.resultStatus ?? "completed",
+            summary: ultimoAgente.result.summary,
+          }
+        : undefined;
 
   const artifacts = collectArtifacts(ordered);
   const knowledgeCandidates = collectKnowledge(ordered);
@@ -155,7 +167,9 @@ function collectDiscoveredTasks(steps: readonly RunStep[]): DiscoveredTask[] {
 function sumUsage(steps: readonly RunStep[]): UsageSummary | undefined {
   let total: UsageSummary | undefined;
   for (const step of steps) {
-    if (step.result?.kind !== "agent" || step.result.usage === undefined) continue;
+    // O consumo de um filho delegado é gasto deste Run: entra na soma.
+    if (step.result?.kind !== "agent" && step.result?.kind !== "delegate") continue;
+    if (step.result.usage === undefined) continue;
     const usage = step.result.usage;
     total = {
       inputTokens: (total?.inputTokens ?? 0) + usage.inputTokens,

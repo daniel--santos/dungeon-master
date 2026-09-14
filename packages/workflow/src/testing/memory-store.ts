@@ -3,6 +3,7 @@ import type {
   ApprovalGate,
   ApprovalRequestedEvent,
   HarnessKey,
+  PolicyDecision,
   RunEventPayload,
   RunStatus,
   RunStep,
@@ -11,14 +12,20 @@ import type {
 } from "@dungeon-master/contracts";
 import {
   checkRunStepTransition,
+  checkRunTransition,
+  isTerminalRunStatus,
   isTerminalRunStepStatus,
   topologicalOrder,
 } from "@dungeon-master/domain";
 
 import type {
   ApprovalGateOutcome,
+  ChildRunView,
   CreateApprovalGateInput,
+  DelegationOutcome,
+  OpenDelegationInput,
   RunStepTransitionOutcome,
+  StepBudgetCheck,
   TransitionRunStepInput,
   WorkflowStore,
 } from "../ports.js";
@@ -50,11 +57,28 @@ function fakeUuid(): string {
   return `01990000-0000-7000-8000-${hex}`;
 }
 
+/** O que uma política de gate decidiria (Fase 9B), roteirizada por `gateKey`. */
+export type ScriptedGatePolicy = (input: {
+  gateKey: string;
+  stepKey: string;
+}) => { action: "AUTO_APPROVE" | "DENY"; policyId: string; reason?: string } | undefined;
+
+/** O que a abertura de uma delegação responde (Fase 9B), roteirizada por chave de step. */
+export type ScriptedDelegation = (
+  input: OpenDelegationInput,
+) => { ok: true; child?: Partial<ChildRunView> } | { ok: false; code: string; detail: string };
+
 export interface MemoryWorkflowStoreOptions {
   readonly runId: string;
   readonly harnessKey?: HarnessKey | undefined;
   readonly steps: readonly WorkflowStepDefinition[];
   readonly now?: (() => number) | undefined;
+  /** As políticas `GATE`. Ausente, todo gate pausa como sempre. */
+  readonly gatePolicy?: ScriptedGatePolicy | undefined;
+  /** As recusas de delegação. Ausente, toda delegação abre um filho `QUEUED`. */
+  readonly delegation?: ScriptedDelegation | undefined;
+  /** Os orçamentos antes de cada passo. Ausente, nada estoura. */
+  readonly budget?: (() => StepBudgetCheck) | undefined;
 }
 
 export interface MemoryWorkflowStore extends WorkflowStore {
@@ -62,10 +86,20 @@ export interface MemoryWorkflowStore extends WorkflowStore {
   readonly events: RunEventPayload[];
   readonly gates: ApprovalGate[];
   readonly harnessSessionIds: string[];
+  /** Os Runs filhos abertos, por chave de step (Fase 9B). */
+  readonly children: Map<string, ChildRunView>;
+  /** Os pedidos de delegação recebidos, na ordem. */
+  readonly delegations: OpenDelegationInput[];
   runStatus: RunStatus;
   cancelRequested: boolean;
   /** O que a API faria: CAS no gate, step assentado, Run de volta à fila. */
   resolveGate(gateKey: string, decision: ApprovalDecision, note?: string): ApprovalGate;
+  /**
+   * O que o desfecho do filho faria no banco (Fase 9B): grava o desfecho e,
+   * se o Run mãe está em `WAITING_CHILD` por este step, o devolve a `QUEUED`.
+   * O step continua `WAITING_CHILD`: quem o assenta é o runner.
+   */
+  settleChild(stepKey: string, patch: Partial<ChildRunView>): ChildRunView;
   step(key: string): RunStep;
   /** Força um estado, para montar cenários de restart. */
   seedStep(key: string, patch: Partial<RunStep>): void;
@@ -110,9 +144,19 @@ export function createMemoryWorkflowStore(
   const events: RunEventPayload[] = [];
   const gates: ApprovalGate[] = [];
   const harnessSessionIds: string[] = [];
+  const children = new Map<string, ChildRunView>();
+  const delegations: OpenDelegationInput[] = [];
   const transitions = new Map<string, TransitionRunStepInput[]>();
 
   const clone = (step: RunStep): RunStep => structuredClone(step);
+
+  const moveRun = (to: RunStatus): void => {
+    const check = checkRunTransition(store.runStatus, to);
+    if (!check.ok) {
+      throw new Error(`O Run em memória recusou ${store.runStatus} → ${to}.`);
+    }
+    store.runStatus = to;
+  };
 
   const applyTransition = (input: TransitionRunStepInput): RunStepTransitionOutcome => {
     transitions.set(input.stepKey, [...(transitions.get(input.stepKey) ?? []), input]);
@@ -149,6 +193,8 @@ export function createMemoryWorkflowStore(
     events,
     gates,
     harnessSessionIds,
+    children,
+    delegations,
     runStatus: "RUNNING",
     cancelRequested: false,
 
@@ -173,6 +219,70 @@ export function createMemoryWorkflowStore(
           detail: `Run em ${store.runStatus}`,
         });
       }
+
+      // A política de gate (Fase 9B), como o banco faz: o gate nasce decidido,
+      // com os eventos de auditoria, e nem o step nem o Run se movem.
+      const politica = options.gatePolicy?.({ gateKey: input.gateKey, stepKey: input.stepKey });
+      if (politica !== undefined) {
+        const iso = new Date(now()).toISOString();
+        const reason =
+          politica.reason ??
+          `A política (${politica.policyId}) casou e ${politica.action === "DENY" ? "recusa" : "autoriza"}.`;
+        const decidido: ApprovalGate = {
+          id: fakeUuid(),
+          runId: options.runId,
+          runStepId: step.id,
+          gateKey: input.gateKey,
+          title: input.title,
+          description: input.description ?? null,
+          status: politica.action === "AUTO_APPROVE" ? "GRANTED" : "REJECTED",
+          requestedAt: iso,
+          resolvedAt: iso,
+          note: reason,
+        };
+        gates.push(decidido);
+        events.push({
+          type: "ApprovalRequested",
+          timestamp: iso,
+          harness: harnessKey,
+          approvalKey: decidido.gateKey,
+          summary: decidido.title,
+          gateId: decidido.id,
+          stepKey: step.key,
+        });
+        const base = {
+          timestamp: iso,
+          gateId: decidido.id,
+          gateKey: decidido.gateKey,
+          runStepId: step.id,
+          stepKey: step.key,
+          decidedBy: politica.policyId,
+          note: reason,
+          reason,
+        };
+        events.push(
+          politica.action === "AUTO_APPROVE"
+            ? { type: "ApprovalGranted", ...base, grantedBy: `POLICY:${politica.policyId}` }
+            : { type: "ApprovalRejected", ...base, rejectedBy: `POLICY:${politica.policyId}` },
+        );
+        const decision: PolicyDecision = {
+          subject: "GATE",
+          action: politica.action,
+          policyId: politica.policyId,
+          policyAction: politica.action,
+          decidedBy: `POLICY:${politica.policyId}`,
+          autonomyLevel: 3,
+          reason,
+          decidedAt: iso,
+        };
+        return Promise.resolve({
+          ok: true,
+          gate: structuredClone(decidido),
+          created: true,
+          policyDecision: decision,
+        });
+      }
+
       const moved = applyTransition({
         stepKey: input.stepKey,
         from: step.status,
@@ -211,6 +321,65 @@ export function createMemoryWorkflowStore(
       events.push(requested);
       return Promise.resolve({ ok: true, gate: structuredClone(gate), created: true });
     },
+
+    openDelegation: (input: OpenDelegationInput): Promise<DelegationOutcome> => {
+      delegations.push(structuredClone(input));
+      const existente = children.get(input.stepKey);
+      if (existente !== undefined) {
+        return Promise.resolve({ ok: true, child: structuredClone(existente), created: false });
+      }
+      const step = steps.get(input.stepKey);
+      if (step === undefined) {
+        return Promise.resolve({ ok: false, code: "RUN_STEP_NOT_FOUND", detail: input.stepKey });
+      }
+      if (store.runStatus !== "RUNNING" || step.status !== "RUNNING") {
+        return Promise.resolve({
+          ok: false,
+          code: "PARENT_NOT_RUNNING",
+          detail: `Run em ${store.runStatus}, step em ${step.status}`,
+        });
+      }
+      const roteiro = options.delegation?.(input) ?? { ok: true };
+      if (!roteiro.ok) return Promise.resolve(roteiro);
+
+      const iso = new Date(now()).toISOString();
+      const child: ChildRunView = {
+        id: fakeUuid(),
+        taskId: fakeUuid(),
+        status: "QUEUED",
+        loadoutName: input.loadoutRef,
+        resultStatus: null,
+        summary: null,
+        usage: null,
+        error: null,
+        ...roteiro.child,
+      };
+      children.set(input.stepKey, child);
+      const moved = applyTransition({
+        stepKey: input.stepKey,
+        from: "RUNNING",
+        to: "WAITING_CHILD",
+      });
+      if (!moved.ok) throw new Error(`O step recusou a espera: ${JSON.stringify(moved)}`);
+      moveRun("WAITING_CHILD");
+      events.push({
+        type: "Diagnostic",
+        timestamp: iso,
+        harness: harnessKey,
+        level: "INFO",
+        source: "RUNTIME",
+        code: "DELEGATION_STARTED",
+        message: `Passo ${input.stepKey} delegou ao Run filho ${child.id}.`,
+      });
+      return Promise.resolve({ ok: true, child: structuredClone(child), created: true });
+    },
+
+    findChildRun: (stepKey) => {
+      const child = children.get(stepKey);
+      return Promise.resolve(child === undefined ? null : structuredClone(child));
+    },
+
+    checkStepBudget: () => Promise.resolve(options.budget?.() ?? { blocked: null, warnings: [] }),
 
     isCancelRequested: () => Promise.resolve(store.cancelRequested),
 
@@ -271,8 +440,7 @@ export function createMemoryWorkflowStore(
       if (!moved.ok) throw new Error(`O step recusou o desfecho do gate: ${JSON.stringify(moved)}`);
 
       store.runStatus = "QUEUED";
-      events.push({
-        type: decision === "approve" ? "ApprovalGranted" : "ApprovalRejected",
+      const base = {
         timestamp: iso,
         gateId: gate.id,
         gateKey: gate.gateKey,
@@ -280,7 +448,12 @@ export function createMemoryWorkflowStore(
         stepKey: step.key,
         decidedBy: "01996d00-0000-7000-8000-000000000001",
         note: resolved.note,
-      });
+      };
+      events.push(
+        decision === "approve"
+          ? { type: "ApprovalGranted", ...base, grantedBy: "USER" }
+          : { type: "ApprovalRejected", ...base, rejectedBy: "USER" },
+      );
       events.push({
         type: "StepFinished",
         timestamp: iso,
@@ -291,6 +464,31 @@ export function createMemoryWorkflowStore(
         summary: decision === "approve" ? `Aprovado: ${gate.title}` : `Recusado: ${gate.title}`,
       });
       return structuredClone(resolved);
+    },
+
+    settleChild: (stepKey, patch) => {
+      const child = children.get(stepKey);
+      if (child === undefined) throw new Error(`Não há filho para o step ${stepKey}.`);
+      const settled: ChildRunView = { ...child, ...patch };
+      children.set(stepKey, settled);
+      const step = steps.get(stepKey);
+      if (
+        isTerminalRunStatus(settled.status) &&
+        store.runStatus === "WAITING_CHILD" &&
+        step?.status === "WAITING_CHILD"
+      ) {
+        moveRun("QUEUED");
+        events.push({
+          type: "Diagnostic",
+          timestamp: new Date(now()).toISOString(),
+          harness: harnessKey,
+          level: "INFO",
+          source: "RUNTIME",
+          code: "DELEGATION_FINISHED",
+          message: `O Run filho ${settled.id} terminou em ${settled.status}; o Run volta à fila.`,
+        });
+      }
+      return structuredClone(settled);
     },
 
     step: (key) => {
