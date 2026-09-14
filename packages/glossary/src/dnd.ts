@@ -123,6 +123,7 @@ export const dnd: Record<GlossaryKey, string> = {
   "run.status.preparing": "Preparando",
   "run.status.running": "Em andamento",
   "run.status.waitingApproval": "Aguardando o Selo",
+  "run.status.waitingChild": "Aguardando o aliado",
   "run.status.succeeded": "Vitória",
   "run.status.failed": "Derrota",
   "run.status.cancelled": "Retirada",
@@ -146,11 +147,13 @@ export const dnd: Record<GlossaryKey, string> = {
   "workflowStep.type.validation": "Validação",
   "workflowStep.type.approval": "Selo da Guilda",
   "workflowStep.type.knowledge": "Grimório",
+  "workflowStep.type.delegate": "Aliado",
 
   // --------------------------------------------------------- runStep.status
   "runStep.status.pending": "Pendente",
   "runStep.status.running": "Em andamento",
   "runStep.status.waitingApproval": "Aguardando o Selo",
+  "runStep.status.waitingChild": "Aguardando o aliado",
   "runStep.status.succeeded": "Cumprido",
   "runStep.status.failed": "Falhou",
   "runStep.status.skipped": "Pulado",

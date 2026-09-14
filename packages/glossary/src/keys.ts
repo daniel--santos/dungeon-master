@@ -126,6 +126,8 @@ export const GLOSSARY_KEYS = [
   "run.status.preparing",
   "run.status.running",
   "run.status.waitingApproval",
+  // A espera pelo Run filho de uma delegação (Fase 9B).
+  "run.status.waitingChild",
   "run.status.succeeded",
   "run.status.failed",
   "run.status.cancelled",
@@ -150,6 +152,7 @@ export const GLOSSARY_KEYS = [
   "workflowStep.type.validation",
   "workflowStep.type.approval",
   "workflowStep.type.knowledge",
+  "workflowStep.type.delegate",
 
   // --------------------------------------------------------- runStep.status
   // Os oito estados de RunStep. Cada glossário concorda com o gênero da sua
@@ -158,6 +161,7 @@ export const GLOSSARY_KEYS = [
   "runStep.status.pending",
   "runStep.status.running",
   "runStep.status.waitingApproval",
+  "runStep.status.waitingChild",
   "runStep.status.succeeded",
   "runStep.status.failed",
   "runStep.status.skipped",

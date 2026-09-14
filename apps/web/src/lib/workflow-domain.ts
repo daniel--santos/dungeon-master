@@ -9,6 +9,7 @@ import type { GlossaryKey } from "@dungeon-master/glossary";
 import {
   BookOpen,
   ClipboardCheck,
+  GitFork,
   ShieldCheck,
   ShieldHalf,
   ShieldX,
@@ -56,6 +57,12 @@ export const RUN_STEP_STATUS: Record<RunStepStatus, RunStepStatusPresentation> =
     dim: false,
     pulse: true,
   },
+  WAITING_CHILD: {
+    label: "runStep.status.waitingChild",
+    dot: ACCENT_VIOLET,
+    dim: false,
+    pulse: true,
+  },
   SUCCEEDED: { label: "runStep.status.succeeded", dot: ACCENT_GREEN, dim: false, pulse: false },
   FAILED: { label: "runStep.status.failed", dot: "var(--destructive)", dim: false, pulse: false },
   SKIPPED: {
@@ -93,6 +100,7 @@ export const WORKFLOW_STEP_TYPE: Record<WorkflowStepType, StepTypePresentation> 
   validation: { label: "workflowStep.type.validation", icon: ClipboardCheck, color: ACCENT_GREEN },
   approval: { label: "workflowStep.type.approval", icon: ShieldHalf, color: ACCENT_AMBER },
   knowledge: { label: "workflowStep.type.knowledge", icon: BookOpen, color: ACCENT_AMBER },
+  delegate: { label: "workflowStep.type.delegate", icon: GitFork, color: ACCENT_VIOLET },
 };
 
 export const WORKFLOW_STEP_TYPES = Object.keys(WORKFLOW_STEP_TYPE) as readonly WorkflowStepType[];

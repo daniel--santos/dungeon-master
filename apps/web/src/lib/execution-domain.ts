@@ -73,6 +73,12 @@ export const RUN_STATUS: Record<RunStatus, RunStatusPresentation> = {
     dim: false,
     pulse: true,
   },
+  WAITING_CHILD: {
+    label: "run.status.waitingChild",
+    dot: ACCENT_VIOLET,
+    dim: false,
+    pulse: true,
+  },
   SUCCEEDED: { label: "run.status.succeeded", dot: ACCENT_GREEN, dim: false, pulse: false },
   FAILED: { label: "run.status.failed", dot: "var(--destructive)", dim: false, pulse: false },
   TIMED_OUT: { label: "run.status.timedOut", dot: ACCENT_AMBER, dim: false, pulse: false },

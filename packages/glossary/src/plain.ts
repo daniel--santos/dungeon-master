@@ -113,6 +113,7 @@ export const plain: Record<GlossaryKey, string> = {
   "run.status.preparing": "Preparando",
   "run.status.running": "Em andamento",
   "run.status.waitingApproval": "Aguardando aprovação",
+  "run.status.waitingChild": "Aguardando delegação",
   "run.status.succeeded": "Concluída",
   "run.status.failed": "Falhou",
   "run.status.cancelled": "Cancelada",
@@ -136,11 +137,13 @@ export const plain: Record<GlossaryKey, string> = {
   "workflowStep.type.validation": "Validação",
   "workflowStep.type.approval": "Aprovação",
   "workflowStep.type.knowledge": "Conhecimento",
+  "workflowStep.type.delegate": "Delegação",
 
   // --------------------------------------------------------- runStep.status
   "runStep.status.pending": "Pendente",
   "runStep.status.running": "Em andamento",
   "runStep.status.waitingApproval": "Aguardando aprovação",
+  "runStep.status.waitingChild": "Aguardando delegação",
   "runStep.status.succeeded": "Concluída",
   "runStep.status.failed": "Falhou",
   "runStep.status.skipped": "Pulada",

@@ -77,8 +77,8 @@ describe("paridade entre os glossários", () => {
 });
 
 describe("decisões de UX da Fase 2", () => {
-  it("cobre os nove estados de Run", () => {
-    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("run.status."))).toHaveLength(9);
+  it("cobre os dez estados de Run", () => {
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("run.status."))).toHaveLength(10);
   });
 
   it("só o Selo é tematizado entre os estados não terminais", () => {
@@ -242,9 +242,9 @@ describe("format", () => {
 });
 
 describe("Fase 4C — Rituais e Selos", () => {
-  it("cobre os cinco tipos de step, os oito estados de RunStep e os dois motivos de pulo", () => {
-    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("workflowStep.type."))).toHaveLength(5);
-    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("runStep.status."))).toHaveLength(8);
+  it("cobre os seis tipos de step, os nove estados de RunStep e os dois motivos de pulo", () => {
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("workflowStep.type."))).toHaveLength(6);
+    expect(GLOSSARY_KEYS.filter((key) => key.startsWith("runStep.status."))).toHaveLength(9);
     expect(GLOSSARY_KEYS.filter((key) => key.startsWith("runStep.skip."))).toHaveLength(2);
   });
 
@@ -265,6 +265,7 @@ describe("Fase 4C — Rituais e Selos", () => {
       expect(t(theme, "runStep.status.waitingApproval")).toBe(
         t(theme, "run.status.waitingApproval"),
       );
+      expect(t(theme, "runStep.status.waitingChild")).toBe(t(theme, "run.status.waitingChild"));
     }
   });
 
