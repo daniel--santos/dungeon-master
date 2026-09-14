@@ -169,7 +169,7 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
           </div>
 
           {editing && (
-            <fieldset className="border-border flex flex-col gap-3 rounded-[10px] border p-3.5">
+            <fieldset className="border-border flex flex-col gap-3 rounded-lg border p-3.5">
               <legend className="px-1 text-[12.5px] font-medium">Workspace</legend>
 
               <div className="flex flex-col gap-2">

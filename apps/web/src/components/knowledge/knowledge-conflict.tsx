@@ -23,7 +23,7 @@ export function KnowledgeConflictBox({ item, onDismiss }: KnowledgeConflictBoxPr
 
   return (
     <div
-      className="border-destructive/40 bg-destructive/8 flex flex-col gap-2 rounded-[10px] border px-3 py-2.5"
+      className="border-destructive/40 bg-destructive/8 flex flex-col gap-2 rounded-lg border px-3 py-2.5"
       data-knowledge-conflict={item.status}
     >
       <span className="text-[12.5px] leading-4.5 font-medium">

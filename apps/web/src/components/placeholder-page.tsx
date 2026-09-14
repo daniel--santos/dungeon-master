@@ -22,7 +22,7 @@ export function PlaceholderPage({ to, note }: PlaceholderPageProps) {
   return (
     <>
       <PageHeader title={t(item.label)} />
-      <section className="border-border text-muted-foreground flex flex-col items-center gap-3 rounded-[14px] border border-dashed px-6 py-16 text-center">
+      <section className="border-border text-muted-foreground flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-16 text-center">
         <item.icon aria-hidden className="size-6 opacity-60" />
         <p className="max-w-md text-sm leading-5">{note}</p>
       </section>

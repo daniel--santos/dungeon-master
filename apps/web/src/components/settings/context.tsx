@@ -150,7 +150,7 @@ export function ContextSection() {
 
   return (
     <section
-      className="bg-card border-border flex max-w-190 flex-col gap-4.5 rounded-[14px] border p-6 shadow-sm"
+      className="bg-card border-border flex max-w-190 flex-col gap-4.5 rounded-xl border p-6 shadow-sm"
       data-settings-context
     >
       <div className="flex flex-col gap-1">

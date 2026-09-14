@@ -137,7 +137,7 @@ export function SkillPicker({
                   size="sm"
                 >
                   {pick.pinnedVersion !== null && (
-                    <Pin aria-hidden className="size-2.75 text-[oklch(0.72_0.13_305)]" />
+                    <Pin aria-hidden className="size-2.75 text-accent-violet" />
                   )}
                   <SelectValue />
                 </SelectTrigger>

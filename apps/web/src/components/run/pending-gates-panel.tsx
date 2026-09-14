@@ -8,7 +8,7 @@ import { usePendingGates } from "@/lib/approvals";
 import { relativeTime } from "@/lib/datetime";
 import { useGlossary } from "@/lib/glossary";
 
-const AMBER = "oklch(0.72 0.13 75)";
+const AMBER = "var(--accent-amber)";
 
 /**
  * Os Selos pendentes, no topo da lista de Expedições (Fase 4C).

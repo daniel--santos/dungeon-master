@@ -18,7 +18,7 @@ export type PanelProps = Omit<ComponentProps<"section">, "className" | "children
 export function Panel({ className, children, ...rest }: PanelProps) {
   return (
     <section
-      className={cn("bg-card border-border rounded-[14px] border shadow-sm", className)}
+      className={cn("bg-card border-border rounded-xl border shadow-sm", className)}
       {...rest}
     >
       {children}

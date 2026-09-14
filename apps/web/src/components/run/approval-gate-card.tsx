@@ -23,7 +23,7 @@ import { useGlossary } from "@/lib/glossary";
 import { cn } from "@/lib/utils";
 import { APPROVAL_DECISION, APPROVAL_GATE_STATUS } from "@/lib/workflow-domain";
 
-const AMBER = "oklch(0.72 0.13 75)";
+const AMBER = "var(--accent-amber)";
 
 const NOTE_MAX_LENGTH = 5_000;
 
@@ -163,7 +163,7 @@ export function ApprovalGateCard({ gates, onHoldingChange }: ApprovalGateCardPro
 
             {conflict !== null ? (
               <div
-                className="border-destructive/40 bg-destructive/8 flex flex-col gap-2 rounded-[10px] border px-3 py-2.5"
+                className="border-destructive/40 bg-destructive/8 flex flex-col gap-2 rounded-lg border px-3 py-2.5"
                 data-approval-conflict={conflict.status}
               >
                 <span className="text-[12.5px] leading-4.5 font-medium">
@@ -271,7 +271,7 @@ export function ApprovalGateCard({ gates, onHoldingChange }: ApprovalGateCardPro
                 className={cn(
                   "text-white",
                   confirming === "approve"
-                    ? "bg-[oklch(0.55_0.13_150)] hover:bg-[oklch(0.5_0.13_150)]"
+                    ? "bg-accent-green-strong hover:bg-accent-green-strong-hover"
                     : "bg-destructive/60 hover:bg-destructive/70",
                 )}
                 data-approval-confirm={confirming}
@@ -326,7 +326,7 @@ function DecisionButton({
 function Panel({ children }: { children: React.ReactNode }) {
   return (
     <section
-      className="rounded-[14px] border px-4.5 py-4"
+      className="rounded-xl border px-4.5 py-4"
       data-approval-card
       style={{ borderColor: tint(AMBER, 38), backgroundColor: tint(AMBER, 8) }}
     >

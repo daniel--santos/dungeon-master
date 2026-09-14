@@ -213,7 +213,7 @@ function ContextBody({ context, run }: { context: RunContextRecord | null; run: 
 
       {context.inheritedFromRunId !== null && (
         <div
-          className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[10px] border px-3 py-2 text-[12.5px]"
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-[12.5px]"
           data-context-inherited={context.inheritedFromRunId}
           style={{ borderColor: tint(CONTEXT_COLOR, 40), backgroundColor: tint(CONTEXT_COLOR, 8) }}
         >
@@ -232,7 +232,7 @@ function ContextBody({ context, run }: { context: RunContextRecord | null; run: 
 
       {context.status === "FAILED" && (
         <div
-          className="flex items-start gap-2.5 rounded-[10px] border border-[var(--destructive)]/40 bg-[var(--destructive)]/8 px-3 py-2.5"
+          className="flex items-start gap-2.5 rounded-lg border border-[var(--destructive)]/40 bg-[var(--destructive)]/8 px-3 py-2.5"
           data-context-error
           role="alert"
         >
@@ -355,7 +355,7 @@ function BudgetMeter({ context }: { context: RunContextRecord }) {
               </div>
               <Bar
                 attr={section.kind}
-                color={section.truncated ? "oklch(0.72 0.13 75)" : CONTEXT_COLOR}
+                color={section.truncated ? "var(--accent-amber)" : CONTEXT_COLOR}
                 label={t(label)}
                 total={section.budgetTokens}
                 used={section.tokens}
@@ -374,7 +374,7 @@ function TruncatedMark() {
     <span
       className="flex h-4 flex-none items-center gap-1 rounded-full border px-1.5 text-[10px]"
       data-context-truncated
-      style={{ borderColor: tint("oklch(0.72 0.13 75)", 45), color: "oklch(0.72 0.13 75)" }}
+      style={{ borderColor: tint("var(--accent-amber)", 45), color: "var(--accent-amber)" }}
     >
       <Scissors aria-hidden className="size-2.5" />
       <span>{t("context.truncated")}</span>
@@ -397,7 +397,7 @@ function SectionBlock({
 
   return (
     <section
-      className="border-border flex flex-col gap-1.5 rounded-[10px] border px-3 py-2.5"
+      className="border-border flex flex-col gap-1.5 rounded-lg border px-3 py-2.5"
       data-context-section={section.kind}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -637,7 +637,7 @@ function ContextText({ text }: { text: string }) {
 
       {open && (
         <pre
-          className="border-border m-0 max-h-120 overflow-auto rounded-[10px] border bg-white/[0.03] px-3 py-2.5 font-mono text-[11px] leading-4.5 whitespace-pre-wrap"
+          className="border-border m-0 max-h-120 overflow-auto rounded-lg border bg-white/[0.03] px-3 py-2.5 font-mono text-[11px] leading-4.5 whitespace-pre-wrap"
           data-context-text
         >
           {text}

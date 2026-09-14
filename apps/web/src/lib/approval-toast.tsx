@@ -41,7 +41,7 @@ const ResolvedPayloadSchema = z.object({ gateId: z.string() });
 export const APPROVAL_REQUESTED = "approval.requested";
 export const APPROVAL_RESOLVED = "approval.resolved";
 
-const AMBER = "oklch(0.72 0.13 75)";
+const AMBER = "var(--accent-amber)";
 
 const tint = (percent: number) => `color-mix(in oklab, ${AMBER} ${String(percent)}%, transparent)`;
 

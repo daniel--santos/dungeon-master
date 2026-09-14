@@ -100,7 +100,7 @@ function SkillsPage() {
             className={cn("flex items-center gap-3 py-3", index > 0 && "border-border border-t")}
             data-skill={skill.name}
           >
-            <span className="border-border flex size-8 flex-none items-center justify-center rounded-lg border bg-[oklch(0.72_0.13_305)]/12">
+            <span className="border-border flex size-8 flex-none items-center justify-center rounded-lg border bg-accent-violet/12">
               <WandSparkles aria-hidden className="size-3.75" style={{ color: REGISTRY_COLOR }} />
             </span>
 

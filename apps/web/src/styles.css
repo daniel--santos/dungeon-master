@@ -31,6 +31,13 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-violet: var(--accent-violet);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-green: var(--accent-green);
+  --color-accent-teal: var(--accent-teal);
+  --color-accent-green-strong: var(--accent-green-strong);
+  --color-accent-green-strong-hover: var(--accent-green-strong-hover);
 }
 
 :root {
@@ -54,6 +61,16 @@
   --border: oklch(0.929 0.013 255.508);
   --input: oklch(0.929 0.013 255.508);
   --ring: oklch(0.704 0.04 256.788);
+  /* A família de acentos do design: mesma luminosidade e croma, só o matiz
+     muda. Eram literais repetidos em 34 arquivos até a Fase de redesenho. */
+  --accent-blue: oklch(0.72 0.13 250);
+  --accent-violet: oklch(0.72 0.13 305);
+  --accent-amber: oklch(0.72 0.13 75);
+  --accent-green: oklch(0.72 0.13 150);
+  --accent-teal: oklch(0.72 0.13 200);
+  /* Verde sólido de fundo de botão, e o seu estado de hover. */
+  --accent-green-strong: oklch(0.55 0.13 150);
+  --accent-green-strong-hover: oklch(0.5 0.13 150);
 }
 
 .dark {

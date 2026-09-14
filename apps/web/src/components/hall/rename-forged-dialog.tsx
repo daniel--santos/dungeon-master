@@ -149,7 +149,7 @@ export function RenameForgedDialog({ achievement, onOpenChange }: RenameForgedDi
               </div>
 
               <div
-                className="border-border bg-input/20 flex flex-col gap-1 rounded-[10px] border px-3 py-2.5"
+                className="border-border bg-input/20 flex flex-col gap-1 rounded-lg border px-3 py-2.5"
                 data-rename-forged-plain
               >
                 <span className="text-muted-foreground text-[10.5px] tracking-[0.06em] uppercase">

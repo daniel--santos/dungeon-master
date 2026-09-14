@@ -279,7 +279,7 @@ function ResultSummary({ result }: { result: RunStepResultRecord }) {
           <span
             className="font-medium"
             style={{
-              color: result.verdict === "passed" ? "oklch(0.72 0.13 150)" : "var(--destructive)",
+              color: result.verdict === "passed" ? "var(--accent-green)" : "var(--destructive)",
             }}
           >
             {result.verdict === "passed" ? "passou" : "falhou"}

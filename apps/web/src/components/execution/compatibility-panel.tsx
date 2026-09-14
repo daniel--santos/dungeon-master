@@ -118,7 +118,7 @@ export function CompatibilityPanel({
 
   return (
     <div
-      className="border-border flex flex-col gap-3 rounded-[10px] border px-3.5 py-3"
+      className="border-border flex flex-col gap-3 rounded-lg border px-3.5 py-3"
       data-loadout-compat={verdict}
     >
       <div className="flex flex-wrap items-start gap-x-3 gap-y-1.5">

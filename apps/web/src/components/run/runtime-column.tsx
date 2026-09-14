@@ -187,9 +187,9 @@ export function TimeCard({ run, now, onCancel }: TimeCardProps) {
 
   const color =
     run.status === "SUCCEEDED"
-      ? "oklch(0.72 0.13 150)"
+      ? "var(--accent-green)"
       : run.status === "TIMED_OUT"
-        ? "oklch(0.72 0.13 75)"
+        ? "var(--accent-amber)"
         : undefined;
 
   return (

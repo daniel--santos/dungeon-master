@@ -10,8 +10,8 @@ import { Footprints, Trash2, type LucideIcon } from "lucide-react";
  * `Record<Enum, …>` para que um valor novo no contrato vire erro de compilação.
  */
 
-const ACCENT_AMBER = "oklch(0.72 0.13 75)";
-const ACCENT_GREEN = "oklch(0.72 0.13 150)";
+const ACCENT_AMBER = "var(--accent-amber)";
+const ACCENT_GREEN = "var(--accent-green)";
 
 /** A cor das propostas em toda a interface: o âmbar de "espera uma decisão". */
 export const PROPOSAL_COLOR = ACCENT_AMBER;

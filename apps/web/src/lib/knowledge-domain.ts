@@ -25,10 +25,10 @@ import {
  * `Record<Enum, …>` para que um valor novo no contrato vire erro de compilação.
  */
 
-const ACCENT_BLUE = "oklch(0.72 0.13 250)";
-const ACCENT_VIOLET = "oklch(0.72 0.13 305)";
-const ACCENT_AMBER = "oklch(0.72 0.13 75)";
-const ACCENT_GREEN = "oklch(0.72 0.13 150)";
+const ACCENT_BLUE = "var(--accent-blue)";
+const ACCENT_VIOLET = "var(--accent-violet)";
+const ACCENT_AMBER = "var(--accent-amber)";
+const ACCENT_GREEN = "var(--accent-green)";
 
 /** A cor do Grimório em toda a interface: o violeta do que foi escrito e guardado. */
 export const KNOWLEDGE_COLOR = ACCENT_VIOLET;

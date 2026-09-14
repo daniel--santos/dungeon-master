@@ -99,7 +99,7 @@ function ToolsPage() {
             data-tool={tool.name}
             data-tool-kind={tool.kind}
           >
-            <span className="border-border flex size-8 flex-none items-center justify-center rounded-lg border bg-[oklch(0.72_0.13_305)]/12">
+            <span className="border-border flex size-8 flex-none items-center justify-center rounded-lg border bg-accent-violet/12">
               {tool.kind === "COMMAND" ? (
                 <Terminal aria-hidden className="size-3.75" style={{ color: REGISTRY_COLOR }} />
               ) : (

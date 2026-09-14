@@ -97,7 +97,7 @@ function McpServersPage() {
             data-mcp-server={server.name}
             data-mcp-server-built-in={String(server.builtIn)}
           >
-            <span className="border-border flex size-8 flex-none items-center justify-center rounded-lg border bg-[oklch(0.72_0.13_305)]/12">
+            <span className="border-border flex size-8 flex-none items-center justify-center rounded-lg border bg-accent-violet/12">
               <Gem aria-hidden className="size-3.75" style={{ color: REGISTRY_COLOR }} />
             </span>
 

@@ -19,7 +19,7 @@ import {
 } from "@/lib/knowledge";
 import { KNOWLEDGE_PENDING_COLOR } from "@/lib/knowledge-domain";
 
-const ACCENT_GREEN = "oklch(0.72 0.13 150)";
+const ACCENT_GREEN = "var(--accent-green)";
 
 function tint(color: string, percent: number): string {
   return `color-mix(in oklch, ${color} ${String(percent)}%, transparent)`;

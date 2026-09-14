@@ -94,7 +94,7 @@ function LoadoutsPage() {
               <div
                 key={loadout.id}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-[10px] border px-3 py-2.5",
+                  "flex items-center gap-2.5 rounded-lg border px-3 py-2.5",
                   active ? "border-input bg-white/[0.06]" : "border-transparent",
                 )}
                 data-loadout={loadout.name}
@@ -106,12 +106,12 @@ function LoadoutsPage() {
                   }}
                   type="button"
                 >
-                  <span className="border-border flex size-7.5 flex-none items-center justify-center rounded-lg border bg-[oklch(0.72_0.13_305)]/12">
+                  <span className="border-border flex size-7.5 flex-none items-center justify-center rounded-lg border bg-accent-violet/12">
                     <Package
                       aria-hidden
                       className={cn(
                         "size-3.75",
-                        active ? "text-[oklch(0.72_0.13_305)]" : "text-muted-foreground",
+                        active ? "text-accent-violet" : "text-muted-foreground",
                       )}
                     />
                   </span>

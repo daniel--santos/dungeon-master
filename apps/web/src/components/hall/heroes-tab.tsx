@@ -121,7 +121,7 @@ export function HeroesTab() {
   );
 }
 
-const ACCENT = "oklch(0.72 0.13 75)";
+const ACCENT = "var(--accent-amber)";
 
 function HeroCard({ stats }: { stats: HeroStatsRecord }) {
   const { t, format } = useGlossary();
@@ -129,7 +129,7 @@ function HeroCard({ stats }: { stats: HeroStatsRecord }) {
 
   return (
     <article
-      className="bg-card border-border flex flex-col gap-3.5 rounded-[14px] border p-4 shadow-sm"
+      className="bg-card border-border flex flex-col gap-3.5 rounded-xl border p-4 shadow-sm"
       data-hero-agent={stats.scopeId}
     >
       <div className="flex items-start justify-between gap-3">

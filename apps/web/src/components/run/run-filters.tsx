@@ -157,7 +157,7 @@ export function RunFilters({
           <span
             aria-hidden
             className="size-1.5 animate-pulse rounded-full"
-            style={{ backgroundColor: "oklch(0.72 0.13 250)" }}
+            style={{ backgroundColor: "var(--accent-blue)" }}
           />
         )}
         <span>

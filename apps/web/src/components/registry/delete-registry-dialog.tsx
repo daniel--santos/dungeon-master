@@ -87,7 +87,7 @@ export function DeleteRegistryDialog({
               <p>{body}</p>
               {inUse !== null && (
                 <div
-                  className="border-destructive/40 bg-destructive/8 text-foreground flex flex-col gap-1 rounded-[10px] border px-3 py-2.5"
+                  className="border-destructive/40 bg-destructive/8 text-foreground flex flex-col gap-1 rounded-lg border px-3 py-2.5"
                   data-registry-in-use
                 >
                   <span className="text-muted-foreground text-[11.5px] leading-4">{inUse}</span>
