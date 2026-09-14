@@ -414,6 +414,17 @@ export const LoadoutSnapshotSchema = z
       .object({ id: z.uuid(), key: z.string(), name: z.string() })
       .nullable()
       .describe("Nulo quando o Harness não tinha Model padrão nem o Loadout indicava um."),
+    modelSelectedBy: z
+      .string()
+      .optional()
+      .describe(
+        "Quem escolheu o Model (Fase 9A): `LOADOUT`, `HARNESS_DEFAULT`, `ROUTING:<id>` ou " +
+          "`NONE`. Ausente em Runs anteriores ao roteamento.",
+      ),
+    modelSelectionReason: z
+      .string()
+      .optional()
+      .describe("A frase canônica da escolha do Model. Ausente em Runs anteriores."),
     executionProfileId: z.uuid(),
     skills: z.array(z.string()).describe("Os nomes das Skills, na ordem do Loadout."),
     tools: z.array(z.string()).describe("Os nomes das Tools, na ordem do Loadout."),

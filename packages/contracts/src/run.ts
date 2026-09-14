@@ -1,10 +1,14 @@
 import { z } from "zod";
 
+import { PolicyDecisionSchema } from "./approval-policy.js";
+import { BudgetBreachSchema } from "./budget.js";
 import { CapabilityIssueSchema } from "./capability.js";
+import { BreakerAdmissionSchema } from "./circuit-breaker.js";
 import { ExecutionModeSchema, ExecutionProfileSnapshotSchema } from "./execution-profile.js";
 import { HarnessKeySchema } from "./harness.js";
 import { LoadoutSnapshotSchema } from "./loadout.js";
 import { PageQuerySchema, paginatedSchema } from "./pagination.js";
+import { RoutingDecisionSchema } from "./routing-rule.js";
 
 /**
  * Run é uma Expedição: **uma tentativa concreta** de realizar uma Task
@@ -100,6 +104,23 @@ export type RunError = z.infer<typeof RunErrorSchema>;
 
 export const RUN_PROMPT_MAX_LENGTH = 100_000;
 
+/**
+ * Quem criou o Run (planejamento v0.4, Fase 9A).
+ *
+ * `USER` é `POST /runs` pela interface ou pela API; `POLICY` é o auto-despacho
+ * por política (9B); `DELEGATION` é um Run filho aberto por um agente pela
+ * ferramenta de delegação (9B). A origem é o que a interface mostra e o que
+ * um orçamento pode um dia separar.
+ */
+export const RUN_CREATED_BY_VALUES = ["USER", "POLICY", "DELEGATION"] as const;
+
+export const RunCreatedBySchema = z.enum(RUN_CREATED_BY_VALUES).meta({
+  id: "RunCreatedBy",
+  description: "`USER` pela API, `POLICY` pelo auto-despacho, `DELEGATION` por outro agente.",
+});
+
+export type RunCreatedBy = z.infer<typeof RunCreatedBySchema>;
+
 export const RunSchema = z
   .object({
     id: z.uuid().describe("UUIDv7 do Run."),
@@ -138,6 +159,17 @@ export const RunSchema = z
       .uuid()
       .nullable()
       .describe("Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero."),
+    createdBy: RunCreatedBySchema,
+    parentRunId: z
+      .uuid()
+      .nullable()
+      .describe(
+        "O Run que delegou este (Fase 9B). Nulo em todo Run criado pela API ou por política.",
+      ),
+    parentStepKey: z
+      .string()
+      .nullable()
+      .describe("A chave do step do Run mãe que abriu a delegação. Nulo sem `parentRunId`."),
     loadoutId: z.uuid(),
     loadoutVersion: z
       .number()
@@ -178,7 +210,22 @@ export const RunCreatedSchema = RunSchema.extend({
   warnings: z
     .array(CapabilityIssueSchema)
     .describe("Descompassos que não impedem a partida. O Worker os registra no diário."),
-}).meta({ id: "RunCreated", description: "O Run recém-criado e os avisos de capability." });
+  policyDecision: PolicyDecisionSchema.describe(
+    "A decisão das políticas `RUN_START` (Fase 9A). `DENY` nunca chega aqui: é o `409`.",
+  ),
+  modelRouting: RoutingDecisionSchema.nullable().describe(
+    "Como o Model foi escolhido quando o Loadout o deixa nulo. Nulo quando o Loadout o pina.",
+  ),
+  budgetWarnings: z
+    .array(BudgetBreachSchema)
+    .describe("Orçamentos `WARN` atingidos por este Run. Um `BLOCK` é o `409 BUDGET_EXCEEDED`."),
+  breaker: BreakerAdmissionSchema.nullable().describe(
+    "O disjuntor `HALF_OPEN` que deixou este Run passar como sondagem. Nulo sem sondagem.",
+  ),
+}).meta({
+  id: "RunCreated",
+  description: "O Run recém-criado, os avisos de capability e as decisões automáticas.",
+});
 
 export type RunCreated = z.infer<typeof RunCreatedSchema>;
 
@@ -230,6 +277,7 @@ export const RunListQuerySchema = PageQuerySchema.extend({
   projectId: z.uuid().optional().describe("Só os Runs das Tasks deste Project."),
   harnessKey: HarnessKeySchema.optional().describe("Só os Runs executados por este Harness."),
   status: RunStatusFilterSchema,
+  createdBy: RunCreatedBySchema.optional().describe("Só os Runs com esta origem."),
 }).meta({ id: "RunListQuery" });
 
 export type RunListQuery = z.infer<typeof RunListQuerySchema>;

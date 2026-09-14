@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { AutonomyLevelSchema } from "./autonomy.js";
 import { PageQuerySchema, paginatedSchema } from "./pagination.js";
 import { TaskStatusCountsSchema } from "./task.js";
 
@@ -59,6 +60,9 @@ export const ProjectSchema = z
         "Caminho absoluto do workspace na máquina local. " +
           "Um Project sem ele não pode ter Run: não há onde o agente trabalhar.",
       ),
+    autonomyLevel: AutonomyLevelSchema.describe(
+      "A escada de autonomia do Project (Fase 9A). Muda em `PATCH /projects/{id}/autonomy`.",
+    ),
     archivedAt: z.iso
       .datetime()
       .nullable()
