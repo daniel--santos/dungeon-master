@@ -240,7 +240,8 @@ export function registerAutonomyRoutes(app: OpenAPIHono, autonomy: AutonomyPort)
     if (Object.hasOwn(body, "consecutiveFailures")) {
       patch.consecutiveFailures = body.consecutiveFailures ?? null;
     }
-    if (Object.hasOwn(body, "failuresInWindow")) patch.failuresInWindow = body.failuresInWindow ?? null;
+    if (Object.hasOwn(body, "failuresInWindow"))
+      patch.failuresInWindow = body.failuresInWindow ?? null;
     if (Object.hasOwn(body, "permissionDeniedInWindow")) {
       patch.permissionDeniedInWindow = body.permissionDeniedInWindow ?? null;
     }

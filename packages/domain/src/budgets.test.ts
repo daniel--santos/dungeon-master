@@ -59,7 +59,12 @@ describe("runTokenUsage", () => {
     expect(runTokenUsage({ totalTokens: 500, inputTokens: 1 })).toBe(500);
     expect(runTokenUsage({ inputTokens: 100, outputTokens: 50 })).toBe(150);
     expect(
-      runTokenUsage({ inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 20, cacheCreationInputTokens: 1 }),
+      runTokenUsage({
+        inputTokens: 10,
+        outputTokens: 5,
+        cacheReadInputTokens: 20,
+        cacheCreationInputTokens: 1,
+      }),
     ).toBe(36);
     expect(runTokenUsage({})).toBeNull();
     expect(runTokenUsage(null)).toBeNull();
@@ -105,9 +110,9 @@ describe("checkBudgetForNewRun", () => {
   });
 
   it("maxRuns conta o Run pedido: com teto 2, o terceiro estoura", () => {
-    expect(checkBudgetForNewRun({ budget: budget({ maxRuns: 2 }), consumption: consumo({ runs: 1 }) })).toEqual(
-      { admit: true, breach: null },
-    );
+    expect(
+      checkBudgetForNewRun({ budget: budget({ maxRuns: 2 }), consumption: consumo({ runs: 1 }) }),
+    ).toEqual({ admit: true, breach: null });
     const terceiro = checkBudgetForNewRun({
       budget: budget({ maxRuns: 2 }),
       consumption: consumo({ runs: 2 }),
@@ -126,12 +131,16 @@ describe("checkBudgetForNewRun", () => {
       }).admit,
     ).toBe(false);
     expect(
-      checkBudgetForNewRun({ budget: budget({ maxTokens: 1_000 }), consumption: consumo({ tokens: 999 }) })
-        .admit,
+      checkBudgetForNewRun({
+        budget: budget({ maxTokens: 1_000 }),
+        consumption: consumo({ tokens: 999 }),
+      }).admit,
     ).toBe(true);
     expect(
-      checkBudgetForNewRun({ budget: budget({ maxTokens: 1_000 }), consumption: consumo({ tokens: 1_000 }) })
-        .admit,
+      checkBudgetForNewRun({
+        budget: budget({ maxTokens: 1_000 }),
+        consumption: consumo({ tokens: 1_000 }),
+      }).admit,
     ).toBe(false);
     expect(
       checkBudgetForNewRun({

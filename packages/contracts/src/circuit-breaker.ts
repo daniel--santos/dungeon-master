@@ -118,7 +118,9 @@ export const CreateCircuitBreakerSchema = z
     scope: BreakerScopeSchema,
     projectId: z.uuid().nullish().describe("Obrigatório em `PROJECT`; recusado nos outros."),
     loadoutId: z.uuid().nullish().describe("Obrigatório em `LOADOUT`; recusado nos outros."),
-    harnessKey: HarnessKeySchema.nullish().describe("Obrigatório em `HARNESS`; recusado nos outros."),
+    harnessKey: HarnessKeySchema.nullish().describe(
+      "Obrigatório em `HARNESS`; recusado nos outros.",
+    ),
     ...TriggersInputShape,
     cooldownMs: z
       .number()
@@ -186,6 +188,9 @@ export const BreakerAdmissionSchema = z
     decidedBy: z.string().describe("`BREAKER:<id>`."),
     reason: z.string(),
   })
-  .meta({ id: "BreakerAdmission", description: "A decisão de um disjuntor sobre um pedido de Run." });
+  .meta({
+    id: "BreakerAdmission",
+    description: "A decisão de um disjuntor sobre um pedido de Run.",
+  });
 
 export type BreakerAdmission = z.infer<typeof BreakerAdmissionSchema>;

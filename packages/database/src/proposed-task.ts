@@ -143,7 +143,9 @@ async function decidirPropostas(
 
   const facts: RuleFacts = {
     projectId: input.projectId,
-    ...(origemTask === null ? {} : { taskKind: origemTask.kind, taskPriority: origemTask.priority }),
+    ...(origemTask === null
+      ? {}
+      : { taskKind: origemTask.kind, taskPriority: origemTask.priority }),
     ...(origemRun === undefined
       ? {}
       : {
@@ -279,7 +281,12 @@ export async function persistDiscoveredTasks(
 
       const [decided] = await db
         .update(proposedTasks)
-        .set({ status: "APPROVED", decidedAt: agora, note: decision.reason, createdTaskId: task.id })
+        .set({
+          status: "APPROVED",
+          decidedAt: agora,
+          note: decision.reason,
+          createdTaskId: task.id,
+        })
         .where(
           and(
             eq(proposedTasks.id, proposal.id),

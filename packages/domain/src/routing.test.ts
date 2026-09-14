@@ -106,9 +106,20 @@ describe("routeTarget", () => {
   it("pressão de orçamento escolhe o Model barato só quando a janela aperta", () => {
     const rules = [
       rule("caro", { priority: 10, targetId: "M_CARO" }),
-      rule("barato", { priority: 500, targetId: "M_BARATO", conditions: { minBudgetPressure: 0.8 } }),
+      rule("barato", {
+        priority: 500,
+        targetId: "M_BARATO",
+        conditions: { minBudgetPressure: 0.8 },
+      }),
     ];
-    const folgado = routeTarget({ kind: "MODEL", rules, facts: FACTS, resolve, fallback: PADRAO, fallbackReason: "" });
+    const folgado = routeTarget({
+      kind: "MODEL",
+      rules,
+      facts: FACTS,
+      resolve,
+      fallback: PADRAO,
+      fallbackReason: "",
+    });
     expect(folgado.selectedId).toBe("M_CARO");
     const apertado = routeTarget({
       kind: "MODEL",

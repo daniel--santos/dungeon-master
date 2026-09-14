@@ -46,12 +46,12 @@ describe("matchesConditions", () => {
 
   it("fail-closed: condição sobre fato não medido não casa", () => {
     expect(matchesConditions({ stepType: "agent" }, FACTS)).toBe(false);
-    expect(matchesConditions({ maxEstimatedTokens: 10_000 }, { ...FACTS, estimatedTokens: undefined })).toBe(
-      false,
-    );
-    expect(matchesConditions({ minBudgetPressure: 0 }, { ...FACTS, budgetPressure: undefined })).toBe(
-      false,
-    );
+    expect(
+      matchesConditions({ maxEstimatedTokens: 10_000 }, { ...FACTS, estimatedTokens: undefined }),
+    ).toBe(false);
+    expect(
+      matchesConditions({ minBudgetPressure: 0 }, { ...FACTS, budgetPressure: undefined }),
+    ).toBe(false);
     expect(matchesConditions({ hasCommandTools: false }, {})).toBe(false);
   });
 

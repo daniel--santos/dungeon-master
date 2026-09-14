@@ -41,10 +41,16 @@ describe("evaluateBreakerTriggers", () => {
       ),
     ).toEqual({ trip: false });
     expect(
-      evaluateBreakerTriggers({ ...SEM_GATILHO, authNotAuthenticated: true }, { authNotAuthenticated: true }),
+      evaluateBreakerTriggers(
+        { ...SEM_GATILHO, authNotAuthenticated: true },
+        { authNotAuthenticated: true },
+      ),
     ).toMatchObject({ trip: true, trigger: "authNotAuthenticated" });
     expect(
-      evaluateBreakerTriggers({ ...SEM_GATILHO, authNotAuthenticated: false }, { authNotAuthenticated: true }),
+      evaluateBreakerTriggers(
+        { ...SEM_GATILHO, authNotAuthenticated: false },
+        { authNotAuthenticated: true },
+      ),
     ).toEqual({ trip: false });
   });
 });
@@ -52,7 +58,10 @@ describe("evaluateBreakerTriggers", () => {
 describe("admitThroughBreaker", () => {
   it("CLOSED deixa passar sem sondagem", () => {
     expect(
-      admitThroughBreaker({ state: "CLOSED", openedAt: null, cooldownMs: 1_000, probeRunId: null }, NOW),
+      admitThroughBreaker(
+        { state: "CLOSED", openedAt: null, cooldownMs: 1_000, probeRunId: null },
+        NOW,
+      ),
     ).toMatchObject({ admit: true, state: "CLOSED", probe: false, transition: "NONE" });
   });
 
@@ -63,7 +72,9 @@ describe("admitThroughBreaker", () => {
     );
     expect(admission.admit).toBe(false);
     expect(admission.reason).toContain(`${String(5 * 60_000)} ms`);
-    expect(breakerCooldownElapsed({ openedAt: HA_DEZ_MIN, cooldownMs: 15 * 60_000 }, NOW)).toBe(false);
+    expect(breakerCooldownElapsed({ openedAt: HA_DEZ_MIN, cooldownMs: 15 * 60_000 }, NOW)).toBe(
+      false,
+    );
   });
 
   it("OPEN depois do cooldown vira HALF_OPEN e deixa passar uma sondagem", () => {
@@ -84,7 +95,12 @@ describe("admitThroughBreaker", () => {
       { state: "HALF_OPEN", openedAt: HA_DEZ_MIN, cooldownMs: 1_000, probeRunId: null },
       NOW,
     );
-    expect(livre).toMatchObject({ admit: true, probe: true, state: "HALF_OPEN", transition: "NONE" });
+    expect(livre).toMatchObject({
+      admit: true,
+      probe: true,
+      state: "HALF_OPEN",
+      transition: "NONE",
+    });
 
     const ocupado = admitThroughBreaker(
       { state: "HALF_OPEN", openedAt: HA_DEZ_MIN, cooldownMs: 1_000, probeRunId: "R1" },
@@ -96,7 +112,8 @@ describe("admitThroughBreaker", () => {
 
   it("fail-closed: OPEN sem instante e estado desconhecido não liberam", () => {
     expect(
-      admitThroughBreaker({ state: "OPEN", openedAt: null, cooldownMs: 1, probeRunId: null }, NOW).admit,
+      admitThroughBreaker({ state: "OPEN", openedAt: null, cooldownMs: 1, probeRunId: null }, NOW)
+        .admit,
     ).toBe(false);
     expect(
       admitThroughBreaker(
@@ -109,27 +126,34 @@ describe("admitThroughBreaker", () => {
 
 describe("nextBreakerState", () => {
   it("CLOSED abre quando um gatilho disparou", () => {
-    expect(nextBreakerState({ state: "CLOSED", outcome: "FAILED", isProbe: false, tripped: true })).toBe("OPEN");
-    expect(nextBreakerState({ state: "CLOSED", outcome: "FAILED", isProbe: false, tripped: false })).toBe(
-      "CLOSED",
-    );
+    expect(
+      nextBreakerState({ state: "CLOSED", outcome: "FAILED", isProbe: false, tripped: true }),
+    ).toBe("OPEN");
+    expect(
+      nextBreakerState({ state: "CLOSED", outcome: "FAILED", isProbe: false, tripped: false }),
+    ).toBe("CLOSED");
   });
 
   it("só a sondagem move HALF_OPEN: sucesso fecha, falha reabre", () => {
-    expect(nextBreakerState({ state: "HALF_OPEN", outcome: "SUCCEEDED", isProbe: true, tripped: false })).toBe(
-      "CLOSED",
-    );
-    expect(nextBreakerState({ state: "HALF_OPEN", outcome: "FAILED", isProbe: true, tripped: false })).toBe(
-      "OPEN",
-    );
-    expect(nextBreakerState({ state: "HALF_OPEN", outcome: "SUCCEEDED", isProbe: false, tripped: false })).toBe(
-      "HALF_OPEN",
-    );
+    expect(
+      nextBreakerState({ state: "HALF_OPEN", outcome: "SUCCEEDED", isProbe: true, tripped: false }),
+    ).toBe("CLOSED");
+    expect(
+      nextBreakerState({ state: "HALF_OPEN", outcome: "FAILED", isProbe: true, tripped: false }),
+    ).toBe("OPEN");
+    expect(
+      nextBreakerState({
+        state: "HALF_OPEN",
+        outcome: "SUCCEEDED",
+        isProbe: false,
+        tripped: false,
+      }),
+    ).toBe("HALF_OPEN");
   });
 
   it("OPEN não se mexe por desfecho de Run antigo", () => {
-    expect(nextBreakerState({ state: "OPEN", outcome: "SUCCEEDED", isProbe: false, tripped: false })).toBe(
-      "OPEN",
-    );
+    expect(
+      nextBreakerState({ state: "OPEN", outcome: "SUCCEEDED", isProbe: false, tripped: false }),
+    ).toBe("OPEN");
   });
 });

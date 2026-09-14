@@ -6,7 +6,10 @@ import type {
   CircuitBreaker,
   HarnessKey,
 } from "@dungeon-master/contracts";
-import { admitThroughBreaker, type BreakerAdmission as DomainAdmission } from "@dungeon-master/domain";
+import {
+  admitThroughBreaker,
+  type BreakerAdmission as DomainAdmission,
+} from "@dungeon-master/domain";
 import { and, asc, count, eq, or, type SQL, sql } from "drizzle-orm";
 
 import type { AutonomyWriteFailure } from "./autonomy-failure.js";
@@ -110,7 +113,12 @@ export async function listCircuitBreakers(
  */
 export async function lockApplicableBreakers(
   db: DatabaseExecutor,
-  input: { userId: string; projectId: string | null; loadoutId: string | null; harnessKey: HarnessKey },
+  input: {
+    userId: string;
+    projectId: string | null;
+    loadoutId: string | null;
+    harnessKey: HarnessKey;
+  },
 ): Promise<CircuitBreakerRow[]> {
   const escopos: SQL[] = [eq(circuitBreakers.harnessKey, input.harnessKey)];
   if (input.projectId !== null) escopos.push(eq(circuitBreakers.projectId, input.projectId));
@@ -149,7 +157,10 @@ export type BreakersAdmissionResult =
   | {
       readonly admitted: true;
       /** Os disjuntores que vão tomar o Run novo como sondagem, já travados. */
-      readonly probes: { readonly breaker: CircuitBreakerRow; readonly admission: DomainAdmission & { admit: true } }[];
+      readonly probes: {
+        readonly breaker: CircuitBreakerRow;
+        readonly admission: DomainAdmission & { admit: true };
+      }[];
     };
 
 /**
@@ -314,9 +325,16 @@ export async function createCircuitBreaker(
       authNotAuthenticated: input.authNotAuthenticated ?? false,
     };
 
-    const recusa = await conferirEscopo(tx, { userId: input.userId, scope: input.scope, projectId, loadoutId, harnessKey });
+    const recusa = await conferirEscopo(tx, {
+      userId: input.userId,
+      scope: input.scope,
+      projectId,
+      loadoutId,
+      harnessKey,
+    });
     if (recusa !== null) return failed(recusa);
-    if (semGatilho(triggers)) return failed<AutonomyWriteFailure>({ code: "BREAKER_WITHOUT_TRIGGER" });
+    if (semGatilho(triggers))
+      return failed<AutonomyWriteFailure>({ code: "BREAKER_WITHOUT_TRIGGER" });
 
     const [row] = await tx
       .insert(circuitBreakers)
@@ -371,7 +389,9 @@ export async function updateCircuitBreaker(
           ? current.triggers.consecutiveFailures
           : patch.consecutiveFailures,
       failuresInWindow:
-        patch.failuresInWindow === undefined ? current.triggers.failuresInWindow : patch.failuresInWindow,
+        patch.failuresInWindow === undefined
+          ? current.triggers.failuresInWindow
+          : patch.failuresInWindow,
       permissionDeniedInWindow:
         patch.permissionDeniedInWindow === undefined
           ? current.triggers.permissionDeniedInWindow
@@ -381,7 +401,8 @@ export async function updateCircuitBreaker(
           ? current.triggers.authNotAuthenticated
           : patch.authNotAuthenticated,
     };
-    if (semGatilho(triggers)) return failed<AutonomyWriteFailure>({ code: "BREAKER_WITHOUT_TRIGGER" });
+    if (semGatilho(triggers))
+      return failed<AutonomyWriteFailure>({ code: "BREAKER_WITHOUT_TRIGGER" });
 
     const [row] = await tx
       .update(circuitBreakers)
@@ -392,7 +413,10 @@ export async function updateCircuitBreaker(
         ...(patch.enabled === undefined ? {} : { enabled: patch.enabled }),
       })
       .where(
-        and(eq(circuitBreakers.id, input.circuitBreakerId), eq(circuitBreakers.userId, input.userId)),
+        and(
+          eq(circuitBreakers.id, input.circuitBreakerId),
+          eq(circuitBreakers.userId, input.userId),
+        ),
       )
       .returning();
 
@@ -419,7 +443,10 @@ export async function deleteCircuitBreaker(
     await tx
       .delete(circuitBreakers)
       .where(
-        and(eq(circuitBreakers.id, input.circuitBreakerId), eq(circuitBreakers.userId, input.userId)),
+        and(
+          eq(circuitBreakers.id, input.circuitBreakerId),
+          eq(circuitBreakers.userId, input.userId),
+        ),
       );
 
     await appendDashboardEvent(tx, {
@@ -446,7 +473,10 @@ export async function resetCircuitBreaker(
       .select()
       .from(circuitBreakers)
       .where(
-        and(eq(circuitBreakers.id, input.circuitBreakerId), eq(circuitBreakers.userId, input.userId)),
+        and(
+          eq(circuitBreakers.id, input.circuitBreakerId),
+          eq(circuitBreakers.userId, input.userId),
+        ),
       )
       .for("update");
     if (current === undefined) return null;

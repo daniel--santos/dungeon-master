@@ -18,7 +18,13 @@ import { findLoadoutRow } from "./loadout.js";
 import { findProjectRow } from "./project.js";
 import { failed, ok, type Result } from "./result.js";
 import { listRoutingRulesForDecision } from "./routing-rule.js";
-import { executionProfiles, harnesses, type LoadoutRow, loadouts, models } from "./schema/execution.js";
+import {
+  executionProfiles,
+  harnesses,
+  type LoadoutRow,
+  loadouts,
+  models,
+} from "./schema/execution.js";
 import { projects } from "./schema/project.js";
 import { findTaskRow } from "./task.js";
 import { findWorkflowRow } from "./workflow.js";
@@ -167,14 +173,18 @@ export async function routeModelForLoadout(
 
   // As regras são lidas uma vez e resolvidas de forma síncrona: `routeTarget`
   // é pura, então os candidatos são carregados antes.
-  const rules = await listRoutingRulesForDecision(db, { userId: input.userId, projectId: input.projectId });
+  const rules = await listRoutingRulesForDecision(db, {
+    userId: input.userId,
+    projectId: input.projectId,
+  });
   const candidatos = new Map<string, { id: string; key: string; harnessId: string }>();
   for (const rule of rules) {
     if (rule.kind !== "MODEL") continue;
     for (const targetId of [rule.targetId, ...rule.fallbackIds]) {
       if (candidatos.has(targetId)) continue;
       const model = await findModelRow(db, { userId: input.userId, modelId: targetId });
-      if (model !== null) candidatos.set(targetId, { id: model.id, key: model.key, harnessId: model.harnessId });
+      if (model !== null)
+        candidatos.set(targetId, { id: model.id, key: model.key, harnessId: model.harnessId });
     }
   }
 
@@ -186,7 +196,10 @@ export async function routeModelForLoadout(
       const model = candidatos.get(targetId);
       if (model === undefined) return { ok: false, reason: "O Model não existe mais." };
       if (model.harnessId !== input.loadout.harnessId) {
-        return { ok: false, reason: "O Model pertence a outro Harness; a chave não é do vocabulário deste." };
+        return {
+          ok: false,
+          reason: "O Model pertence a outro Harness; a chave não é do vocabulário deste.",
+        };
       }
       return { ok: true, candidate: { id: model.id, name: model.key } };
     },
@@ -227,7 +240,10 @@ export async function computeTaskSuggestions(
     });
   }
 
-  const rules = await listRoutingRulesForDecision(db, { userId: input.userId, projectId: project.id });
+  const rules = await listRoutingRulesForDecision(db, {
+    userId: input.userId,
+    projectId: project.id,
+  });
   const pressaoBase = await computeBudgetPressure(db, {
     userId: input.userId,
     projectId: project.id,
@@ -338,7 +354,9 @@ export async function computeTaskSuggestions(
         ...factsBase,
         loadoutId: loadoutEscolhido.id,
         ...(harness === undefined ? {} : { harnessKey: harness.key }),
-        ...(profile === undefined ? {} : { executionMode: profile.mode, enforcement: profile.enforcement }),
+        ...(profile === undefined
+          ? {}
+          : { executionMode: profile.mode, enforcement: profile.enforcement }),
         budgetPressure: pressao,
       },
     });

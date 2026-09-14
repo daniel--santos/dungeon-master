@@ -731,7 +731,10 @@ export async function createRun(
           : await findModelRow(tx, { userId: input.userId, modelId: modelRouting.selectedId });
       loadoutSnapshot = {
         ...loadoutSnapshot,
-        model: escolhido === null ? null : { id: escolhido.id, key: escolhido.key, name: escolhido.name },
+        model:
+          escolhido === null
+            ? null
+            : { id: escolhido.id, key: escolhido.key, name: escolhido.name },
         modelSelectedBy:
           modelRouting.ruleId !== null
             ? modelRouting.decidedBy

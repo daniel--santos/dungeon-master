@@ -85,7 +85,10 @@ export async function listRoutingRules(
   const conditions: SQL[] = [eq(routingRules.userId, input.userId)];
   if (filters.kind !== undefined) conditions.push(eq(routingRules.kind, filters.kind));
   if (filters.projectId !== undefined) {
-    const doProject = or(isNull(routingRules.projectId), eq(routingRules.projectId, filters.projectId));
+    const doProject = or(
+      isNull(routingRules.projectId),
+      eq(routingRules.projectId, filters.projectId),
+    );
     if (doProject !== undefined) conditions.push(doProject);
   }
   const where = and(...conditions);
@@ -112,7 +115,9 @@ export async function routingTargetExists(
     case "MODEL":
       return (await findModelRow(db, { userId: input.userId, modelId: input.targetId })) !== null;
     case "LOADOUT":
-      return (await findLoadoutRow(db, { userId: input.userId, loadoutId: input.targetId })) !== null;
+      return (
+        (await findLoadoutRow(db, { userId: input.userId, loadoutId: input.targetId })) !== null
+      );
     case "WORKFLOW":
       return (
         (await findWorkflowRow(db, { userId: input.userId, workflowId: input.targetId })) !== null
@@ -125,7 +130,11 @@ async function conferirAlvos(
   input: { userId: string; kind: RoutingKind; targetIds: readonly string[] },
 ): Promise<AutonomyWriteFailure | null> {
   for (const targetId of input.targetIds) {
-    const existe = await routingTargetExists(db, { userId: input.userId, kind: input.kind, targetId });
+    const existe = await routingTargetExists(db, {
+      userId: input.userId,
+      kind: input.kind,
+      targetId,
+    });
     if (!existe) return { code: "ROUTING_TARGET_NOT_FOUND", kind: input.kind, targetId };
   }
   return null;
@@ -212,7 +221,10 @@ export async function updateRoutingRule(
 
     const { patch } = input;
     if (patch.projectId !== undefined && patch.projectId !== null) {
-      const project = await findProjectRow(tx, { userId: input.userId, projectId: patch.projectId });
+      const project = await findProjectRow(tx, {
+        userId: input.userId,
+        projectId: patch.projectId,
+      });
       if (project === null) {
         return failed<AutonomyWriteFailure>({
           code: "PROJECT_NOT_FOUND",

@@ -22,7 +22,15 @@ import { selectRule, tieDecider } from "./rule-matching.js";
 
 export type RoutingRuleLike = Pick<
   RoutingRule,
-  "id" | "name" | "kind" | "projectId" | "priority" | "conditions" | "targetId" | "fallbackIds" | "enabled"
+  | "id"
+  | "name"
+  | "kind"
+  | "projectId"
+  | "priority"
+  | "conditions"
+  | "targetId"
+  | "fallbackIds"
+  | "enabled"
 >;
 
 export interface RoutingCandidate {
@@ -88,7 +96,8 @@ export function routeTarget(input: RouteTargetInput): RoutingDecision {
     const resolved = input.resolve(targetId);
     if (resolved.ok) {
       attempts.push({ targetId, accepted: true, reason: "Alvo válido neste contexto." });
-      const posicao = attempts.length === 1 ? "o alvo preferido" : `o fallback ${String(attempts.length - 1)}`;
+      const posicao =
+        attempts.length === 1 ? "o alvo preferido" : `o fallback ${String(attempts.length - 1)}`;
       return {
         kind: input.kind,
         selectedId: resolved.candidate.id,

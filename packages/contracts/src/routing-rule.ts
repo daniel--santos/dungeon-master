@@ -43,7 +43,9 @@ export const RoutingRuleSchema = z
     priority: RulePrioritySchema,
     conditions: RuleConditionsSchema,
     targetId: z.uuid().describe("O alvo preferido: id de Model, Loadout ou Workflow."),
-    fallbackIds: z.array(z.uuid()).describe("Alvos tentados em ordem quando o preferido não serve."),
+    fallbackIds: z
+      .array(z.uuid())
+      .describe("Alvos tentados em ordem quando o preferido não serve."),
     enabled: z.boolean(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),

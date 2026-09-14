@@ -92,10 +92,7 @@ export const UpdateApprovalPolicySchema = z
 export type UpdateApprovalPolicy = z.infer<typeof UpdateApprovalPolicySchema>;
 
 export const ApprovalPolicyListQuerySchema = PageQuerySchema.extend({
-  projectId: z
-    .uuid()
-    .optional()
-    .describe("Só as políticas deste Project, mais as globais."),
+  projectId: z.uuid().optional().describe("Só as políticas deste Project, mais as globais."),
   subject: PolicySubjectSchema.optional(),
 }).meta({ id: "ApprovalPolicyListQuery" });
 

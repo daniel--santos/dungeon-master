@@ -402,7 +402,10 @@ export const routingRulesGetRoute = createRoute({
   summary: "Uma regra de roteamento",
   request: { params: AutonomyIdParamSchema },
   responses: {
-    200: { description: "A regra.", content: { "application/json": { schema: RoutingRuleSchema } } },
+    200: {
+      description: "A regra.",
+      content: { "application/json": { schema: RoutingRuleSchema } },
+    },
     404: problem("Não existe RoutingRule com este id."),
   },
 });

@@ -121,4 +121,6 @@ export const RulePrioritySchema = z
   .int()
   .min(0)
   .max(RULE_PRIORITY_MAX)
-  .describe("Prioridade explícita. A regra de maior prioridade que casa decide; empate é revisão humana.");
+  .describe(
+    "Prioridade explícita. A regra de maior prioridade que casa decide; empate é revisão humana.",
+  );

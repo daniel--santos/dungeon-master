@@ -39,7 +39,10 @@ export function budgetWindowBounds(window: CalendarBudgetWindow, now: Date): Bud
 
   switch (window) {
     case "DAY":
-      return { start: new Date(Date.UTC(ano, mes, dia)), end: new Date(Date.UTC(ano, mes, dia + 1)) };
+      return {
+        start: new Date(Date.UTC(ano, mes, dia)),
+        end: new Date(Date.UTC(ano, mes, dia + 1)),
+      };
     case "WEEK": {
       // `getUTCDay()` dá 0 para domingo; a semana ISO começa na segunda.
       const desdeSegunda = (now.getUTCDay() + 6) % 7;
@@ -118,7 +121,10 @@ function consumoDe(key: BudgetLimitKey, consumption: BudgetConsumption): number 
 }
 
 /** Avalia o consumo medido contra os tetos. Sem tetos, pressão zero. */
-export function evaluateBudget(limits: BudgetLimits, consumption: BudgetConsumption): BudgetEvaluation {
+export function evaluateBudget(
+  limits: BudgetLimits,
+  consumption: BudgetConsumption,
+): BudgetEvaluation {
   let pressure = 0;
   const exceeded: BudgetLimitKey[] = [];
 

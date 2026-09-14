@@ -699,7 +699,12 @@ export function createAutonomyPort(options: AutonomyPortOptions): AutonomyPort {
     },
     budgets: {
       list: (input) =>
-        listBudgets(db, { userId, page: input.page, pageSize: input.pageSize, filters: input.filters }),
+        listBudgets(db, {
+          userId,
+          page: input.page,
+          pageSize: input.pageSize,
+          filters: input.filters,
+        }),
       get: async (budgetId) => {
         const row = await findBudgetRow(db, { userId, budgetId });
         return row === null ? null : toBudget(row);

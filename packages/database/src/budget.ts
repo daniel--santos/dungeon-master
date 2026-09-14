@@ -170,7 +170,10 @@ const usageColumns = {
  * saiu da fila consumiu zero com certeza. A duração conta os vivos até agora:
  * o teto de tempo é sobre o que já correu, não sobre o que já acabou.
  */
-function somarConsumo(rows: readonly RunUsageRow[], now: Date): Omit<BudgetConsumption, "concurrentRuns"> {
+function somarConsumo(
+  rows: readonly RunUsageRow[],
+  now: Date,
+): Omit<BudgetConsumption, "concurrentRuns"> {
   let tokens = 0;
   let runsWithoutUsage = 0;
   let wallClockMs = 0;
@@ -225,7 +228,9 @@ export async function computeBudgetUsage(
     .select({ total: count() })
     .from(runs)
     .innerJoin(tasks, eq(tasks.id, runs.taskId))
-    .where(and(eq(runs.userId, input.userId), inArray(runs.status, [...LIVE_RUN_STATUSES]), ...escopo));
+    .where(
+      and(eq(runs.userId, input.userId), inArray(runs.status, [...LIVE_RUN_STATUSES]), ...escopo),
+    );
   const concurrentRuns = vivos?.total ?? 0;
 
   if (budget.window === "PER_RUN") {
@@ -330,7 +335,13 @@ export async function checkBudgetsForNewRun(
     pressoes.push({ pressure: usage.pressure });
 
     const check = checkBudgetForNewRun({
-      budget: { id: budget.id, name: budget.name, window: budget.window, limits: usage.limits, action: budget.action },
+      budget: {
+        id: budget.id,
+        name: budget.name,
+        window: budget.window,
+        limits: usage.limits,
+        action: budget.action,
+      },
       consumption: usage,
     });
     if (check.breach === null) continue;
@@ -427,7 +438,12 @@ export async function createBudget(
       maxConcurrentRuns: input.maxConcurrentRuns ?? null,
     };
 
-    const recusaEscopo = await conferirEscopo(tx, { userId: input.userId, scope: input.scope, projectId, loadoutId });
+    const recusaEscopo = await conferirEscopo(tx, {
+      userId: input.userId,
+      scope: input.scope,
+      projectId,
+      loadoutId,
+    });
     if (recusaEscopo !== null) return failed(recusaEscopo);
     const recusaTetos = conferirTetos(input.window, limits);
     if (recusaTetos !== null) return failed(recusaTetos);
@@ -482,7 +498,8 @@ export async function updateBudget(
     const limits: BudgetLimits = {
       maxTokens: patch.maxTokens === undefined ? current.maxTokens : patch.maxTokens,
       maxRuns: patch.maxRuns === undefined ? current.maxRuns : patch.maxRuns,
-      maxWallClockMs: patch.maxWallClockMs === undefined ? current.maxWallClockMs : patch.maxWallClockMs,
+      maxWallClockMs:
+        patch.maxWallClockMs === undefined ? current.maxWallClockMs : patch.maxWallClockMs,
       maxConcurrentRuns:
         patch.maxConcurrentRuns === undefined ? current.maxConcurrentRuns : patch.maxConcurrentRuns,
     };

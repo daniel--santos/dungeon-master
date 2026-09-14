@@ -173,7 +173,11 @@ async function criarLoadout(input: {
 }
 
 async function criarModel(input: { harnessId: string; key: string }): Promise<string> {
-  const response = await post("/models", { harnessId: input.harnessId, key: input.key, name: input.key });
+  const response = await post("/models", {
+    harnessId: input.harnessId,
+    key: input.key,
+    name: input.key,
+  });
   expect(response.status).toBe(201);
   return ModelSchema.parse(await response.json()).id;
 }
@@ -199,7 +203,11 @@ async function terminarRun(taskId: string, loadoutId: string, result: RunResult)
   expect(criado.status).toBe(201);
   const run = RunSchema.parse(await criado.json());
   await claimNextQueuedRun(handle.db, { userId: LOCAL_USER_ID });
-  const movido = await transitionRun(handle.db, { userId: LOCAL_USER_ID, runId: run.id, to: "RUNNING" });
+  const movido = await transitionRun(handle.db, {
+    userId: LOCAL_USER_ID,
+    runId: run.id,
+    to: "RUNNING",
+  });
   expect(movido?.ok).toBe(true);
   const terminado = await writeRunTerminalStatus(handle.db, {
     userId: LOCAL_USER_ID,
@@ -262,20 +270,26 @@ describe("os quatro cadastros da Fase 9A", () => {
     );
     expect(lista.items.map((item) => item.name)).toEqual(["Nada de Docker", "Chores passam"]);
     expect(
-      ApprovalPolicyPageSchema.parse(await (await get("/approval-policies?subject=GATE")).json()).total,
+      ApprovalPolicyPageSchema.parse(await (await get("/approval-policies?subject=GATE")).json())
+        .total,
     ).toBe(0);
 
     const lida = await get(`/approval-policies/${politica.id}`);
     expect(lida.status).toBe(200);
 
-    const editada = await patch(`/approval-policies/${politica.id}`, { projectId: null, enabled: false });
+    const editada = await patch(`/approval-policies/${politica.id}`, {
+      projectId: null,
+      enabled: false,
+    });
     expect(editada.status).toBe(200);
     expect(ApprovalPolicySchema.parse(await editada.json())).toMatchObject({
       projectId: null,
       enabled: false,
     });
 
-    expect((await patch(`/approval-policies/${politica.id}`, { projectId: ID_INEXISTENTE })).status).toBe(404);
+    expect(
+      (await patch(`/approval-policies/${politica.id}`, { projectId: ID_INEXISTENTE })).status,
+    ).toBe(404);
     expect((await del(`/approval-policies/${politica.id}`)).status).toBe(204);
     expect((await get(`/approval-policies/${politica.id}`)).status).toBe(404);
     expect(await contar("registry.changed")).toBe(4);
@@ -353,11 +367,19 @@ describe("os quatro cadastros da Fase 9A", () => {
     expect(BudgetSchema.parse(await editado.json()).limits.maxTokens).toBeNull();
     expect((await patch(`/budgets/${budget.id}`, { maxRuns: null })).status).toBe(409);
 
-    const lista = BudgetPageSchema.parse(await (await get(`/budgets?projectId=${project.id}`)).json());
+    const lista = BudgetPageSchema.parse(
+      await (await get(`/budgets?projectId=${project.id}`)).json(),
+    );
     expect(lista.total).toBe(1);
 
     const usage = BudgetUsageSchema.parse(await (await get(`/budgets/${budget.id}/usage`)).json());
-    expect(usage).toMatchObject({ window: "DAY", runs: 0, tokens: 0, tokensKnown: true, pressure: 0 });
+    expect(usage).toMatchObject({
+      window: "DAY",
+      runs: 0,
+      tokens: 0,
+      tokensKnown: true,
+      pressure: 0,
+    });
     expect(usage.windowStart).not.toBeNull();
 
     expect((await del(`/budgets/${budget.id}`)).status).toBe(204);
@@ -411,7 +433,9 @@ describe("os quatro cadastros da Fase 9A", () => {
       failuresInWindow: null,
       authNotAuthenticated: true,
     });
-    expect(CircuitBreakerSchema.parse(await editado.json()).triggers.authNotAuthenticated).toBe(true);
+    expect(CircuitBreakerSchema.parse(await editado.json()).triggers.authNotAuthenticated).toBe(
+      true,
+    );
     expect(
       (await patch(`/circuit-breakers/${breaker.id}`, { authNotAuthenticated: false })).status,
     ).toBe(409);
@@ -451,13 +475,25 @@ describe("os quatro cadastros da Fase 9A", () => {
     });
     expect(criada.status).toBe(201);
     const regra = RoutingRuleSchema.parse(await criada.json());
-    expect(regra).toMatchObject({ kind: "MODEL", targetId: modelo, fallbackIds: [], priority: 100 });
+    expect(regra).toMatchObject({
+      kind: "MODEL",
+      targetId: modelo,
+      fallbackIds: [],
+      priority: 100,
+    });
 
-    expect((await patch(`/routing-rules/${regra.id}`, { fallbackIds: [ID_INEXISTENTE] })).status).toBe(404);
+    expect(
+      (await patch(`/routing-rules/${regra.id}`, { fallbackIds: [ID_INEXISTENTE] })).status,
+    ).toBe(404);
     const editada = await patch(`/routing-rules/${regra.id}`, { priority: 5, projectId: null });
-    expect(RoutingRuleSchema.parse(await editada.json())).toMatchObject({ priority: 5, projectId: null });
+    expect(RoutingRuleSchema.parse(await editada.json())).toMatchObject({
+      priority: 5,
+      projectId: null,
+    });
 
-    const lista = RoutingRulePageSchema.parse(await (await get("/routing-rules?kind=MODEL")).json());
+    const lista = RoutingRulePageSchema.parse(
+      await (await get("/routing-rules?kind=MODEL")).json(),
+    );
     expect(lista.total).toBe(1);
     expect((await del(`/routing-rules/${regra.id}`)).status).toBe(204);
   });
@@ -469,7 +505,9 @@ describe("os quatro cadastros da Fase 9A", () => {
 
 describe(`GET/PATCH ${API_BASE_PATH}/projects/{id}/autonomy`, () => {
   it("nasce em 2, sobe para 3 com evento e diário, e é idempotente", async () => {
-    const lido = ProjectAutonomySchema.parse(await (await get(`/projects/${project.id}/autonomy`)).json());
+    const lido = ProjectAutonomySchema.parse(
+      await (await get(`/projects/${project.id}/autonomy`)).json(),
+    );
     expect(lido).toMatchObject({
       projectId: project.id,
       autonomyLevel: 2,
@@ -481,7 +519,9 @@ describe(`GET/PATCH ${API_BASE_PATH}/projects/{id}/autonomy`, () => {
         DELEGATE: false,
       },
     });
-    expect(ProjectSchema.parse(await (await get(`/projects/${project.id}`)).json()).autonomyLevel).toBe(2);
+    expect(
+      ProjectSchema.parse(await (await get(`/projects/${project.id}`)).json()).autonomyLevel,
+    ).toBe(2);
 
     const subiu = await patch(`/projects/${project.id}/autonomy`, { autonomyLevel: 3 });
     expect(subiu.status).toBe(200);
@@ -497,7 +537,9 @@ describe(`GET/PATCH ${API_BASE_PATH}/projects/{id}/autonomy`, () => {
     await patch(`/projects/${project.id}/autonomy`, { autonomyLevel: 3 });
     expect(await contar("autonomy.changed")).toBe(1);
 
-    expect((await patch(`/projects/${project.id}/autonomy`, { autonomyLevel: 5 })).status).toBe(400);
+    expect((await patch(`/projects/${project.id}/autonomy`, { autonomyLevel: 5 })).status).toBe(
+      400,
+    );
     expect((await get(`/projects/${ID_INEXISTENTE}/autonomy`)).status).toBe(404);
   });
 });
@@ -561,15 +603,23 @@ describe(`orçamentos em POST ${API_BASE_PATH}/tasks/{id}/runs`, () => {
     });
     const a = await criarTask({ title: "A" });
     const b = await criarTask({ title: "B" });
-    expect(RunCreatedSchema.parse(await (await criarRun(a.id, loadoutId)).json()).budgetWarnings).toEqual([]);
+    expect(
+      RunCreatedSchema.parse(await (await criarRun(a.id, loadoutId)).json()).budgetWarnings,
+    ).toEqual([]);
 
     const segundo = RunCreatedSchema.parse(await (await criarRun(b.id, loadoutId)).json());
     expect(segundo.budgetWarnings).toHaveLength(1);
-    expect(segundo.budgetWarnings[0]).toMatchObject({ action: "WARN", limit: "maxRuns", current: 2 });
+    expect(segundo.budgetWarnings[0]).toMatchObject({
+      action: "WARN",
+      limit: "maxRuns",
+      current: 2,
+    });
     expect(await contar("budget.warned")).toBe(1);
 
     // O aviso foi ao diário do Run.
-    const eventos = RunEventListSchema.parse(await (await get(`/runs/${segundo.id}/events`)).json());
+    const eventos = RunEventListSchema.parse(
+      await (await get(`/runs/${segundo.id}/events`)).json(),
+    );
     expect(
       eventos.items.map((event) => (event.payload as { code?: string }).code).filter(Boolean),
     ).toContain("BUDGET_WARNED");
@@ -677,11 +727,15 @@ describe(`disjuntores em POST ${API_BASE_PATH}/tasks/{id}/runs`, () => {
     const sondagem = RunCreatedSchema.parse(await (await criarRun(a.id, loadoutId)).json());
     expect(sondagem.breaker).toMatchObject({ breakerId, state: "HALF_OPEN", probe: true });
 
-    const lido = CircuitBreakerSchema.parse(await (await get(`/circuit-breakers/${breakerId}`)).json());
+    const lido = CircuitBreakerSchema.parse(
+      await (await get(`/circuit-breakers/${breakerId}`)).json(),
+    );
     expect(lido).toMatchObject({ state: "HALF_OPEN", probeRunId: sondagem.id });
     expect(await contar("breaker.half_open")).toBe(1);
 
-    const eventos = RunEventListSchema.parse(await (await get(`/runs/${sondagem.id}/events`)).json());
+    const eventos = RunEventListSchema.parse(
+      await (await get(`/runs/${sondagem.id}/events`)).json(),
+    );
     expect(
       eventos.items.map((event) => (event.payload as { code?: string }).code).filter(Boolean),
     ).toContain("BREAKER_PROBE");
@@ -756,7 +810,9 @@ describe(`políticas RUN_START em POST ${API_BASE_PATH}/tasks/{id}/runs`, () => 
       decidedBy: `POLICY:${politica.id}`,
       autonomyLevel: 3,
     });
-    const eventos = RunEventListSchema.parse(await (await get(`/runs/${aprovado.id}/events`)).json());
+    const eventos = RunEventListSchema.parse(
+      await (await get(`/runs/${aprovado.id}/events`)).json(),
+    );
     expect(
       eventos.items.map((event) => (event.payload as { code?: string }).code).filter(Boolean),
     ).toContain("POLICY_DECIDED");
@@ -764,7 +820,8 @@ describe(`políticas RUN_START em POST ${API_BASE_PATH}/tasks/{id}/runs`, () => 
     // Uma feature não casa: continua DEFAULT.
     const d = await criarTask({ title: "D", kind: "FEATURE" });
     expect(
-      RunCreatedSchema.parse(await (await criarRun(d.id, loadoutId)).json()).policyDecision.decidedBy,
+      RunCreatedSchema.parse(await (await criarRun(d.id, loadoutId)).json()).policyDecision
+        .decidedBy,
     ).toBe("DEFAULT");
 
     const nega = await post("/approval-policies", {
@@ -778,14 +835,22 @@ describe(`políticas RUN_START em POST ${API_BASE_PATH}/tasks/{id}/runs`, () => 
     const e = await criarTask({ title: "E", kind: "BUG", priority: "URGENT" });
     const recusado = await problema(await criarRun(e.id, loadoutId), 409);
     expect(recusado["code"]).toBe("POLICY_DENIED");
-    expect(recusado["policyDecision"]).toMatchObject({ action: "DENY", decidedBy: `POLICY:${negacao.id}` });
+    expect(recusado["policyDecision"]).toMatchObject({
+      action: "DENY",
+      decidedBy: `POLICY:${negacao.id}`,
+    });
     expect(TaskDetailSchema.parse(await (await get(`/tasks/${e.id}`)).json()).status).toBe("READY");
   });
 
   it("empate entre políticas de mesma prioridade é revisão humana", async () => {
     const loadoutId = await criarLoadout({ name: "Forja" });
     await nivel(3);
-    await post("/approval-policies", { name: "x", subject: "RUN_START", priority: 7, action: "DENY" });
+    await post("/approval-policies", {
+      name: "x",
+      subject: "RUN_START",
+      priority: 7,
+      action: "DENY",
+    });
     await post("/approval-policies", {
       name: "y",
       subject: "RUN_START",
@@ -878,7 +943,13 @@ describe(`roteamento de Model em POST ${API_BASE_PATH}/tasks/{id}/runs`, () => {
       chaves.push(run.modelKey ?? "");
     }
     // Quatro Runs criados = pressão 0,8 na hora do quinto.
-    expect(chaves).toEqual(["claude-caro", "claude-caro", "claude-caro", "claude-caro", "claude-barato"]);
+    expect(chaves).toEqual([
+      "claude-caro",
+      "claude-caro",
+      "claude-caro",
+      "claude-caro",
+      "claude-barato",
+    ]);
   });
 });
 
@@ -910,7 +981,9 @@ describe(`POST ${API_BASE_PATH}/tasks/{id}/suggestions`, () => {
     expect(recusado["code"]).toBe("AUTOMATION_NOT_ALLOWED");
 
     await nivel(1);
-    const doBug = TaskSuggestionsSchema.parse(await (await post(`/tasks/${bug.id}/suggestions`, undefined)).json());
+    const doBug = TaskSuggestionsSchema.parse(
+      await (await post(`/tasks/${bug.id}/suggestions`, undefined)).json(),
+    );
     expect(doBug.loadout).toMatchObject({ selectedId: especial, selectedName: "Especial" });
     expect(doBug.loadout.decidedBy.startsWith("ROUTING:")).toBe(true);
     expect(doBug.workflow).toMatchObject({ selectedId: null, decidedBy: "DEFAULT" });
@@ -1004,7 +1077,9 @@ describe("propostas decididas por política na transação do desfecho", () => {
     const origem = await criarTask({ title: "Faxina", kind: "CHORE" });
     await terminarRun(origem.id, loadoutId, RESULTADO);
 
-    const propostas = ProposedTaskPageSchema.parse(await (await get("/proposed-tasks?status=PROPOSED")).json());
+    const propostas = ProposedTaskPageSchema.parse(
+      await (await get("/proposed-tasks?status=PROPOSED")).json(),
+    );
     expect(propostas.total).toBe(2);
     expect(TaskPageSchema.parse(await (await get("/tasks?createdBy=POLICY")).json()).total).toBe(0);
     expect(await contar("policy.decided")).toBe(1);
@@ -1037,6 +1112,8 @@ describe("propostas decididas por política na transação do desfecho", () => {
     const aprovada = await post(`/proposed-tasks/${abertas.items[0]?.id ?? ""}/approve`, {});
     expect(aprovada.status).toBe(200);
     const criadaId = ((await aprovada.json()) as { createdTaskId: string }).createdTaskId;
-    expect(TaskDetailSchema.parse(await (await get(`/tasks/${criadaId}`)).json()).createdBy).toBe("PROPOSAL");
+    expect(TaskDetailSchema.parse(await (await get(`/tasks/${criadaId}`)).json()).createdBy).toBe(
+      "PROPOSAL",
+    );
   });
 });

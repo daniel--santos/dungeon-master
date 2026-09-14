@@ -12,7 +12,12 @@ describe("allowsAutomation", () => {
   it("0 e 1 nunca automatizam; 1 só sugere", () => {
     expect(allowsAutomation(0, "SUGGEST")).toBe(false);
     expect(allowsAutomation(1, "SUGGEST")).toBe(true);
-    for (const kind of ["AUTO_APPROVE_PROPOSAL", "AUTO_APPROVE_GATE", "AUTO_DISPATCH", "DELEGATE"] as const) {
+    for (const kind of [
+      "AUTO_APPROVE_PROPOSAL",
+      "AUTO_APPROVE_GATE",
+      "AUTO_DISPATCH",
+      "DELEGATE",
+    ] as const) {
       expect(allowsAutomation(0, kind)).toBe(false);
       expect(allowsAutomation(1, kind)).toBe(false);
     }

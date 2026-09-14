@@ -69,7 +69,9 @@ export async function listPoliciesForDecision(
   const rows = await db
     .select()
     .from(approvalPolicies)
-    .where(and(eq(approvalPolicies.userId, input.userId), eq(approvalPolicies.enabled, true), escopo))
+    .where(
+      and(eq(approvalPolicies.userId, input.userId), eq(approvalPolicies.enabled, true), escopo),
+    )
     .orderBy(desc(approvalPolicies.priority), asc(approvalPolicies.id));
 
   return rows.map(toApprovalPolicy);
@@ -185,7 +187,10 @@ export async function updateApprovalPolicy(
 
     const { patch } = input;
     if (patch.projectId !== undefined && patch.projectId !== null) {
-      const project = await findProjectRow(tx, { userId: input.userId, projectId: patch.projectId });
+      const project = await findProjectRow(tx, {
+        userId: input.userId,
+        projectId: patch.projectId,
+      });
       if (project === null) {
         return failed<AutonomyWriteFailure>({
           code: "PROJECT_NOT_FOUND",

@@ -173,7 +173,13 @@ describe("decideApproval", () => {
       policy("do-p2", { projectId: "P2", priority: 900, action: "DENY" }),
       policy("global", { priority: 1, action: "AUTO_APPROVE" }),
     ];
-    const emP1 = decideApproval({ subject: "PROPOSAL", policies, facts: FACTS, autonomyLevel: 3, now: NOW });
+    const emP1 = decideApproval({
+      subject: "PROPOSAL",
+      policies,
+      facts: FACTS,
+      autonomyLevel: 3,
+      now: NOW,
+    });
     expect(emP1.decidedBy).toBe("POLICY:global");
     const emP2 = decideApproval({
       subject: "PROPOSAL",
