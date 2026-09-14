@@ -138,9 +138,9 @@ export function PolicyList({ projectId, projectTitle, scope, autonomy }: PolicyL
                   )}
                   {inert && (
                     <span
-                      className={cn(CHIP, "text-[oklch(0.72_0.13_75)]")}
+                      className={cn(CHIP, "text-accent-amber")}
                       data-policy-inert-badge
-                      style={{ borderColor: tint("oklch(0.72 0.13 75)", 45) }}
+                      style={{ borderColor: tint("var(--accent-amber)", 45) }}
                       title={t("policy.inert.hint")}
                     >
                       <ShieldAlert aria-hidden className="size-3" />

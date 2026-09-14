@@ -49,6 +49,7 @@ export const runKeys = {
   steps: (id: string) => ["runs", "steps", id] as const,
   gates: (id: string) => ["runs", "gates", id] as const,
   context: (id: string) => ["runs", "context", id] as const,
+  children: (id: string) => ["runs", "children", id] as const,
 };
 
 function toQuery(params: RunListParams) {
@@ -104,6 +105,26 @@ export function useRun(id: string): UseQueryResult<Run> {
       const status = query.state.data?.status;
       return status !== undefined && isLiveRunStatus(status) ? 3_000 : false;
     },
+  });
+}
+
+/**
+ * Os filhos diretos de um Run (Fase 9B): as Expedições que um step
+ * `delegate` abriu, do mais antigo ao mais novo. Relida a cada três segundos
+ * enquanto a mãe está viva, porque um filho nasce e termina pelo Worker,
+ * fora desta aba; o `delegation.*` do SSE também invalida (`lib/live.ts`).
+ */
+export function useRunChildren(id: string, live: boolean): UseQueryResult<readonly Run[]> {
+  return useQuery({
+    queryKey: runKeys.children(id),
+    queryFn: async () => {
+      const { data, error, response } = await api.GET("/api/v1/runs/{id}/children", {
+        params: { path: { id } },
+      });
+      if (data === undefined) fail(error, response.status, "Não foi possível ler os filhos");
+      return data.items;
+    },
+    refetchInterval: live ? 3_000 : false,
   });
 }
 

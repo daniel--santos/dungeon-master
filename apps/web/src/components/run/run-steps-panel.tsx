@@ -1,10 +1,12 @@
 import type { RunStepStatus } from "@dungeon-master/contracts";
+import { Link } from "@tanstack/react-router";
 import { ListOrdered } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Panel } from "@/components/panel";
 import type { RunStepRecord, RunStepResultRecord } from "@/lib/api-types";
 import { useRunSteps } from "@/lib/approvals";
+import { RUN_STATUS } from "@/lib/execution-domain";
 import { useGlossary } from "@/lib/glossary";
 import { formatDuration } from "@/lib/runs";
 import { cn } from "@/lib/utils";
@@ -316,6 +318,29 @@ function ResultSummary({ result }: { result: RunStepResultRecord }) {
           {format(result.candidates.length === 1 ? "{n} candidato" : "{n} candidatos", {
             n: NUMBER.format(result.candidates.length),
           })}
+        </Detail>
+      );
+
+    // A delegação (Fase 9B): o passo abriu um Run filho e esperou por ele. O
+    // estado terminal do filho e o veredito do agente dele vêm no resultado;
+    // o link leva ao cockpit do filho, onde o Diário dele mora.
+    case "delegate":
+      return (
+        <Detail data-step-result="delegate">
+          <span className="text-foreground">{t(RUN_STATUS[result.status].label)}</span>
+          {result.resultStatus !== undefined && <span>{` · ${result.resultStatus}`}</span>}
+          {result.summary !== undefined && result.summary !== "" && (
+            <span>{` · ${oneLine(result.summary)}`}</span>
+          )}
+          <span>{" · "}</span>
+          <Link
+            className="underline-offset-2 hover:underline"
+            data-step-child-run={result.childRunId}
+            params={{ id: result.childRunId }}
+            to="/runs/$id"
+          >
+            {format("Abrir o {cockpit}", { cockpit: t("run.cockpit") })}
+          </Link>
         </Detail>
       );
   }

@@ -310,12 +310,30 @@ function describe(event: RunEvent, labels: TimelineLabels): Described {
     case "ApprovalRejected": {
       const status = event.type === "ApprovalGranted" ? "GRANTED" : "REJECTED";
       const note = text(payload, "note");
+      // Quem decidiu (Fase 9B): o usuário, ou uma política (`POLICY:<id>`);
+      // a frase canônica da política vai junto do que ela deixou de nota.
+      const decider = text(payload, event.type === "ApprovalGranted" ? "grantedBy" : "rejectedBy");
+      const reason = text(payload, "reason");
+      const who =
+        decider === null
+          ? null
+          : decider.startsWith("POLICY:")
+            ? t("run.origin.policy")
+            : t("run.origin.user");
+      const detail = [reason, note].filter((part) => part !== null && part !== "").join(" · ");
       return {
-        title: format("{status} · {key}", {
-          status: t(APPROVAL_GATE_STATUS[status].label),
-          key: text(payload, "gateKey") ?? "?",
-        }),
-        detail: note === null ? null : oneLine(note),
+        title:
+          who === null
+            ? format("{status} · {key}", {
+                status: t(APPROVAL_GATE_STATUS[status].label),
+                key: text(payload, "gateKey") ?? "?",
+              })
+            : format("{status} · {key} · {who}", {
+                status: t(APPROVAL_GATE_STATUS[status].label),
+                key: text(payload, "gateKey") ?? "?",
+                who,
+              }),
+        detail: detail === "" ? null : oneLine(detail),
         code: false,
       };
     }
@@ -370,6 +388,37 @@ export function countByFilter(events: readonly RunEvent[]): Record<EventFilterId
  * renderização, e um `StepFinished` seguido de um `TextDelta` do agente ficaria
  * invisível.
  */
+/** Quem decidiu um gate e por quê, lido do `ApprovalGranted`/`ApprovalRejected` (Fase 9B). */
+export interface GateDecision {
+  /** `USER`, ou `POLICY:<id>` quando uma política decidiu. */
+  readonly decidedBy: string;
+  /** A frase canônica da política, quando uma política decidiu. */
+  readonly reason: string | null;
+}
+
+/**
+ * As decisões de gate do diário, por `gateId`.
+ *
+ * O registro do gate (`ApprovalGate`) guarda estado, nota e instante, mas
+ * não quem decidiu: isso está no evento da decisão, gravado na mesma
+ * transação do CAS. A carta do Selo lê daqui para dizer se foi o usuário
+ * ou uma política — e qual.
+ */
+export function gateDecisions(events: readonly RunEvent[]): ReadonlyMap<string, GateDecision> {
+  const decisions = new Map<string, GateDecision>();
+  for (const event of events) {
+    if (event.type !== "ApprovalGranted" && event.type !== "ApprovalRejected") continue;
+    const gateId = text(event.payload, "gateId");
+    const decidedBy = text(
+      event.payload,
+      event.type === "ApprovalGranted" ? "grantedBy" : "rejectedBy",
+    );
+    if (gateId === null || decidedBy === null) continue;
+    decisions.set(gateId, { decidedBy, reason: text(event.payload, "reason") });
+  }
+  return decisions;
+}
+
 export function hasWorkflowEventAfter(events: readonly RunEvent[], sequence: number): boolean {
   return events.some(
     (event) => event.sequence > sequence && eventPresentation(event.type).group === "workflow",

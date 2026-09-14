@@ -116,7 +116,7 @@ export function SuggestionsBlock({
 
   return (
     <div
-      className="flex flex-col gap-2.5 rounded-[10px] border px-3 py-2.5"
+      className="flex flex-col gap-2.5 rounded-lg border px-3 py-2.5"
       data-run-suggestions="ready"
       style={{ borderColor: tint(AUTONOMY_COLOR, 40) }}
     >
@@ -182,7 +182,7 @@ export function SuggestionsBlock({
 function Note({ state, text, pulse = false }: { state: string; text: string; pulse?: boolean }) {
   return (
     <div
-      className="border-border text-muted-foreground flex items-center gap-2 rounded-[10px] border px-3 py-2 text-[11.5px]"
+      className="border-border text-muted-foreground flex items-center gap-2 rounded-lg border px-3 py-2 text-[11.5px]"
       data-run-suggestions={state}
     >
       <Gauge
@@ -290,7 +290,7 @@ export function RefusalBlock({ refusal, projectId }: RefusalBlockProps) {
 
   return (
     <div
-      className="border-destructive/40 bg-destructive/8 flex flex-col gap-2.5 rounded-[10px] border px-3 py-2.5"
+      className="border-destructive/40 bg-destructive/8 flex flex-col gap-2.5 rounded-lg border px-3 py-2.5"
       data-run-refusal={refusal.kind}
     >
       <div className="flex flex-wrap items-center gap-2">

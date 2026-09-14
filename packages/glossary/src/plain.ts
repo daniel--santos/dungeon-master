@@ -1001,8 +1001,14 @@ export const plain: Record<GlossaryKey, string> = {
   // -------------------------------------------------------------- diagnostic
   "diagnostic.policyDecided": "Política",
   "diagnostic.budgetWarned": "Orçamento",
+  "diagnostic.budgetExceeded": "Orçamento no teto",
   "diagnostic.modelRouted": "Roteamento",
   "diagnostic.breakerProbe": "Sondagem",
+  "diagnostic.breakerOpen": "Disjuntor",
+
+  // ------------------------------------------------------ approval.decidedBy
+  "approval.decidedBy.user": "por você",
+  "approval.decidedBy.policy": "pela política {name}",
 
   // -------------------------------------------------------------- settings
   "settings.theme.toggle": "Tema Dungeon Master",

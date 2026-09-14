@@ -59,9 +59,17 @@ const PER_RUN_BUDGET = {
   limits: { maxTokens: 3_000, maxRuns: null, maxWallClockMs: null, maxConcurrentRuns: null },
 };
 
-function abrir(run: RunRecord, siblings: readonly RunListItemRecord[], budgets = [PER_RUN_BUDGET]) {
+function abrir(run: RunRecord, children: readonly RunListItemRecord[], budgets = [PER_RUN_BUDGET]) {
+  // A rota dos filhos devolve o Run sem o título da Task; o título vem das
+  // Tasks da Campanha, e a fixture serve as duas leituras.
   const responses: Record<string, unknown> = {
-    "/api/v1/runs": { items: siblings, page: 1, pageSize: 100, total: siblings.length },
+    "/api/v1/runs/{id}/children": { items: children },
+    "/api/v1/tasks": {
+      items: children.map((child) => ({ ...TASK, id: child.taskId, title: child.taskTitle })),
+      page: 1,
+      pageSize: 100,
+      total: children.length,
+    },
     "/api/v1/budgets": { items: budgets, page: 1, pageSize: 100, total: budgets.length },
   };
   client.GET.mockImplementation(((path: string) =>
@@ -96,22 +104,19 @@ describe("o bloco de origem", () => {
   });
 
   it("uma Expedição do usuário lista as filhas que a delegação abriu", async () => {
-    abrir(RUN, [
-      CHILD,
-      { ...CHILD, id: "01990000-0000-7000-8000-0000000000dd", parentRunId: null },
-    ]);
+    abrir(RUN, [CHILD]);
 
     const panel = document.querySelector("[data-run-origin]") as HTMLElement;
     expect(panel.getAttribute("data-run-origin")).toBe("USER");
     expect(panel.textContent).toContain(dnd["run.origin.user"]);
     expect(panel.querySelector("[data-run-parent]")).toBeNull();
 
+    // As filhas vêm da rota própria (Fase 9B), e o título da Task da Campanha.
     await waitFor(() => {
-      expect(client.GET).toHaveBeenCalledWith("/api/v1/runs", {
-        params: { query: { pageSize: "100", projectId: TASK.projectId } },
+      expect(client.GET).toHaveBeenCalledWith("/api/v1/runs/{id}/children", {
+        params: { path: { id: RUN.id } },
       });
     });
-    // Só a filha com `parentRunId` igual a este Run entra; a outra é irmã.
     await waitFor(() => {
       expect(panel.querySelector("[data-run-children]")?.getAttribute("data-run-children")).toBe(
         "1",

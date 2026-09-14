@@ -99,6 +99,17 @@ export function useLiveQueries(): void {
         return;
       }
 
+      if (event.type.startsWith("delegation.") || event.type.startsWith("dispatch.")) {
+        // Uma delegação abriu ou fechou um Run filho, ou o auto-despacho
+        // enfileirou (ou pulou) uma Task criada por política (Fase 9B): a
+        // lista de Expedições, os filhos no cockpit, a Missão e a Campanha
+        // releem, como no ramo `run.`.
+        void queryClient.invalidateQueries({ queryKey: ["runs"] });
+        void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+        void queryClient.invalidateQueries({ queryKey: ["projects"] });
+        return;
+      }
+
       if (AUTONOMY_PREFIXES.some((prefix) => event.type.startsWith(prefix))) {
         // Uma decisão, um orçamento no teto, um disjuntor que abriu ou fechou,
         // o nível que mudou (Fase 9C): as listas, o consumo medido e o nível

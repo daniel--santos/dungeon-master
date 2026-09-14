@@ -454,7 +454,7 @@ function TriggerRow({
 }) {
   return (
     <div
-      className="flex flex-wrap items-center gap-3 rounded-[10px] border border-transparent px-1 py-1"
+      className="flex flex-wrap items-center gap-3 rounded-lg border border-transparent px-1 py-1"
       data-breaker-trigger={testId}
       data-breaker-trigger-on={checked ? "true" : "false"}
     >

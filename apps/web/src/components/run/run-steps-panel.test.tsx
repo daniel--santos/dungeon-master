@@ -123,4 +123,41 @@ describe("Passos do ritual", () => {
     );
     expect(screen.getByText(plain["entity.workflowStep.plural"])).toBeDefined();
   });
+
+  /**
+   * O passo de delegação (Fase 9B): o resultado diz como o Run filho
+   * terminou, o veredito do agente dele, e leva ao cockpit do filho.
+   */
+  it("um passo delegate mostra o desfecho do filho e o link para o cockpit dele", async () => {
+    const childRunId = "01990000-0000-7000-8000-0000000000cc";
+    const delegated = {
+      ...RUN_STEPS[0]!,
+      id: "0199c0c0-0000-7000-8000-00000000000d",
+      key: "delegate-review",
+      name: "Delegar a revisão",
+      type: "delegate" as const,
+      status: "SUCCEEDED" as const,
+      result: {
+        kind: "delegate" as const,
+        childRunId,
+        childTaskId: "0199eeee-0000-7000-8000-0000000000cc",
+        status: "SUCCEEDED" as const,
+        resultStatus: "completed" as const,
+        summary: "Revisão feita pelo filho.",
+      },
+    };
+    client.GET.mockResolvedValue(ok({ items: [delegated] }) as never);
+
+    renderInRouter(<RunStepsPanel live={false} now={NOW} runId={RUN.id} />);
+    await waitFor(() => {
+      expect(document.querySelectorAll("[data-run-step]")).toHaveLength(1);
+    });
+
+    const result = row("delegate-review").querySelector('[data-step-result="delegate"]');
+    expect(result?.textContent).toContain(dnd["run.status.succeeded"]);
+    expect(result?.textContent).toContain("completed");
+    expect(result?.textContent).toContain("Revisão feita pelo filho.");
+    const link = result?.querySelector(`[data-step-child-run="${childRunId}"]`);
+    expect(link?.getAttribute("href")).toBe(`/runs/${childRunId}`);
+  });
 });
