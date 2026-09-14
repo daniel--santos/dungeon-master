@@ -438,12 +438,15 @@ export const AUTONOMY_DIAGNOSTIC: Record<AutonomyDiagnosticCode, GlossaryKey> = 
 
 export function isAutonomyDiagnosticCode(value: unknown): value is AutonomyDiagnosticCode {
   return (
-    typeof value === "string" &&
-    (AUTONOMY_DIAGNOSTIC_CODES as readonly string[]).includes(value)
+    typeof value === "string" && (AUTONOMY_DIAGNOSTIC_CODES as readonly string[]).includes(value)
   );
 }
 
 /** A cor de um destaque do diário pelo código: o aviso de orçamento é âmbar, o resto é a cor da autonomia. */
 export function diagnosticColor(code: AutonomyDiagnosticCode): string {
-  return code === "BUDGET_WARNED" ? ACCENT_AMBER : code === "MODEL_ROUTED" ? ACCENT_BLUE : AUTONOMY_COLOR;
+  return code === "BUDGET_WARNED"
+    ? ACCENT_AMBER
+    : code === "MODEL_ROUTED"
+      ? ACCENT_BLUE
+      : AUTONOMY_COLOR;
 }

@@ -1,4 +1,9 @@
-import type { BudgetAction, BudgetLimitKey, BudgetScope, BudgetWindow } from "@dungeon-master/contracts";
+import type {
+  BudgetAction,
+  BudgetLimitKey,
+  BudgetScope,
+  BudgetWindow,
+} from "@dungeon-master/contracts";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
@@ -101,8 +106,14 @@ export function BudgetDialog({
     setLoadoutId(budget?.loadoutId ?? "");
     setWindow(budget?.window ?? "DAY");
     setLimits({
-      maxTokens: budget?.limits.maxTokens === null || budget === undefined ? "" : String(budget.limits.maxTokens),
-      maxRuns: budget?.limits.maxRuns === null || budget === undefined ? "" : String(budget.limits.maxRuns),
+      maxTokens:
+        budget?.limits.maxTokens === null || budget === undefined
+          ? ""
+          : String(budget.limits.maxTokens),
+      maxRuns:
+        budget?.limits.maxRuns === null || budget === undefined
+          ? ""
+          : String(budget.limits.maxRuns),
       maxWallClockMs:
         budget?.limits.maxWallClockMs === null || budget === undefined
           ? ""
@@ -118,17 +129,13 @@ export function BudgetDialog({
 
   const pending = create.isPending || update.isPending;
   const keys = limitKeysFor(window);
-  const parsed = Object.fromEntries(keys.map((key) => [key, parseLimit(key, limits[key])])) as Record<
-    BudgetLimitKey,
-    number | null | "invalid"
-  >;
+  const parsed = Object.fromEntries(
+    keys.map((key) => [key, parseLimit(key, limits[key])]),
+  ) as Record<BudgetLimitKey, number | null | "invalid">;
   const someInvalid = keys.some((key) => parsed[key] === "invalid");
   const someLimit = keys.some((key) => typeof parsed[key] === "number");
   const valid =
-    name.trim() !== "" &&
-    !someInvalid &&
-    someLimit &&
-    (scope !== "LOADOUT" || loadoutId !== "");
+    name.trim() !== "" && !someInvalid && someLimit && (scope !== "LOADOUT" || loadoutId !== "");
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -248,7 +255,11 @@ export function BudgetDialog({
           {scope === "LOADOUT" && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="budget-loadout">{t("entity.loadout")}</Label>
-              <Select disabled={budget !== undefined} onValueChange={setLoadoutId} value={loadoutId}>
+              <Select
+                disabled={budget !== undefined}
+                onValueChange={setLoadoutId}
+                value={loadoutId}
+              >
                 <SelectTrigger aria-label={t("entity.loadout")} id="budget-loadout">
                   <SelectValue placeholder={t("entity.loadout")} />
                 </SelectTrigger>
@@ -319,8 +330,16 @@ export function BudgetDialog({
               </Select>
             </div>
 
-            <label className="flex cursor-pointer items-center gap-2 self-end pb-2 text-[12.5px]" htmlFor="budget-enabled">
-              <Switch checked={enabled} disabled={pending} id="budget-enabled" onCheckedChange={setEnabled} />
+            <label
+              className="flex cursor-pointer items-center gap-2 self-end pb-2 text-[12.5px]"
+              htmlFor="budget-enabled"
+            >
+              <Switch
+                checked={enabled}
+                disabled={pending}
+                id="budget-enabled"
+                onCheckedChange={setEnabled}
+              />
               <span>Ligado</span>
             </label>
           </div>

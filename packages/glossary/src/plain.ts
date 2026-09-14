@@ -762,8 +762,7 @@ export const plain: Record<GlossaryKey, string> = {
     "Você cria cada tarefa e inicia cada execução. Nada é sugerido.",
   "autonomy.level.suggest.description":
     "O sistema sugere Loadout, workflow e modelo ao iniciar; a decisão continua sua.",
-  "autonomy.level.propose.description":
-    "O agente propõe tarefas; cada uma espera a sua aprovação.",
+  "autonomy.level.propose.description": "O agente propõe tarefas; cada uma espera a sua aprovação.",
   "autonomy.level.policies.description":
     "As políticas podem aprovar propostas, conceder aprovações e iniciar execuções sem você.",
   "autonomy.level.delegate.description":

@@ -22,8 +22,10 @@ const client = vi.mocked(api);
 
 function abrir(level: 0 | 1 | 2 | 3 | 4 = 2) {
   client.GET.mockResolvedValue(ok(projectAutonomy(level)) as never);
-  client.PATCH.mockImplementation(((_path: string, options: { body: { autonomyLevel: 0 | 1 | 2 | 3 | 4 } }) =>
-    Promise.resolve(ok(projectAutonomy(options.body.autonomyLevel)))) as never);
+  client.PATCH.mockImplementation(((
+    _path: string,
+    options: { body: { autonomyLevel: 0 | 1 | 2 | 3 | 4 } },
+  ) => Promise.resolve(ok(projectAutonomy(options.body.autonomyLevel)))) as never);
 
   renderInRouter(<AutonomyLevelPanel projectId={PROJECT_ID} />);
 }
@@ -41,9 +43,9 @@ describe("a escada de autonomia", () => {
       expect(element).not.toBeNull();
       return element as HTMLElement;
     });
-    expect(panel.querySelector('[data-autonomy-level="2"]')?.getAttribute("data-autonomy-level-active")).toBe(
-      "true",
-    );
+    expect(
+      panel.querySelector('[data-autonomy-level="2"]')?.getAttribute("data-autonomy-level-active"),
+    ).toBe("true");
     expect(panel.textContent).toContain(dnd["autonomy.level.propose"]);
     expect(
       panel.querySelector('[data-autonomy-allow="SUGGEST"]')?.getAttribute("data-autonomy-allowed"),

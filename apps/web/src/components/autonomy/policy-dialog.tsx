@@ -24,7 +24,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { ApprovalPolicyRecord, ProjectAutonomyRecord, RuleConditionsRecord } from "@/lib/api-types";
+import type {
+  ApprovalPolicyRecord,
+  ProjectAutonomyRecord,
+  RuleConditionsRecord,
+} from "@/lib/api-types";
 import { useCreateApprovalPolicy, useUpdateApprovalPolicy } from "@/lib/autonomy";
 import {
   isPolicyInert,
@@ -207,7 +211,10 @@ export function PolicyDialog({
                 backgroundColor: tint("oklch(0.72 0.13 75)", 9),
               }}
             >
-              <ShieldAlert aria-hidden className="mt-0.5 size-3.5 flex-none text-[oklch(0.72_0.13_75)]" />
+              <ShieldAlert
+                aria-hidden
+                className="mt-0.5 size-3.5 flex-none text-[oklch(0.72_0.13_75)]"
+              />
               <span className="flex flex-col gap-0.5">
                 <span className="text-[12.5px] font-medium">{t("policy.inert")}</span>
                 <span className="text-muted-foreground text-[11.5px] leading-4.5">
@@ -269,7 +276,10 @@ export function PolicyDialog({
           </p>
 
           <div className="flex items-center justify-between gap-4">
-            <label className="flex cursor-pointer items-center gap-2 text-[12.5px]" htmlFor="policy-enabled">
+            <label
+              className="flex cursor-pointer items-center gap-2 text-[12.5px]"
+              htmlFor="policy-enabled"
+            >
               <Switch
                 checked={enabled}
                 disabled={pending}

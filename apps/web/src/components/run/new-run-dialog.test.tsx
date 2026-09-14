@@ -458,9 +458,9 @@ describe("as recusas da autonomia na Nova Expedição", () => {
     expect(block.textContent).toContain(dnd["budget.limit.maxRuns"]);
     expect(block.textContent).toContain("11 de 10");
     expect(block.querySelector('[data-budget-limit="maxRuns"]')).not.toBeNull();
-    expect(block.querySelector("[data-budget-exceeded]")?.getAttribute("data-budget-exceeded")).toBe(
-      "maxRuns",
-    );
+    expect(
+      block.querySelector("[data-budget-exceeded]")?.getAttribute("data-budget-exceeded"),
+    ).toBe("maxRuns");
     expect(block.querySelector("[data-run-refusal-open]")).not.toBeNull();
   });
 
@@ -483,15 +483,19 @@ describe("as recusas da autonomia na Nova Expedição", () => {
     expect(block.textContent).toContain(BREAKER_ADMISSION_REFUSED.reason);
     // Quando reabre vem do próprio disjuntor: `openedAt` mais o cooldown.
     await waitFor(() => {
-      expect(block.querySelector("[data-run-refusal-reopens]")?.getAttribute("data-run-refusal-reopens")).toBe(
-        "2026-09-14T10:30:00.000Z",
-      );
+      expect(
+        block.querySelector("[data-run-refusal-reopens]")?.getAttribute("data-run-refusal-reopens"),
+      ).toBe("2026-09-14T10:30:00.000Z");
     });
   });
 
   it("POLICY_DENIED nomeia o Édito que recusou", async () => {
     await partirContra(
-      refused("POLICY_DENIED", { policyDecision: POLICY_DENIED_DECISION }, POLICY_DENIED_DECISION.reason),
+      refused(
+        "POLICY_DENIED",
+        { policyDecision: POLICY_DENIED_DECISION },
+        POLICY_DENIED_DECISION.reason,
+      ),
     );
 
     const block = await waitFor(() => {

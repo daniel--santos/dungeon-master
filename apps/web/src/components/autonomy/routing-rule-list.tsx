@@ -138,7 +138,10 @@ export function RoutingRuleList({ projectId, projectTitle, scope }: RoutingRuleL
                 <span className="flex items-center gap-1">
                   <span>{t("routing.target")}:</span>
                   <span
-                    className={cn("text-foreground font-medium", !names.has(rule.targetId) && "text-destructive")}
+                    className={cn(
+                      "text-foreground font-medium",
+                      !names.has(rule.targetId) && "text-destructive",
+                    )}
                     data-routing-target={rule.targetId}
                   >
                     {names.get(rule.targetId) ?? t("routing.target.missing")}

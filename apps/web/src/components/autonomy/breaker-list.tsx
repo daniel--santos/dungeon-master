@@ -20,7 +20,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import type { CircuitBreakerRecord } from "@/lib/api-types";
-import { useCircuitBreakers, useDeleteCircuitBreaker, useResetCircuitBreaker } from "@/lib/autonomy";
+import {
+  useCircuitBreakers,
+  useDeleteCircuitBreaker,
+  useResetCircuitBreaker,
+} from "@/lib/autonomy";
 import { BREAKER_SCOPE, BREAKER_STATE, breakerReopensAt } from "@/lib/autonomy-domain";
 import { formatDateTime, relativeTime } from "@/lib/datetime";
 import { useHarnesses, useLoadouts } from "@/lib/execution";
@@ -154,7 +158,10 @@ export function BreakerList({ projectId, projectTitle, scope }: BreakerListProps
                   <span className={CHIP} style={{ borderColor: tint(state.dot, 45) }}>
                     <span
                       aria-hidden
-                      className={cn("size-1.5 flex-none rounded-full", state.pulse && "animate-pulse")}
+                      className={cn(
+                        "size-1.5 flex-none rounded-full",
+                        state.pulse && "animate-pulse",
+                      )}
                       style={{ backgroundColor: state.dot }}
                     />
                     <span>{t(state.label)}</span>
@@ -166,13 +173,18 @@ export function BreakerList({ projectId, projectTitle, scope }: BreakerListProps
                       projectTitles={projectTitles}
                     />
                   ) : (
-                    <span className={cn(CHIP, "text-muted-foreground")} data-rule-scope={breaker.scope.toLowerCase()}>
+                    <span
+                      className={cn(CHIP, "text-muted-foreground")}
+                      data-rule-scope={breaker.scope.toLowerCase()}
+                    >
                       {format("{scope} · {name}", {
                         scope: t(BREAKER_SCOPE[breaker.scope]),
                         name:
                           breaker.scope === "LOADOUT"
                             ? (loadoutNames.get(breaker.loadoutId ?? "") ?? "…")
-                            : (harnessNames.get(breaker.harnessKey ?? "") ?? breaker.harnessKey ?? "…"),
+                            : (harnessNames.get(breaker.harnessKey ?? "") ??
+                              breaker.harnessKey ??
+                              "…"),
                       })}
                     </span>
                   )}
@@ -182,14 +194,20 @@ export function BreakerList({ projectId, projectTitle, scope }: BreakerListProps
                 </div>
 
                 {breaker.reason !== null && (
-                  <span className="text-muted-foreground text-[12px] leading-4.5" data-breaker-reason>
+                  <span
+                    className="text-muted-foreground text-[12px] leading-4.5"
+                    data-breaker-reason
+                  >
                     {breaker.reason}
                   </span>
                 )}
 
                 <span className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px]">
                   {breaker.openedAt !== null && (
-                    <span data-breaker-opened-at={breaker.openedAt} title={formatDateTime(breaker.openedAt)}>
+                    <span
+                      data-breaker-opened-at={breaker.openedAt}
+                      title={formatDateTime(breaker.openedAt)}
+                    >
                       {format(t("breaker.openedAt"), { when: relativeTime(breaker.openedAt) })}
                     </span>
                   )}
@@ -204,7 +222,10 @@ export function BreakerList({ projectId, projectTitle, scope }: BreakerListProps
                   {breaker.probeRunId !== null && (
                     <>
                       <span aria-hidden>·</span>
-                      <span className="flex items-center gap-1" data-breaker-probe={breaker.probeRunId}>
+                      <span
+                        className="flex items-center gap-1"
+                        data-breaker-probe={breaker.probeRunId}
+                      >
                         <span>{t("breaker.probe")}:</span>
                         <Link
                           className="hover:text-foreground underline-offset-2 hover:underline"

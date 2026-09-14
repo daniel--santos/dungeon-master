@@ -132,10 +132,16 @@ export function BreakerDialog({
 
   const consecutiveValue = consecutive.on ? parsePositive(consecutive.count) : null;
   const failuresValue = failuresInWindow.on
-    ? { count: parsePositive(failuresInWindow.count), windowMs: parsePositive(failuresInWindow.windowMin) }
+    ? {
+        count: parsePositive(failuresInWindow.count),
+        windowMs: parsePositive(failuresInWindow.windowMin),
+      }
     : null;
   const deniedValue = deniedInWindow.on
-    ? { count: parsePositive(deniedInWindow.count), windowMs: parsePositive(deniedInWindow.windowMin) }
+    ? {
+        count: parsePositive(deniedInWindow.count),
+        windowMs: parsePositive(deniedInWindow.windowMin),
+      }
     : null;
   const cooldownValue = parsePositive(cooldownMin);
 
@@ -198,7 +204,13 @@ export function BreakerDialog({
     }
 
     update.mutate(
-      { id: breaker.id, name: name.trim(), ...triggers, cooldownMs: cooldownValue * MINUTE_MS, enabled },
+      {
+        id: breaker.id,
+        name: name.trim(),
+        ...triggers,
+        cooldownMs: cooldownValue * MINUTE_MS,
+        enabled,
+      },
       done,
     );
   }
@@ -260,7 +272,11 @@ export function BreakerDialog({
             {scope === "LOADOUT" && (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="breaker-loadout">{t("entity.loadout")}</Label>
-                <Select disabled={breaker !== undefined} onValueChange={setLoadoutId} value={loadoutId}>
+                <Select
+                  disabled={breaker !== undefined}
+                  onValueChange={setLoadoutId}
+                  value={loadoutId}
+                >
                   <SelectTrigger aria-label={t("entity.loadout")} id="breaker-loadout">
                     <SelectValue placeholder={t("entity.loadout")} />
                   </SelectTrigger>
@@ -278,7 +294,11 @@ export function BreakerDialog({
             {scope === "HARNESS" && (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="breaker-harness">{t("entity.harness")}</Label>
-                <Select disabled={breaker !== undefined} onValueChange={setHarnessKey} value={harnessKey}>
+                <Select
+                  disabled={breaker !== undefined}
+                  onValueChange={setHarnessKey}
+                  value={harnessKey}
+                >
                   <SelectTrigger aria-label={t("entity.harness")} id="breaker-harness">
                     <SelectValue placeholder={t("entity.harness")} />
                   </SelectTrigger>
@@ -385,8 +405,16 @@ export function BreakerDialog({
                 value={cooldownMin}
               />
             </div>
-            <label className="flex cursor-pointer items-center gap-2 self-end pb-2 text-[12.5px]" htmlFor="breaker-enabled">
-              <Switch checked={enabled} disabled={pending} id="breaker-enabled" onCheckedChange={setEnabled} />
+            <label
+              className="flex cursor-pointer items-center gap-2 self-end pb-2 text-[12.5px]"
+              htmlFor="breaker-enabled"
+            >
+              <Switch
+                checked={enabled}
+                disabled={pending}
+                id="breaker-enabled"
+                onCheckedChange={setEnabled}
+              />
               <span>Ligado</span>
             </label>
           </div>

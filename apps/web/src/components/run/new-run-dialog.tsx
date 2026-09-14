@@ -225,17 +225,20 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
     if (policy.kind !== "default") {
       toast.info(format(t("run.departed.policy"), { reason: run.policyDecision.reason }));
     }
-    if (run.modelRouting !== null && parseDecidedBy(run.modelRouting.decidedBy).kind === "routing") {
-      toast.info(
-        format(t("run.departed.routing"), { name: run.modelRouting.selectedName ?? "—" }),
-      );
+    if (
+      run.modelRouting !== null &&
+      parseDecidedBy(run.modelRouting.decidedBy).kind === "routing"
+    ) {
+      toast.info(format(t("run.departed.routing"), { name: run.modelRouting.selectedName ?? "—" }));
     }
     for (const warning of run.budgetWarnings) {
       toast.warning(
         format(t("run.departed.budgetWarning"), {
           name: warning.name,
           current:
-            warning.limit === null ? String(warning.current) : formatLimitValue(warning.limit, warning.current),
+            warning.limit === null
+              ? String(warning.current)
+              : formatLimitValue(warning.limit, warning.current),
           limit:
             warning.limit === null || warning.limitValue === null
               ? "—"

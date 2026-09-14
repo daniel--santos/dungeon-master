@@ -105,7 +105,10 @@ export function RoutingRuleDialog({
         }));
       }
       case "LOADOUT":
-        return (loadouts.data?.items ?? []).map((loadout) => ({ id: loadout.id, name: loadout.name }));
+        return (loadouts.data?.items ?? []).map((loadout) => ({
+          id: loadout.id,
+          name: loadout.name,
+        }));
       case "WORKFLOW":
         return (workflows.data?.items ?? []).map((workflow) => ({
           id: workflow.id,
@@ -114,7 +117,10 @@ export function RoutingRuleDialog({
     }
   }, [harnesses.data, kind, loadouts.data, models.data, workflows.data]);
 
-  const targetNames = useMemo(() => new Map(targets.map((target) => [target.id, target.name])), [targets]);
+  const targetNames = useMemo(
+    () => new Map(targets.map((target) => [target.id, target.name])),
+    [targets],
+  );
   const available = targets.filter(
     (target) => target.id !== targetId && !fallbackIds.includes(target.id),
   );
@@ -245,7 +251,10 @@ export function RoutingRuleDialog({
           </div>
 
           {kind === "MODEL" && (
-            <p className="text-muted-foreground m-0 text-[11.5px] leading-4" data-routing-model-note>
+            <p
+              className="text-muted-foreground m-0 text-[11.5px] leading-4"
+              data-routing-model-note
+            >
               {t("routing.model.note")}
             </p>
           )}
@@ -256,7 +265,10 @@ export function RoutingRuleDialog({
               {t("routing.fallbacks.hint")}
             </span>
             {fallbackIds.length > 0 && (
-              <ol className="m-0 flex list-none flex-col gap-1 p-0" data-routing-fallbacks={fallbackIds.length}>
+              <ol
+                className="m-0 flex list-none flex-col gap-1 p-0"
+                data-routing-fallbacks={fallbackIds.length}
+              >
                 {fallbackIds.map((id, index) => (
                   <li
                     key={id}
@@ -316,7 +328,10 @@ export function RoutingRuleDialog({
               }}
               value={PICK}
             >
-              <SelectTrigger aria-label={format("Adicionar {label}", { label: t("routing.fallbacks") })} className="w-full max-w-sm">
+              <SelectTrigger
+                aria-label={format("Adicionar {label}", { label: t("routing.fallbacks") })}
+                className="w-full max-w-sm"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -379,8 +394,16 @@ export function RoutingRuleDialog({
             <ConditionsEditor disabled={pending} onChange={setConditions} value={conditions} />
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2 text-[12.5px]" htmlFor="routing-enabled">
-            <Switch checked={enabled} disabled={pending} id="routing-enabled" onCheckedChange={setEnabled} />
+          <label
+            className="flex cursor-pointer items-center gap-2 text-[12.5px]"
+            htmlFor="routing-enabled"
+          >
+            <Switch
+              checked={enabled}
+              disabled={pending}
+              id="routing-enabled"
+              onCheckedChange={setEnabled}
+            />
             <span>Ligada</span>
           </label>
 

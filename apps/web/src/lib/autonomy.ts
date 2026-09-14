@@ -145,7 +145,10 @@ export function useUpdateApprovalPolicy() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...body }: UpdateApprovalPolicyInput): Promise<ApprovalPolicyRecord> => {
+    mutationFn: async ({
+      id,
+      ...body
+    }: UpdateApprovalPolicyInput): Promise<ApprovalPolicyRecord> => {
       const { data, error, response } = await api.PATCH("/api/v1/approval-policies/{id}", {
         params: { path: { id } },
         body,
@@ -336,7 +339,10 @@ export function useUpdateCircuitBreaker() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...body }: UpdateCircuitBreakerInput): Promise<CircuitBreakerRecord> => {
+    mutationFn: async ({
+      id,
+      ...body
+    }: UpdateCircuitBreakerInput): Promise<CircuitBreakerRecord> => {
       const { data, error, response } = await api.PATCH("/api/v1/circuit-breakers/{id}", {
         params: { path: { id } },
         body,
@@ -464,7 +470,9 @@ export function useDeleteRoutingRule() {
 /* ----------------------------------------------------- project autonomy */
 
 /** O nível do Project e o que ele libera. `null` desliga. */
-export function useProjectAutonomy(projectId: string | null): UseQueryResult<ProjectAutonomyRecord> {
+export function useProjectAutonomy(
+  projectId: string | null,
+): UseQueryResult<ProjectAutonomyRecord> {
   return useQuery({
     queryKey: autonomyKeys.project(projectId ?? ""),
     enabled: projectId !== null,

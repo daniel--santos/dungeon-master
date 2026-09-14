@@ -171,7 +171,10 @@ function Note({ state, text, pulse = false }: { state: string; text: string; pul
       className="border-border text-muted-foreground flex items-center gap-2 rounded-[10px] border px-3 py-2 text-[11.5px]"
       data-run-suggestions={state}
     >
-      <Gauge aria-hidden className={pulse ? "size-3.5 flex-none animate-pulse" : "size-3.5 flex-none"} />
+      <Gauge
+        aria-hidden
+        className={pulse ? "size-3.5 flex-none animate-pulse" : "size-3.5 flex-none"}
+      />
       <span>{text}</span>
     </div>
   );

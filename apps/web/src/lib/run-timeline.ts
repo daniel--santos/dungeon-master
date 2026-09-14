@@ -1,9 +1,6 @@
 import type { FormatParams, GlossaryKey } from "@dungeon-master/glossary";
 
-import {
-  isAutonomyDiagnosticCode,
-  type AutonomyDiagnosticCode,
-} from "@/lib/autonomy-domain";
+import { isAutonomyDiagnosticCode, type AutonomyDiagnosticCode } from "@/lib/autonomy-domain";
 import type { EventFilterId } from "@/lib/execution-domain";
 import { eventPresentation } from "@/lib/execution-domain";
 import { knowledgeToolSequences, knowledgeToolShortName } from "@/lib/knowledge-tools";

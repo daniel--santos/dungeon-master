@@ -180,7 +180,9 @@ export function useDecidedByText(names: DecidedByNames = {}): (decidedBy: string
       const parsed = parseDecidedBy(decidedBy);
       switch (parsed.kind) {
         case "policy":
-          return format(t("autonomy.decidedBy.policy"), { name: nameOf(names.policies, parsed.id) });
+          return format(t("autonomy.decidedBy.policy"), {
+            name: nameOf(names.policies, parsed.id),
+          });
         case "routing":
           return format(t("autonomy.decidedBy.routing"), {
             name: nameOf(names.routingRules, parsed.id),

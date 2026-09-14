@@ -59,7 +59,9 @@ export function AutonomyLevelPanel({ projectId }: AutonomyLevelPanelProps) {
         onSuccess: (next) => {
           setConfirming(null);
           toast.success(
-            format(t("autonomy.change.done"), { level: t(AUTONOMY_LEVEL[next.autonomyLevel].label) }),
+            format(t("autonomy.change.done"), {
+              level: t(AUTONOMY_LEVEL[next.autonomyLevel].label),
+            }),
           );
         },
         onError: (error: Error) => {
@@ -149,9 +151,15 @@ export function AutonomyLevelPanel({ projectId }: AutonomyLevelPanelProps) {
                     >
                       {level}
                     </span>
-                    <span className="text-[13px] font-medium">{t(AUTONOMY_LEVEL[level].label)}</span>
+                    <span className="text-[13px] font-medium">
+                      {t(AUTONOMY_LEVEL[level].label)}
+                    </span>
                     {active && (
-                      <Check aria-hidden className="ml-auto size-3.5" style={{ color: AUTONOMY_COLOR }} />
+                      <Check
+                        aria-hidden
+                        className="ml-auto size-3.5"
+                        style={{ color: AUTONOMY_COLOR }}
+                      />
                     )}
                   </span>
                   <span className="text-muted-foreground text-[11.5px] leading-4.25">
@@ -184,7 +192,11 @@ export function AutonomyLevelPanel({ projectId }: AutonomyLevelPanelProps) {
                     data-autonomy-allowed={allowed ? "true" : "false"}
                   >
                     {allowed ? (
-                      <Unlock aria-hidden className="size-3.5 flex-none" style={{ color: AUTONOMY_COLOR }} />
+                      <Unlock
+                        aria-hidden
+                        className="size-3.5 flex-none"
+                        style={{ color: AUTONOMY_COLOR }}
+                      />
                     ) : (
                       <Lock aria-hidden className="text-muted-foreground size-3.5 flex-none" />
                     )}
@@ -225,7 +237,11 @@ export function AutonomyLevelPanel({ projectId }: AutonomyLevelPanelProps) {
                       className="text-foreground flex items-center gap-2 text-[13px]"
                       data-autonomy-gain={kind}
                     >
-                      <Unlock aria-hidden className="size-3.5 flex-none" style={{ color: AUTONOMY_COLOR }} />
+                      <Unlock
+                        aria-hidden
+                        className="size-3.5 flex-none"
+                        style={{ color: AUTONOMY_COLOR }}
+                      />
                       <span>{t(AUTOMATION_KIND[kind])}</span>
                     </li>
                   ))}

@@ -123,12 +123,22 @@ export function UsageBars({
               <div
                 aria-hidden
                 className="bg-border h-1.5 w-full overflow-hidden rounded-full"
-                style={uncertain ? { backgroundImage: "repeating-linear-gradient(90deg, transparent 0 4px, color-mix(in oklch, var(--muted-foreground) 35%, transparent) 4px 6px)" } : undefined}
+                style={
+                  uncertain
+                    ? {
+                        backgroundImage:
+                          "repeating-linear-gradient(90deg, transparent 0 4px, color-mix(in oklch, var(--muted-foreground) 35%, transparent) 4px 6px)",
+                      }
+                    : undefined
+                }
               >
                 <div
                   className="h-full rounded-full transition-[width]"
                   data-budget-bar={key}
-                  style={{ width: `${String(Math.round(ratio * 100))}%`, backgroundColor: barColor }}
+                  style={{
+                    width: `${String(Math.round(ratio * 100))}%`,
+                    backgroundColor: barColor,
+                  }}
                 />
               </div>
             </li>

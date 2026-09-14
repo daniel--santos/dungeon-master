@@ -54,12 +54,12 @@ describe("a lista de Sentinelas", () => {
     expect(row.querySelector("[data-breaker-reason]")?.textContent).toBe(BREAKER.reason);
     expect(row.querySelector("[data-breaker-opened-at]")).not.toBeNull();
     // `openedAt` mais uma hora de cooldown.
-    expect(row.querySelector("[data-breaker-reopens-at]")?.getAttribute("data-breaker-reopens-at")).toBe(
-      "2026-09-14T10:30:00.000Z",
-    );
-    expect(row.querySelector('[data-breaker-trigger-chip="consecutiveFailures"]')?.textContent).toContain(
-      "3",
-    );
+    expect(
+      row.querySelector("[data-breaker-reopens-at]")?.getAttribute("data-breaker-reopens-at"),
+    ).toBe("2026-09-14T10:30:00.000Z");
+    expect(
+      row.querySelector('[data-breaker-trigger-chip="consecutiveFailures"]')?.textContent,
+    ).toContain("3");
   });
 
   it("o reset pede confirmação e só então chama a API", async () => {

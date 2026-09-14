@@ -96,7 +96,10 @@ describe("o bloco de origem", () => {
   });
 
   it("uma Expedição do usuário lista as filhas que a delegação abriu", async () => {
-    abrir(RUN, [CHILD, { ...CHILD, id: "01990000-0000-7000-8000-0000000000dd", parentRunId: null }]);
+    abrir(RUN, [
+      CHILD,
+      { ...CHILD, id: "01990000-0000-7000-8000-0000000000dd", parentRunId: null },
+    ]);
 
     const panel = document.querySelector("[data-run-origin]") as HTMLElement;
     expect(panel.getAttribute("data-run-origin")).toBe("USER");
@@ -110,7 +113,9 @@ describe("o bloco de origem", () => {
     });
     // Só a filha com `parentRunId` igual a este Run entra; a outra é irmã.
     await waitFor(() => {
-      expect(panel.querySelector("[data-run-children]")?.getAttribute("data-run-children")).toBe("1");
+      expect(panel.querySelector("[data-run-children]")?.getAttribute("data-run-children")).toBe(
+        "1",
+      );
     });
     const child = panel.querySelector(`[data-run-child="${CHILD.id}"]`) as HTMLElement;
     expect(child.textContent).toContain(CHILD.taskTitle);

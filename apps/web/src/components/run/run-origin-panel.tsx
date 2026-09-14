@@ -8,11 +8,7 @@ import { RunStatusChip } from "@/components/execution/chips";
 import { Panel } from "@/components/panel";
 import type { BudgetRecord, RunListItemRecord, RunRecord } from "@/lib/api-types";
 import { useBudgets } from "@/lib/autonomy";
-import {
-  AUTONOMY_COLOR,
-  parseModelSelectedBy,
-  RUN_CREATED_BY,
-} from "@/lib/autonomy-domain";
+import { AUTONOMY_COLOR, parseModelSelectedBy, RUN_CREATED_BY } from "@/lib/autonomy-domain";
 import { relativeTime } from "@/lib/datetime";
 import { useGlossary } from "@/lib/glossary";
 import { runDurationMs, useRuns } from "@/lib/runs";
@@ -166,7 +162,10 @@ function ChildRow({ child, now }: { child: RunListItemRecord; now: number }) {
 }
 
 /** Os orçamentos `PER_RUN` que valem para este Run: globais, os da Campanha e os do Equipamento. */
-function applicablePerRun(budgets: readonly BudgetRecord[], run: RunRecord): readonly BudgetRecord[] {
+function applicablePerRun(
+  budgets: readonly BudgetRecord[],
+  run: RunRecord,
+): readonly BudgetRecord[] {
   return budgets.filter(
     (budget) =>
       budget.enabled &&

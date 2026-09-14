@@ -91,7 +91,9 @@ describe("o formulário de Édito", () => {
     expect(save.disabled).toBe(true);
 
     fireEvent.click(
-      taskKind.querySelector('[data-condition-option="BUG"] button[role="checkbox"]') as HTMLElement,
+      taskKind.querySelector(
+        '[data-condition-option="BUG"] button[role="checkbox"]',
+      ) as HTMLElement,
     );
     fireEvent.click(
       taskKind.querySelector(

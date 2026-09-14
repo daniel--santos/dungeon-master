@@ -156,7 +156,9 @@ export type CreateApprovalPolicyBody = components["schemas"]["CreateApprovalPoli
 export type UpdateApprovalPolicyBody = components["schemas"]["UpdateApprovalPolicy"];
 // O gerador embute as três decisões no `RunCreated` em vez de registrá-las à
 // parte; os apelidos saem de dentro dele, sem o `| null` que só existe no pai.
-export type PolicyDecisionRecord = NonNullable<components["schemas"]["RunCreated"]["policyDecision"]>;
+export type PolicyDecisionRecord = NonNullable<
+  components["schemas"]["RunCreated"]["policyDecision"]
+>;
 export type RuleConditionsRecord = components["schemas"]["RuleConditions"];
 export type BudgetRecord = components["schemas"]["Budget"];
 export type BudgetPageRecord = components["schemas"]["BudgetPage"];
@@ -175,6 +177,8 @@ export type RoutingRuleRecord = components["schemas"]["RoutingRule"];
 export type RoutingRulePageRecord = components["schemas"]["RoutingRulePage"];
 export type CreateRoutingRuleBody = components["schemas"]["CreateRoutingRule"];
 export type UpdateRoutingRuleBody = components["schemas"]["UpdateRoutingRule"];
-export type RoutingDecisionRecord = NonNullable<components["schemas"]["RunCreated"]["modelRouting"]>;
+export type RoutingDecisionRecord = NonNullable<
+  components["schemas"]["RunCreated"]["modelRouting"]
+>;
 export type ProjectAutonomyRecord = components["schemas"]["ProjectAutonomy"];
 export type TaskSuggestionsRecord = components["schemas"]["TaskSuggestions"];

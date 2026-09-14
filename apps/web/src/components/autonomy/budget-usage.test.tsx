@@ -73,9 +73,9 @@ describe("as barras de consumo", () => {
     expect(unknown.getAttribute("title")).toContain("2 Expedições terminaram sem reportar tokens");
 
     // O teto atingido é marcado, e a barra dele é a de destruição.
-    expect(document.querySelector("[data-budget-exceeded]")?.getAttribute("data-budget-exceeded")).toBe(
-      "maxRuns",
-    );
+    expect(
+      document.querySelector("[data-budget-exceeded]")?.getAttribute("data-budget-exceeded"),
+    ).toBe("maxRuns");
     const runs = document.querySelector('[data-budget-limit="maxRuns"]') as HTMLElement;
     expect(runs.getAttribute("data-budget-limit-ratio")).toBe("1.00");
     expect((runs.querySelector("[data-budget-bar]") as HTMLElement).style.backgroundColor).toBe(
@@ -113,7 +113,9 @@ describe("o painel do Tesouro", () => {
 
     await waitFor(() => {
       expect(
-        document.querySelector("[data-budget-tokens-unknown]")?.getAttribute("data-budget-tokens-unknown"),
+        document
+          .querySelector("[data-budget-tokens-unknown]")
+          ?.getAttribute("data-budget-tokens-unknown"),
       ).toBe("2");
     });
   });

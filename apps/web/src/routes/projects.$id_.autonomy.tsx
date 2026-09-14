@@ -160,7 +160,11 @@ function ProjectAutonomyPage() {
               }}
               value={search.scope}
             >
-              <SelectTrigger aria-label="Escopo" className="w-64" data-autonomy-scope={search.scope}>
+              <SelectTrigger
+                aria-label="Escopo"
+                className="w-64"
+                data-autonomy-scope={search.scope}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

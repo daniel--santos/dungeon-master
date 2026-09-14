@@ -226,8 +226,7 @@ export function useAutonomyToasts(): void {
         }
         const payload = parsed.data;
         const level = AUTONOMY_LEVEL[payload.to as AutonomyLevel] as
-          | (typeof AUTONOMY_LEVEL)[AutonomyLevel]
-          | undefined;
+          (typeof AUTONOMY_LEVEL)[AutonomyLevel] | undefined;
         show(`autonomy-changed:${payload.projectId}:${String(payload.to)}`, {
           icon: ScrollText,
           title: format(t("autonomy.toast.levelChanged"), {

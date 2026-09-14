@@ -23,7 +23,9 @@ const NOW = "2026-09-14T10:00:00.000Z";
 
 export const PROJECT_ID = TASK.projectId ?? "0199ffff-0000-7000-8000-000000000001";
 
-export function projectAutonomy(level: ProjectAutonomyRecord["autonomyLevel"]): ProjectAutonomyRecord {
+export function projectAutonomy(
+  level: ProjectAutonomyRecord["autonomyLevel"],
+): ProjectAutonomyRecord {
   return {
     projectId: PROJECT_ID,
     autonomyLevel: level,

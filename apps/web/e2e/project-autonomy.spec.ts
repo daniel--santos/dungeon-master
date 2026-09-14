@@ -82,9 +82,12 @@ async function prepararCenario(request: APIRequestContext, sufixo: string): Prom
   expect(workspace.ok()).toBe(true);
 
   const harnesses = await request.get("/api/v1/harnesses");
-  const items = ((await harnesses.json()) as { items: { id: string; key: string; enabled: boolean }[] })
-    .items;
-  const harness = items.find((item) => item.key === "CLAUDE_CODE" && item.enabled) ?? items.find((item) => item.enabled);
+  const items = (
+    (await harnesses.json()) as { items: { id: string; key: string; enabled: boolean }[] }
+  ).items;
+  const harness =
+    items.find((item) => item.key === "CLAUDE_CODE" && item.enabled) ??
+    items.find((item) => item.enabled);
   const profiles = await request.get("/api/v1/execution-profiles");
   const profile = (
     (await profiles.json()) as { items: { id: string; mode: string; enabled: boolean }[] }
@@ -253,9 +256,7 @@ test("a Rédea da Campanha: nível com confirmação, Éditos, Tesouro, Sentinel
     "4",
   );
   // O `autonomy.changed` chega pelo SSE e vira toast.
-  await expect(
-    page.locator(`[data-autonomy-toast="level:${cenario.projectId}:4"]`),
-  ).toBeVisible();
+  await expect(page.locator(`[data-autonomy-toast="level:${cenario.projectId}:4"]`)).toBeVisible();
 
   // ------------------------------------------------ descer ao 2 grava na hora, e o Édito fica inerte
   await page.locator('[data-autonomy-level="2"]').click();
@@ -285,7 +286,10 @@ test("a Nova Expedição com sugestões, o 409 da Sentinela, o reset e a origem 
   const sugestoes = dialog.locator('[data-run-suggestions="ready"]');
   await expect(sugestoes).toBeVisible();
   const sugestaoEquipamento = sugestoes.locator('[data-run-suggestion="loadout"]');
-  await expect(sugestaoEquipamento).toHaveAttribute("data-run-suggestion-selected", cenario.loadoutId);
+  await expect(sugestaoEquipamento).toHaveAttribute(
+    "data-run-suggestion-selected",
+    cenario.loadoutId,
+  );
   await expect(sugestaoEquipamento).toContainText(cenario.loadoutName);
   await expect(sugestaoEquipamento).toContainText(dnd["entity.routingRule"]);
   await expect(sugestaoEquipamento).toContainText(seed.names.routingRule);
