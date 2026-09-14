@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Panel } from "@/components/panel";
 import { Switch } from "@/components/ui/switch";
+import { AUTONOMY_DIAGNOSTIC, diagnosticColor } from "@/lib/autonomy-domain";
 import {
   EVENT_FILTER_IDS,
   EVENT_FILTER_LABEL,
@@ -252,21 +253,28 @@ function TimelineItem({ row }: { row: TimelineRow }) {
   // Uma consulta ao Grimório (Fase 7C) leva a cor do Grimório no marcador e
   // um fundo próprio: é a única linha do Diário em que o agente foi buscar o
   // que a Campanha já sabia, e ela precisa ser achada num log de mil linhas.
-  const color = row.knowledge ? KNOWLEDGE_COLOR : presentation.color;
+  // Um diagnóstico da autonomia (Fase 9C) leva a cor de quem decidiu e um
+  // selo com o nome: é a linha em que a partida foi decidida por regra, e
+  // ela precisa ser achada entre as de texto e de ferramenta.
+  const autonomyColor = row.autonomy === null ? null : diagnosticColor(row.autonomy);
+  const color = row.knowledge ? KNOWLEDGE_COLOR : (autonomyColor ?? presentation.color);
   const small = dim;
 
   return (
     <div
       className={cn(
         "relative flex items-start gap-2.5 py-1.5",
-        row.knowledge && "-mx-2 rounded-lg px-2",
+        (row.knowledge || row.autonomy !== null) && "-mx-2 rounded-lg px-2",
       )}
+      data-autonomy-diagnostic={row.autonomy ?? undefined}
       data-event-type={row.type}
       data-knowledge-tool={row.knowledge ? "" : undefined}
       style={
         row.knowledge
           ? { backgroundColor: `color-mix(in oklch, ${KNOWLEDGE_COLOR} 8%, transparent)` }
-          : undefined
+          : autonomyColor !== null
+            ? { backgroundColor: `color-mix(in oklch, ${autonomyColor} 8%, transparent)` }
+            : undefined
       }
     >
       <span className="text-muted-foreground w-11.5 flex-none pt-1 text-right font-mono text-[10.5px]">
@@ -314,6 +322,19 @@ function TimelineItem({ row }: { row: TimelineRow }) {
             >
               <BookOpen aria-hidden className="size-2.5" />
               <span>{t("context.toolCall.badge")}</span>
+            </span>
+          )}
+
+          {row.autonomy !== null && autonomyColor !== null && (
+            <span
+              className="flex h-4 flex-none items-center gap-1 rounded-full border px-1.5 text-[10px]"
+              data-autonomy-diagnostic-badge={row.autonomy}
+              style={{
+                borderColor: `color-mix(in oklch, ${autonomyColor} 45%, transparent)`,
+                color: autonomyColor,
+              }}
+            >
+              <span>{t(AUTONOMY_DIAGNOSTIC[row.autonomy])}</span>
             </span>
           )}
 

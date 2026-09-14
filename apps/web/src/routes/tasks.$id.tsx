@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { WorkflowSelect } from "@/components/workflow/workflow-select";
+import { AUTONOMY_COLOR, TASK_CREATED_BY } from "@/lib/autonomy-domain";
 import { formatDate, relativeTime } from "@/lib/datetime";
 import { canTransition, TASK_KIND } from "@/lib/domain";
 import { useGlossary } from "@/lib/glossary";
@@ -458,6 +459,14 @@ function Detail({ detail }: { detail: TaskDetail }) {
               </MetaRow>
             )}
             <MetaRow label={t("task.field.createdAt")}>{formatDate(detail.createdAt)}</MetaRow>
+            <MetaRow label={t("run.origin")}>
+              <span
+                data-task-created-by={detail.createdBy}
+                style={detail.createdBy === "POLICY" ? { color: AUTONOMY_COLOR } : undefined}
+              >
+                {t(TASK_CREATED_BY[detail.createdBy])}
+              </span>
+            </MetaRow>
             {detail.completedAt !== null && (
               <MetaRow label={format("{status} em", { status: t("task.status.completed") })}>
                 {formatDate(detail.completedAt)}

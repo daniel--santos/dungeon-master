@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { RunListItemRecord } from "@/lib/api-types";
+import { AUTONOMY_COLOR, RUN_CREATED_BY } from "@/lib/autonomy-domain";
 import { relativeTime } from "@/lib/datetime";
 import { useGlossary } from "@/lib/glossary";
 import { formatDuration, runDurationMs } from "@/lib/runs";
@@ -91,19 +92,27 @@ export function RunTable({
               <TableRow key={run.id} className={cn(run.status === "RUNNING" && "bg-white/[0.03]")}>
                 {showTask && (
                   <TableCell className="w-0 min-w-0 px-4">
-                    <Link
-                      className="hover:text-foreground block truncate underline-offset-2 hover:underline"
-                      params={{ id: run.id }}
-                      to="/runs/$id"
-                    >
-                      {run.taskTitle}
-                    </Link>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Link
+                        className="hover:text-foreground min-w-0 truncate underline-offset-2 hover:underline"
+                        params={{ id: run.id }}
+                        to="/runs/$id"
+                      >
+                        {run.taskTitle}
+                      </Link>
+                      {run.createdBy !== "USER" && <OriginChip createdBy={run.createdBy} />}
+                    </span>
                   </TableCell>
                 )}
 
                 <TableCell className="w-45 px-4">
                   <span className="flex min-w-0 flex-col">
-                    <span className="truncate text-[12.5px]">{snapshot.agent.name}</span>
+                    <span className="flex items-center gap-1.5 truncate text-[12.5px]">
+                      <span className="truncate">{snapshot.agent.name}</span>
+                      {!showTask && run.createdBy !== "USER" && (
+                        <OriginChip createdBy={run.createdBy} />
+                      )}
+                    </span>
                     <span className="text-muted-foreground truncate text-[11px]">
                       {snapshot.harness.name}
                     </span>
@@ -170,5 +179,29 @@ export function RunTable({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * A origem de uma Expedição que não foi o usuário (Fase 9A): a política que
+ * a despachou, ou o agente que a delegou. A do usuário não leva marca: é o
+ * caso comum, e marcá-lo em toda linha viraria ruído.
+ */
+function OriginChip({ createdBy }: { createdBy: RunListItemRecord["createdBy"] }) {
+  const { t } = useGlossary();
+  const { label, icon: Icon } = RUN_CREATED_BY[createdBy];
+
+  return (
+    <span
+      className="inline-flex h-[18px] flex-none items-center gap-1 rounded-md border px-1.5 text-[10.5px]"
+      data-run-created-by={createdBy}
+      style={{
+        borderColor: `color-mix(in oklch, ${AUTONOMY_COLOR} 45%, transparent)`,
+        color: AUTONOMY_COLOR,
+      }}
+    >
+      <Icon aria-hidden className="size-2.5" />
+      <span>{t(label)}</span>
+    </span>
   );
 }

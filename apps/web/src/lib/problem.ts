@@ -58,6 +58,31 @@ export function problemIssues(problem: unknown): readonly ValidationIssue[] {
 }
 
 /**
+ * O `code` de um problem details, quando a API o põe como extensão.
+ *
+ * Os `409` da Fase 9A (`BUDGET_EXCEEDED`, `BREAKER_OPEN`, `POLICY_DENIED`,
+ * `AUTOMATION_NOT_ALLOWED`) levam um código estável ao lado do `detail`, e é
+ * por ele que a interface reconhece a recusa sem interpretar a frase.
+ */
+export function problemCode(problem: unknown): string | null {
+  if (typeof problem !== "object" || problem === null) return null;
+  const code = (problem as { code?: unknown }).code;
+  return typeof code === "string" && code !== "" ? code : null;
+}
+
+/**
+ * Um membro de extensão do problem details, lido como objeto.
+ *
+ * `budget`, `breaker` e `policyDecision` são objetos inteiros do contrato;
+ * quem chama afirma o tipo, e esta função só garante que existe um objeto ali.
+ */
+export function problemExtension<T extends object>(problem: unknown, member: string): T | null {
+  if (typeof problem !== "object" || problem === null) return null;
+  const value = (problem as Record<string, unknown>)[member];
+  return typeof value === "object" && value !== null ? (value as T) : null;
+}
+
+/**
  * Os `blockers[]` do `409` de `POST /runs` (Fase 8A), quando existirem.
  *
  * É um membro de extensão do problem details, fora do contrato de

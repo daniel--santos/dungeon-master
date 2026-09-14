@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/app-shell/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { useAchievementToasts } from "@/lib/achievement-toast";
 import { useApprovalToasts } from "@/lib/approval-toast";
+import { useAutonomyToasts } from "@/lib/autonomy-toast";
 import { useEventsStore } from "@/lib/events";
 import { useForgedToasts } from "@/lib/forged-toast";
 import { useThemeSetting } from "@/lib/glossary";
@@ -58,6 +59,12 @@ function RootLayout() {
   // aviso sai na tela em que o preflight rodou, seja a de Equipamentos, a de
   // Patronatos ou o diálogo de partida.
   useProviderAuthToasts();
+
+  // As decisões da autonomia controlada (Fase 9C) — um orçamento no teto, um
+  // disjuntor que mudou de estado, uma Task criada por política, o nível que
+  // mudou — acontecem na API e no Worker enquanto o usuário está em qualquer
+  // tela; o toast leva à Rédea da Campanha, ou à Task nova.
+  useAutonomyToasts();
 
   // Uma conexão SSE por aba, aberta no layout raiz e viva enquanto a aba
   // estiver. `connect` é idempotente, o que importa porque o StrictMode monta o

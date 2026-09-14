@@ -1,5 +1,5 @@
 import type { components } from "@dungeon-master/api-client";
-import type { TaskKind, TaskPriority, TaskStatus } from "@dungeon-master/contracts";
+import type { TaskCreatedBy, TaskKind, TaskPriority, TaskStatus } from "@dungeon-master/contracts";
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
@@ -19,6 +19,8 @@ export interface TaskListParams {
   readonly kind?: TaskKind;
   readonly priority?: TaskPriority;
   readonly status?: readonly TaskStatus[];
+  /** Só as Tasks com esta origem (Fase 9A): usuário, proposta aprovada ou política. */
+  readonly createdBy?: TaskCreatedBy;
   readonly q?: string;
   readonly sort?: TaskSortField;
   readonly order?: SortOrder;
@@ -49,6 +51,7 @@ function toQuery(params: TaskListParams) {
     ...(rest.parentTaskId === undefined ? {} : { parentTaskId: rest.parentTaskId }),
     ...(rest.kind === undefined ? {} : { kind: rest.kind }),
     ...(rest.priority === undefined ? {} : { priority: rest.priority }),
+    ...(rest.createdBy === undefined ? {} : { createdBy: rest.createdBy }),
     ...(rest.q === undefined || rest.q === "" ? {} : { q: rest.q }),
     ...(rest.sort === undefined ? {} : { sort: rest.sort }),
     ...(rest.order === undefined ? {} : { order: rest.order }),

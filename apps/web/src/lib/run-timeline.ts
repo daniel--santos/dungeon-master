@@ -1,5 +1,6 @@
 import type { FormatParams, GlossaryKey } from "@dungeon-master/glossary";
 
+import { isAutonomyDiagnosticCode, type AutonomyDiagnosticCode } from "@/lib/autonomy-domain";
 import type { EventFilterId } from "@/lib/execution-domain";
 import { eventPresentation } from "@/lib/execution-domain";
 import { knowledgeToolSequences, knowledgeToolShortName } from "@/lib/knowledge-tools";
@@ -53,6 +54,12 @@ export interface TimelineRow {
   readonly group: EventFilterId;
   /** Uma consulta ao Grimório, ou a resposta dela (Fase 7C): a linha ganha destaque. */
   readonly knowledge: boolean;
+  /**
+   * Um `Diagnostic` da autonomia controlada (Fase 9A): a política que decidiu
+   * a partida, o orçamento que avisou, o Model encaminhado, a sondagem do
+   * disjuntor. A linha ganha o selo de quem decidiu.
+   */
+  readonly autonomy: AutonomyDiagnosticCode | null;
 }
 
 const TIME = new Intl.DateTimeFormat("pt-BR", {
@@ -420,6 +427,7 @@ export function buildTimeline(
         running: false,
         group: "text",
         knowledge: false,
+        autonomy: null,
       });
 
       index = next;
@@ -439,12 +447,20 @@ export function buildTimeline(
       running: false,
       group: eventPresentation(event.type).group,
       knowledge: knowledge.has(event.sequence),
+      autonomy: autonomyDiagnosticOf(event),
     });
 
     index += 1;
   }
 
   return markPendingCall(rows, events);
+}
+
+/** O código de autonomia de um `Diagnostic`, quando o `payload.code` é um dos quatro. */
+function autonomyDiagnosticOf(event: RunEvent): AutonomyDiagnosticCode | null {
+  if (event.type !== "Diagnostic") return null;
+  const code = fields(event.payload)["code"];
+  return isAutonomyDiagnosticCode(code) ? code : null;
 }
 
 /**

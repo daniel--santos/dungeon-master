@@ -1,11 +1,28 @@
 import type { components } from "@dungeon-master/api-client";
 import { API_BASE_PATH } from "@dungeon-master/api-client";
-import type { CapabilityIssue, HarnessKey, RunStatus } from "@dungeon-master/contracts";
+import type {
+  CapabilityIssue,
+  HarnessKey,
+  RunCreatedBy,
+  RunStatus,
+} from "@dungeon-master/contracts";
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
+import type {
+  BreakerAdmissionRecord,
+  BudgetBreachRecord,
+  PolicyDecisionRecord,
+} from "@/lib/api-types";
 import { isLiveRunStatus } from "@/lib/execution-domain";
-import { ApiError, fail, problemBlockers, problemMessage } from "@/lib/problem";
+import {
+  ApiError,
+  fail,
+  problemBlockers,
+  problemCode,
+  problemExtension,
+  problemMessage,
+} from "@/lib/problem";
 
 type Run = components["schemas"]["Run"];
 type RunCreated = components["schemas"]["RunCreated"];
@@ -18,6 +35,8 @@ export interface RunListParams {
   readonly projectId?: string;
   readonly harnessKey?: HarnessKey;
   readonly status?: readonly RunStatus[];
+  /** Só os Runs com esta origem (Fase 9A): usuário, política ou delegação. */
+  readonly createdBy?: RunCreatedBy;
   readonly page?: number;
   readonly pageSize?: number;
 }
@@ -40,6 +59,7 @@ function toQuery(params: RunListParams) {
     ...(rest.taskId === undefined ? {} : { taskId: rest.taskId }),
     ...(rest.projectId === undefined ? {} : { projectId: rest.projectId }),
     ...(rest.harnessKey === undefined ? {} : { harnessKey: rest.harnessKey }),
+    ...(rest.createdBy === undefined ? {} : { createdBy: rest.createdBy }),
     ...(status === undefined || status.length === 0 ? {} : { status: [...status] }),
   };
 }
@@ -109,13 +129,77 @@ export class RunBlockedError extends ApiError {
 }
 
 /**
+ * As três recusas da autonomia controlada em `POST /runs` (Fase 9A), cada
+ * uma com o objeto inteiro da decisão que o problem details traz como
+ * extensão: o diálogo mostra o orçamento com consumo e teto, o disjuntor com
+ * o motivo e quando reabre, ou a política que recusou — sem reler o `detail`.
+ */
+export class BudgetExceededError extends ApiError {
+  readonly budget: BudgetBreachRecord;
+
+  constructor(message: string, budget: BudgetBreachRecord) {
+    super(message, 409);
+    this.name = "BudgetExceededError";
+    this.budget = budget;
+  }
+}
+
+export class BreakerOpenError extends ApiError {
+  readonly breaker: BreakerAdmissionRecord;
+
+  constructor(message: string, breaker: BreakerAdmissionRecord) {
+    super(message, 409);
+    this.name = "BreakerOpenError";
+    this.breaker = breaker;
+  }
+}
+
+export class PolicyDeniedError extends ApiError {
+  readonly policyDecision: PolicyDecisionRecord;
+
+  constructor(message: string, policyDecision: PolicyDecisionRecord) {
+    super(message, 409);
+    this.name = "PolicyDeniedError";
+    this.policyDecision = policyDecision;
+  }
+}
+
+/**
+ * Traduz o `409` de `POST /runs` num erro tipado, quando ele tem um `code`
+ * conhecido; devolve `null` para deixar o caminho genérico seguir.
+ */
+function refusedRun(problem: unknown, message: string): ApiError | null {
+  const blockers = problemBlockers(problem);
+  if (blockers.length > 0) return new RunBlockedError(message, blockers);
+
+  switch (problemCode(problem)) {
+    case "BUDGET_EXCEEDED": {
+      const budget = problemExtension<BudgetBreachRecord>(problem, "budget");
+      return budget === null ? null : new BudgetExceededError(message, budget);
+    }
+    case "BREAKER_OPEN": {
+      const breaker = problemExtension<BreakerAdmissionRecord>(problem, "breaker");
+      return breaker === null ? null : new BreakerOpenError(message, breaker);
+    }
+    case "POLICY_DENIED": {
+      const decision = problemExtension<PolicyDecisionRecord>(problem, "policyDecision");
+      return decision === null ? null : new PolicyDeniedError(message, decision);
+    }
+    default:
+      return null;
+  }
+}
+
+/**
  * Enfileira uma Expedição para a Task.
  *
  * A recusa vem como `409` com o motivo em `detail` — Task fora de `READY` ou
  * `FAILED`, Project sem workspace, dependência pendente, Harness ou perfil
  * desligado — e quem chama mostra esse texto. Um `409` do capability
- * matching vira `RunBlockedError`, com os bloqueios. A resposta boa é
- * `RunCreated`: o Run e os avisos que o Worker vai gravar no diário.
+ * matching vira `RunBlockedError`, com os bloqueios; os da autonomia (Fase
+ * 9A) viram `BudgetExceededError`, `BreakerOpenError` e `PolicyDeniedError`,
+ * com a decisão inteira. A resposta boa é `RunCreated`: o Run, os avisos que
+ * o Worker vai gravar no diário e as decisões automáticas da partida.
  */
 export function useCreateRun() {
   const queryClient = useQueryClient();
@@ -127,12 +211,10 @@ export function useCreateRun() {
         body,
       });
       if (data === undefined) {
-        const blockers = problemBlockers(error);
-        if (response.status === 409 && blockers.length > 0) {
-          throw new RunBlockedError(
-            problemMessage(error, response.status, "Não foi possível partir"),
-            blockers,
-          );
+        const message = problemMessage(error, response.status, "Não foi possível partir");
+        if (response.status === 409) {
+          const refused = refusedRun(error, message);
+          if (refused !== null) throw refused;
         }
         fail(error, response.status, "Não foi possível partir");
       }

@@ -1201,3 +1201,157 @@ export async function seedRegistry(input: SeedRegistryInput): Promise<SeedRegist
     await client.end();
   }
 }
+
+export interface SeedAutonomyInput {
+  /** Um sufixo para os nomes ficarem únicos entre testes. */
+  readonly suffix: string;
+  /** A Campanha que passa ao nível 3 e recebe as quatro regras. */
+  readonly projectId: string;
+  /** O Equipamento que a regra de roteamento aponta. */
+  readonly loadoutId: string;
+  /** Um Run criado pela API, que vira a Expedição mãe. */
+  readonly parentRunId: string;
+  /** Um Run criado pela API, que passa a ser filho do anterior por delegação. */
+  readonly childRunId: string;
+  /** Uma Task criada pela API, que passa a ter sido criada por política. */
+  readonly policyTaskId: string;
+}
+
+export interface SeedAutonomyResult {
+  readonly policyId: string;
+  readonly budgetId: string;
+  readonly breakerId: string;
+  readonly routingRuleId: string;
+  readonly names: {
+    readonly policy: string;
+    readonly budget: string;
+    readonly breaker: string;
+    readonly routingRule: string;
+  };
+  readonly parentStepKey: string;
+}
+
+/**
+ * Deixa uma Campanha no nível 3 com as quatro regras da autonomia (Fase
+ * 9C), por SQL no banco do e2e.
+ *
+ * Um Édito que aprova Manutenções sozinho, um Tesouro diário de dez
+ * Expedições (o consumo vem das Expedições que o teste criou pela API antes
+ * de chamar isto), uma Sentinela já de portão fechado com uma hora de
+ * espera, e um Encaminhamento que manda os Monstros para o Equipamento
+ * dado. A Missão indicada passa a ter sido criada por política, e o Run
+ * filho passa a ser uma delegação do Run mãe, com o passo que delegou —
+ * o que a 9B vai escrever, escrito aqui à mão.
+ *
+ * As Expedições são criadas pela API **antes** desta fixture, de propósito:
+ * com a Sentinela aberta, `POST /runs` recusa — e é exatamente essa recusa
+ * que a suíte prova depois. Os ids são UUID v4 do Node, como nas outras
+ * fixtures.
+ */
+export async function seedAutonomy(input: SeedAutonomyInput): Promise<SeedAutonomyResult> {
+  const databaseUrl = process.env["DATABASE_URL"];
+  if (databaseUrl === undefined) {
+    throw new Error("DATABASE_URL não está no ambiente: rode pelo run-e2e.mjs.");
+  }
+
+  const names = {
+    policy: `Aprova manutencoes ${input.suffix}`,
+    budget: `Cofre do dia ${input.suffix}`,
+    breaker: `Guarda do portao ${input.suffix}`,
+    routingRule: `Forja dos monstros ${input.suffix}`,
+  };
+  const parentStepKey = "explore";
+
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+
+    const project = await client.query<{ user_id: string }>(
+      `SELECT user_id FROM project WHERE id = $1 FOR UPDATE`,
+      [input.projectId],
+    );
+    const userId = project.rows[0]?.user_id;
+    if (userId === undefined) throw new Error(`O Project ${input.projectId} não existe.`);
+
+    await client.query(`UPDATE project SET autonomy_level = 3, updated_at = now() WHERE id = $1`, [
+      input.projectId,
+    ]);
+
+    const policyId = randomUUID();
+    await client.query(
+      `INSERT INTO approval_policy
+         (id, user_id, name, subject, project_id, priority, conditions, action, enabled)
+       VALUES ($1, $2, $3, 'PROPOSAL', $4, 100, $5::jsonb, 'AUTO_APPROVE', true)`,
+      [policyId, userId, names.policy, input.projectId, JSON.stringify({ taskKind: ["CHORE"] })],
+    );
+
+    const budgetId = randomUUID();
+    await client.query(
+      `INSERT INTO budget
+         (id, user_id, name, scope, project_id, loadout_id, "window", max_tokens, max_runs,
+          max_wall_clock_ms, max_concurrent_runs, action, enabled)
+       VALUES ($1, $2, $3, 'PROJECT', $4, NULL, 'DAY', NULL, 10, NULL, NULL, 'BLOCK', true)`,
+      [budgetId, userId, names.budget, input.projectId],
+    );
+
+    const breakerId = randomUUID();
+    await client.query(
+      `INSERT INTO circuit_breaker
+         (id, user_id, name, scope, project_id, loadout_id, harness_key, triggers, cooldown_ms,
+          state, opened_at, reason, probe_run_id, consecutive_failures, state_changed_at, enabled)
+       VALUES ($1, $2, $3, 'PROJECT', $4, NULL, NULL, $5::jsonb, 3600000,
+               'OPEN', now(), $6, NULL, 3, now(), true)`,
+      [
+        breakerId,
+        userId,
+        names.breaker,
+        input.projectId,
+        JSON.stringify({
+          consecutiveFailures: 3,
+          failuresInWindow: null,
+          permissionDeniedInWindow: null,
+          authNotAuthenticated: false,
+        }),
+        "Três Expedições seguidas falharam (fixture do e2e).",
+      ],
+    );
+
+    const routingRuleId = randomUUID();
+    await client.query(
+      `INSERT INTO routing_rule
+         (id, user_id, name, kind, project_id, priority, conditions, target_id, fallback_ids, enabled)
+       VALUES ($1, $2, $3, 'LOADOUT', $4, 100, $5::jsonb, $6, '[]'::jsonb, true)`,
+      [
+        routingRuleId,
+        userId,
+        names.routingRule,
+        input.projectId,
+        JSON.stringify({ taskKind: "BUG" }),
+        input.loadoutId,
+      ],
+    );
+
+    const task = await client.query(
+      `UPDATE task SET created_by = 'POLICY', updated_at = now() WHERE id = $1 AND user_id = $2`,
+      [input.policyTaskId, userId],
+    );
+    if (task.rowCount !== 1) throw new Error(`A Task ${input.policyTaskId} não existe.`);
+
+    const child = await client.query(
+      `UPDATE run
+         SET created_by = 'DELEGATION', parent_run_id = $2, parent_step_key = $3, updated_at = now()
+       WHERE id = $1 AND user_id = $4`,
+      [input.childRunId, input.parentRunId, parentStepKey, userId],
+    );
+    if (child.rowCount !== 1) throw new Error(`O Run ${input.childRunId} não existe.`);
+
+    await client.query("COMMIT");
+    return { policyId, budgetId, breakerId, routingRuleId, names, parentStepKey };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    await client.end();
+  }
+}

@@ -21,6 +21,7 @@ import { FailurePanel } from "@/components/run/failure-panel";
 import { FrozenLoadoutPanel } from "@/components/run/frozen-loadout-panel";
 import { ResultPanel } from "@/components/run/result-panel";
 import { RunContextPanel } from "@/components/run/run-context-panel";
+import { RunOriginPanel } from "@/components/run/run-origin-panel";
 import { ResumeRunDialog } from "@/components/run/resume-run-dialog";
 import { RunOutcomePanel } from "@/components/run/run-outcome-panel";
 import { RunStepsPanel } from "@/components/run/run-steps-panel";
@@ -316,6 +317,10 @@ function Cockpit({ run }: { run: RunRecord }) {
               </>
             )}
           </Panel>
+
+          {/* A origem e o parentesco (Fase 9C): quem abriu esta Expedição, a
+              mãe quando houver, as filhas, e o orçamento por Expedição. */}
+          <RunOriginPanel now={now} run={run} />
 
           <Panel className="flex flex-col gap-2 px-4 pt-3.5 pb-4">
             <div className="flex items-center gap-2">

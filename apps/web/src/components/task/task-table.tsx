@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AUTONOMY_COLOR } from "@/lib/autonomy-domain";
 import { relativeTime } from "@/lib/datetime";
 import type { SortOrder, TaskSortField } from "@/lib/domain";
 import { useGlossary } from "@/lib/glossary";
@@ -87,13 +88,29 @@ export function TaskTable({
       id: "title",
       header: "Título",
       cell: (info) => (
-        <Link
-          className="hover:text-foreground block truncate underline-offset-2 hover:underline"
-          params={{ id: info.row.original.id }}
-          to="/tasks/$id"
-        >
-          {info.getValue()}
-        </Link>
+        <span className="flex min-w-0 items-center gap-2">
+          <Link
+            className="hover:text-foreground min-w-0 truncate underline-offset-2 hover:underline"
+            params={{ id: info.row.original.id }}
+            to="/tasks/$id"
+          >
+            {info.getValue()}
+          </Link>
+          {/* Uma Task que uma política criou sem passar pela proposta
+              (Fase 9A) leva a marca: é trabalho que ninguém aprovou à mão. */}
+          {info.row.original.createdBy === "POLICY" && (
+            <span
+              className="inline-flex h-[18px] flex-none items-center rounded-md border px-1.5 text-[10.5px]"
+              data-task-created-by="POLICY"
+              style={{
+                borderColor: `color-mix(in oklch, ${AUTONOMY_COLOR} 45%, transparent)`,
+                color: AUTONOMY_COLOR,
+              }}
+            >
+              {t("task.origin.policy.short")}
+            </span>
+          )}
+        </span>
       ),
     });
 
