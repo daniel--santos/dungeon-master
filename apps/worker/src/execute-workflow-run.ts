@@ -120,6 +120,7 @@ export async function executeWorkflowRun(deps: ExecuteRunDeps, claimed: ClaimedR
       db,
       userId,
       run,
+      projectId: claimed.project.id,
       logger,
       onHarnessSession: (id) => {
         writer.sessionId = id;
@@ -127,12 +128,18 @@ export async function executeWorkflowRun(deps: ExecuteRunDeps, claimed: ClaimedR
     });
 
     // Os servidores MCP são os mesmos em todo passo de agente: montados uma
-    // vez, com os avisos no diário antes do primeiro passo.
+    // vez, com os avisos no diário antes do primeiro passo. A delegação
+    // (Fase 9B) entra pelo nível do Project e pela profundidade do Run.
     const mcp = buildRunMcpServers({
       loadout: run.loadoutSnapshot,
       projectId: claimed.project.id,
       userId,
       databaseUrl: deps.databaseUrl,
+      delegation: {
+        runId: run.id,
+        autonomyLevel: claimed.project.autonomyLevel,
+        depth: claimed.delegationDepth,
+      },
     });
     for (const nota of mcp.notes) {
       await writer.diagnostic(
@@ -210,6 +217,28 @@ export async function executeWorkflowRun(deps: ExecuteRunDeps, claimed: ClaimedR
 
   // ------------------------------------------------------------------ fim
   async function finalize(outcome: WorkflowOutcome): Promise<void> {
+    if (outcome.kind === "waiting") {
+      // A abertura da delegação já levou o Run a WAITING_CHILD. Um filho
+      // reencontrado ainda em voo (Run retomado antes de o filho terminar)
+      // não leva, e o Run precisa ir para lá agora: em RUNNING ele seria
+      // tratado como órfão pela próxima partida.
+      const atual = await getRun(db, { userId, runId: run.id });
+      if (atual?.status === "RUNNING") {
+        const esperando = await transitionRun(db, { userId, runId: run.id, to: "WAITING_CHILD" });
+        if (esperando === null || !esperando.ok) {
+          logger?.error(
+            { runId: run.id, failure: esperando === null ? "RUN_NOT_FOUND" : esperando.failure },
+            "não consegui levar o Run a WAITING_CHILD pelo filho reencontrado",
+          );
+        }
+      }
+      logger?.info(
+        { runId: run.id, stepKey: outcome.stepKey, childRunId: outcome.childRunId },
+        "run esperando o Run filho; trava e capacidade liberadas",
+      );
+      return;
+    }
+
     if (outcome.kind === "paused") {
       // A criação do gate já levou o Run a WAITING_APPROVAL. Um gate
       // reencontrado (Run retomado com o gate ainda pendente) não leva, e o Run

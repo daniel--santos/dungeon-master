@@ -1,12 +1,15 @@
 import { RUN_CANCEL_CHANNEL, RUN_QUEUE_CHANNEL } from "@dungeon-master/contracts";
 import {
-  cancelRunWaitingApproval,
+  appendRunEvent,
+  cancelWaitingRun,
   claimNextQueuedRun,
   createPgNotifier,
   listCancelRequestedRunIds,
-  listRunsWaitingApprovalWithCancelRequested,
+  listEnabledBreakerStates,
+  listRunsWaitingWithCancelRequested,
   type ClaimedRun,
   type Database,
+  type RunClaimDeferral,
 } from "@dungeon-master/database";
 import { PgNotifyListener } from "@dungeon-master/events";
 import { CapacityLock } from "@dungeon-master/runs";
@@ -23,12 +26,13 @@ import type { Pool } from "pg";
 
 import type { AchievementProjector } from "./achievements.js";
 import { measureCapabilitiesFrom, type MeasureCapabilities } from "./capability-check.js";
+import { createDispatchLoop, type DispatchLoop } from "./dispatch.js";
 import { executeRun } from "./execute-run.js";
 import { startIdleLoop, type IdleLoop } from "./idle-loop.js";
 import type { Logger } from "./logger.js";
 import { runBootPreflight, type PreflightOutcome } from "./preflight.js";
 import { reconcileOrphanRuns, type ReconciledRun } from "./reconcile.js";
-import { toRunEventInput, workerRunCancelled } from "./run-events.js";
+import { toRunEventInput, workerDiagnostic, workerRunCancelled } from "./run-events.js";
 import { createRunOutcomeWriter } from "./run-writers.js";
 
 /**
@@ -93,11 +97,24 @@ export interface CreateWorkerOptions {
    * boot avisa.
    */
   readonly databaseUrl?: string;
+  /**
+   * O auto-despacho (Fase 9B). Ligado por padrão; um teste que só quer a
+   * fila pode desligar. `retryAfterMs` é quanto uma Task pulada espera para
+   * ser reavaliada.
+   */
+  readonly dispatch?: { readonly enabled?: boolean; readonly retryAfterMs?: number };
 }
 
 export interface WorkerBootReport {
   readonly preflight: readonly PreflightOutcome[];
   readonly reconciled: readonly ReconciledRun[];
+  /** O estado de cada disjuntor ligado, por escopo (Fase 9B). */
+  readonly breakers: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly scope: string;
+    readonly state: string;
+  }[];
 }
 
 export interface Worker {
@@ -180,6 +197,24 @@ export function createWorker(options: CreateWorkerOptions): Worker {
    * esta marca é o que faz o handler sair sem executar quando a trava liberar.
    */
   const descartados = new Set<string>();
+
+  /**
+   * Runs da fila que um disjuntor aberto não deixou reclamar, já anotados no
+   * diário (Fase 9B). O Run fica na fila e a passada seguinte tenta de novo;
+   * o `Diagnostic` sai uma vez por Run e disjuntor, por processo.
+   */
+  const adiadosAnotados = new Set<string>();
+  const dispatch: DispatchLoop | undefined =
+    options.dispatch?.enabled === false
+      ? undefined
+      : createDispatchLoop({
+          db,
+          userId,
+          logger,
+          ...(options.dispatch?.retryAfterMs === undefined
+            ? {}
+            : { retryAfterMs: options.dispatch.retryAfterMs }),
+        });
 
   let loop: IdleLoop | undefined;
   let stopping = false;
@@ -321,18 +356,20 @@ export function createWorker(options: CreateWorkerOptions): Worker {
   };
 
   /**
-   * Fecha os Runs parados em gate com cancelamento pedido.
+   * Fecha os Runs parados em espera — gate ou Run filho — com cancelamento
+   * pedido.
    *
-   * Em `WAITING_APPROVAL` ninguém está executando: o Run soltou o Worker ao
-   * abrir o gate, e o pedido de cancelamento só marcou a coluna. Quem o leva a
-   * `CANCELLED` — passo do gate cancelado, `RunCancelled` no diário, Task de
-   * volta a `READY` — é este laço, na próxima passada.
+   * Em `WAITING_APPROVAL` e `WAITING_CHILD` ninguém está executando: o Run
+   * soltou o Worker, e o pedido de cancelamento só marcou a coluna. Quem o
+   * leva a `CANCELLED` — passo em espera cancelado, `RunCancelled` no diário,
+   * Task de volta a `READY` — é este laço, na próxima passada. O Run filho de
+   * um `WAITING_CHILD` já recebeu o pedido pela cascata da API.
    */
   const cancelarEmEspera = async (): Promise<void> => {
-    const ids = await listRunsWaitingApprovalWithCancelRequested(db, { userId });
+    const ids = await listRunsWaitingWithCancelRequested(db, { userId });
     for (const runId of ids) {
       try {
-        const fechado = await cancelRunWaitingApproval(db, {
+        const fechado = await cancelWaitingRun(db, {
           userId,
           runId,
           reason: "user_request",
@@ -405,9 +442,48 @@ export function createWorker(options: CreateWorkerOptions): Worker {
     }
   };
 
+  /**
+   * Anota no diário, uma vez, que um disjuntor aberto segurou o Run na fila
+   * (Fase 9B). Observabilidade: nunca lança, e nunca decide nada.
+   */
+  const anotarAdiamento = async (deferral: RunClaimDeferral): Promise<void> => {
+    const chave = `${deferral.runId}:${deferral.breakerId}`;
+    if (adiadosAnotados.has(chave)) return;
+    adiadosAnotados.add(chave);
+    const evento = workerDiagnostic({
+      // O harness não é conhecido aqui sem outra leitura; o do diário é o
+      // do Run, e o adiamento vale para qualquer um. `CLAUDE_CODE` é o
+      // valor que o contrato exige preenchido; o código é o que a tela lê.
+      harness: "CLAUDE_CODE",
+      level: "WARN",
+      code: "BREAKER_OPEN",
+      message:
+        `O disjuntor "${deferral.breakerName}" (${deferral.breakerId}) está ${deferral.state} e ` +
+        `segurou este Run na fila: ${deferral.reason} O Worker tenta de novo a cada passada.`,
+    });
+    await appendRunEvent(db, {
+      userId,
+      runId: deferral.runId,
+      event: toRunEventInput(evento),
+      ...(logger === undefined ? {} : { logger }),
+    });
+    logger?.warn(
+      { runId: deferral.runId, breakerId: deferral.breakerId, state: deferral.state },
+      "run segurado na fila por disjuntor aberto",
+    );
+  };
+
   const umaPassada = async (): Promise<void> => {
     while (emVoo.size < config.maxConcurrentRuns && !stopping) {
-      const claimed = await claimNextQueuedRun(db, { userId, claimedBy: config.workerId });
+      const adiados: RunClaimDeferral[] = [];
+      const claimed = await claimNextQueuedRun(db, {
+        userId,
+        claimedBy: config.workerId,
+        onDeferred: (deferral) => {
+          adiados.push(deferral);
+        },
+      });
+      for (const deferral of adiados) await anotarAdiamento(deferral);
       if (claimed === null) break;
 
       const strategy = claimed.run.executionProfileSnapshot.workspaceStrategy;
@@ -454,6 +530,17 @@ export function createWorker(options: CreateWorkerOptions): Worker {
 
     await checarCancelamentos();
     await cancelarEmEspera();
+
+    // O auto-despacho (Fase 9B) roda depois das cancelamentos e antes do
+    // projetor: uma Task despachada aqui é reclamada na passada seguinte, ou
+    // agora mesmo pelo `NOTIFY` que a criação do Run dispara.
+    if (dispatch !== undefined && !stopping) {
+      try {
+        await dispatch.pass();
+      } catch (error) {
+        logger?.error({ err: error }, "erro no auto-despacho; o laço segue");
+      }
+    }
 
     // Uma linha por tique: o projetor tem contrato de nunca lançar e volta na
     // hora, então nada aqui espera por ele. É a rede para todo fato que não
@@ -542,6 +629,24 @@ export function createWorker(options: CreateWorkerOptions): Worker {
         ...(logger === undefined ? {} : { logger }),
       });
 
+      // O estado dos disjuntores por escopo (Fase 9B): o operador vê no boot
+      // o que vai segurar a fila antes de o primeiro Run ser adiado.
+      const breakers = await listEnabledBreakerStates(db, { userId });
+      logger?.info(
+        {
+          breakers: breakers.map((breaker) => ({
+            id: breaker.id,
+            name: breaker.name,
+            scope: breaker.scope,
+            state: breaker.state,
+            openedAt: breaker.openedAt,
+            probeRunId: breaker.probeRunId,
+          })),
+          open: breakers.filter((breaker) => breaker.state !== "CLOSED").length,
+        },
+        "disjuntores por escopo",
+      );
+
       if (options.pool !== undefined) {
         const notifier = createPgNotifier(options.pool);
 
@@ -585,7 +690,7 @@ export function createWorker(options: CreateWorkerOptions): Worker {
         await cancelListener.start();
       }
 
-      return { preflight, reconciled };
+      return { preflight, reconciled, breakers };
     },
 
     start: () => {

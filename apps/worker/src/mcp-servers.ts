@@ -1,8 +1,10 @@
 import type {
+  AutonomyLevel,
   KnowledgePolicy,
   LoadoutSnapshot,
   McpServerSnapshot,
 } from "@dungeon-master/contracts";
+import { allowsAutomation, checkDelegationDepth } from "@dungeon-master/domain";
 import {
   KNOWLEDGE_MCP_CONTAINER_ENTRYPOINT,
   KNOWLEDGE_MCP_ENV_KEYS,
@@ -12,6 +14,15 @@ import {
   knowledgeMcpEntrypoint,
   knowledgeMcpInstruction,
 } from "@dungeon-master/knowledge-mcp";
+import {
+  ORCHESTRATION_MCP_CONTAINER_ENTRYPOINT,
+  ORCHESTRATION_MCP_ENV_KEYS,
+  ORCHESTRATION_MCP_SERVER_NAME,
+  ORCHESTRATION_TOOL_NAMES,
+  orchestrationMcpArgs,
+  orchestrationMcpEntrypoint,
+  orchestrationMcpInstruction,
+} from "@dungeon-master/orchestration-mcp";
 import { isValidMcpServerName, type McpServerSpec } from "@dungeon-master/runtime";
 
 import { checkMcpToolBindings } from "./loadout-tools.js";
@@ -35,6 +46,12 @@ import type { PolicyNote } from "./policy.js";
  *    registrado no diário. Um servidor `builtIn` é o Grimório, que o Worker
  *    já sobe: referenciá-lo no Loadout o oferece mesmo com a política de
  *    conhecimento toda desligada, e nunca o sobe duas vezes.
+ *
+ * 3. **O servidor de delegação** (Fase 9B), só quando o nível de autonomia
+ *    do Project libera `DELEGATE` (4) e o Run ainda cabe na profundidade
+ *    máxima da cadeia. Ele **escreve** — abre Runs filhos —, e por isso é um
+ *    pacote à parte do Grimório e só entra pela escada; o servidor relê o
+ *    nível na transação, mas não ser oferecido é a primeira barreira.
  *
  * No fim, as Tools `MCP_TOOL` do Loadout são conferidas contra a lista: uma
  * que aponta para servidor ausente vira aviso (`loadout-tools.ts`).
@@ -105,6 +122,18 @@ export interface BuildRunMcpServersInput {
   readonly nodePath?: string;
   /** O arquivo empacotado do servidor. Padrão: o do pacote instalado. */
   readonly knowledgeEntrypoint?: string;
+  /**
+   * A delegação Agent-to-Agent (Fase 9B): o Run, o nível de autonomia do
+   * Project e a profundidade do Run na cadeia. Ausente, o servidor de
+   * delegação não é oferecido (os testes do Grimório e o Distiller).
+   */
+  readonly delegation?: {
+    readonly runId: string;
+    readonly autonomyLevel: AutonomyLevel;
+    readonly depth: number;
+  };
+  /** O arquivo empacotado do servidor de delegação. Padrão: o do pacote instalado. */
+  readonly orchestrationEntrypoint?: string;
 }
 
 export interface RunMcpServers {
@@ -163,6 +192,76 @@ export function buildRunMcpServers(input: BuildRunMcpServersInput): RunMcpServer
         },
       });
       nomes.add(KNOWLEDGE_MCP_SERVER_NAME);
+    }
+  }
+
+  // ------------------------------------------------------------ delegação
+  if (input.delegation !== undefined) {
+    const { runId, autonomyLevel, depth } = input.delegation;
+    if (!allowsAutomation(autonomyLevel, "DELEGATE")) {
+      notes.push({
+        level: "DEBUG",
+        message:
+          `A ferramenta de delegação não foi oferecida: o nível de autonomia ` +
+          `${String(autonomyLevel)} do Project não libera DELEGATE.`,
+      });
+    } else if (!checkDelegationDepth(depth).ok) {
+      notes.push({
+        level: "INFO",
+        code: "DELEGATION_DEPTH_EXCEEDED",
+        message:
+          `A ferramenta de delegação não foi oferecida: este Run está na profundidade ` +
+          `${String(depth)} da cadeia, e um filho passaria do teto.`,
+      });
+    } else if (input.databaseUrl === undefined || input.databaseUrl.trim().length === 0) {
+      notes.push({
+        level: "WARN",
+        message:
+          "A ferramenta de delegação não foi oferecida ao agente: o Worker não conhece a URL do banco.",
+      });
+    } else if (nomes.has(ORCHESTRATION_MCP_SERVER_NAME)) {
+      notes.push({
+        level: "WARN",
+        message: `O nome "${ORCHESTRATION_MCP_SERVER_NAME}" já está em uso; a delegação não foi oferecida.`,
+      });
+    } else {
+      const entrypoint = input.orchestrationEntrypoint ?? orchestrationMcpEntrypoint();
+      const args = orchestrationMcpArgs({
+        runId,
+        projectId: input.projectId,
+        userId: input.userId,
+      });
+      servers.push({
+        name: ORCHESTRATION_MCP_SERVER_NAME,
+        transport: "STDIO",
+        command: input.nodePath ?? process.execPath,
+        args: [entrypoint, ...args],
+        envKeys: [...ORCHESTRATION_MCP_ENV_KEYS],
+        env: { DATABASE_URL: input.databaseUrl },
+        tools: [...ORCHESTRATION_TOOL_NAMES],
+        instruction: orchestrationMcpInstruction(),
+        container: {
+          command: "node",
+          args: [ORCHESTRATION_MCP_CONTAINER_ENTRYPOINT, ...args],
+          mounts: [
+            {
+              hostPath: entrypoint,
+              containerPath: ORCHESTRATION_MCP_CONTAINER_ENTRYPOINT,
+              readOnly: true,
+            },
+          ],
+          env: { DATABASE_URL: toContainerDatabaseUrl(input.databaseUrl) },
+        },
+      });
+      nomes.add(ORCHESTRATION_MCP_SERVER_NAME);
+      notes.push({
+        level: "INFO",
+        code: "DELEGATION_OFFERED",
+        message:
+          `Ferramenta de delegação oferecida ao agente (nível de autonomia ` +
+          `${String(autonomyLevel)}, profundidade ${String(depth)}): ` +
+          `${ORCHESTRATION_TOOL_NAMES.join(", ")}.`,
+      });
     }
   }
 
@@ -234,7 +333,11 @@ function fromLoadoutRef(
       level: "WARN",
       message:
         `O servidor MCP "${name}" do Loadout foi ignorado: o nome já está em uso neste Run` +
-        (name === KNOWLEDGE_MCP_SERVER_NAME ? " (é o nome reservado do Grimório)." : "."),
+        (name === KNOWLEDGE_MCP_SERVER_NAME
+          ? " (é o nome reservado do Grimório)."
+          : name === ORCHESTRATION_MCP_SERVER_NAME
+            ? " (é o nome reservado da delegação)."
+            : "."),
     });
     return undefined;
   }

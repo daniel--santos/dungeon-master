@@ -1,6 +1,8 @@
 import type { HarnessCapabilities, WorkspaceStrategy } from "@dungeon-master/contracts";
 import {
   acquireWorkspaceLock,
+  appendDashboardEvent,
+  checkBudgetsForRunningRun,
   getActiveRunByPath,
   isKnowledgeScribeLoadout,
   recordDomainEvent,
@@ -33,6 +35,9 @@ import type { RunOutcomeWriter } from "./run-writers.js";
  *    `FAILED` com `CAPABILITY_BLOCKED` sem trava, sem worktree e sem
  *    processo; os avisos viram `Diagnostic` com o código do domínio; uma
  *    divergência entre o snapshot e o adapter fica registrada.
+ * 0.5. **Orçamentos re-checados** (Fase 9B). O mundo mudou desde o
+ *    `POST /runs`: um `BLOCK` no teto fecha o Run como `FAILED` com
+ *    `BUDGET_EXCEEDED` sem subir agente; um `WARN` vira `Diagnostic`.
  * 1. **Trava de workspace antes de qualquer processo.** Dois `run()` do
  *    Sandcastle com a mesma branch nomeada recebem o mesmo diretório e
  *    corrompem em silêncio (documento técnico, seção 16); a trava é nossa e
@@ -126,6 +131,50 @@ export async function prepareRun(input: PrepareRunInput): Promise<PreparationOut
 
   for (const warning of check.warnings) {
     await writer.diagnostic("WARN", warning.message, undefined, warning.code);
+  }
+
+  // ------------------------------------------------------ (0.5) orçamentos
+  const orcamentos = await checkBudgetsForRunningRun(db, {
+    userId,
+    runId: run.id,
+    projectId: project.id,
+    loadoutId: run.loadoutId,
+  });
+  for (const aviso of orcamentos.warnings) {
+    await writer.diagnostic("WARN", aviso.reason, undefined, "BUDGET_WARNED");
+  }
+  if (orcamentos.blocked !== null) {
+    const breach = orcamentos.blocked;
+    await writer.diagnostic("ERROR", breach.reason, undefined, "BUDGET_EXCEEDED");
+    try {
+      await appendDashboardEvent(db, {
+        userId,
+        type: "budget.exceeded",
+        payload: {
+          budgetId: breach.budgetId,
+          name: breach.name,
+          taskId: task.id,
+          projectId: project.id,
+          loadoutId: run.loadoutId,
+          runId: run.id,
+          limit: breach.limit,
+          limitValue: breach.limitValue,
+          current: breach.current,
+          decidedBy: breach.decidedBy,
+          reason: breach.reason,
+        },
+      });
+    } catch (error) {
+      deps.logger?.warn({ err: error, runId: run.id }, "não consegui gravar budget.exceeded");
+    }
+    await writer.failPreparation({
+      code: "BUDGET_EXCEEDED",
+      message: breach.reason,
+      // Retentável: a janela vira, ou alguém sobe o teto.
+      retryable: true,
+      extra: { budgetId: breach.budgetId, budget: breach },
+    });
+    return { ok: false, lockAcquired: false };
   }
 
   // ------------------------------------------------------------ workspace

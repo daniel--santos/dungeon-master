@@ -176,6 +176,11 @@ async function executeSimpleRun(deps: ExecuteRunDeps, claimed: ClaimedRun): Prom
       projectId: claimed.project.id,
       userId,
       databaseUrl: deps.databaseUrl,
+      delegation: {
+        runId: run.id,
+        autonomyLevel: claimed.project.autonomyLevel,
+        depth: claimed.delegationDepth,
+      },
     });
     for (const nota of mcp.notes) {
       await writer.diagnostic(

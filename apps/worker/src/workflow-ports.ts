@@ -10,9 +10,12 @@ import {
 } from "@dungeon-master/contracts";
 import {
   appendRunEvent,
+  checkBudgetsForRunningRun,
   createApprovalGate,
+  findChildRunByStep,
   listCancelRequestedRunIds,
   listRunSteps,
+  openDelegation,
   transitionRunStep,
   updateRunExecutionFields,
   type Database,
@@ -39,6 +42,8 @@ export function createDatabaseWorkflowStore(input: {
   readonly db: Database;
   readonly userId: string;
   readonly run: Run;
+  /** O Project do Run: o escopo dos orçamentos re-checados por passo (Fase 9B). */
+  readonly projectId: string;
   readonly logger: Logger | undefined;
   /** Chamado quando um step de agente captura a sessão do harness. */
   readonly onHarnessSession: (harnessSessionId: string) => void;
@@ -89,7 +94,56 @@ export function createDatabaseWorkflowStore(input: {
       if (!created.ok) {
         return { ok: false, code: created.failure.code, detail: JSON.stringify(created.failure) };
       }
-      return { ok: true, gate: created.value.gate, created: created.value.created };
+      return {
+        ok: true,
+        gate: created.value.gate,
+        created: created.value.created,
+        policyDecision: created.value.policyDecision,
+      };
+    },
+
+    openDelegation: async (delegation) => {
+      const aberto = await openDelegation(db, {
+        userId,
+        parentRunId: runId,
+        stepKey: delegation.stepKey,
+        loadoutRef: delegation.loadoutRef,
+        prompt: delegation.prompt,
+        taskStrategy: delegation.taskStrategy,
+      });
+      if (aberto === null) {
+        return { ok: false, code: "RUN_NOT_FOUND", detail: `O Run ${runId} não existe.` };
+      }
+      if (!aberto.ok) {
+        return {
+          ok: false,
+          code: aberto.failure.code,
+          detail: describeDelegationFailure(aberto.failure),
+        };
+      }
+      return { ok: true, child: aberto.value.child, created: aberto.value.created };
+    },
+
+    findChildRun: (stepKey) =>
+      findChildRunByStep(db, { userId, parentRunId: runId, parentStepKey: stepKey }),
+
+    checkStepBudget: async () => {
+      const check = await checkBudgetsForRunningRun(db, {
+        userId,
+        runId,
+        projectId: input.projectId,
+        loadoutId: run.loadoutId,
+      });
+      const toBreach = (breach: (typeof check.warnings)[number]) => ({
+        budgetId: breach.budgetId,
+        name: breach.name,
+        action: breach.action,
+        reason: breach.reason,
+      });
+      return {
+        blocked: check.blocked === null ? null : toBreach(check.blocked),
+        warnings: check.warnings.map(toBreach),
+      };
     },
 
     isCancelRequested: async () => {
@@ -117,6 +171,30 @@ export function createDatabaseWorkflowStore(input: {
       }
     },
   };
+}
+
+/** A frase de uma recusa de delegação, para o erro do passo. */
+function describeDelegationFailure(failure: { code: string } & Record<string, unknown>): string {
+  switch (failure.code) {
+    case "BUDGET_EXCEEDED":
+      return (failure["breach"] as { reason: string }).reason;
+    case "BREAKER_OPEN":
+      return (failure["breaker"] as { reason: string }).reason;
+    case "POLICY_DENIED":
+    case "POLICY_REQUIRES_APPROVAL":
+      return (failure["decision"] as { reason: string }).reason;
+    case "DELEGATION_DEPTH_EXCEEDED":
+      return (
+        `O Run mãe está na profundidade ${String(failure["parentDepth"])} e o teto é ` +
+        `${String(failure["maxDepth"])}.`
+      );
+    case "LOADOUT_REF_NOT_FOUND":
+      return `Não há Loadout com o id ou o nome "${String(failure["loadoutRef"])}".`;
+    case "CAPABILITY_BLOCKED":
+      return (failure["blockers"] as { message: string }[]).map((b) => b.message).join(" ");
+    default:
+      return JSON.stringify(failure);
+  }
 }
 
 export interface StepAgentRuntimeInput {
