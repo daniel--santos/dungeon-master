@@ -71,6 +71,10 @@
     {
       "name": "achievements",
       "description": "O catálogo versionado de Conquistas, a projeção de progresso e as forjadas em revisão."
+    },
+    {
+      "name": "autonomy",
+      "description": "Autonomia controlada (Fase 9A): políticas de aprovação, orçamentos, disjuntores, regras de roteamento, o nível de autonomia do Project e as sugestões de uma Task."
     }
   ],
   "components": {
@@ -446,6 +450,13 @@
             ],
             "description": "Caminho absoluto do workspace na máquina local. Um Project sem ele não pode ter Run: não há onde o agente trabalhar."
           },
+          "autonomyLevel": {
+            "type": "number",
+            "enum": [
+              0
+            ],
+            "description": "A escada de autonomia do Project (Fase 9A). Muda em `PATCH /projects/{id}/autonomy`."
+          },
           "archivedAt": {
             "type": [
               "string",
@@ -530,6 +541,7 @@
           "status",
           "workspaceKind",
           "workspacePath",
+          "autonomyLevel",
           "archivedAt",
           "createdAt",
           "updatedAt",
@@ -586,6 +598,13 @@
             ],
             "description": "Caminho absoluto do workspace na máquina local. Um Project sem ele não pode ter Run: não há onde o agente trabalhar."
           },
+          "autonomyLevel": {
+            "type": "number",
+            "enum": [
+              0
+            ],
+            "description": "A escada de autonomia do Project (Fase 9A). Muda em `PATCH /projects/{id}/autonomy`."
+          },
           "archivedAt": {
             "type": [
               "string",
@@ -612,6 +631,7 @@
           "status",
           "workspaceKind",
           "workspacePath",
+          "autonomyLevel",
           "archivedAt",
           "createdAt",
           "updatedAt"
@@ -853,6 +873,9 @@
           "priority": {
             "$ref": "#/components/schemas/TaskPriority"
           },
+          "createdBy": {
+            "$ref": "#/components/schemas/TaskCreatedBy"
+          },
           "completedAt": {
             "type": [
               "string",
@@ -882,6 +905,7 @@
           "kind",
           "status",
           "priority",
+          "createdBy",
           "completedAt",
           "createdAt",
           "updatedAt"
@@ -922,6 +946,15 @@
           "URGENT"
         ],
         "description": "Prioridade de uma Task."
+      },
+      "TaskCreatedBy": {
+        "type": "string",
+        "enum": [
+          "USER",
+          "PROPOSAL",
+          "POLICY"
+        ],
+        "description": "`USER` à mão, `PROPOSAL` por aprovação humana, `POLICY` por política automática."
       },
       "TaskReopeningList": {
         "type": "object",
@@ -1081,6 +1114,9 @@
           "priority": {
             "$ref": "#/components/schemas/TaskPriority"
           },
+          "createdBy": {
+            "$ref": "#/components/schemas/TaskCreatedBy"
+          },
           "completedAt": {
             "type": [
               "string",
@@ -1136,6 +1172,7 @@
           "kind",
           "status",
           "priority",
+          "createdBy",
           "completedAt",
           "createdAt",
           "updatedAt",
@@ -5734,6 +5771,24 @@
             "format": "uuid",
             "description": "Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero."
           },
+          "createdBy": {
+            "$ref": "#/components/schemas/RunCreatedBy"
+          },
+          "parentRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "O Run que delegou este (Fase 9B). Nulo em todo Run criado pela API ou por política."
+          },
+          "parentStepKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A chave do step do Run mãe que abriu a delegação. Nulo sem `parentRunId`."
+          },
           "loadoutId": {
             "type": "string",
             "format": "uuid"
@@ -5802,6 +5857,178 @@
               "$ref": "#/components/schemas/CapabilityIssue"
             },
             "description": "Descompassos que não impedem a partida. O Worker os registra no diário."
+          },
+          "policyDecision": {
+            "type": "object",
+            "properties": {
+              "subject": {
+                "$ref": "#/components/schemas/PolicySubject"
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "REQUIRE_APPROVAL",
+                  "AUTO_APPROVE",
+                  "DENY"
+                ],
+                "description": "A ação **efetiva**, depois do nível de autonomia."
+              },
+              "policyId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid",
+                "description": "A política que casou, quando alguma casou."
+              },
+              "policyAction": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "REQUIRE_APPROVAL",
+                  "AUTO_APPROVE",
+                  "DENY",
+                  null
+                ],
+                "description": "O que a política que casou pedia. Difere de `action` quando a autonomia rebaixou."
+              },
+              "decidedBy": {
+                "type": "string",
+                "description": "`POLICY:<id>`, `DEFAULT`, `TIE:<id>,<id>` ou `AUTONOMY:<nível>`."
+              },
+              "autonomyLevel": {
+                "$ref": "#/components/schemas/AutonomyLevel"
+              },
+              "reason": {
+                "type": "string",
+                "description": "A frase canônica do domínio, em português."
+              },
+              "decidedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "subject",
+              "action",
+              "policyId",
+              "policyAction",
+              "decidedBy",
+              "autonomyLevel",
+              "reason",
+              "decidedAt"
+            ],
+            "description": "A decisão das políticas `RUN_START` (Fase 9A). `DENY` nunca chega aqui: é o `409`."
+          },
+          "modelRouting": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/RoutingKind"
+              },
+              "selectedId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid",
+                "description": "O alvo escolhido. Nulo quando não há padrão."
+              },
+              "selectedName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Nome (ou chave, num Model) do escolhido."
+              },
+              "ruleId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "decidedBy": {
+                "type": "string",
+                "description": "`ROUTING:<id>`, `DEFAULT` ou `TIE:<id>,<id>`."
+              },
+              "reason": {
+                "type": "string"
+              },
+              "attempts": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RoutingAttempt"
+                },
+                "description": "Alvo preferido e fallbacks, na ordem."
+              }
+            },
+            "required": [
+              "kind",
+              "selectedId",
+              "selectedName",
+              "ruleId",
+              "decidedBy",
+              "reason",
+              "attempts"
+            ],
+            "description": "Como o Model foi escolhido quando o Loadout o deixa nulo. Nulo quando o Loadout o pina."
+          },
+          "budgetWarnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetBreach"
+            },
+            "description": "Orçamentos `WARN` atingidos por este Run. Um `BLOCK` é o `409 BUDGET_EXCEEDED`."
+          },
+          "breaker": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "breakerId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "CLOSED",
+                  "OPEN",
+                  "HALF_OPEN"
+                ],
+                "description": "O estado depois da decisão."
+              },
+              "probe": {
+                "type": "boolean",
+                "description": "Verdadeiro quando este Run é a sondagem do `HALF_OPEN`."
+              },
+              "decidedBy": {
+                "type": "string",
+                "description": "`BREAKER:<id>`."
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "breakerId",
+              "name",
+              "state",
+              "probe",
+              "decidedBy",
+              "reason"
+            ],
+            "description": "O disjuntor `HALF_OPEN` que deixou este Run passar como sondagem. Nulo sem sondagem."
           }
         },
         "required": [
@@ -5817,6 +6044,9 @@
           "workspacePath",
           "workflowVersionId",
           "resumedFromRunId",
+          "createdBy",
+          "parentRunId",
+          "parentStepKey",
           "loadoutId",
           "loadoutVersion",
           "loadoutSnapshot",
@@ -5830,9 +6060,13 @@
           "error",
           "createdAt",
           "updatedAt",
-          "warnings"
+          "warnings",
+          "policyDecision",
+          "modelRouting",
+          "budgetWarnings",
+          "breaker"
         ],
-        "description": "O Run recém-criado e os avisos de capability."
+        "description": "O Run recém-criado, os avisos de capability e as decisões automáticas."
       },
       "RunStatus": {
         "type": "string",
@@ -5848,6 +6082,15 @@
           "CANCELLED"
         ],
         "description": "Estado de um Run na máquina de estados."
+      },
+      "RunCreatedBy": {
+        "type": "string",
+        "enum": [
+          "USER",
+          "POLICY",
+          "DELEGATION"
+        ],
+        "description": "`USER` pela API, `POLICY` pelo auto-despacho, `DELEGATION` por outro agente."
       },
       "LoadoutSnapshot": {
         "type": "object",
@@ -5934,6 +6177,14 @@
               "name"
             ],
             "description": "Nulo quando o Harness não tinha Model padrão nem o Loadout indicava um."
+          },
+          "modelSelectedBy": {
+            "type": "string",
+            "description": "Quem escolheu o Model (Fase 9A): `LOADOUT`, `HARNESS_DEFAULT`, `ROUTING:<id>` ou `NONE`. Ausente em Runs anteriores ao roteamento."
+          },
+          "modelSelectionReason": {
+            "type": "string",
+            "description": "A frase canônica da escolha do Model. Ausente em Runs anteriores."
           },
           "executionProfileId": {
             "type": "string",
@@ -6267,6 +6518,289 @@
         "additionalProperties": {},
         "description": "Por que um Run terminou em FAILED ou TIMED_OUT."
       },
+      "PolicySubject": {
+        "type": "string",
+        "enum": [
+          "PROPOSAL",
+          "RUN_START",
+          "GATE"
+        ],
+        "description": "`PROPOSAL` decide uma proposta de Task; `RUN_START` a partida de um Run; `GATE` um ApprovalGate."
+      },
+      "AutonomyLevel": {
+        "type": "number",
+        "enum": [
+          0
+        ],
+        "description": "0 manual, 1 sugere, 2 propõe e o humano aprova, 3 políticas autoaprovam e auto-despacho, 4 delegação Agent-to-Agent."
+      },
+      "RoutingKind": {
+        "type": "string",
+        "enum": [
+          "MODEL",
+          "LOADOUT",
+          "WORKFLOW"
+        ],
+        "description": "O que a regra escolhe: um Model, um Loadout ou um Workflow."
+      },
+      "RoutingAttempt": {
+        "type": "object",
+        "properties": {
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accepted": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Por que o alvo serviu ou não."
+          }
+        },
+        "required": [
+          "targetId",
+          "accepted",
+          "reason"
+        ],
+        "description": "Um alvo tentado pelo roteamento."
+      },
+      "BudgetBreach": {
+        "type": "object",
+        "properties": {
+          "budgetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "action": {
+            "$ref": "#/components/schemas/BudgetAction"
+          },
+          "limit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "maxTokens",
+              "maxRuns",
+              "maxWallClockMs",
+              "maxConcurrentRuns",
+              null
+            ],
+            "description": "O teto atingido. Nulo quando a recusa foi por consumo desconhecido."
+          },
+          "limitValue": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "current": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "O consumo medido, já contando o Run pedido."
+          },
+          "decidedBy": {
+            "type": "string",
+            "description": "`BUDGET:<id>`."
+          },
+          "reason": {
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/BudgetUsage"
+          }
+        },
+        "required": [
+          "budgetId",
+          "name",
+          "action",
+          "limit",
+          "limitValue",
+          "current",
+          "decidedBy",
+          "reason",
+          "usage"
+        ],
+        "description": "Um orçamento atingido por um pedido de Run."
+      },
+      "BudgetAction": {
+        "type": "string",
+        "enum": [
+          "BLOCK",
+          "WARN"
+        ],
+        "description": "`BLOCK` recusa o Run com `409`; `WARN` deixa passar e avisa."
+      },
+      "BudgetUsage": {
+        "type": "object",
+        "properties": {
+          "budgetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "window": {
+            "$ref": "#/components/schemas/BudgetWindow"
+          },
+          "windowStart": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Começo da janela, em UTC. Nulo em `PER_RUN`."
+          },
+          "windowEnd": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Fim exclusivo da janela. Nulo em `PER_RUN`."
+          },
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Em `PER_RUN`, o Run medido: o pedido, ou o último terminal do escopo."
+          },
+          "tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Soma de `inputTokens + outputTokens`."
+          },
+          "tokensKnown": {
+            "type": "boolean",
+            "description": "Falso quando algum Run que rodou terminou sem reportar consumo."
+          },
+          "runsWithoutUsage": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "runs": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Runs criados na janela."
+          },
+          "wallClockMs": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Duração somada dos Runs, com os vivos contados até agora."
+          },
+          "concurrentRuns": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Runs vivos agora, sem janela."
+          },
+          "limits": {
+            "$ref": "#/components/schemas/BudgetLimits"
+          },
+          "pressure": {
+            "type": "number",
+            "minimum": 0,
+            "description": "A maior razão consumo/teto entre os tetos definidos. `1` é no teto."
+          },
+          "exceeded": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetLimitKey"
+            },
+            "description": "Os tetos já atingidos ou ultrapassados."
+          },
+          "computedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "budgetId",
+          "window",
+          "windowStart",
+          "windowEnd",
+          "runId",
+          "tokens",
+          "tokensKnown",
+          "runsWithoutUsage",
+          "runs",
+          "wallClockMs",
+          "concurrentRuns",
+          "limits",
+          "pressure",
+          "exceeded",
+          "computedAt"
+        ],
+        "description": "O consumo medido de um orçamento na janela atual."
+      },
+      "BudgetWindow": {
+        "type": "string",
+        "enum": [
+          "DAY",
+          "WEEK",
+          "MONTH",
+          "PER_RUN"
+        ],
+        "description": "Janela de calendário em UTC, ou `PER_RUN` para limitar cada Run isoladamente."
+      },
+      "BudgetLimits": {
+        "type": "object",
+        "properties": {
+          "maxTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "description": "Teto de tokens (`inputTokens + outputTokens`)."
+          },
+          "maxRuns": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "description": "Teto de Runs criados na janela."
+          },
+          "maxWallClockMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "description": "Teto de tempo de execução somado."
+          },
+          "maxConcurrentRuns": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "description": "Teto de Runs vivos ao mesmo tempo."
+          }
+        },
+        "required": [
+          "maxTokens",
+          "maxRuns",
+          "maxWallClockMs",
+          "maxConcurrentRuns"
+        ],
+        "description": "Os tetos de um orçamento. Nulo é sem teto."
+      },
+      "BudgetLimitKey": {
+        "type": "string",
+        "enum": [
+          "maxTokens",
+          "maxRuns",
+          "maxWallClockMs",
+          "maxConcurrentRuns"
+        ],
+        "description": "Qual dos quatro tetos de um orçamento."
+      },
       "CreateRun": {
         "type": "object",
         "properties": {
@@ -6409,6 +6943,24 @@
             "format": "uuid",
             "description": "Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero."
           },
+          "createdBy": {
+            "$ref": "#/components/schemas/RunCreatedBy"
+          },
+          "parentRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "O Run que delegou este (Fase 9B). Nulo em todo Run criado pela API ou por política."
+          },
+          "parentStepKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A chave do step do Run mãe que abriu a delegação. Nulo sem `parentRunId`."
+          },
           "loadoutId": {
             "type": "string",
             "format": "uuid"
@@ -6489,6 +7041,9 @@
           "workspacePath",
           "workflowVersionId",
           "resumedFromRunId",
+          "createdBy",
+          "parentRunId",
+          "parentStepKey",
           "loadoutId",
           "loadoutVersion",
           "loadoutSnapshot",
@@ -6587,6 +7142,24 @@
             "format": "uuid",
             "description": "Run de onde a sessão do harness foi retomada. Nulo num Run que começou do zero."
           },
+          "createdBy": {
+            "$ref": "#/components/schemas/RunCreatedBy"
+          },
+          "parentRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "O Run que delegou este (Fase 9B). Nulo em todo Run criado pela API ou por política."
+          },
+          "parentStepKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A chave do step do Run mãe que abriu a delegação. Nulo sem `parentRunId`."
+          },
           "loadoutId": {
             "type": "string",
             "format": "uuid"
@@ -6663,6 +7236,9 @@
           "workspacePath",
           "workflowVersionId",
           "resumedFromRunId",
+          "createdBy",
+          "parentRunId",
+          "parentStepKey",
           "loadoutId",
           "loadoutVersion",
           "loadoutSnapshot",
@@ -8898,6 +9474,1721 @@
           "decision"
         ],
         "description": "Corpo de `POST /api/v1/approval-gates/{id}/resolve`."
+      },
+      "ApprovalPolicyPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalPolicy"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de políticas, da maior prioridade para a menor."
+      },
+      "ApprovalPolicy": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da política."
+          },
+          "name": {
+            "type": "string"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/PolicySubject"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Nulo é uma política global."
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Prioridade explícita. A regra de maior prioridade que casa decide; empate é revisão humana."
+          },
+          "conditions": {
+            "$ref": "#/components/schemas/RuleConditions"
+          },
+          "action": {
+            "$ref": "#/components/schemas/PolicyAction"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "subject",
+          "projectId",
+          "priority",
+          "conditions",
+          "action",
+          "enabled",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Uma regra de aprovação automática."
+      },
+      "RuleConditions": {
+        "type": "object",
+        "properties": {
+          "executionMode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionMode"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ExecutionMode"
+                },
+                "minItems": 1
+              }
+            ],
+            "description": "O modo do ExecutionProfile do Run."
+          },
+          "harnessKey": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HarnessKey"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/HarnessKey"
+                },
+                "minItems": 1
+              }
+            ],
+            "description": "O Harness do Loadout."
+          },
+          "taskKind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskKind"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TaskKind"
+                },
+                "minItems": 1
+              }
+            ],
+            "description": "A natureza da Task."
+          },
+          "taskPriority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskPriority"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TaskPriority"
+                },
+                "minItems": 1
+              }
+            ],
+            "description": "A prioridade da Task."
+          },
+          "hasCommandTools": {
+            "type": "boolean",
+            "description": "O snapshot do Loadout carrega pelo menos uma Tool `COMMAND`."
+          },
+          "enforcement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnforcementLevel"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/EnforcementLevel"
+                },
+                "minItems": 1
+              }
+            ],
+            "description": "O nível de enforcement do ExecutionProfile."
+          },
+          "stepType": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkflowStepType"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/WorkflowStepType"
+                },
+                "minItems": 1
+              }
+            ],
+            "description": "O tipo do step de Workflow. Só existe em decisões sobre um gate."
+          },
+          "maxEstimatedTokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Casa quando a estimativa de tokens do pedido é menor ou igual a este teto."
+          },
+          "loadoutId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "minItems": 1
+              }
+            ],
+            "description": "O Loadout do Run."
+          },
+          "projectId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "minItems": 1
+              }
+            ],
+            "description": "O Project da Task."
+          },
+          "minBudgetPressure": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Casa quando a pressão de orçamento (razão consumo/limite mais alta entre os orçamentos aplicáveis) é maior ou igual a este valor. `0.8` é 'a 80% de algum teto'."
+          }
+        },
+        "additionalProperties": false,
+        "description": "As condições de uma política ou regra de roteamento: vocabulário fechado, conjunção."
+      },
+      "PolicyAction": {
+        "type": "string",
+        "enum": [
+          "REQUIRE_APPROVAL",
+          "AUTO_APPROVE",
+          "DENY"
+        ],
+        "description": "`REQUIRE_APPROVAL` é revisão humana; `AUTO_APPROVE` decide sim; `DENY` decide não."
+      },
+      "CreateApprovalPolicy": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "subject": {
+            "$ref": "#/components/schemas/PolicySubject"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Ausente ou nulo cria uma política global."
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Padrão: `100`."
+          },
+          "conditions": {
+            "type": "object",
+            "properties": {
+              "executionMode": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ExecutionMode"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ExecutionMode"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "O modo do ExecutionProfile do Run."
+              },
+              "harnessKey": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/HarnessKey"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/HarnessKey"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "O Harness do Loadout."
+              },
+              "taskKind": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskKind"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TaskKind"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "A natureza da Task."
+              },
+              "taskPriority": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskPriority"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TaskPriority"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "A prioridade da Task."
+              },
+              "hasCommandTools": {
+                "type": "boolean",
+                "description": "O snapshot do Loadout carrega pelo menos uma Tool `COMMAND`."
+              },
+              "enforcement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/EnforcementLevel"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/EnforcementLevel"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "O nível de enforcement do ExecutionProfile."
+              },
+              "stepType": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/WorkflowStepType"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WorkflowStepType"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "O tipo do step de Workflow. Só existe em decisões sobre um gate."
+              },
+              "maxEstimatedTokens": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "description": "Casa quando a estimativa de tokens do pedido é menor ou igual a este teto."
+              },
+              "loadoutId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "O Loadout do Run."
+              },
+              "projectId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "O Project da Task."
+              },
+              "minBudgetPressure": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Casa quando a pressão de orçamento (razão consumo/limite mais alta entre os orçamentos aplicáveis) é maior ou igual a este valor. `0.8` é 'a 80% de algum teto'."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Ausente é `{}`: casa com tudo."
+          },
+          "action": {
+            "$ref": "#/components/schemas/PolicyAction"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Padrão: ligada."
+          }
+        },
+        "required": [
+          "name",
+          "subject",
+          "action"
+        ],
+        "description": "Corpo de `POST /api/v1/approval-policies`."
+      },
+      "UpdateApprovalPolicy": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "subject": {
+            "$ref": "#/components/schemas/PolicySubject"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Prioridade explícita. A regra de maior prioridade que casa decide; empate é revisão humana."
+          },
+          "conditions": {
+            "$ref": "#/components/schemas/RuleConditions"
+          },
+          "action": {
+            "$ref": "#/components/schemas/PolicyAction"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/approval-policies/{id}`."
+      },
+      "BudgetPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Budget"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de orçamentos, em ordem alfabética."
+      },
+      "Budget": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do orçamento."
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/BudgetScope"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Só em `PROJECT`."
+          },
+          "loadoutId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Só em `LOADOUT`."
+          },
+          "window": {
+            "$ref": "#/components/schemas/BudgetWindow"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/BudgetLimits"
+          },
+          "action": {
+            "$ref": "#/components/schemas/BudgetAction"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "scope",
+          "projectId",
+          "loadoutId",
+          "window",
+          "limits",
+          "action",
+          "enabled",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Um teto de consumo por escopo e janela."
+      },
+      "BudgetScope": {
+        "type": "string",
+        "enum": [
+          "GLOBAL",
+          "PROJECT",
+          "LOADOUT"
+        ],
+        "description": "`GLOBAL` conta todo Run; `PROJECT` os do Project; `LOADOUT` os do Loadout."
+      },
+      "CreateBudget": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "scope": {
+            "$ref": "#/components/schemas/BudgetScope"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Obrigatório em `PROJECT`; recusado nos outros."
+          },
+          "loadoutId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Obrigatório em `LOADOUT`; recusado nos outros."
+          },
+          "window": {
+            "$ref": "#/components/schemas/BudgetWindow"
+          },
+          "maxTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "maxRuns": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "maxWallClockMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "maxConcurrentRuns": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "BLOCK",
+              "WARN"
+            ],
+            "description": "Padrão: `BLOCK`."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Padrão: ligado."
+          }
+        },
+        "required": [
+          "name",
+          "scope",
+          "window"
+        ],
+        "description": "Corpo de `POST /api/v1/budgets`. Pelo menos um teto; `PER_RUN` só aceita `maxTokens` e `maxWallClockMs`."
+      },
+      "UpdateBudget": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "maxTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "maxRuns": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "maxWallClockMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "maxConcurrentRuns": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "action": {
+            "$ref": "#/components/schemas/BudgetAction"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/budgets/{id}`. Escopo e janela não mudam: apague e crie de novo."
+      },
+      "CircuitBreakerPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CircuitBreaker"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de disjuntores, em ordem alfabética."
+      },
+      "CircuitBreaker": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 do disjuntor."
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/BreakerScope"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Só em `PROJECT`."
+          },
+          "loadoutId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Só em `LOADOUT`."
+          },
+          "harnessKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "CLAUDE_CODE",
+              "CODEX",
+              "PI",
+              "ANTIGRAVITY",
+              null
+            ],
+            "description": "Só em `HARNESS`."
+          },
+          "triggers": {
+            "$ref": "#/components/schemas/BreakerTriggers"
+          },
+          "cooldownMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Quanto tempo `OPEN` dura até `HALF_OPEN`."
+          },
+          "state": {
+            "$ref": "#/components/schemas/BreakerState"
+          },
+          "openedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Quando abriu. Nulo em `CLOSED`."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Por que abriu, na frase canônica do domínio."
+          },
+          "probeRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Em `HALF_OPEN`, o Run de sondagem em voo. Só um por vez."
+          },
+          "consecutiveFailures": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "O contador que o Worker (9B) alimenta. Zera no reset."
+          },
+          "stateChangedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "scope",
+          "projectId",
+          "loadoutId",
+          "harnessKey",
+          "triggers",
+          "cooldownMs",
+          "state",
+          "openedAt",
+          "reason",
+          "probeRunId",
+          "consecutiveFailures",
+          "stateChangedAt",
+          "enabled",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Um disjuntor de execução por escopo."
+      },
+      "BreakerScope": {
+        "type": "string",
+        "enum": [
+          "PROJECT",
+          "LOADOUT",
+          "HARNESS"
+        ],
+        "description": "`PROJECT` os Runs do Project; `LOADOUT` os do Loadout; `HARNESS` os do Harness."
+      },
+      "BreakerTriggers": {
+        "type": "object",
+        "properties": {
+          "consecutiveFailures": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "failuresInWindow": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "windowMs": {
+                "type": "integer",
+                "minimum": 1000
+              }
+            },
+            "required": [
+              "count",
+              "windowMs"
+            ]
+          },
+          "permissionDeniedInWindow": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "windowMs": {
+                "type": "integer",
+                "minimum": 1000
+              }
+            },
+            "required": [
+              "count",
+              "windowMs"
+            ]
+          },
+          "authNotAuthenticated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "consecutiveFailures",
+          "failuresInWindow",
+          "permissionDeniedInWindow",
+          "authNotAuthenticated"
+        ],
+        "description": "O que abre o disjuntor."
+      },
+      "BreakerState": {
+        "type": "string",
+        "enum": [
+          "CLOSED",
+          "OPEN",
+          "HALF_OPEN"
+        ],
+        "description": "`CLOSED` deixa passar; `OPEN` recusa; `HALF_OPEN` deixa passar uma sondagem."
+      },
+      "CreateCircuitBreaker": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "scope": {
+            "$ref": "#/components/schemas/BreakerScope"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Obrigatório em `PROJECT`; recusado nos outros."
+          },
+          "loadoutId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Obrigatório em `LOADOUT`; recusado nos outros."
+          },
+          "harnessKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "CLAUDE_CODE",
+              "CODEX",
+              "PI",
+              "ANTIGRAVITY",
+              null
+            ],
+            "description": "Obrigatório em `HARNESS`; recusado nos outros."
+          },
+          "consecutiveFailures": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "failuresInWindow": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "windowMs": {
+                "type": "integer",
+                "minimum": 1000
+              }
+            },
+            "required": [
+              "count",
+              "windowMs"
+            ]
+          },
+          "permissionDeniedInWindow": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "windowMs": {
+                "type": "integer",
+                "minimum": 1000
+              }
+            },
+            "required": [
+              "count",
+              "windowMs"
+            ]
+          },
+          "authNotAuthenticated": {
+            "type": "boolean"
+          },
+          "cooldownMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 604800000,
+            "description": "Padrão: 900000 ms (15 minutos)."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Padrão: ligado."
+          }
+        },
+        "required": [
+          "name",
+          "scope"
+        ],
+        "description": "Corpo de `POST /api/v1/circuit-breakers`. Pelo menos um gatilho. Nasce `CLOSED`."
+      },
+      "UpdateCircuitBreaker": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "consecutiveFailures": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "failuresInWindow": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "windowMs": {
+                "type": "integer",
+                "minimum": 1000
+              }
+            },
+            "required": [
+              "count",
+              "windowMs"
+            ]
+          },
+          "permissionDeniedInWindow": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "windowMs": {
+                "type": "integer",
+                "minimum": 1000
+              }
+            },
+            "required": [
+              "count",
+              "windowMs"
+            ]
+          },
+          "authNotAuthenticated": {
+            "type": "boolean"
+          },
+          "cooldownMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 604800000
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/circuit-breakers/{id}`. Escopo e estado não mudam por aqui: o estado só muda pelos desfechos e pelo reset."
+      },
+      "RoutingRulePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoutingRule"
+            },
+            "description": "Os itens desta página, na ordem da listagem."
+          },
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Página devolvida."
+          },
+          "pageSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Itens por página efetivamente usados."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de itens que casam com o filtro."
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "description": "Uma página de regras de roteamento, da maior prioridade para a menor."
+      },
+      "RoutingRule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUIDv7 da regra."
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RoutingKind"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Nulo é uma regra global."
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Prioridade explícita. A regra de maior prioridade que casa decide; empate é revisão humana."
+          },
+          "conditions": {
+            "$ref": "#/components/schemas/RuleConditions"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "O alvo preferido: id de Model, Loadout ou Workflow."
+          },
+          "fallbackIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Alvos tentados em ordem quando o preferido não serve."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "projectId",
+          "priority",
+          "conditions",
+          "targetId",
+          "fallbackIds",
+          "enabled",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Uma regra de roteamento por condições."
+      },
+      "CreateRoutingRule": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RoutingKind"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Ausente ou nulo cria uma regra global."
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Padrão: `100`."
+          },
+          "conditions": {
+            "type": "object",
+            "properties": {
+              "executionMode": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ExecutionMode"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ExecutionMode"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "O modo do ExecutionProfile do Run."
+              },
+              "harnessKey": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/HarnessKey"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/HarnessKey"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "O Harness do Loadout."
+              },
+              "taskKind": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskKind"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TaskKind"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "A natureza da Task."
+              },
+              "taskPriority": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskPriority"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TaskPriority"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "A prioridade da Task."
+              },
+              "hasCommandTools": {
+                "type": "boolean",
+                "description": "O snapshot do Loadout carrega pelo menos uma Tool `COMMAND`."
+              },
+              "enforcement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/EnforcementLevel"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/EnforcementLevel"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "O nível de enforcement do ExecutionProfile."
+              },
+              "stepType": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/WorkflowStepType"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WorkflowStepType"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "O tipo do step de Workflow. Só existe em decisões sobre um gate."
+              },
+              "maxEstimatedTokens": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "description": "Casa quando a estimativa de tokens do pedido é menor ou igual a este teto."
+              },
+              "loadoutId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "O Loadout do Run."
+              },
+              "projectId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "minItems": 1
+                  }
+                ],
+                "description": "O Project da Task."
+              },
+              "minBudgetPressure": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Casa quando a pressão de orçamento (razão consumo/limite mais alta entre os orçamentos aplicáveis) é maior ou igual a este valor. `0.8` é 'a 80% de algum teto'."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Ausente é `{}`: casa com tudo."
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fallbackIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 10
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Padrão: ligada."
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "targetId"
+        ],
+        "description": "Corpo de `POST /api/v1/routing-rules`."
+      },
+      "UpdateRoutingRule": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Prioridade explícita. A regra de maior prioridade que casa decide; empate é revisão humana."
+          },
+          "conditions": {
+            "$ref": "#/components/schemas/RuleConditions"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fallbackIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 10
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "description": "Corpo de `PATCH /api/v1/routing-rules/{id}`. `kind` não muda."
+      },
+      "ProjectAutonomy": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "autonomyLevel": {
+            "$ref": "#/components/schemas/AutonomyLevel"
+          },
+          "allows": {
+            "type": "object",
+            "properties": {
+              "SUGGEST": {
+                "type": "boolean"
+              },
+              "AUTO_APPROVE_PROPOSAL": {
+                "type": "boolean"
+              },
+              "AUTO_APPROVE_GATE": {
+                "type": "boolean"
+              },
+              "AUTO_DISPATCH": {
+                "type": "boolean"
+              },
+              "DELEGATE": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "SUGGEST",
+              "AUTO_APPROVE_PROPOSAL",
+              "AUTO_APPROVE_GATE",
+              "AUTO_DISPATCH",
+              "DELEGATE"
+            ],
+            "description": "O que o nível atual libera, calculado pelo domínio."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Última escrita do Project, em UTC."
+          }
+        },
+        "required": [
+          "projectId",
+          "autonomyLevel",
+          "allows",
+          "updatedAt"
+        ],
+        "description": "O nível de autonomia de um Project e o que ele libera."
+      },
+      "UpdateProjectAutonomy": {
+        "type": "object",
+        "properties": {
+          "autonomyLevel": {
+            "$ref": "#/components/schemas/AutonomyLevel"
+          }
+        },
+        "required": [
+          "autonomyLevel"
+        ],
+        "description": "Corpo de `PATCH /api/v1/projects/{id}/autonomy`."
+      },
+      "TaskSuggestions": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "autonomyLevel": {
+            "$ref": "#/components/schemas/AutonomyLevel"
+          },
+          "loadout": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/RoutingKind"
+              },
+              "selectedId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid",
+                "description": "O alvo escolhido. Nulo quando não há padrão."
+              },
+              "selectedName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Nome (ou chave, num Model) do escolhido."
+              },
+              "ruleId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "decidedBy": {
+                "type": "string",
+                "description": "`ROUTING:<id>`, `DEFAULT` ou `TIE:<id>,<id>`."
+              },
+              "reason": {
+                "type": "string"
+              },
+              "attempts": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RoutingAttempt"
+                },
+                "description": "Alvo preferido e fallbacks, na ordem."
+              }
+            },
+            "required": [
+              "kind",
+              "selectedId",
+              "selectedName",
+              "ruleId",
+              "decidedBy",
+              "reason",
+              "attempts"
+            ],
+            "description": "O Loadout sugerido, ou o padrão."
+          },
+          "workflow": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/RoutingKind"
+              },
+              "selectedId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid",
+                "description": "O alvo escolhido. Nulo quando não há padrão."
+              },
+              "selectedName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Nome (ou chave, num Model) do escolhido."
+              },
+              "ruleId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "decidedBy": {
+                "type": "string",
+                "description": "`ROUTING:<id>`, `DEFAULT` ou `TIE:<id>,<id>`."
+              },
+              "reason": {
+                "type": "string"
+              },
+              "attempts": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RoutingAttempt"
+                },
+                "description": "Alvo preferido e fallbacks, na ordem."
+              }
+            },
+            "required": [
+              "kind",
+              "selectedId",
+              "selectedName",
+              "ruleId",
+              "decidedBy",
+              "reason",
+              "attempts"
+            ],
+            "description": "O Workflow sugerido, o da Task, ou nenhum."
+          },
+          "model": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/RoutingKind"
+              },
+              "selectedId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid",
+                "description": "O alvo escolhido. Nulo quando não há padrão."
+              },
+              "selectedName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Nome (ou chave, num Model) do escolhido."
+              },
+              "ruleId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "decidedBy": {
+                "type": "string",
+                "description": "`ROUTING:<id>`, `DEFAULT` ou `TIE:<id>,<id>`."
+              },
+              "reason": {
+                "type": "string"
+              },
+              "attempts": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RoutingAttempt"
+                },
+                "description": "Alvo preferido e fallbacks, na ordem."
+              }
+            },
+            "required": [
+              "kind",
+              "selectedId",
+              "selectedName",
+              "ruleId",
+              "decidedBy",
+              "reason",
+              "attempts"
+            ],
+            "description": "O Model sugerido, compatível com o Harness do Loadout sugerido."
+          },
+          "budgetPressure": {
+            "type": "number",
+            "minimum": 0,
+            "description": "A pressão de orçamento usada como fato: a maior razão consumo/teto."
+          },
+          "computedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "taskId",
+          "projectId",
+          "autonomyLevel",
+          "loadout",
+          "workflow",
+          "model",
+          "budgetPressure",
+          "computedAt"
+        ],
+        "description": "Loadout, Workflow e Model sugeridos para a Task."
       },
       "AchievementCatalog": {
         "type": "object",
@@ -11845,6 +14136,21 @@
             "required": false,
             "description": "Prioridade de uma Task.",
             "name": "priority",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "PROPOSAL",
+                "POLICY"
+              ],
+              "description": "Só as Tasks com esta origem."
+            },
+            "required": false,
+            "description": "Só as Tasks com esta origem.",
+            "name": "createdBy",
             "in": "query"
           },
           {
@@ -16428,6 +18734,21 @@
             "description": "Filtra por um estado ou por vários, repetindo o parâmetro.",
             "name": "status",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "POLICY",
+                "DELEGATION"
+              ],
+              "description": "Só os Runs com esta origem."
+            },
+            "required": false,
+            "description": "Só os Runs com esta origem.",
+            "name": "createdBy",
+            "in": "query"
           }
         ],
         "responses": {
@@ -17385,6 +19706,1362 @@
           },
           "409": {
             "description": "O gate já foi decidido (o estado atual vem em `gate`), ou o Run não está mais esperando.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/approval-policies": {
+      "get": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Lista as políticas de aprovação",
+        "description": "Da maior prioridade para a menor. `projectId` devolve as do Project **mais as globais**, que é exatamente o conjunto avaliado numa decisão.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só as políticas deste Project, mais as globais."
+            },
+            "required": false,
+            "description": "Só as políticas deste Project, mais as globais.",
+            "name": "projectId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/PolicySubject"
+            },
+            "required": false,
+            "description": "`PROPOSAL` decide uma proposta de Task; `RUN_START` a partida de um Run; `GATE` um ApprovalGate.",
+            "name": "subject",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de políticas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalPolicyPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Cria uma política de aprovação",
+        "description": "Condições no vocabulário fechado de `RuleConditions`, conjunção; a de maior prioridade que casa decide, e empate é revisão humana. `AUTO_APPROVE` só produz efeito quando o nível de autonomia do Project libera a automação do assunto (nível 3). `projectId` ausente cria uma política global.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApprovalPolicy"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Política criada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalPolicy"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O Project informado não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/approval-policies/{id}": {
+      "get": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Uma política de aprovação",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A política.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalPolicy"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe ApprovalPolicy com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Edita a política de aprovação",
+        "description": "`projectId: null` torna a política global. Emite `registry.changed`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateApprovalPolicy"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A política depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalPolicy"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe ApprovalPolicy com este id, ou o Project informado não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Apaga a política de aprovação",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Política apagada."
+          },
+          "404": {
+            "description": "Não existe ApprovalPolicy com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/budgets": {
+      "get": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Lista os orçamentos",
+        "description": "Em ordem alfabética. `projectId` e `loadoutId` devolvem os do escopo **mais os globais**.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/BudgetScope"
+            },
+            "required": false,
+            "description": "`GLOBAL` conta todo Run; `PROJECT` os do Project; `LOADOUT` os do Loadout.",
+            "name": "scope",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só os orçamentos deste Project, mais os globais."
+            },
+            "required": false,
+            "description": "Só os orçamentos deste Project, mais os globais.",
+            "name": "projectId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só os orçamentos deste Loadout, mais os globais."
+            },
+            "required": false,
+            "description": "Só os orçamentos deste Loadout, mais os globais.",
+            "name": "loadoutId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de orçamentos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Cria um orçamento",
+        "description": "Escopo `GLOBAL`, `PROJECT` (com `projectId`) ou `LOADOUT` (com `loadoutId`); janela de calendário em UTC (`DAY`, `WEEK`, `MONTH`) ou `PER_RUN`, que só aceita `maxTokens` e `maxWallClockMs` e é aplicada pelo Worker durante a execução. Pelo menos um teto. `BLOCK` recusa `POST /runs` com `409 BUDGET_EXCEEDED`; `WARN` deixa passar e avisa em `budgetWarnings[]`. Consumo desconhecido (Run que rodou sem reportar tokens) não libera um teto de tokens.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBudget"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Orçamento criado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Budget"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O Project ou o Loadout informado não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Id de escopo que não bate com o escopo, nenhum teto, ou teto que a janela não aceita.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/budgets/{id}": {
+      "get": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Um orçamento",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O orçamento.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Budget"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Budget com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Edita o orçamento",
+        "description": "Escopo e janela não mudam: apague e crie de novo. Um teto `null` desliga o teto.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBudget"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O orçamento depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Budget"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Budget com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Nenhum teto sobraria, ou teto que a janela não aceita.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Apaga o orçamento",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Orçamento apagado."
+          },
+          "404": {
+            "description": "Não existe Budget com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/budgets/{id}/usage": {
+      "get": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "O consumo do orçamento na janela atual",
+        "description": "Medido na chamada, pela mesma função que `POST /runs` usa: tokens de `run.result.usage`, Runs criados na janela, duração somada (os vivos contados até agora) e Runs vivos. `tokensKnown` é falso quando algum Run que rodou terminou sem reportar consumo. Em `PER_RUN`, mede o último Run terminal do escopo.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O consumo medido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetUsage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Budget com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/circuit-breakers": {
+      "get": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Lista os disjuntores",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/BreakerScope"
+            },
+            "required": false,
+            "description": "`PROJECT` os Runs do Project; `LOADOUT` os do Loadout; `HARNESS` os do Harness.",
+            "name": "scope",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/BreakerState"
+            },
+            "required": false,
+            "description": "`CLOSED` deixa passar; `OPEN` recusa; `HALF_OPEN` deixa passar uma sondagem.",
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "projectId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de disjuntores, em ordem alfabética.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitBreakerPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Cria um disjuntor",
+        "description": "Escopo `PROJECT`, `LOADOUT` ou `HARNESS`, com o id (ou a chave) do escopo; pelo menos um gatilho. Nasce `CLOSED`. `OPEN` recusa `POST /runs` com `409 BREAKER_OPEN`; passado o `cooldownMs`, o próximo pedido vira a sondagem do `HALF_OPEN`, uma por vez. Quem alimenta os gatilhos com os desfechos é o Worker.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCircuitBreaker"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Disjuntor criado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitBreaker"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O Project ou o Loadout informado não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Id de escopo que não bate com o escopo, ou nenhum gatilho.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/circuit-breakers/{id}": {
+      "get": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Um disjuntor",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O disjuntor, com o estado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitBreaker"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe CircuitBreaker com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Edita o disjuntor",
+        "description": "Nome, gatilhos, cooldown e interruptor. O estado não muda por aqui: só pelos desfechos e por `POST /circuit-breakers/{id}/reset`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCircuitBreaker"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O disjuntor depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitBreaker"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe CircuitBreaker com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Nenhum gatilho sobraria.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Apaga o disjuntor",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Disjuntor apagado."
+          },
+          "404": {
+            "description": "Não existe CircuitBreaker com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/circuit-breakers/{id}/reset": {
+      "post": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Fecha o disjuntor à mão",
+        "description": "De qualquer estado para `CLOSED`, zerando instante, motivo, sondagem e contador. Idempotente: um disjuntor já fechado devolve o mesmo e não grava um segundo fato. `breaker.closed` sai na mesma transação.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O disjuntor fechado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitBreaker"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe CircuitBreaker com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/routing-rules": {
+      "get": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Lista as regras de roteamento",
+        "description": "Da maior prioridade para a menor. `projectId` devolve as do Project **mais as globais**.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,5}$",
+              "description": "Página desejada, começando em 1. Padrão: 1."
+            },
+            "required": false,
+            "description": "Página desejada, começando em 1. Padrão: 1.",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$",
+              "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto."
+            },
+            "required": false,
+            "description": "Itens por página. Padrão: 25. Valores acima de 100 são reduzidos ao teto.",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/RoutingKind"
+            },
+            "required": false,
+            "description": "O que a regra escolhe: um Model, um Loadout ou um Workflow.",
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só as regras deste Project, mais as globais."
+            },
+            "required": false,
+            "description": "Só as regras deste Project, mais as globais.",
+            "name": "projectId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página de regras.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingRulePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro ou paginação inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Cria uma regra de roteamento",
+        "description": "`kind` `MODEL`, `LOADOUT` ou `WORKFLOW`; `targetId` e `fallbackIds` precisam existir na tabela da espécie. Em `POST /runs`, só `MODEL` é avaliada, e só quando o Loadout deixa o Model nulo; um Model de outro Harness é pulado para o fallback seguinte. `minBudgetPressure` nas condições permite preferir um Model mais barato quando a janela de orçamento aperta.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoutingRule"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Regra criada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingRule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O Project, ou um dos alvos, não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/routing-rules/{id}": {
+      "get": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Uma regra de roteamento",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A regra.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingRule"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe RoutingRule com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Edita a regra de roteamento",
+        "description": "`kind` não muda: apague e crie de novo.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoutingRule"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A regra depois da edição.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingRule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe RoutingRule com este id, ou o Project ou um alvo não existe.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Apaga a regra de roteamento",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do registro."
+            },
+            "required": true,
+            "description": "UUIDv7 do registro.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Regra apagada."
+          },
+          "404": {
+            "description": "Não existe RoutingRule com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/autonomy": {
+      "get": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "O nível de autonomia do Project e o que ele libera",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Project."
+            },
+            "required": true,
+            "description": "UUIDv7 do Project.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O nível e o mapa de automações liberadas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectAutonomy"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Project com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Muda o nível de autonomia do Project",
+        "description": "0 manual, 1 sugere, 2 propõe e o humano aprova (o padrão), 3 políticas autoaprovam e auto-despacho, 4 delegação Agent-to-Agent. Idempotente; grava `project.updated` no diário e `autonomy.changed` no stream, na mesma transação.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do Project."
+            },
+            "required": true,
+            "description": "UUIDv7 do Project.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectAutonomy"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "O nível depois da mudança.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectAutonomy"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Project com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/suggestions": {
+      "post": {
+        "tags": [
+          "autonomy"
+        ],
+        "summary": "Sugere Loadout, Workflow e Model para a Task",
+        "description": "Avalia as regras de roteamento das três espécies com os fatos da Task e a pressão de orçamento, e devolve cada escolha com o motivo (a regra, ou o padrão do sistema). Nada é gravado. Exige Project e nível de autonomia que libere `SUGGEST` (≥ 1).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 da Task."
+            },
+            "required": true,
+            "description": "UUIDv7 da Task.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "As sugestões, com o motivo de cada uma.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskSuggestions"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Task com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A Task não tem Project, ou o nível de autonomia não libera sugestões.",
             "content": {
               "application/problem+json": {
                 "schema": {
