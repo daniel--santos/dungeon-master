@@ -7,6 +7,7 @@ import {
 import { type App, createApp } from "../src/app.js";
 import {
   createAchievementsPort,
+  createAutonomyPort,
   createExecutionPort,
   createRunEventsRuntime,
 } from "../src/composition.js";
@@ -58,6 +59,7 @@ export function criarApp(
         ? {}
         : { loadoutPreflight: options.loadoutPreflight }),
     }),
+    autonomy: createAutonomyPort({ db: handle.db, userId: LOCAL_USER_ID }),
     achievements: inertes.achievements,
     hall: createAchievementsPort({ db: handle.db, userId: LOCAL_USER_ID }),
     pingEnabled: false,
@@ -84,6 +86,11 @@ export async function limparTudo(handle: DatabaseHandle): Promise<void> {
     "achievement_cursor",
     "achievement_definition",
     "hero_stats",
+    // As regras da Fase 9A vêm antes de Project, Loadout e Run, que elas referenciam.
+    "circuit_breaker",
+    "budget",
+    "approval_policy",
+    "routing_rule",
     "proposed_task",
     "knowledge_candidate",
     "knowledge_item",

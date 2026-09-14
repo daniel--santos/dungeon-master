@@ -10,6 +10,7 @@ import { dockerAdapters, hostAdapters } from "@dungeon-master/runtime-sandcastle
 import { createApp } from "./app.js";
 import {
   createAchievementsPort,
+  createAutonomyPort,
   createEventsRuntime,
   createExecutionPort,
   createRunEventsRuntime,
@@ -79,6 +80,7 @@ const app = createApp({
     dockerPreflight,
     loadoutPreflight,
   }),
+  autonomy: createAutonomyPort({ db: database.db, userId: LOCAL_USER_ID }),
   achievements,
   hall: createAchievementsPort({ db: database.db, userId: LOCAL_USER_ID }),
   logger,

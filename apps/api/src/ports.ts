@@ -5,6 +5,11 @@ import type {
   ApprovalDecision,
   ApprovalGate,
   ApprovalGateListItem,
+  ApprovalPolicy,
+  AutonomyLevel,
+  Budget,
+  BudgetUsage,
+  CircuitBreaker,
   DashboardEvent,
   DashboardEventType,
   DistillationRun,
@@ -26,13 +31,16 @@ import type {
   Model,
   Provider,
   Project,
+  ProjectAutonomy,
   ProjectDetail,
   ProjectStatus,
   ProposedTask,
   ProposedTaskListItem,
+  RoutingRule,
   Run,
   RunContext,
   RunCreated,
+  RunCreatedBy,
   RunEvent,
   RunListItem,
   RunStep,
@@ -48,6 +56,7 @@ import type {
   TaskReopening,
   TaskSort,
   TaskStatus,
+  TaskSuggestions,
   Tool,
   HeroStatsResponse,
   UserSettings,
@@ -64,10 +73,18 @@ import type {
   AchievementUnlockView,
   ApprovalGateFilters,
   ApprovalGateWriteFailure,
+  ApprovalPolicyFilters,
+  AutonomyWriteFailure,
+  BudgetFilters,
+  CircuitBreakerFilters,
   CreateAgentInput,
+  CreateApprovalPolicyInput,
+  CreateBudgetInput,
+  CreateCircuitBreakerInput,
   CreateExecutionProfileInput,
   CreateLoadoutInput,
   CreateProviderInput,
+  CreateRoutingRuleInput,
   CreateSkillInput,
   DependencyWriteFailure,
   DistillationRunFilters,
@@ -82,16 +99,21 @@ import type {
   PublishSkillVersionInput,
   RegistryWriteFailure,
   Result,
+  RoutingRuleFilters,
   RunFilters,
   RunWriteFailure,
   TaskFilters,
   TaskWriteFailure,
   ToolFilters,
   UpdateAgentPatch,
+  UpdateApprovalPolicyPatch,
+  UpdateBudgetPatch,
+  UpdateCircuitBreakerPatch,
   UpdateExecutionProfilePatch,
   UpdateLoadoutPatch,
   UpdateMcpServerPatch,
   UpdateProviderPatch,
+  UpdateRoutingRulePatch,
   UpdateSkillPatch,
   UpdateToolPatch,
   WorkflowWriteFailure,
@@ -523,6 +545,8 @@ export interface RunsPort {
       executionProfileId?: string;
       prompt?: string;
       resumeFromRunId?: string;
+      /** A API cria sempre `USER`; os outros valores são do Worker (9B). */
+      createdBy?: RunCreatedBy;
     },
   ): Promise<Result<RunCreated, RunWriteFailure> | null>;
   cancel(runId: string): Promise<Result<Run, RunWriteFailure> | null>;
@@ -574,6 +598,89 @@ export interface ApprovalGatesPort {
  */
 export interface DockerPreflightPort {
   check(): Promise<DockerPreflight>;
+}
+
+// --------------------------------------------------------------------------
+// Autonomia controlada (Fase 9A)
+// --------------------------------------------------------------------------
+
+export interface ApprovalPoliciesPort {
+  list(
+    input: PageRequest & { filters: ApprovalPolicyFilters },
+  ): Promise<PageResult<ApprovalPolicy>>;
+  get(approvalPolicyId: string): Promise<ApprovalPolicy | null>;
+  create(
+    input: Omit<CreateApprovalPolicyInput, "userId">,
+  ): Promise<Result<ApprovalPolicy, AutonomyWriteFailure>>;
+  update(
+    approvalPolicyId: string,
+    patch: UpdateApprovalPolicyPatch,
+  ): Promise<Result<ApprovalPolicy, AutonomyWriteFailure> | null>;
+  /** `false` quando não existe: é o 404. */
+  remove(approvalPolicyId: string): Promise<boolean>;
+}
+
+export interface BudgetsPort {
+  list(input: PageRequest & { filters: BudgetFilters }): Promise<PageResult<Budget>>;
+  get(budgetId: string): Promise<Budget | null>;
+  /** O consumo medido na chamada, pela mesma função que `POST /runs` usa. */
+  usage(budgetId: string): Promise<BudgetUsage | null>;
+  create(input: Omit<CreateBudgetInput, "userId">): Promise<Result<Budget, AutonomyWriteFailure>>;
+  update(
+    budgetId: string,
+    patch: UpdateBudgetPatch,
+  ): Promise<Result<Budget, AutonomyWriteFailure> | null>;
+  remove(budgetId: string): Promise<boolean>;
+}
+
+export interface CircuitBreakersPort {
+  list(
+    input: PageRequest & { filters: CircuitBreakerFilters },
+  ): Promise<PageResult<CircuitBreaker>>;
+  get(circuitBreakerId: string): Promise<CircuitBreaker | null>;
+  create(
+    input: Omit<CreateCircuitBreakerInput, "userId">,
+  ): Promise<Result<CircuitBreaker, AutonomyWriteFailure>>;
+  update(
+    circuitBreakerId: string,
+    patch: UpdateCircuitBreakerPatch,
+  ): Promise<Result<CircuitBreaker, AutonomyWriteFailure> | null>;
+  remove(circuitBreakerId: string): Promise<boolean>;
+  /** O reset manual: de qualquer estado para `CLOSED`. Idempotente. */
+  reset(circuitBreakerId: string): Promise<CircuitBreaker | null>;
+}
+
+export interface RoutingRulesPort {
+  list(input: PageRequest & { filters: RoutingRuleFilters }): Promise<PageResult<RoutingRule>>;
+  get(routingRuleId: string): Promise<RoutingRule | null>;
+  create(
+    input: Omit<CreateRoutingRuleInput, "userId">,
+  ): Promise<Result<RoutingRule, AutonomyWriteFailure>>;
+  update(
+    routingRuleId: string,
+    patch: UpdateRoutingRulePatch,
+  ): Promise<Result<RoutingRule, AutonomyWriteFailure> | null>;
+  remove(routingRuleId: string): Promise<boolean>;
+}
+
+export interface ProjectAutonomyPort {
+  get(projectId: string): Promise<ProjectAutonomy | null>;
+  update(projectId: string, autonomyLevel: AutonomyLevel): Promise<ProjectAutonomy | null>;
+}
+
+export interface SuggestionsPort {
+  /** `null` é a Task que não existe; a recusa é Task sem Project ou nível baixo. */
+  compute(taskId: string): Promise<Result<TaskSuggestions, AutonomyWriteFailure> | null>;
+}
+
+/** As portas da autonomia juntas (Fase 9A). */
+export interface AutonomyPort {
+  readonly approvalPolicies: ApprovalPoliciesPort;
+  readonly budgets: BudgetsPort;
+  readonly circuitBreakers: CircuitBreakersPort;
+  readonly routingRules: RoutingRulesPort;
+  readonly projectAutonomy: ProjectAutonomyPort;
+  readonly suggestions: SuggestionsPort;
 }
 
 /** As portas de execução juntas, para `createApp` receber uma em vez de nove. */
@@ -644,6 +751,7 @@ export function createSpecPorts(): {
   settings: SettingsPort;
   work: WorkPort;
   execution: ExecutionPort;
+  autonomy: AutonomyPort;
   achievements: AchievementCatalog;
   hall: AchievementsPort;
 } {
@@ -809,6 +917,45 @@ export function createSpecPorts(): {
       approvalGates: {
         list: inerte("a listagem de ApprovalGates"),
         resolve: inerte("a resolução de ApprovalGate"),
+      },
+    },
+    autonomy: {
+      approvalPolicies: {
+        list: inerte("a listagem de ApprovalPolicies"),
+        get: inerte("a leitura de ApprovalPolicy"),
+        create: inerte("a criação de ApprovalPolicy"),
+        update: inerte("a edição de ApprovalPolicy"),
+        remove: inerte("a remoção de ApprovalPolicy"),
+      },
+      budgets: {
+        list: inerte("a listagem de Budgets"),
+        get: inerte("a leitura de Budget"),
+        usage: inerte("o consumo de Budget"),
+        create: inerte("a criação de Budget"),
+        update: inerte("a edição de Budget"),
+        remove: inerte("a remoção de Budget"),
+      },
+      circuitBreakers: {
+        list: inerte("a listagem de CircuitBreakers"),
+        get: inerte("a leitura de CircuitBreaker"),
+        create: inerte("a criação de CircuitBreaker"),
+        update: inerte("a edição de CircuitBreaker"),
+        remove: inerte("a remoção de CircuitBreaker"),
+        reset: inerte("o reset de CircuitBreaker"),
+      },
+      routingRules: {
+        list: inerte("a listagem de RoutingRules"),
+        get: inerte("a leitura de RoutingRule"),
+        create: inerte("a criação de RoutingRule"),
+        update: inerte("a edição de RoutingRule"),
+        remove: inerte("a remoção de RoutingRule"),
+      },
+      projectAutonomy: {
+        get: inerte("a leitura do nível de autonomia"),
+        update: inerte("a mudança do nível de autonomia"),
+      },
+      suggestions: {
+        compute: inerte("as sugestões de Task"),
       },
     },
     // Vazio, e não o catálogo de verdade: o `pnpm gen` instancia a app só pela
