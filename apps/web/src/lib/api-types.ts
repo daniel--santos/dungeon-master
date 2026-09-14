@@ -147,3 +147,34 @@ export type DistillationRequestedRecord = components["schemas"]["DistillationReq
 export type ForgedAchievementRecord = components["schemas"]["ForgedAchievement"];
 export type ForgedAchievementListRecord = components["schemas"]["ForgedAchievementList"];
 export type RenameForgedAchievementBody = components["schemas"]["RenameForgedAchievement"];
+
+// A autonomia controlada da Fase 9A: as quatro regras, o nível do Project,
+// as sugestões da Task e as decisões que `POST /runs` devolve ou recusa.
+export type ApprovalPolicyRecord = components["schemas"]["ApprovalPolicy"];
+export type ApprovalPolicyPageRecord = components["schemas"]["ApprovalPolicyPage"];
+export type CreateApprovalPolicyBody = components["schemas"]["CreateApprovalPolicy"];
+export type UpdateApprovalPolicyBody = components["schemas"]["UpdateApprovalPolicy"];
+// O gerador embute as três decisões no `RunCreated` em vez de registrá-las à
+// parte; os apelidos saem de dentro dele, sem o `| null` que só existe no pai.
+export type PolicyDecisionRecord = NonNullable<components["schemas"]["RunCreated"]["policyDecision"]>;
+export type RuleConditionsRecord = components["schemas"]["RuleConditions"];
+export type BudgetRecord = components["schemas"]["Budget"];
+export type BudgetPageRecord = components["schemas"]["BudgetPage"];
+export type CreateBudgetBody = components["schemas"]["CreateBudget"];
+export type UpdateBudgetBody = components["schemas"]["UpdateBudget"];
+export type BudgetUsageRecord = components["schemas"]["BudgetUsage"];
+export type BudgetBreachRecord = components["schemas"]["BudgetBreach"];
+export type BudgetLimitsRecord = components["schemas"]["BudgetLimits"];
+export type CircuitBreakerRecord = components["schemas"]["CircuitBreaker"];
+export type CircuitBreakerPageRecord = components["schemas"]["CircuitBreakerPage"];
+export type CreateCircuitBreakerBody = components["schemas"]["CreateCircuitBreaker"];
+export type UpdateCircuitBreakerBody = components["schemas"]["UpdateCircuitBreaker"];
+export type BreakerTriggersRecord = components["schemas"]["BreakerTriggers"];
+export type BreakerAdmissionRecord = NonNullable<components["schemas"]["RunCreated"]["breaker"]>;
+export type RoutingRuleRecord = components["schemas"]["RoutingRule"];
+export type RoutingRulePageRecord = components["schemas"]["RoutingRulePage"];
+export type CreateRoutingRuleBody = components["schemas"]["CreateRoutingRule"];
+export type UpdateRoutingRuleBody = components["schemas"]["UpdateRoutingRule"];
+export type RoutingDecisionRecord = NonNullable<components["schemas"]["RunCreated"]["modelRouting"]>;
+export type ProjectAutonomyRecord = components["schemas"]["ProjectAutonomy"];
+export type TaskSuggestionsRecord = components["schemas"]["TaskSuggestions"];

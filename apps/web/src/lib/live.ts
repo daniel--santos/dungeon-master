@@ -1,9 +1,18 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
+import { invalidateAutonomy } from "@/lib/autonomy";
 import { useEventsStore } from "@/lib/events";
 import { invalidateExecution } from "@/lib/execution";
 import { invalidateRegistry } from "@/lib/registry";
+
+/**
+ * Os prefixos dos eventos da autonomia controlada (Fase 9A) que mudam as
+ * regras, o nível ou o consumo: uma política que decidiu, um orçamento que
+ * barrou ou avisou, um disjuntor que mudou de estado, o nível que mudou.
+ * `task.auto_created` começa por `task.` e cai no ramo das Tasks.
+ */
+const AUTONOMY_PREFIXES = ["policy.", "budget.", "breaker.", "autonomy."] as const;
 
 /**
  * Os prefixos de `RegistryEventType` que não são de Workflow.
@@ -83,8 +92,20 @@ export function useLiveQueries(): void {
         // Os quatro registros da Fase 8A saem num tipo só, com `kind` no
         // payload. A invalidação é dos quatro de uma vez, mais os cadastros
         // de execução: um Loadout mostra o nome e o `latestVersion` de cada
-        // Skill, e uma Skill publicada muda o que o pin oferece.
+        // Skill, e uma Skill publicada muda o que o pin oferece. As quatro
+        // regras da Fase 9A chegam pelo mesmo tipo, e a autonomia relê junto.
         invalidateRegistry(queryClient);
+        invalidateAutonomy(queryClient);
+        return;
+      }
+
+      if (AUTONOMY_PREFIXES.some((prefix) => event.type.startsWith(prefix))) {
+        // Uma decisão, um orçamento no teto, um disjuntor que abriu ou fechou,
+        // o nível que mudou (Fase 9C): as listas, o consumo medido e o nível
+        // releem; o Project também, porque carrega `autonomyLevel`. Os toasts
+        // moram em `useAutonomyToasts`, no layout raiz.
+        invalidateAutonomy(queryClient);
+        void queryClient.invalidateQueries({ queryKey: ["projects"] });
         return;
       }
 

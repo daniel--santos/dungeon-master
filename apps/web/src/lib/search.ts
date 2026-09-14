@@ -28,11 +28,15 @@ const TASK_STATUS_VALUES = [
   "CANCELLED",
 ] as const;
 
+const TASK_CREATED_BY_VALUES = ["USER", "PROPOSAL", "POLICY"] as const;
+const RUN_CREATED_BY_VALUES = ["USER", "POLICY", "DELEGATION"] as const;
+
 export const taskSearchSchema = z.object({
   projectId: z.uuid().optional().catch(undefined),
   kind: z.enum(TASK_KIND_VALUES).optional().catch(undefined),
   priority: z.enum(TASK_PRIORITY_VALUES).optional().catch(undefined),
   status: z.array(z.enum(TASK_STATUS_VALUES)).nonempty().optional().catch(undefined),
+  createdBy: z.enum(TASK_CREATED_BY_VALUES).optional().catch(undefined),
   q: z.string().trim().min(1).optional().catch(undefined),
   sort: z.enum(TASK_SORT_FIELDS).default("updatedAt").catch("updatedAt"),
   order: z.enum(SORT_ORDERS).default("desc").catch("desc"),
@@ -68,11 +72,33 @@ export const runSearchSchema = z.object({
   taskId: z.uuid().optional().catch(undefined),
   harnessKey: z.enum(HARNESS_KEY_VALUES).optional().catch(undefined),
   status: z.array(z.enum(RUN_STATUS_VALUES)).nonempty().optional().catch(undefined),
+  createdBy: z.enum(RUN_CREATED_BY_VALUES).optional().catch(undefined),
   page: z.coerce.number().int().min(1).default(1).catch(1),
   pageSize: z.coerce.number().int().min(5).max(100).default(25).catch(25),
 });
 
 export type RunSearch = z.infer<typeof runSearchSchema>;
+
+export const AUTONOMY_TABS = ["level", "policies", "budgets", "breakers", "routing"] as const;
+export type AutonomyTab = (typeof AUTONOMY_TABS)[number];
+
+export const AUTONOMY_SCOPES = ["project", "all"] as const;
+export type AutonomyScope = (typeof AUTONOMY_SCOPES)[number];
+
+/**
+ * A tela de autonomia da Campanha (Fase 9C): a aba e o escopo das listas.
+ *
+ * `project` lê as regras deste Project mais as globais, que é o conjunto que
+ * decide por ele; `all` lê tudo, inclusive as de outros Projects e as
+ * escopadas por Loadout ou Harness. Os valores são canônicos: a URL não muda
+ * com o interruptor de tema.
+ */
+export const autonomySearchSchema = z.object({
+  tab: z.enum(AUTONOMY_TABS).default("level").catch("level"),
+  scope: z.enum(AUTONOMY_SCOPES).default("project").catch("project"),
+});
+
+export type AutonomySearch = z.infer<typeof autonomySearchSchema>;
 
 /** Os filtros do Diário de uma Expedição, na URL do cockpit. */
 export const runDetailSearchSchema = z.object({

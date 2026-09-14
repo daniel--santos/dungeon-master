@@ -29,6 +29,7 @@ import { Route as TasksIndexRouteImport } from './routes/tasks.index'
 import { Route as TasksIdRouteImport } from './routes/tasks.$id'
 import { Route as WorkflowsIndexRouteImport } from './routes/workflows.index'
 import { Route as WorkflowsIdRouteImport } from './routes/workflows.$id'
+import { Route as ProjectsIdAutonomyRouteImport } from './routes/projects.$id_.autonomy'
 import { Route as ProjectsIdGraphRouteImport } from './routes/projects.$id_.graph'
 import { Route as ProjectsIdKnowledgeRouteImport } from './routes/projects.$id_.knowledge'
 
@@ -132,6 +133,11 @@ const WorkflowsIdRoute = WorkflowsIdRouteImport.update({
   path: '/workflows/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectsIdAutonomyRoute = ProjectsIdAutonomyRouteImport.update({
+  id: '/projects/$id_/autonomy',
+  path: '/projects/$id/autonomy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectsIdGraphRoute = ProjectsIdGraphRouteImport.update({
   id: '/projects/$id_/graph',
   path: '/projects/$id/graph',
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/skills/': typeof SkillsIndexRoute
   '/tasks/': typeof TasksIndexRoute
   '/workflows/': typeof WorkflowsIndexRoute
+  '/projects/$id/autonomy': typeof ProjectsIdAutonomyRoute
   '/projects/$id/graph': typeof ProjectsIdGraphRoute
   '/projects/$id/knowledge': typeof ProjectsIdKnowledgeRoute
 }
@@ -188,6 +195,7 @@ export interface FileRoutesByTo {
   '/skills': typeof SkillsIndexRoute
   '/tasks': typeof TasksIndexRoute
   '/workflows': typeof WorkflowsIndexRoute
+  '/projects/$id/autonomy': typeof ProjectsIdAutonomyRoute
   '/projects/$id/graph': typeof ProjectsIdGraphRoute
   '/projects/$id/knowledge': typeof ProjectsIdKnowledgeRoute
 }
@@ -213,6 +221,7 @@ export interface FileRoutesById {
   '/skills/': typeof SkillsIndexRoute
   '/tasks/': typeof TasksIndexRoute
   '/workflows/': typeof WorkflowsIndexRoute
+  '/projects/$id_/autonomy': typeof ProjectsIdAutonomyRoute
   '/projects/$id_/graph': typeof ProjectsIdGraphRoute
   '/projects/$id_/knowledge': typeof ProjectsIdKnowledgeRoute
 }
@@ -239,6 +248,7 @@ export interface FileRouteTypes {
     | '/skills/'
     | '/tasks/'
     | '/workflows/'
+    | '/projects/$id/autonomy'
     | '/projects/$id/graph'
     | '/projects/$id/knowledge'
   fileRoutesByTo: FileRoutesByTo
@@ -263,6 +273,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/tasks'
     | '/workflows'
+    | '/projects/$id/autonomy'
     | '/projects/$id/graph'
     | '/projects/$id/knowledge'
   id:
@@ -287,6 +298,7 @@ export interface FileRouteTypes {
     | '/skills/'
     | '/tasks/'
     | '/workflows/'
+    | '/projects/$id_/autonomy'
     | '/projects/$id_/graph'
     | '/projects/$id_/knowledge'
   fileRoutesById: FileRoutesById
@@ -312,6 +324,7 @@ export interface RootRouteChildren {
   SkillsIndexRoute: typeof SkillsIndexRoute
   TasksIndexRoute: typeof TasksIndexRoute
   WorkflowsIndexRoute: typeof WorkflowsIndexRoute
+  ProjectsIdAutonomyRoute: typeof ProjectsIdAutonomyRoute
   ProjectsIdGraphRoute: typeof ProjectsIdGraphRoute
   ProjectsIdKnowledgeRoute: typeof ProjectsIdKnowledgeRoute
 }
@@ -458,6 +471,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkflowsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects/$id_/autonomy': {
+      id: '/projects/$id_/autonomy'
+      path: '/projects/$id/autonomy'
+      fullPath: '/projects/$id/autonomy'
+      preLoaderRoute: typeof ProjectsIdAutonomyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/projects/$id_/graph': {
       id: '/projects/$id_/graph'
       path: '/projects/$id/graph'
@@ -496,6 +516,7 @@ const rootRouteChildren: RootRouteChildren = {
   SkillsIndexRoute: SkillsIndexRoute,
   TasksIndexRoute: TasksIndexRoute,
   WorkflowsIndexRoute: WorkflowsIndexRoute,
+  ProjectsIdAutonomyRoute: ProjectsIdAutonomyRoute,
   ProjectsIdGraphRoute: ProjectsIdGraphRoute,
   ProjectsIdKnowledgeRoute: ProjectsIdKnowledgeRoute,
 }

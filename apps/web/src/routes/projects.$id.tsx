@@ -1,5 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Archive, ArchiveRestore, BookOpen, ListChecks, Plus, Waypoints } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  BookOpen,
+  Gauge,
+  ListChecks,
+  Plus,
+  Waypoints,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -13,6 +21,7 @@ import { ProposalsPanel } from "@/components/proposal/proposals-panel";
 import { CreateTaskDialog } from "@/components/task/create-task-dialog";
 import { TaskTable } from "@/components/task/task-table";
 import { Button } from "@/components/ui/button";
+import { AUTONOMY_COLOR, AUTONOMY_LEVEL } from "@/lib/autonomy-domain";
 import { formatDate } from "@/lib/datetime";
 import type { SortOrder, TaskSortField } from "@/lib/domain";
 import { useGlossary } from "@/lib/glossary";
@@ -147,6 +156,20 @@ function ProjectDetailPage() {
               <Link data-project-graph-link params={{ id }} to="/projects/$id/graph">
                 <Waypoints aria-hidden />
                 <span>{t("entity.taskGraph")}</span>
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link
+                data-project-autonomy-link={detail.autonomyLevel}
+                params={{ id }}
+                search={{ tab: "level", scope: "project" }}
+                to="/projects/$id/autonomy"
+              >
+                <Gauge aria-hidden style={{ color: AUTONOMY_COLOR }} />
+                <span>{t("autonomy.title")}</span>
+                <span className="text-muted-foreground font-mono text-[10.5px]">
+                  {`${String(detail.autonomyLevel)} · ${t(AUTONOMY_LEVEL[detail.autonomyLevel].label)}`}
+                </span>
               </Link>
             </Button>
             <Button
