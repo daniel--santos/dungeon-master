@@ -39,6 +39,7 @@ function TasksPage() {
     kind: search.kind,
     priority: search.priority,
     status: search.status,
+    createdBy: search.createdBy,
     q: search.q,
     sort: search.sort,
     order: search.order,
@@ -57,6 +58,7 @@ function TasksPage() {
       kind: search.kind,
       priority: search.priority,
       status: search.status,
+      createdBy: search.createdBy,
       q: search.q,
     }),
     [search],
@@ -71,6 +73,7 @@ function TasksPage() {
           kind: next.kind,
           priority: next.priority,
           status: next.status === undefined ? undefined : [...next.status],
+          createdBy: next.createdBy,
           q: next.q,
           // Mudar o filtro invalida a página atual: a página 3 do filtro antigo
           // quase nunca existe no novo.

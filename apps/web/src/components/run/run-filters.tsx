@@ -1,4 +1,4 @@
-import type { HarnessKey, RunStatus } from "@dungeon-master/contracts";
+import type { HarnessKey, RunCreatedBy, RunStatus } from "@dungeon-master/contracts";
 import { ChevronDown, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { HarnessRecord, ProjectRecord } from "@/lib/api-types";
+import { RUN_CREATED_BY, RUN_CREATED_BY_VALUES } from "@/lib/autonomy-domain";
 import { RUN_STATUS, RUN_STATUSES } from "@/lib/execution-domain";
 import { useGlossary } from "@/lib/glossary";
 
@@ -23,6 +24,8 @@ export interface RunFilterValue {
   readonly projectId?: string;
   readonly harnessKey?: HarnessKey;
   readonly status?: readonly RunStatus[];
+  /** A origem (Fase 9A): usuário, política ou delegação. */
+  readonly createdBy?: RunCreatedBy;
 }
 
 export interface RunFiltersProps {
@@ -56,7 +59,10 @@ export function RunFilters({
 
   const status = value.status ?? [];
   const dirty =
-    value.projectId !== undefined || value.harnessKey !== undefined || status.length > 0;
+    value.projectId !== undefined ||
+    value.harnessKey !== undefined ||
+    value.createdBy !== undefined ||
+    status.length > 0;
 
   function toggleStatus(candidate: RunStatus, checked: boolean) {
     const next = checked ? [...status, candidate] : status.filter((item) => item !== candidate);
@@ -132,6 +138,26 @@ export function RunFilters({
           {harnesses.map((harness) => (
             <SelectItem key={harness.id} value={harness.key}>
               {harness.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={value.createdBy ?? ANY}
+        onValueChange={(next) => {
+          onChange({ ...value, createdBy: next === ANY ? undefined : (next as RunCreatedBy) });
+        }}
+      >
+        <SelectTrigger aria-label={t("run.origin")} className="w-44" data-run-filter-created-by>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ANY}>{t("run.origin")}</SelectItem>
+          <SelectSeparator />
+          {RUN_CREATED_BY_VALUES.map((origin) => (
+            <SelectItem key={origin} value={origin}>
+              {t(RUN_CREATED_BY[origin].label)}
             </SelectItem>
           ))}
         </SelectContent>

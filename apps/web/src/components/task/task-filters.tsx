@@ -1,5 +1,5 @@
 import type { components } from "@dungeon-master/api-client";
-import type { TaskKind, TaskPriority, TaskStatus } from "@dungeon-master/contracts";
+import type { TaskCreatedBy, TaskKind, TaskPriority, TaskStatus } from "@dungeon-master/contracts";
 import { ChevronDown, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TASK_CREATED_BY, TASK_CREATED_BY_VALUES } from "@/lib/autonomy-domain";
 import {
   TASK_KIND,
   TASK_KINDS,
@@ -35,6 +36,8 @@ export interface TaskFilterValue {
   readonly kind?: TaskKind;
   readonly priority?: TaskPriority;
   readonly status?: readonly TaskStatus[];
+  /** A origem (Fase 9A): quem criou a Task. */
+  readonly createdBy?: TaskCreatedBy;
   readonly q?: string;
 }
 
@@ -87,6 +90,7 @@ export function TaskFilters({
     value.projectId !== undefined ||
     value.kind !== undefined ||
     value.priority !== undefined ||
+    value.createdBy !== undefined ||
     status.length > 0 ||
     (value.q ?? "") !== "";
 
@@ -202,6 +206,26 @@ export function TaskFilters({
           {TASK_PRIORITIES.map((priority) => (
             <SelectItem key={priority} value={priority}>
               {t(TASK_PRIORITY[priority].label)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={value.createdBy ?? ANY}
+        onValueChange={(next) => {
+          onChange({ ...value, createdBy: next === ANY ? undefined : (next as TaskCreatedBy) });
+        }}
+      >
+        <SelectTrigger aria-label={t("run.origin")} className="w-44" data-task-filter-created-by>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ANY}>{t("run.origin")}</SelectItem>
+          <SelectSeparator />
+          {TASK_CREATED_BY_VALUES.map((origin) => (
+            <SelectItem key={origin} value={origin}>
+              {t(TASK_CREATED_BY[origin])}
             </SelectItem>
           ))}
         </SelectContent>

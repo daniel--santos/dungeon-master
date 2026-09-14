@@ -6,10 +6,12 @@ import { CandidateList } from "@/components/knowledge/candidate-list";
 import { Panel } from "@/components/panel";
 import { ProposalStatusChip } from "@/components/proposal/proposal-conflict";
 import type { RunRecord } from "@/lib/api-types";
+import { AUTONOMY_COLOR } from "@/lib/autonomy-domain";
 import { useGlossary } from "@/lib/glossary";
 import { KNOWLEDGE_COLOR } from "@/lib/knowledge-domain";
 import { PROPOSAL_COLOR } from "@/lib/proposal-domain";
 import { useKnowledgeCandidates, useProposedTasks } from "@/lib/proposals";
+import { useTasks } from "@/lib/tasks";
 
 /** Quantos candidatos de uma Expedição o cockpit lê. Um resultado traz poucos. */
 const CANDIDATE_PAGE_SIZE = 50;
@@ -36,6 +38,20 @@ export function RunOutcomePanel({ run }: { run: RunRecord }) {
   const mine = useMemo(
     () => (proposals.data?.items ?? []).filter((item) => item.originRunId === run.id),
     [proposals.data, run.id],
+  );
+
+  // As Pistas que uma política aprovou sozinha (Fase 9A) viram Tasks com
+  // `createdBy = POLICY`. A proposta não diz quem a decidiu, então a marca vem
+  // da Task criada: uma leitura só, das Tasks por política da Campanha.
+  // Pendência de API registrada: `ProposedTask.decidedBy`.
+  const policyTasks = useTasks({
+    ...(run.projectId === null ? {} : { projectId: run.projectId }),
+    createdBy: "POLICY",
+    pageSize: 100,
+  });
+  const byPolicy = useMemo(
+    () => new Set((policyTasks.data?.items ?? []).map((task) => task.id)),
+    [policyTasks.data],
   );
   const open = mine.filter((item) => item.status === "PROPOSED").length;
   const learned = candidates.data?.items ?? [];
@@ -110,6 +126,19 @@ export function RunOutcomePanel({ run }: { run: RunRecord }) {
                     </Link>
                   )}
                 </span>
+                {proposal.createdTaskId !== null && byPolicy.has(proposal.createdTaskId) && (
+                  <span
+                    className="inline-flex h-[18px] flex-none items-center rounded-md border px-1.5 text-[10.5px]"
+                    data-proposal-auto-approved={proposal.id}
+                    style={{
+                      borderColor: `color-mix(in oklch, ${AUTONOMY_COLOR} 45%, transparent)`,
+                      color: AUTONOMY_COLOR,
+                    }}
+                    title={proposal.note ?? undefined}
+                  >
+                    {t("proposal.autoApproved")}
+                  </span>
+                )}
                 <ProposalStatusChip status={proposal.status} />
               </li>
             ))}

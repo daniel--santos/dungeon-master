@@ -36,6 +36,7 @@ function RunsPage() {
     projectId: search.projectId,
     harnessKey: search.harnessKey,
     status: search.status,
+    createdBy: search.createdBy,
     page: search.page,
     pageSize: search.pageSize,
   });
@@ -45,6 +46,7 @@ function RunsPage() {
       projectId: search.projectId,
       harnessKey: search.harnessKey,
       status: search.status,
+      createdBy: search.createdBy,
     }),
     [search],
   );
@@ -57,6 +59,7 @@ function RunsPage() {
           projectId: next.projectId,
           harnessKey: next.harnessKey,
           status: next.status === undefined ? undefined : [...next.status],
+          createdBy: next.createdBy,
           page: 1,
         }),
         replace: true,
