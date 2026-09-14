@@ -36,6 +36,7 @@ function bug(id: string, title: string): TaskRecord {
     kind: "BUG",
     status: "COMPLETED",
     priority: "HIGH",
+    createdBy: "USER",
     completedAt: NOW,
     createdAt: NOW,
     updatedAt: NOW,

@@ -20,6 +20,7 @@ function task(overrides: Partial<Task> = {}): Task {
     kind: "BUG",
     status: "READY",
     priority: "URGENT",
+    createdBy: "USER",
     completedAt: null,
     createdAt: "2026-09-01T12:00:00.000Z",
     updatedAt: "2026-09-06T12:00:00.000Z",
