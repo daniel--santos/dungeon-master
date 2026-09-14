@@ -35,8 +35,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RefusalBlock, SuggestionsBlock, type RunRefusal } from "@/components/run/run-decisions";
 import { Textarea } from "@/components/ui/textarea";
-import type { ExecutionProfileRecord, TaskDetailRecord } from "@/lib/api-types";
+import type { ExecutionProfileRecord, RunCreatedRecord, TaskDetailRecord } from "@/lib/api-types";
+import { useTaskSuggestions } from "@/lib/autonomy";
+import { formatLimitValue, parseDecidedBy } from "@/lib/autonomy-domain";
 import { AGENT_ROLE, EXECUTION_MODE, WORKSPACE_STRATEGY } from "@/lib/execution-domain";
 import {
   useAgents,
@@ -49,7 +52,13 @@ import { useGlossary } from "@/lib/glossary";
 import { useHydratedForm } from "@/lib/hydrated-form";
 import { useLoadoutPreflight } from "@/lib/registry";
 import { ACCENT_AMBER, ACCENT_GREEN } from "@/lib/registry-domain";
-import { RunBlockedError, useCreateRun } from "@/lib/runs";
+import {
+  BreakerOpenError,
+  BudgetExceededError,
+  PolicyDeniedError,
+  RunBlockedError,
+  useCreateRun,
+} from "@/lib/runs";
 import { useHostAcknowledgement } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import { useWorkflows } from "@/lib/workflows";
@@ -97,6 +106,12 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
       : (workflows.data?.items.find((item) => item.id === task.workflowId) ?? null);
 
   const [loadoutId, setLoadoutId] = useState("");
+  // O usuário escolheu um Equipamento à mão: a sugestão não sobrescreve.
+  const [picked, setPicked] = useState(false);
+
+  // As sugestões da Fase 9C, pedidas ao abrir. Nada é gravado pela API; o
+  // que a sugestão faz é pré-selecionar o Equipamento e mostrar o motivo.
+  const suggestions = useTaskSuggestions(task.id, open);
 
   // O prompt e as escolhas nascem a cada abertura: reabrir sobre outra Task
   // com o texto da anterior mandaria o agente para o lugar errado.
@@ -143,6 +158,24 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
     if (fallback !== undefined) setLoadoutId(fallback.id);
   }, [loadoutId, loadoutItems, open]);
 
+  // A sugestão vence o padrão, mas nunca a escolha do usuário: ela chega
+  // depois do primeiro desenho e só troca o Equipamento enquanto ninguém
+  // mexeu no seletor. Fechar o diálogo esquece a escolha à mão.
+  useEffect(() => {
+    if (!open) {
+      setPicked(false);
+      return;
+    }
+  }, [open]);
+
+  const suggestedLoadoutId = suggestions.data?.loadout.selectedId ?? null;
+  useEffect(() => {
+    if (!open || picked || suggestedLoadoutId === null) return;
+    if (loadoutItems.some((item) => item.id === suggestedLoadoutId)) {
+      setLoadoutId(suggestedLoadoutId);
+    }
+  }, [loadoutItems, open, picked, suggestedLoadoutId]);
+
   const dockerProfile = profileItems.find((item) => item.mode === "DOCKER" && item.enabled);
   const needsAcceptance = mode === "HOST";
 
@@ -159,9 +192,14 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
 
   // A recusa da API pelo capability matching, guardada até a próxima escolha.
   const [rejected, setRejected] = useState<readonly CapabilityIssue[] | null>(null);
+  // A recusa da autonomia controlada (Fase 9A): orçamento no teto, disjuntor
+  // aberto ou política que nega. Fica no diálogo com o detalhe, e some na
+  // próxima escolha — mas a partida continua possível: quem decide é a API.
+  const [refusal, setRefusal] = useState<RunRefusal | null>(null);
   const profileId = profile?.id;
   useEffect(() => {
     setRejected(null);
+    setRefusal(null);
   }, [loadoutId, profileId, open]);
 
   const checking = loadout !== undefined && preflight.isPending && !preflight.isError;
@@ -174,6 +212,41 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
     !checking &&
     !blocked &&
     !create.isPending;
+
+  /**
+   * O que a partida decidiu sozinha (Fase 9A), como avisos: a política que
+   * casou (a decisão padrão não vira aviso — é o silêncio esperado), o Model
+   * encaminhado por regra, cada orçamento `WARN` atingido, e a sondagem de
+   * um disjuntor meio aberto. O diário do Run guarda o mesmo como
+   * `Diagnostic`; o toast só garante que quem partiu veja na hora.
+   */
+  function announceDecisions(run: RunCreatedRecord) {
+    const policy = parseDecidedBy(run.policyDecision.decidedBy);
+    if (policy.kind !== "default") {
+      toast.info(format(t("run.departed.policy"), { reason: run.policyDecision.reason }));
+    }
+    if (run.modelRouting !== null && parseDecidedBy(run.modelRouting.decidedBy).kind === "routing") {
+      toast.info(
+        format(t("run.departed.routing"), { name: run.modelRouting.selectedName ?? "—" }),
+      );
+    }
+    for (const warning of run.budgetWarnings) {
+      toast.warning(
+        format(t("run.departed.budgetWarning"), {
+          name: warning.name,
+          current:
+            warning.limit === null ? String(warning.current) : formatLimitValue(warning.limit, warning.current),
+          limit:
+            warning.limit === null || warning.limitValue === null
+              ? "—"
+              : formatLimitValue(warning.limit, warning.limitValue),
+        }),
+      );
+    }
+    if (run.breaker !== null && run.breaker.probe) {
+      toast.warning(format(t("run.departed.probe"), { name: run.breaker.name }));
+    }
+  }
 
   function depart() {
     if (loadout === undefined) return;
@@ -199,6 +272,7 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
           if (run.warnings.length > 0) {
             toast.warning(format(t("run.departed.warnings"), { n: run.warnings.length }));
           }
+          announceDecisions(run);
           void navigate({ to: "/runs/$id", params: { id: run.id } });
         },
         onError: (error: Error) => {
@@ -206,6 +280,21 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
           // diálogo, com o mesmo desenho do preflight.
           if (error instanceof RunBlockedError) {
             setRejected(error.blockers);
+            return;
+          }
+          // Os três `409` da autonomia controlada (Fase 9A) trazem a decisão
+          // inteira: ficam no diálogo, com o consumo e o teto, o motivo do
+          // disjuntor e quando reabre, ou a política que recusou.
+          if (error instanceof BudgetExceededError) {
+            setRefusal({ kind: "budget", breach: error.budget });
+            return;
+          }
+          if (error instanceof BreakerOpenError) {
+            setRefusal({ kind: "breaker", admission: error.breaker });
+            return;
+          }
+          if (error instanceof PolicyDeniedError) {
+            setRefusal({ kind: "policy", decision: error.policyDecision });
             return;
           }
           // Os outros `409` dizem o motivo: Task fora de READY, Project sem
@@ -237,7 +326,13 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="run-loadout">{t("entity.loadout")}</Label>
-          <Select value={loadoutId} onValueChange={setLoadoutId}>
+          <Select
+            onValueChange={(next) => {
+              setPicked(true);
+              setLoadoutId(next);
+            }}
+            value={loadoutId}
+          >
             <SelectTrigger aria-label={t("entity.loadout")} id="run-loadout">
               <SelectValue placeholder={t("entity.loadout")} />
             </SelectTrigger>
@@ -285,6 +380,14 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
           )}
         </div>
 
+        <SuggestionsBlock
+          currentLoadoutId={loadoutId}
+          data={suggestions.data}
+          error={suggestions.error}
+          pending={suggestions.isPending && open}
+          task={task}
+        />
+
         {loadout !== undefined && (
           <PreflightBlock
             blockers={blockers}
@@ -296,6 +399,8 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
             warnings={warnings}
           />
         )}
+
+        {refusal !== null && <RefusalBlock projectId={task.projectId} refusal={refusal} />}
 
         {task.workflowId !== null && (
           <div
