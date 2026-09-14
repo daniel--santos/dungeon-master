@@ -42,8 +42,10 @@ describe("painel do desfecho da Expedição", () => {
 
     renderInRouter(<RunOutcomePanel run={RUN} />);
 
+    // Três leituras: as propostas, os candidatos e as Tasks criadas por
+    // política da Campanha (Fase 9C), que marcam as Pistas auto-aprovadas.
     await waitFor(() => {
-      expect(client.GET).toHaveBeenCalledTimes(2);
+      expect(client.GET).toHaveBeenCalledTimes(3);
     });
     expect(document.querySelector("[data-run-outcome]")).toBeNull();
   });

@@ -74,6 +74,26 @@ const SCANNED_PREFIXES = [
   "run.preflight.",
   "run.frozen.",
   "capability.",
+  // Fase 9C: a autonomia controlada — a Rédea (níveis, automações, escopos,
+  // quem decidiu, toasts), os Éditos, as condições fechadas, os Tesouros, as
+  // Sentinelas, os Encaminhamentos, as sugestões da partida, as decisões e
+  // recusas de `POST /runs`, a origem e o parentesco de um Run, a origem de
+  // uma Task e os quatro diagnósticos do diário.
+  "autonomy.",
+  "policy.",
+  "condition.",
+  "budget.",
+  "breaker.",
+  "routing.",
+  "suggestion.",
+  "run.departed.",
+  "run.refused.",
+  "run.origin",
+  "run.parent",
+  "run.children.",
+  "run.model.",
+  "task.origin.",
+  "diagnostic.",
 ] as const;
 
 /**
