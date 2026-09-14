@@ -1276,15 +1276,28 @@ export async function claimNextQueuedRun(
     const escopo = input.userId === undefined ? sql`` : sql` and ${runs.userId} = ${input.userId}`;
     const agora = input.now ?? new Date();
 
+    // post-mortem #26 (2026-09-14): a lista de candidatos era lida com
+    // `for update skip locked limit 25`, o que travava até 25 Runs na
+    // transação de quem reclamava; um segundo Worker concorrente pulava todos
+    // e voltava de mãos vazias mesmo com Runs na fila. A lista agora é lida sem
+    // trava e cada candidato é travado sozinho: quem perder a corrida por uma
+    // linha passa para a próxima, e dois Workers pegam Runs distintos.
     const candidatos = await tx.execute<{ id: string }>(
       sql`select ${runs.id} from ${runs}
           where ${runs.status} = 'QUEUED' and ${runs.cancelRequestedAt} is null${escopo}
           order by ${runs.createdAt} asc, ${runs.id} asc
-          for update skip locked
           limit ${CLAIM_CANDIDATES}`,
     );
 
     for (const candidato of candidatos.rows) {
+      const travados = await tx.execute<{ id: string }>(
+        sql`select ${runs.id} from ${runs}
+            where ${runs.id} = ${candidato.id}
+              and ${runs.status} = 'QUEUED' and ${runs.cancelRequestedAt} is null
+            for update skip locked`,
+      );
+      if (travados.rows.length === 0) continue;
+
       const [row] = await tx.select().from(runs).where(eq(runs.id, candidato.id));
       if (row === undefined) continue;
 
