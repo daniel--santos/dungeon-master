@@ -268,6 +268,7 @@ agentic-work-os/
 │   ├── runtime-antigravity/ # adapter direto (Fase 3)
 │   ├── knowledge/
 │   ├── knowledge-mcp/       # servidor MCP somente leitura do Grimório, por Run (Fase 7)
+│   ├── orchestration-mcp/   # servidor MCP de delegação Agent-to-Agent, por Run (Fase 9B)
 │   ├── context/
 │   ├── artifacts/
 │   ├── observability/
@@ -1872,8 +1873,138 @@ sondagem; `PER_RUN` não é aplicado; o auto-despacho não existe (um `AUTO_APPR
 `RUN_START` é só registro); `estimatedTokens` da partida é o estimador rápido sobre o prompt,
 não o contexto montado; `RunCreated.breaker` traz só o primeiro disjuntor que tomou o Run
 como sondagem quando dois o tomam; a política `PROPOSAL` decide uma vez por Run (os fatos
-são os da origem) e a Task auto-criada nasce `FEATURE`/`MEDIUM`; a interface não mostra nada
+são da origem) e a Task auto-criada nasce `FEATURE`/`MEDIUM`; a interface não mostra nada
 disso ainda.
+
+## Andamento da Fase 9B (14/09/2026)
+
+Entregue na branch `feat/fase9-delegacao`: a autonomia da 9A **em movimento**, no Worker e
+no motor de Rituais. Tudo persistido e restart-safe, com as mesmas recusas de `POST /runs`
+em todo caminho que cria um Run sem um humano pedir; nada de LLM decidindo nada.
+
+**Delegação como passo de Ritual.** Tipo de step `delegate { loadoutRef (id ou nome), prompt,
+includeOutputsOf?, taskStrategy: "SAME" | "CHILD", timeoutMs? }`. O executor abre um Run
+filho (`created_by = DELEGATION`, `parent_run_id`, `parent_step_key`) por `openDelegation`,
+que na **mesma transação** leva o passo e o Run mãe a `WAITING_CHILD` — estado novo nas duas
+máquinas (`RUNNING → WAITING_CHILD`, `WAITING_CHILD → QUEUED | CANCELLED`; no RunStep,
+`WAITING_CHILD → SUCCEEDED | FAILED | CANCELLED`), migração **`0018`** só com os valores de
+enum — e o Worker solta trava e capacidade como no Selo. O filho é sempre um Run **simples**
+com o prompt que a mãe lhe deu (Task, literal do passo e os resumos de `includeOutputsOf`):
+na mesma Task da mãe (`SAME`) ele exige a Task em `RUNNING` pela mãe e **não a move** em
+transição nenhuma; `CHILD` cria uma Task filha com `created_by = DELEGATION`. O desfecho
+terminal do filho, na transação de `writeRunTerminalStatus`, devolve a mãe a `QUEUED`
+(`DELEGATION_FINISHED` no diário, `delegation.finished` no painel); o motor reclamado de
+novo reencontra o passo em `WAITING_CHILD`, lê o filho **pela chave do passo** — nunca abre
+um segundo — e assenta `RunStepResult` `delegate { childRunId, childTaskId, status,
+resultStatus?, summary?, usage? }`, que entra no prompt dos dependentes e na soma de consumo
+do agregado. Profundidade máxima 2 (`DELEGATION_DEPTH_EXCEEDED`), conferida na criação.
+Cancelar a mãe cancela os filhos vivos em transações separadas, **depois** do COMMIT da mãe
+(a ordem de travas "filho, depois mãe" do desfecho é a inversa da cascata, e juntá-las seria
+um abraço mortal); o laço ocioso fecha um `WAITING_CHILD` com cancelamento pedido como fecha
+um gate. `GET /runs/{id}/children` lista os filhos; o pai está em `parentRunId`.
+
+**Selo automático por política.** `createApprovalGate` consulta `decideApproval({ subject:
+"GATE", stepType: "approval", …fatos do Run })` com o nível do Project. `AUTO_APPROVE` (só
+com `AUTO_APPROVE_GATE` liberado) grava o gate já `GRANTED`, com `ApprovalRequested` e
+`ApprovalGranted` no diário — `grantedBy: POLICY:<id>`, `decidedBy` com o id da política e
+`reason` — e `approval.requested`/`approval.resolved`/`policy.decided` no painel; o step e
+o Run não se movem, e o executor assenta pelo gate decidido sem pausar. `DENY` é o espelho
+com `REJECTED`, `ApprovalRejected` (`rejectedBy`) e `APPROVAL_REJECTED` no passo. A decisão
+humana pela API passou a gravar `grantedBy`/`rejectedBy: USER`.
+
+**Disjuntores alimentados.** Em `writeRunTerminalStatus`, os disjuntores do Project, do
+Loadout e do Harness são travados e movidos por CAS: `SUCCEEDED` zera a sequência e, na
+sondagem de um `HALF_OPEN`, fecha (`breaker.closed`); `FAILED`/`TIMED_OUT` soma a
+sequência e avalia os gatilhos com os sinais medidos agora (`consecutiveFailures` pelo
+contador, `failuresInWindow` e `permissionDeniedInWindow` pelas contagens do escopo em
+`run` e `run_event`, `authNotAuthenticated` pelo `harness.auth_status` da 8B) — disparou,
+abre com `breaker.opened` e o motivo; a sondagem que falha reabre com o cooldown renovado.
+`CANCELLED` não diz nada. A reclamação (`claimNextQueuedRun`) examina até 25 candidatos e
+**deixa na fila** o Run cujo disjuntor está `OPEN` dentro do cooldown ou `HALF_OPEN` com
+outra sondagem em voo — não existe `PREPARING → QUEUED`, então a decisão vem antes do claim;
+o Worker anota `BREAKER_OPEN` no diário uma vez por Run e disjuntor; um `OPEN` com o
+cooldown vencido toma o Run como sondagem ali mesmo. O boot registra o estado por escopo.
+
+**Orçamentos no Worker.** `checkBudgetsForRunningRun` mede um Run **que já existe**:
+contagens só estouram acima do teto (o Run que chegou ao teto foi admitido na criação),
+tokens e tempo estouram no teto; `PER_RUN` mede o Run com a família que ele delegou e, num
+Run em voo, soma os `result.usage` dos passos assentados; `tokensKnown = false` nunca libera
+um `maxTokens`. Na reclamação (`prepareRun`, antes da trava), um `BLOCK` fecha o Run como
+`FAILED` `BUDGET_EXCEEDED` sem subir agente, com `budget.exceeded`; `WARN` vira
+`BUDGET_WARNED`. No Ritual, antes de cada passo `agent` ou `delegate`, o motor re-checa
+(`checkStepBudget`): `BLOCK` assenta o passo em `FAILED` `BUDGET_EXCEEDED` sem retentar,
+e o Run fecha por dependências como sempre.
+
+**Auto-despacho (nível ≥ 3).** `listDispatchableTasks` (Task `created_by = POLICY` em
+`READY`, sem Run nenhum, Project ativo de nível que libera `AUTO_DISPATCH`, uma por Project e
+nenhuma enquanto um Run automático do Project estiver vivo) e `dispatchTask`: as sugestões
+decidem Loadout e Workflow (o Workflow escolhido por regra é gravado na Task antes da
+captura), `createRunWithin({ createdBy: POLICY, requireAutoApproval: true })` passa por
+disjuntores, orçamentos, capability e pela política `RUN_START`, que precisa decidir
+`AUTO_APPROVE` — revisão humana ou `DENY` é `dispatch.skipped` com o código, sem Run; sem
+Loadout sugerido idem. `dispatch.created` no painel e `AUTO_DISPATCHED` no diário. O laço
+roda na passada do laço ocioso; uma Task pulada espera 60 s para ser reavaliada, e um
+`autonomy.changed` para baixo a tira da lista na passada seguinte. Uma Task só ganha um Run
+automático, inclusive depois de ele terminar.
+
+**Ferramenta de delegação (nível 4).** Pacote novo `packages/orchestration-mcp`, separado do
+Grimório porque **escreve**: `list_loadouts`, `delegate_task(loadout, prompt, taskStrategy?)`
+— o mesmo `createDelegatedRun` do step, com o nível relido na transação
+(`DELEGATION_NOT_ALLOWED` abaixo de 4) — e `await_run(runId, timeoutMs?)`, que sonda o banco
+até o desfecho (teto 60 min; no fim do prazo devolve o estado e manda chamar de novo). Run
+mãe, Project e usuário fixados no argv (`--run --project --user`); `DATABASE_URL` pelo
+ambiente; um Run que não é filho deste Run mãe é "não encontrado", e um Project errado não
+delega. O Worker só o oferece quando `allowsAutomation(level, "DELEGATE")` e a profundidade
+ainda cabe (`DELEGATION_OFFERED` / motivo no diário), nos dois caminhos de execução, com o
+comando de container montado read-only como o Grimório.
+
+**Prova manual** (banco `dungeon_master_9b` separado, API na 3343, Worker desta branch, Claude
+Code 2.1.270 real): Ritual `analyze → delegate(Revisor) → execute` na Campanha nível 3 —
+Run mãe `01a0a0e4-8182-7050-a6ae-cab95f3ae93f`, filho `01a0a0e4-b752-76b9-9d5e-1a0f8d006735`
+com o Loadout "Revisor"; a mãe foi a `WAITING_CHILD` com o filho na fila, o Worker (capacidade
+1, ocupado por um Run bloqueador) foi derrubado pelo PID e outro subiu, reclamou o filho, o
+desfecho devolveu a mãe à fila e o `execute` criou `NOTES.md` com o conteúdo recomendado pela
+revisão e commitou (`dba3e71`); diário com `DELEGATION_STARTED`/`DELEGATION_FINISHED`, o
+agregado somando o consumo do filho. Selo: política `01a0a0e7-1d9d-763c-889b-ab1bc8c920fd`
+concedeu o gate do Run `01a0a0e7-1dd6-723b-b8cc-409e48653ef4` sem pausa, `ApprovalGranted`
+com `grantedBy: POLICY:01a0a0e7-…c920fd`. Orçamento: `PER_RUN maxTokens 100`
+(`01a0a0e7-db33-71d4-8e8b-c17b71b5935e`) derrubou o segundo passo do Run
+`01a0a0e7-db7f-770b-93a1-b74a7fea3d3d` com `BUDGET_EXCEEDED` (99876 de 100) sem subir agente.
+Nível 4: o Claude Code do Run `01a0a0e8-3abd-7412-b505-eeac4cccbf21` chamou
+`mcp__orchestration__list_loadouts`, `delegate_task` e `await_run`; o filho
+`01a0a0e8-5796-740b-9c22-4373fd757732` (Revisor) terminou `SUCCEEDED` e a mãe resumiu a
+resposta dele. Disjuntor `consecutiveFailures = 2`, cooldown 60 s
+(`01a0a0e9-aff3-7555-b8b9-4b87df44d547`) com o Worker em capacidade 1: os Runs
+`01a0a0e9-b023-763d-b045-79ecf7fef0bb` e `01a0a0e9-b05c-7770-88fc-4b1cea4c951b` (Loadout
+"Quebrado", que responde sem o JSON do resultado) falharam seguidos e o disjuntor abriu na
+transação do segundo desfecho ("2 falha(s) seguida(s); o gatilho é 2."); o terceiro,
+`01a0a0e9-b09e-771a-b2b4-824f6f90b350`, ficou `QUEUED` com `BREAKER_OPEN` no diário
+("faltam 59712 ms de cooldown"), foi tomado como sondagem quando o cooldown venceu, terminou
+`SUCCEEDED` e fechou o disjuntor (`BREAKER_CLOSED`, `consecutive_failures = 0`).
+
+**Fora do escopo declarado, pelo typecheck:** `apps/web` tem `Record<RunStatus, …>`,
+`Record<RunStepStatus, …>` e `Record<WorkflowStepType, …>` exaustivos; entraram só as
+entradas novas nesses mapas, `WAITING_CHILD` no filtro da lista e as três chaves de glossário
+(`run.status.waitingChild`, `runStep.status.waitingChild`, `workflowStep.type.delegate`), num
+commit próprio. Nenhum componente mudou.
+
+**Contrato para a 9C.** `WAITING_CHILD` nos dois estados; step `delegate` na definição e no
+grafo; `RunStepResult` `delegate`; `GET /runs/{id}/children` e `parentRunId`/`parentStepKey`
+no Run; `ApprovalGranted`/`ApprovalRejected` com `grantedBy`/`rejectedBy` e `reason`; eventos
+de painel `breaker.opened` (agora emitido), `dispatch.created|skipped`,
+`delegation.started|finished`; `Diagnostic` com `BUDGET_EXCEEDED`, `BUDGET_WARNED`,
+`BREAKER_OPEN` (segurado na fila), `BREAKER_OPENED`/`BREAKER_CLOSED` (no desfecho),
+`DELEGATION_STARTED`/`DELEGATION_FINISHED`/`DELEGATED_FROM`/`DELEGATION_OFFERED`,
+`POLICY_DECIDED` (gate) e `AUTO_DISPATCHED`; `RunError.code` `BUDGET_EXCEEDED`,
+`DELEGATION_DEPTH_EXCEEDED`, `DELEGATION_FAILED`, `DELEGATION_CANCELLED`, `CHILD_RUN_MISSING`.
+
+**Pendências:** um restart do Worker com o filho **em voo** (e não na fila) reconcilia o filho
+como `WORKER_LOST` e o passo assenta `DELEGATION_FAILED` — correto, mas sem retentativa
+automática do filho; `retry` não se aplica ao `delegate`; a ferramenta de delegação não foi
+provada no modo `DOCKER`; o `dispatch.skipped` sai a cada reavaliação (a cada 60 s por Task
+enquanto ela seguir elegível) e não uma vez por motivo; a Task de `taskStrategy: CHILD` nasce
+com o tipo e a prioridade da mãe; `await_run` sonda o banco a cada segundo em vez de esperar
+um `NOTIFY`; a interface não mostra filhos, espera nem delegação (9C).
 
 ---
 
