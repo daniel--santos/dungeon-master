@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   allowedLimitKeys,
+  checkBudgetForRunningRun,
   type BudgetConsumption,
   budgetPressure,
   budgetWindowBounds,
@@ -187,5 +188,75 @@ describe("checkBudgetForNewRun", () => {
     ).toEqual({ admit: true, breach: null });
     expect(allowedLimitKeys("PER_RUN")).toEqual(["maxTokens", "maxWallClockMs"]);
     expect(allowedLimitKeys("DAY")).toHaveLength(4);
+  });
+});
+
+describe("checkBudgetForRunningRun (Fase 9B)", () => {
+  const budget = (
+    limits: Partial<BudgetLimits>,
+    window: "DAY" | "PER_RUN" = "DAY",
+    action: "BLOCK" | "WARN" = "BLOCK",
+  ) => ({ id: "B1", name: "diário", window, limits: { ...SEM_TETO, ...limits }, action });
+
+  it("o Run já está contado: maxRuns e maxConcurrentRuns só estouram acima do teto", () => {
+    expect(
+      checkBudgetForRunningRun({
+        budget: budget({ maxRuns: 2 }),
+        consumption: consumo({ runs: 2 }),
+      }),
+    ).toEqual({ admit: true, breach: null });
+    const acima = checkBudgetForRunningRun({
+      budget: budget({ maxRuns: 2 }),
+      consumption: consumo({ runs: 3 }),
+    });
+    expect(acima.admit).toBe(false);
+    if (acima.admit) return;
+    expect(acima.breach).toMatchObject({ limit: "maxRuns", limitValue: 2, current: 3 });
+    expect(
+      checkBudgetForRunningRun({
+        budget: budget({ maxConcurrentRuns: 1 }),
+        consumption: consumo({ concurrentRuns: 1 }),
+      }).admit,
+    ).toBe(true);
+  });
+
+  it("maxTokens e maxWallClockMs estouram no teto: nenhum passo consome zero", () => {
+    expect(
+      checkBudgetForRunningRun({
+        budget: budget({ maxTokens: 100 }, "PER_RUN"),
+        consumption: consumo({ tokens: 99 }),
+      }).admit,
+    ).toBe(true);
+    const noTeto = checkBudgetForRunningRun({
+      budget: budget({ maxTokens: 100 }, "PER_RUN"),
+      consumption: consumo({ tokens: 100 }),
+    });
+    expect(noTeto.admit).toBe(false);
+    if (noTeto.admit) return;
+    expect(noTeto.breach).toMatchObject({ limit: "maxTokens", limitValue: 100, current: 100 });
+    expect(noTeto.breach.reason).toContain("PER_RUN");
+    expect(
+      checkBudgetForRunningRun({
+        budget: budget({ maxWallClockMs: 60_000 }, "PER_RUN"),
+        consumption: consumo({ wallClockMs: 60_000 }),
+      }).admit,
+    ).toBe(false);
+  });
+
+  it("tokensKnown falso nunca libera um maxTokens; WARN admite com o teto", () => {
+    const desconhecido = checkBudgetForRunningRun({
+      budget: budget({ maxTokens: 1_000 }, "PER_RUN"),
+      consumption: consumo({ tokens: 0, tokensKnown: false, runsWithoutUsage: 1 }),
+    });
+    expect(desconhecido.admit).toBe(false);
+    if (desconhecido.admit) return;
+    expect(desconhecido.breach.limit).toBeNull();
+
+    const aviso = checkBudgetForRunningRun({
+      budget: budget({ maxTokens: 10 }, "PER_RUN", "WARN"),
+      consumption: consumo({ tokens: 10 }),
+    });
+    expect(aviso.admit).toBe(true);
+    expect(aviso.breach).toMatchObject({ limit: "maxTokens", current: 10 });
   });
 });

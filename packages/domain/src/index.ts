@@ -27,6 +27,7 @@ export * from "./approval-policies.js";
 export * from "./budgets.js";
 export * from "./circuit-breakers.js";
 export * from "./routing.js";
+export * from "./delegation.js";
 
 /** Marca de que um valor é imutável do ponto de vista do domínio. */
 export type Readonly_<T> = { readonly [K in keyof T]: T[K] };

@@ -7,8 +7,9 @@ import type { RunStatus } from "@dungeon-master/contracts";
  * CREATED          → QUEUED | CANCELLED
  * QUEUED           → PREPARING | CANCELLED
  * PREPARING        → RUNNING | FAILED | CANCELLED
- * RUNNING          → SUCCEEDED | FAILED | TIMED_OUT | CANCELLED | WAITING_APPROVAL
+ * RUNNING          → SUCCEEDED | FAILED | TIMED_OUT | CANCELLED | WAITING_APPROVAL | WAITING_CHILD
  * WAITING_APPROVAL → RUNNING | QUEUED | CANCELLED
+ * WAITING_CHILD    → QUEUED | CANCELLED
  * ```
  *
  * `WAITING_APPROVAL → QUEUED` é a volta do gate de aprovação do Workflow
@@ -18,6 +19,11 @@ import type { RunStatus } from "@dungeon-master/contracts";
  * lê o gate e continua o grafo de onde parou. `WAITING_APPROVAL → RUNNING`
  * continua existindo para o pedido de aprovação **nativo** do harness, que
  * acontece com o processo vivo e é retomado no lugar.
+ *
+ * `WAITING_CHILD` (Fase 9B) é a mesma ideia com outro gatilho: o Run mãe
+ * parado num step `delegate` soltou o Worker e espera o Run filho. Quem o
+ * devolve a `QUEUED` é o desfecho terminal do filho, na mesma transação; não
+ * há `WAITING_CHILD → RUNNING`, porque nenhum processo sustenta a espera.
  *
  * `PREPARING → FAILED` existe porque a preparação faz trabalho que pode dar
  * errado antes de qualquer processo de agente subir: preflight da CLI, criação
@@ -42,8 +48,9 @@ export const RUN_TRANSITIONS = {
   CREATED: ["QUEUED", "CANCELLED"],
   QUEUED: ["PREPARING", "CANCELLED"],
   PREPARING: ["RUNNING", "FAILED", "CANCELLED"],
-  RUNNING: ["SUCCEEDED", "FAILED", "TIMED_OUT", "CANCELLED", "WAITING_APPROVAL"],
+  RUNNING: ["SUCCEEDED", "FAILED", "TIMED_OUT", "CANCELLED", "WAITING_APPROVAL", "WAITING_CHILD"],
   WAITING_APPROVAL: ["RUNNING", "QUEUED", "CANCELLED"],
+  WAITING_CHILD: ["QUEUED", "CANCELLED"],
   SUCCEEDED: [],
   FAILED: [],
   TIMED_OUT: [],
@@ -82,6 +89,41 @@ export const PRE_EXECUTION_RUN_STATUSES = [
 
 export function isPreExecutionRunStatus(status: RunStatus): boolean {
   return (PRE_EXECUTION_RUN_STATUSES as readonly RunStatus[]).includes(status);
+}
+
+/**
+ * Estados em que o Run está parado sem Worker por trás, esperando um fato de
+ * fora: a decisão de um gate, ou o desfecho de um Run filho (Fase 9B).
+ *
+ * Um pedido de cancelamento nesses estados não tem árvore de processos a
+ * matar: é o laço ocioso do Worker quem o fecha, e a mesma passada serve
+ * aos dois. Quem reclama a fila nunca os vê — nenhum dos dois é `QUEUED`.
+ */
+export const WAITING_RUN_STATUSES = [
+  "WAITING_APPROVAL",
+  "WAITING_CHILD",
+] as const satisfies readonly RunStatus[];
+
+export function isWaitingRunStatus(status: RunStatus): boolean {
+  return (WAITING_RUN_STATUSES as readonly RunStatus[]).includes(status);
+}
+
+/**
+ * Estados de um Run vivo: reclamado ou reclamável, ou parado esperando.
+ *
+ * É o que um orçamento conta em `maxConcurrentRuns` e o que o auto-despacho
+ * olha para não abrir um segundo Run automático no mesmo Project.
+ */
+export const LIVE_RUN_STATUSES = [
+  "QUEUED",
+  "PREPARING",
+  "RUNNING",
+  "WAITING_APPROVAL",
+  "WAITING_CHILD",
+] as const satisfies readonly RunStatus[];
+
+export function isLiveRunStatus(status: RunStatus): boolean {
+  return (LIVE_RUN_STATUSES as readonly RunStatus[]).includes(status);
 }
 
 /** Os estados alcançáveis a partir de um estado. Vazio nos terminais. */

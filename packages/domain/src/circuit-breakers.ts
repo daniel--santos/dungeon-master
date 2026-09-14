@@ -1,4 +1,4 @@
-import type { BreakerState, BreakerTriggers } from "@dungeon-master/contracts";
+import type { BreakerState, BreakerTriggers, RunStatus } from "@dungeon-master/contracts";
 
 /**
  * A máquina de estados do disjuntor (planejamento v0.4, Fase 9A).
@@ -194,6 +194,26 @@ export function admitThroughBreaker(breaker: BreakerSnapshot, now: Date): Breake
 }
 
 export type BreakerOutcome = "SUCCEEDED" | "FAILED";
+
+/**
+ * O que o desfecho de um Run diz ao disjuntor (Fase 9B).
+ *
+ * `SUCCEEDED` fecha a sondagem e zera a sequência; `FAILED` e `TIMED_OUT`
+ * contam como falha; `CANCELLED` não diz nada — cancelar é decisão de quem
+ * opera, não evidência sobre o escopo. Um estado não terminal também não diz
+ * nada: o disjuntor só aprende com desfechos.
+ */
+export function breakerOutcomeForRunStatus(status: RunStatus): BreakerOutcome | null {
+  switch (status) {
+    case "SUCCEEDED":
+      return "SUCCEEDED";
+    case "FAILED":
+    case "TIMED_OUT":
+      return "FAILED";
+    default:
+      return null;
+  }
+}
 
 /**
  * Para onde o disjuntor vai depois do desfecho de um Run do escopo (9B).

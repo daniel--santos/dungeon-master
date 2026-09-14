@@ -58,6 +58,22 @@ describe("checkRunCreation", () => {
     });
   });
 
+  it("um filho na mesma Task (Fase 9B) exige a Task em RUNNING, e só nela", () => {
+    expect(
+      checkRunCreation({ ...BASE, taskStatus: "RUNNING", sharesTaskWithParent: true }).ok,
+    ).toBe(true);
+    const pronta = checkRunCreation({ ...BASE, taskStatus: "READY", sharesTaskWithParent: true });
+    expect(pronta.ok).toBe(false);
+    if (pronta.ok) return;
+    expect(pronta.rejection).toEqual({
+      code: "TASK_NOT_RUNNABLE",
+      status: "READY",
+      allowed: ["RUNNING"],
+    });
+    // Sem a marca, RUNNING continua recusado: um Run novo do quadro espera.
+    expect(checkRunCreation({ ...BASE, taskStatus: "RUNNING" }).ok).toBe(false);
+  });
+
   it("recusa uma captura de Inbox, que não tem Project", () => {
     // `INBOX` já cairia em TASK_NOT_RUNNABLE; o caso interessante é uma Task
     // que passa no estado mas continua sem Project.
@@ -146,6 +162,7 @@ describe("taskStatusForRun", () => {
     expect(taskStatusForRun("PREPARING")).toBe("RUNNING");
     expect(taskStatusForRun("RUNNING")).toBe("RUNNING");
     expect(taskStatusForRun("WAITING_APPROVAL")).toBeNull();
+    expect(taskStatusForRun("WAITING_CHILD")).toBeNull();
     expect(taskStatusForRun("FAILED")).toBe("FAILED");
     expect(taskStatusForRun("TIMED_OUT")).toBe("FAILED");
     expect(taskStatusForRun("CANCELLED")).toBe("READY");
@@ -194,10 +211,14 @@ describe("taskStatusForRunTransition", () => {
     expect(taskStatusForRunTransition({ from: "WAITING_APPROVAL", to: "QUEUED" })).toBeNull();
   });
 
+  it("nem quando o desfecho do Run filho devolve o Run mãe à fila (Fase 9B)", () => {
+    expect(taskStatusForRunTransition({ from: "WAITING_CHILD", to: "QUEUED" })).toBeNull();
+  });
+
   it("delega à tabela por destino em todo outro par", () => {
     for (const from of RUN_STATUS_VALUES) {
       for (const to of RUN_STATUS_VALUES) {
-        if (from === "WAITING_APPROVAL" && to === "QUEUED") continue;
+        if ((from === "WAITING_APPROVAL" || from === "WAITING_CHILD") && to === "QUEUED") continue;
         for (const resultStatus of [null, ...RUN_RESULT_STATUS_VALUES]) {
           expect(taskStatusForRunTransition({ from, to, resultStatus })).toBe(
             taskStatusForRun(to, resultStatus),
