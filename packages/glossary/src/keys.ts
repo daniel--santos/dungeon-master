@@ -992,14 +992,22 @@ export const GLOSSARY_KEYS = [
   "task.origin.proposal",
   "task.origin.policy",
   "task.origin.policy.short",
+  "task.origin.delegation",
   "proposal.autoApproved",
 
   // -------------------------------------------------------------- diagnostic
-  // Os quatro códigos de `Diagnostic` da autonomia, destacados no diário.
+  // Os códigos de `Diagnostic` da autonomia (9A e 9B), destacados no diário.
   "diagnostic.policyDecided",
   "diagnostic.budgetWarned",
+  "diagnostic.budgetExceeded",
   "diagnostic.modelRouted",
   "diagnostic.breakerProbe",
+  "diagnostic.breakerOpen",
+
+  // ------------------------------------------------------ approval.decidedBy
+  // Quem concedeu ou negou o Selo (Fase 9B): o usuário, ou uma política.
+  "approval.decidedBy.user",
+  "approval.decidedBy.policy",
 
   // -------------------------------------------------------------- settings
   "settings.theme.toggle",

@@ -1012,13 +1012,20 @@ export const dnd: Record<GlossaryKey, string> = {
   "task.origin.proposal": "Nascida de uma Pista aprovada",
   "task.origin.policy": "Criada por Édito",
   "task.origin.policy.short": "por Édito",
+  "task.origin.delegation": "Aberta por delegação de um Herói",
   "proposal.autoApproved": "Aprovada por Édito",
 
   // -------------------------------------------------------------- diagnostic
   "diagnostic.policyDecided": "Édito",
   "diagnostic.budgetWarned": "Tesouro",
+  "diagnostic.budgetExceeded": "Tesouro no teto",
   "diagnostic.modelRouted": "Encaminhamento",
   "diagnostic.breakerProbe": "Sondagem",
+  "diagnostic.breakerOpen": "Sentinela",
+
+  // ------------------------------------------------------ approval.decidedBy
+  "approval.decidedBy.user": "pelo Mestre da Guilda",
+  "approval.decidedBy.policy": "pelo Édito {name}",
 
   // -------------------------------------------------------------- settings
   "settings.theme.toggle": "Tema Dungeon Master",

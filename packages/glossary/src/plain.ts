@@ -995,13 +995,20 @@ export const plain: Record<GlossaryKey, string> = {
   "task.origin.proposal": "Nascida de uma proposta aprovada",
   "task.origin.policy": "Criada por política",
   "task.origin.policy.short": "por política",
+  "task.origin.delegation": "Criada por delegação de um agente",
   "proposal.autoApproved": "Aprovada por política",
 
   // -------------------------------------------------------------- diagnostic
   "diagnostic.policyDecided": "Política",
   "diagnostic.budgetWarned": "Orçamento",
+  "diagnostic.budgetExceeded": "Orçamento no teto",
   "diagnostic.modelRouted": "Roteamento",
   "diagnostic.breakerProbe": "Sondagem",
+  "diagnostic.breakerOpen": "Disjuntor",
+
+  // ------------------------------------------------------ approval.decidedBy
+  "approval.decidedBy.user": "por você",
+  "approval.decidedBy.policy": "pela política {name}",
 
   // -------------------------------------------------------------- settings
   "settings.theme.toggle": "Tema Dungeon Master",
