@@ -1,5 +1,6 @@
 import {
   RUN_EVENT_PAGE_LIMIT,
+  type RunChildrenList,
   type RunEventList,
   type RunPage,
   type RunStatus,
@@ -13,6 +14,7 @@ import { resolvePage } from "../pagination.js";
 import type { RunsPort } from "../ports.js";
 import {
   runsCancelRoute,
+  runsChildrenRoute,
   runsContextRoute,
   runsCreateRoute,
   runsEventsRoute,
@@ -104,6 +106,18 @@ export function registerRunRoutes(
     if (run === null) throw notFoundProblem("Run", id);
 
     return c.json(run, 200);
+  });
+
+  app.openapi(runsChildrenRoute, async (c) => {
+    const { id } = c.req.valid("param");
+
+    // A existência é checada antes de listar: os filhos de um Run inexistente
+    // seriam uma lista vazia em vez de 404.
+    const run = await runs.get(id);
+    if (run === null) throw notFoundProblem("Run", id);
+
+    const body: RunChildrenList = { items: await runs.children(id) };
+    return c.json(body, 200);
   });
 
   app.openapi(runsContextRoute, async (c) => {

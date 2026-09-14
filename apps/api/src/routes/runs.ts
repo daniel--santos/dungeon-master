@@ -1,6 +1,7 @@
 import {
   CreateRunSchema,
   ProblemDetailsSchema,
+  RunChildrenListSchema,
   RunContextSchema,
   RunEventListQuerySchema,
   RunEventListSchema,
@@ -96,6 +97,26 @@ export const runsGetRoute = createRoute({
     200: {
       description: "O Run, com os snapshots do Loadout e do ExecutionProfile.",
       content: { "application/json": { schema: RunSchema } },
+    },
+    404: problem("Não existe Run com este id."),
+  },
+});
+
+export const runsChildrenRoute = createRoute({
+  method: "get",
+  path: `${API_BASE_PATH}/runs/{id}/children`,
+  tags: ["runs"],
+  summary: "Os Runs filhos de uma execução",
+  description:
+    "Os Runs que este Run abriu por delegação (Fase 9B) — pelo step `delegate` de um Workflow " +
+    "ou pela ferramenta `delegate_task` —, do mais antigo ao mais novo. Cada um traz " +
+    "`parentRunId` e, quando veio de um step, `parentStepKey`. Vazio num Run que não delegou; " +
+    "o Run mãe de um filho está em `GET /runs/{id}`, em `parentRunId`.",
+  request: { params: RunIdParamSchema },
+  responses: {
+    200: {
+      description: "Os filhos diretos do Run.",
+      content: { "application/json": { schema: RunChildrenListSchema } },
     },
     404: problem("Não existe Run com este id."),
   },
