@@ -185,14 +185,37 @@ describe("checkProposalApproval", () => {
 });
 
 describe("decideProposalPolicy", () => {
-  it("hoje toda proposta vai para revisão humana", () => {
-    expect(
-      decideProposalPolicy({
-        projectId: "P1",
-        originTaskId: "O",
-        title: "Cobrir o parser com testes",
-        rationale: "Nenhum teste toca o caminho de erro.",
-      }),
-    ).toBe("human-review");
+  const now = new Date("2026-09-14T12:00:00.000Z");
+  const facts = { projectId: "P1", taskKind: "CHORE", taskPriority: "LOW" } as const;
+
+  it("sem política, toda proposta vai para revisão humana", () => {
+    const decision = decideProposalPolicy({ policies: [], facts, autonomyLevel: 3, now });
+    expect(decision).toMatchObject({
+      subject: "PROPOSAL",
+      action: "REQUIRE_APPROVAL",
+      decidedBy: "DEFAULT",
+    });
+  });
+
+  it("uma política AUTO_APPROVE de PROPOSAL só vale com nível 3", () => {
+    const policies = [
+      {
+        id: "chores",
+        name: "chores",
+        subject: "PROPOSAL" as const,
+        projectId: null,
+        priority: 100,
+        conditions: { taskKind: "CHORE" as const },
+        action: "AUTO_APPROVE" as const,
+        enabled: true,
+      },
+    ];
+    expect(decideProposalPolicy({ policies, facts, autonomyLevel: 3, now }).action).toBe(
+      "AUTO_APPROVE",
+    );
+    expect(decideProposalPolicy({ policies, facts, autonomyLevel: 2, now })).toMatchObject({
+      action: "REQUIRE_APPROVAL",
+      decidedBy: "AUTONOMY:2",
+    });
   });
 });

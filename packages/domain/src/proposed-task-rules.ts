@@ -1,5 +1,12 @@
-import type { ProposedTaskStatus, TaskStatus } from "@dungeon-master/contracts";
+import type {
+  AutonomyLevel,
+  PolicyDecision,
+  ProposedTaskStatus,
+  RuleFacts,
+  TaskStatus,
+} from "@dungeon-master/contracts";
 
+import { type ApprovalPolicyRule, decideApproval } from "./approval-policies.js";
 import { findDependencyCycle, type TaskDependencyEdge } from "./dependency-graph.js";
 
 /**
@@ -179,31 +186,28 @@ export function checkProposalApproval(
 // Política de decisão
 // --------------------------------------------------------------------------
 
-/**
- * O que o sistema faz com uma proposta recém-gravada.
- *
- * `human-review` é o único valor que existe hoje. A união já tem os outros
- * dois para que o dia em que uma política automática entrar (nível de
- * autonomia 2 e acima, documento técnico, seção 40) seja uma mudança nesta
- * função e em quem a chama, e não um campo novo no contrato.
- */
-export type ProposalPolicyDecision = "human-review" | "auto-approve" | "auto-reject";
-
 export interface ProposalPolicyInput {
-  readonly projectId: string;
-  readonly originTaskId: string;
-  readonly title: string;
-  readonly rationale: string | null;
+  /** As políticas ligadas do Project mais as globais, de qualquer assunto. */
+  readonly policies: readonly ApprovalPolicyRule[];
+  /** Os fatos da **origem**: Project, tipo e prioridade da Task, Loadout e Harness do Run. */
+  readonly facts: RuleFacts;
+  readonly autonomyLevel: AutonomyLevel;
+  readonly now: Date;
 }
 
 /**
- * **Ponto de extensão da autoaprovação.** Hoje devolve sempre `human-review`.
+ * O que o sistema faz com uma proposta recém-gravada (Fase 9A).
+ *
+ * As políticas de assunto `PROPOSAL` são avaliadas com os fatos da origem;
+ * `AUTO_APPROVE` cria a Task no mesmo instante do desfecho, com
+ * `createdBy = POLICY`, e só produz efeito se o nível de autonomia do Project
+ * liberar (`AUTO_APPROVE_PROPOSAL`, nível 3); `DENY` recusa a proposta com o
+ * motivo; o resto é revisão humana, como sempre foi.
  *
  * Fica no domínio, e não no repositório, para a regra ser testável sem banco
- * e para ninguém a esconder num `if` da escrita. Nada de LLM aqui: uma
- * política futura decide por dados da proposta e do Project, de forma
- * determinística, e o Run que a propôs nunca espera por ela.
+ * e para ninguém a esconder num `if` da escrita. Nada de LLM aqui: a decisão
+ * é determinística sobre dados, e o Run que propôs nunca espera por ela.
  */
-export function decideProposalPolicy(_input: ProposalPolicyInput): ProposalPolicyDecision {
-  return "human-review";
+export function decideProposalPolicy(input: ProposalPolicyInput): PolicyDecision {
+  return decideApproval({ subject: "PROPOSAL", ...input });
 }
