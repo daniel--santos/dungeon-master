@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { UsageSummarySchema } from "./execution-event.js";
 import { PageQuerySchema, paginatedSchema } from "./pagination.js";
-import { RUN_PROMPT_MAX_LENGTH, RunResultStatusSchema } from "./run.js";
+import { RUN_PROMPT_MAX_LENGTH, RunResultStatusSchema, RunStatusSchema } from "./run.js";
 import {
   DiscoveredTaskSchema,
   KnowledgeCandidateInputSchema,
@@ -286,6 +286,63 @@ export const KnowledgeStepDefinitionSchema = z
   })
   .meta({ id: "KnowledgeStepDefinition", description: "Consolida o que os agentes aprenderam." });
 
+/**
+ * A Task em que o Run filho de um `delegate` roda (Fase 9B).
+ *
+ * `SAME` abre o filho na **mesma** Task do Run mãe: outro Loadout, outra
+ * tentativa, o mesmo trabalho — é o revisor lendo o que o executor fez.
+ * `CHILD` cria uma Task filha da Task do Run mãe, com `createdBy =
+ * DELEGATION`, e o filho roda nela: o trabalho delegado passa a ter linha
+ * própria no quadro.
+ */
+export const DELEGATION_TASK_STRATEGY_VALUES = ["SAME", "CHILD"] as const;
+
+export const DelegationTaskStrategySchema = z.enum(DELEGATION_TASK_STRATEGY_VALUES).meta({
+  id: "DelegationTaskStrategy",
+  description: "`SAME` roda o filho na Task do Run mãe; `CHILD` cria uma Task filha para ele.",
+});
+
+export type DelegationTaskStrategy = z.infer<typeof DelegationTaskStrategySchema>;
+
+export const LOADOUT_REF_MAX_LENGTH = 200;
+
+/**
+ * Um step `delegate` (Fase 9B): o motor abre um Run filho com outro Loadout,
+ * o Run mãe solta o Worker em `WAITING_CHILD`, e o desfecho do filho é o
+ * resultado do passo. O prompt do filho é o literal daqui mais os resumos de
+ * `includeOutputsOf`, como num step de agente. `retry` não se aplica: uma
+ * segunda tentativa seria um segundo Run filho, e o passo já tem o primeiro.
+ */
+export const DelegateStepDefinitionSchema = z
+  .object({
+    type: z.literal("delegate"),
+    ...stepBase,
+    loadoutRef: z
+      .string()
+      .trim()
+      .min(1)
+      .max(LOADOUT_REF_MAX_LENGTH)
+      .describe("O Loadout do Run filho: o id, ou o nome exato."),
+    prompt: z
+      .string()
+      .trim()
+      .min(1)
+      .max(RUN_PROMPT_MAX_LENGTH)
+      .describe("Prompt literal do filho. O motor anexa os resumos de `includeOutputsOf`."),
+    includeOutputsOf: z
+      .array(WorkflowKeySchema)
+      .max(WORKFLOW_STEPS_MAX)
+      .optional()
+      .describe("Steps cujo resumo de resultado o motor anexa ao prompt do filho."),
+    taskStrategy: DelegationTaskStrategySchema.default("SAME").describe(
+      "Onde o filho roda. Padrão: a mesma Task do Run mãe.",
+    ),
+  })
+  .meta({
+    id: "DelegateStepDefinition",
+    description: "Um Run filho com outro Loadout; o Run mãe espera o desfecho.",
+  });
+
 export const WorkflowStepDefinitionSchema = z
   .discriminatedUnion("type", [
     AgentStepDefinitionSchema,
@@ -293,6 +350,7 @@ export const WorkflowStepDefinitionSchema = z
     ValidationStepDefinitionSchema,
     ApprovalStepDefinitionSchema,
     KnowledgeStepDefinitionSchema,
+    DelegateStepDefinitionSchema,
   ])
   .meta({ id: "WorkflowStepDefinition", description: "Um step, discriminado por `type`." });
 
@@ -302,6 +360,7 @@ export type CommandStepDefinition = z.infer<typeof CommandStepDefinitionSchema>;
 export type ValidationStepDefinition = z.infer<typeof ValidationStepDefinitionSchema>;
 export type ApprovalStepDefinition = z.infer<typeof ApprovalStepDefinitionSchema>;
 export type KnowledgeStepDefinition = z.infer<typeof KnowledgeStepDefinitionSchema>;
+export type DelegateStepDefinition = z.infer<typeof DelegateStepDefinitionSchema>;
 
 // --------------------------------------------------------------------------
 // Definição
@@ -504,7 +563,7 @@ function validateDefinition(definition: DefinitionShape, ctx: z.RefinementCtx): 
   };
 
   steps.forEach((step, i) => {
-    if (step.type === "agent") {
+    if (step.type === "agent" || step.type === "delegate") {
       step.includeOutputsOf?.forEach((target, j) => {
         requireAncestor(step, i, ["includeOutputsOf", j], target, "includeOutputsOf");
       });
@@ -672,18 +731,21 @@ export type WorkflowVersionPage = z.infer<typeof WorkflowVersionPageSchema>;
 // --------------------------------------------------------------------------
 
 /**
- * Os oito estados de um RunStep.
+ * Os nove estados de um RunStep.
  *
  * O array vem antes do schema pelo mesmo motivo de `RUN_STATUS_VALUES`: o
  * `pgEnum` do banco e a tabela de transições do domínio precisam do mesmo
  * valor. `SKIPPED` é a diferença para o Run: um step cujo `when` falhou, ou
  * cuja dependência não terminou em `SUCCEEDED`, não roda e o registro diz o
- * motivo.
+ * motivo. `WAITING_CHILD` (Fase 9B) é o step `delegate` esperando o Run filho:
+ * persistido, para o Worker que reclamar o Run mãe de novo reencontrar o filho
+ * pela chave do step em vez de abrir um segundo.
  */
 export const RUN_STEP_STATUS_VALUES = [
   "PENDING",
   "RUNNING",
   "WAITING_APPROVAL",
+  "WAITING_CHILD",
   "SUCCEEDED",
   "FAILED",
   "SKIPPED",
@@ -789,6 +851,19 @@ export const RunStepResultSchema = z
         candidates: z.array(KnowledgeCandidateInputSchema),
       })
       .describe("Resultado de um step `knowledge`."),
+    z
+      .object({
+        kind: z.literal("delegate"),
+        childRunId: z.uuid().describe("O Run filho que este passo abriu."),
+        childTaskId: z.uuid().describe("A Task em que o filho rodou."),
+        status: RunStatusSchema.describe("O estado terminal do filho."),
+        resultStatus: RunResultStatusSchema.optional().describe(
+          "O veredito do agente do filho, quando o filho terminou bem.",
+        ),
+        summary: z.string().optional().describe("O resumo do resultado do filho."),
+        usage: UsageSummarySchema.optional().describe("Consumo de tokens do filho, quando medido."),
+      })
+      .describe("Resultado de um step `delegate`: o desfecho do Run filho."),
   ])
   .meta({ id: "RunStepResult", description: "O resultado de um RunStep, por tipo de step." });
 

@@ -21,11 +21,15 @@ import { RoutingDecisionSchema } from "./routing-rule.js";
  */
 
 /**
- * Os nove estados de um Run (documento técnico, seção 36).
+ * Os dez estados de um Run (documento técnico, seção 36).
  *
  * Como em `TASK_STATUS_VALUES`, o array vem antes do schema porque três lugares
  * precisam dele como valor: o `z.enum` aqui, o `pgEnum` do PostgreSQL e a
  * tabela de transições de `@dungeon-master/domain`.
+ *
+ * `WAITING_CHILD` (Fase 9B) é o Run mãe parado num step `delegate`: soltou o
+ * Worker — trava e capacidade — e espera o Run filho terminar. Como no gate,
+ * ninguém o reclama até o desfecho do filho devolvê-lo a `QUEUED`.
  */
 export const RUN_STATUS_VALUES = [
   "CREATED",
@@ -33,6 +37,7 @@ export const RUN_STATUS_VALUES = [
   "PREPARING",
   "RUNNING",
   "WAITING_APPROVAL",
+  "WAITING_CHILD",
   "SUCCEEDED",
   "FAILED",
   "TIMED_OUT",
@@ -101,6 +106,31 @@ export const RunErrorSchema = z
   .meta({ id: "RunError", description: "Por que um Run terminou em FAILED ou TIMED_OUT." });
 
 export type RunError = z.infer<typeof RunErrorSchema>;
+
+/**
+ * Os códigos de `RunError` (e de `RunStepError`) que a autonomia controlada
+ * grava (Fase 9B). Constantes, e não um enum fechado: `RunError.code` continua
+ * aberto, porque cada harness e cada camada têm os seus; o que fecha aqui é o
+ * vocabulário que a interface reconhece sem ler a frase.
+ *
+ * - `BUDGET_EXCEEDED`: um orçamento `BLOCK` estourou na reclamação ou no meio
+ *   de um Workflow; nenhum agente subiu para o Run (ou para o passo).
+ * - `DELEGATION_DEPTH_EXCEEDED`: um Run filho pediu um neto além da
+ *   profundidade máxima.
+ * - `DELEGATION_FAILED` / `DELEGATION_CANCELLED`: o Run filho de um step
+ *   `delegate` terminou mal ou foi cancelado; o passo assenta com o desfecho.
+ * - `CHILD_RUN_MISSING`: o passo esperava um filho que não existe mais.
+ */
+export const RUN_ERROR_CODE = {
+  BUDGET_EXCEEDED: "BUDGET_EXCEEDED",
+  BREAKER_OPEN: "BREAKER_OPEN",
+  DELEGATION_DEPTH_EXCEEDED: "DELEGATION_DEPTH_EXCEEDED",
+  DELEGATION_FAILED: "DELEGATION_FAILED",
+  DELEGATION_CANCELLED: "DELEGATION_CANCELLED",
+  CHILD_RUN_MISSING: "CHILD_RUN_MISSING",
+} as const;
+
+export type RunErrorCode = (typeof RUN_ERROR_CODE)[keyof typeof RUN_ERROR_CODE];
 
 export const RUN_PROMPT_MAX_LENGTH = 100_000;
 
@@ -304,6 +334,21 @@ export const RunPageSchema = paginatedSchema(
 );
 
 export type RunPage = z.infer<typeof RunPageSchema>;
+
+/**
+ * Os Runs filhos de um Run (Fase 9B): os abertos por um step `delegate` ou
+ * pela ferramenta de delegação, na ordem em que nasceram.
+ *
+ * Sem paginação de propósito: a profundidade máxima da delegação é 2 e um Run
+ * abre poucos filhos; a lista inteira cabe numa resposta.
+ */
+export const RunChildrenListSchema = z
+  .object({
+    items: z.array(RunSchema).describe("Os filhos diretos, do mais antigo ao mais novo."),
+  })
+  .meta({ id: "RunChildrenList", description: "Os Runs filhos de um Run." });
+
+export type RunChildrenList = z.infer<typeof RunChildrenListSchema>;
 
 // --------------------------------------------------------------------------
 // RunEvent

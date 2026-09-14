@@ -420,9 +420,38 @@ describe("WorkflowEventSchema", () => {
         runStepId: RUN_STEP,
         stepKey: "approve-plan",
         decidedBy: "01996d00-0000-7000-8000-000000000001",
+        rejectedBy: "USER",
         note: null,
       }).success,
     ).toBe(true);
+  });
+
+  it("a decisão de um gate diz quem a tomou: USER ou POLICY:<id> (Fase 9B)", () => {
+    const base = {
+      timestamp: AGORA,
+      gateId: "01996d00-0000-7000-8000-000000000013",
+      gateKey: "plan",
+      runStepId: RUN_STEP,
+      stepKey: "approve-plan",
+      note: null,
+    };
+    expect(
+      WorkflowEventSchema.safeParse({
+        type: "ApprovalGranted",
+        ...base,
+        decidedBy: "01996d00-0000-7000-8000-000000000077",
+        grantedBy: "POLICY:01996d00-0000-7000-8000-000000000077",
+        reason: "A política casou e autoriza.",
+      }).success,
+    ).toBe(true);
+    // Sem a autoria o evento é recusado: a auditoria não pode ficar sem ela.
+    expect(
+      WorkflowEventSchema.safeParse({
+        type: "ApprovalGranted",
+        ...base,
+        decidedBy: "01996d00-0000-7000-8000-000000000001",
+      }).success,
+    ).toBe(false);
   });
 
   it("não compartilha nome com os eventos de execução", () => {
