@@ -122,10 +122,11 @@ describe("paridade entre os glossários", () => {
     }
   });
 
-  it("cobre as onze rotas da seção 8, o Arsenal da Fase 8C e as quatro abas do Hall", () => {
+  it("cobre as rotas da seção 8, o Arsenal, a observabilidade e as abas do Hall", () => {
     const nav = GLOSSARY_KEYS.filter((key) => key.startsWith("nav."));
     const abas = GLOSSARY_KEYS.filter((key) => key.startsWith("hall.tab."));
-    expect(nav).toHaveLength(12);
+    // Onze da seção 8, mais o Arsenal da Fase 8C e a observabilidade da 10B.
+    expect(nav).toHaveLength(13);
     expect(abas).toHaveLength(4);
   });
 
