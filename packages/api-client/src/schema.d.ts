@@ -9986,11 +9986,8 @@ export interface components {
             harnessKeys: components["schemas"]["HarnessKey"][];
             /** @description Onde está explicado como autenticar. */
             docsUrl: string | null;
-            /**
-             * @description Como o Provider **cobra** (Fase 10A). Não é o mesmo que `kind`, que diz como ele **autentica**: uma CLI por login pode cobrar por token, e uma chave de API pode vir de um plano fixo. Nulo é desconhecido, e desconhecido faz o custo sair `NOT_MEASURED` em vez de zero.
-             * @enum {string|null}
-             */
-            billingKind: "PER_TOKEN" | "SUBSCRIPTION" | null;
+            /** @description Como o Provider **cobra** (Fase 10A). Não é o mesmo que `kind`, que diz como ele **autentica**: uma CLI por login pode cobrar por token, e uma chave de API pode vir de um plano fixo. Nulo é desconhecido, e desconhecido faz o custo sair `NOT_MEASURED` em vez de zero. */
+            billingKind: components["schemas"]["BillingKind"] | null;
             /** @description A mensalidade, em `currency`. Só faz sentido em `SUBSCRIPTION`. */
             monthlyCost: number | null;
             /** @description ISO 4217 da mensalidade. */
@@ -10000,6 +9997,11 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        /**
+         * @description Como o Provider cobra. `PER_TOKEN` usa `model_price`; `SUBSCRIPTION` usa `monthlyCost` rateado. Nulo é desconhecido, e desconhecido custa `NOT_MEASURED`.
+         * @enum {string}
+         */
+        BillingKind: "PER_TOKEN" | "SUBSCRIPTION";
         /** @description Corpo de `POST /api/v1/providers`. */
         CreateProvider: {
             name: string;
@@ -10018,11 +10020,8 @@ export interface components {
             authEnvKeys?: string[];
             harnessKeys?: components["schemas"]["HarnessKey"][];
             docsUrl?: string | null;
-            /**
-             * @description `null` volta a ser desconhecido.
-             * @enum {string|null}
-             */
-            billingKind?: "PER_TOKEN" | "SUBSCRIPTION" | null;
+            /** @description `null` volta a ser desconhecido. */
+            billingKind?: components["schemas"]["BillingKind"] | null;
             /** @description A mensalidade. Exige `currency` e só é aceita em `SUBSCRIPTION`. */
             monthlyCost?: number | null;
             currency?: string | null;
@@ -12798,11 +12797,8 @@ export interface components {
              */
             providerId: string | null;
             providerName: string | null;
-            /**
-             * @description Nulo é desconhecido.
-             * @enum {string|null}
-             */
-            billingKind: "PER_TOKEN" | "SUBSCRIPTION" | null;
+            /** @description Nulo é desconhecido. */
+            billingKind: components["schemas"]["BillingKind"] | null;
             /** @description A mensalidade declarada, em `currency`. */
             monthlyCost: number | null;
             runs: number;

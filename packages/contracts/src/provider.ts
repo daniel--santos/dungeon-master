@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { BillingKindSchema, CurrencySchema } from "./billing.js";
+import { CurrencySchema, NullableBillingKindSchema } from "./billing.js";
 import { HarnessKeySchema } from "./harness.js";
 import { EnvKeysSchema } from "./mcp-server.js";
 import { PageQuerySchema, paginatedSchema } from "./pagination.js";
@@ -46,7 +46,7 @@ export const ProviderSchema = z
       .describe("Nomes das variáveis que carregam a credencial. Qualquer uma presente basta."),
     harnessKeys: z.array(HarnessKeySchema).describe("Os Harnesses que usam este Provider."),
     docsUrl: z.string().nullable().describe("Onde está explicado como autenticar."),
-    billingKind: BillingKindSchema.nullable().describe(
+    billingKind: NullableBillingKindSchema.describe(
       "Como o Provider **cobra** (Fase 10A). Não é o mesmo que `kind`, que diz " +
         "como ele **autentica**: uma CLI por login pode cobrar por token, e uma " +
         "chave de API pode vir de um plano fixo. Nulo é desconhecido, e desconhecido " +
@@ -83,7 +83,7 @@ export const UpdateProviderSchema = z
     authEnvKeys: EnvKeysSchema.optional(),
     harnessKeys: z.array(HarnessKeySchema).optional(),
     docsUrl: DocsUrlSchema.nullish(),
-    billingKind: BillingKindSchema.nullish().describe("`null` volta a ser desconhecido."),
+    billingKind: NullableBillingKindSchema.optional().describe("`null` volta a ser desconhecido."),
     monthlyCost: z
       .number()
       .nonnegative()

@@ -5648,14 +5648,13 @@
             "description": "Onde está explicado como autenticar."
           },
           "billingKind": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "PER_TOKEN",
-              "SUBSCRIPTION",
-              null
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BillingKind"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Como o Provider **cobra** (Fase 10A). Não é o mesmo que `kind`, que diz como ele **autentica**: uma CLI por login pode cobrar por token, e uma chave de API pode vir de um plano fixo. Nulo é desconhecido, e desconhecido faz o custo sair `NOT_MEASURED` em vez de zero."
           },
@@ -5696,6 +5695,14 @@
           "updatedAt"
         ],
         "description": "Quem serve os modelos, como se autentica e como cobra."
+      },
+      "BillingKind": {
+        "type": "string",
+        "enum": [
+          "PER_TOKEN",
+          "SUBSCRIPTION"
+        ],
+        "description": "Como o Provider cobra. `PER_TOKEN` usa `model_price`; `SUBSCRIPTION` usa `monthlyCost` rateado. Nulo é desconhecido, e desconhecido custa `NOT_MEASURED`."
       },
       "CreateProvider": {
         "type": "object",
@@ -5774,14 +5781,13 @@
             "pattern": "^https?:\\/\\//i"
           },
           "billingKind": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "PER_TOKEN",
-              "SUBSCRIPTION",
-              null
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BillingKind"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "`null` volta a ser desconhecido."
           },
@@ -14322,14 +14328,13 @@
             ]
           },
           "billingKind": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "PER_TOKEN",
-              "SUBSCRIPTION",
-              null
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BillingKind"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Nulo é desconhecido."
           },
