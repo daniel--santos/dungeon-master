@@ -211,7 +211,7 @@ export function KnowledgeSection() {
             <SelectContent>
               <SelectItem value={DEFAULT_LOADOUT}>
                 {format(t("settings.knowledge.loadout.default"), {
-                  name: t("knowledge.scribe"),
+                  name: t("knowledge.distiller"),
                 })}
               </SelectItem>
               {(loadouts.data?.items ?? []).length > 0 && <SelectSeparator />}

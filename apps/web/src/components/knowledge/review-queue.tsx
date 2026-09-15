@@ -121,7 +121,7 @@ function ReviewRow({
   const approve = useApproveKnowledgeItem();
   const [conflict, setConflict] = useState<KnowledgeItemRecord | null>(null);
 
-  function seal() {
+  function approveItem() {
     approve.mutate(
       { id: item.id },
       {
@@ -224,7 +224,7 @@ function ReviewRow({
             className="border"
             data-knowledge-decision="approve"
             disabled={approve.isPending}
-            onClick={seal}
+            onClick={approveItem}
             size="xs"
             style={{
               borderColor: tint(ACCENT_GREEN, 45),

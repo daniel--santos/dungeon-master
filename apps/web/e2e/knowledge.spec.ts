@@ -478,7 +478,7 @@ test("Settings: o bloco do Grimório valida, salva e recarrega", async ({ page, 
   await escolher(
     page,
     dnd["settings.knowledge.loadout"],
-    dnd["settings.knowledge.loadout.default"].replace("{name}", dnd["knowledge.scribe"]),
+    dnd["settings.knowledge.loadout.default"].replace("{name}", dnd["knowledge.distiller"]),
   );
   await bloco.locator("[data-knowledge-human-review]").click();
   await bloco.locator("[data-knowledge-save]").click();

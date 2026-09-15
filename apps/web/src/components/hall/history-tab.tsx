@@ -40,7 +40,7 @@ const VIEWPORT_HEIGHT = 560;
 const tint = (color: string, percent: number) =>
   `color-mix(in oklab, ${color} ${String(percent)}%, transparent)`;
 
-export function ChronicleTab() {
+export function HistoryTab() {
   const { t, format } = useGlossary();
   const [page, setPage] = useState(1);
   const [seen, setSeen] = useState<readonly AchievementUnlockRecord[]>([]);
@@ -91,7 +91,7 @@ export function ChronicleTab() {
   if (seen.length === 0) {
     return (
       <Panel>
-        <EmptyState icon={BookOpen} title={t("hall.tab.chronicle")}>
+        <EmptyState icon={BookOpen} title={t("hall.tab.history")}>
           {format("Nenhuma {achievement} desbloqueada ainda.", {
             achievement: t("entity.achievement"),
           })}
@@ -104,12 +104,12 @@ export function ChronicleTab() {
     <Panel>
       <PanelHeader
         aside={format("{count} no total", { count: total })}
-        title={t("hall.tab.chronicle")}
+        title={t("hall.tab.history")}
       />
 
       <div
         className="overflow-y-auto"
-        data-chronicle
+        data-history
         ref={scrollRef}
         style={{ height: `${String(Math.min(VIEWPORT_HEIGHT, Math.max(height, ROW_HEIGHT)))}px` }}
       >
@@ -127,7 +127,7 @@ export function ChronicleTab() {
                   transform: `translateY(${String(row.start)}px)`,
                 }}
               >
-                <ChronicleRow unlock={unlock} />
+                <HistoryRow unlock={unlock} />
               </div>
             );
           })}
@@ -144,7 +144,7 @@ export function ChronicleTab() {
             size="sm"
             variant="outline"
           >
-            {t("hall.chronicle.loadMore")}
+            {t("hall.history.loadMore")}
           </Button>
         </div>
       )}
@@ -152,7 +152,7 @@ export function ChronicleTab() {
   );
 }
 
-function ChronicleRow({ unlock }: { unlock: AchievementUnlockRecord }) {
+function HistoryRow({ unlock }: { unlock: AchievementUnlockRecord }) {
   const { t, theme } = useGlossary();
   const color = RARITY_COLOR[unlock.rarity];
   const Icon = achievementIcon(unlock.icon);
@@ -163,7 +163,7 @@ function ChronicleRow({ unlock }: { unlock: AchievementUnlockRecord }) {
   return (
     <div
       className="border-border flex h-full items-center gap-3 border-b px-4"
-      data-chronicle-unlock={unlock.id}
+      data-history-unlock={unlock.id}
     >
       <span
         className="flex size-8 flex-none items-center justify-center rounded-full"

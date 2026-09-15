@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useGlossary } from "@/lib/glossary";
-import { levelPercent, useHeroStats, type HeroStatsRecord } from "@/lib/heroes";
+import { levelPercent, useExecutionStats, type ExecutionStatsRecord } from "@/lib/execution-stats";
 
 /**
  * A aba de Heróis: uma ficha por Agent, e a tabela por Equipamento embaixo.
@@ -30,9 +30,9 @@ import { levelPercent, useHeroStats, type HeroStatsRecord } from "@/lib/heroes";
 
 const DELETED = "—";
 
-export function HeroesTab() {
+export function AgentsTab() {
   const { t, format } = useGlossary();
-  const query = useHeroStats();
+  const query = useExecutionStats();
 
   const agents = query.data?.agents ?? [];
   const loadouts = query.data?.loadouts ?? [];
@@ -48,7 +48,7 @@ export function HeroesTab() {
   if (agents.length === 0 && loadouts.length === 0) {
     return (
       <Panel>
-        <EmptyState icon={Users} title={t("hall.tab.heroes")}>
+        <EmptyState icon={Users} title={t("hall.tab.agents")}>
           {format("Nenhuma {run} terminada ainda. A ficha aparece assim que a primeira voltar.", {
             run: t("entity.run"),
           })}
@@ -62,7 +62,7 @@ export function HeroesTab() {
       {agents.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {agents.map((stats) => (
-            <HeroCard key={stats.scopeId} stats={stats} />
+            <AgentCard key={stats.scopeId} stats={stats} />
           ))}
         </div>
       )}
@@ -71,24 +71,32 @@ export function HeroesTab() {
         <Panel>
           <PanelHeader
             aside={format("{count} no total", { count: loadouts.length })}
-            title={t("hero.byLoadout")}
+            title={t("executionStats.byLoadout")}
           />
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="px-4">{t("entity.loadout")}</TableHead>
-                <TableHead className="w-24 px-4 text-right">{t("hero.level")}</TableHead>
-                <TableHead className="w-24 px-4 text-right">{t("hero.xp")}</TableHead>
-                <TableHead className="w-28 px-4 text-right">{t("hero.expeditions")}</TableHead>
-                <TableHead className="w-24 px-4 text-right">{t("hero.victories")}</TableHead>
-                <TableHead className="w-24 px-4 text-right">{t("hero.defeats")}</TableHead>
-                <TableHead className="w-32 px-4 text-right">{t("hero.monstersSlain")}</TableHead>
-                <TableHead className="w-36 px-4">{t("hero.topHarness")}</TableHead>
+                <TableHead className="w-24 px-4 text-right">{t("executionStats.level")}</TableHead>
+                <TableHead className="w-24 px-4 text-right">{t("executionStats.xp")}</TableHead>
+                <TableHead className="w-28 px-4 text-right">
+                  {t("executionStats.runsTotal")}
+                </TableHead>
+                <TableHead className="w-24 px-4 text-right">
+                  {t("executionStats.runsSucceeded")}
+                </TableHead>
+                <TableHead className="w-24 px-4 text-right">
+                  {t("executionStats.runsFailed")}
+                </TableHead>
+                <TableHead className="w-32 px-4 text-right">
+                  {t("agent.bugTasksCompleted")}
+                </TableHead>
+                <TableHead className="w-36 px-4">{t("executionStats.topHarness")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loadouts.map((stats) => (
-                <TableRow key={stats.scopeId} data-hero-loadout={stats.scopeId}>
+                <TableRow key={stats.scopeId} data-stats-loadout={stats.scopeId}>
                   <TableCell className="px-4">{stats.name ?? DELETED}</TableCell>
                   <TableCell className="px-4 text-right font-mono text-[12.5px]">
                     {stats.level}
@@ -97,16 +105,16 @@ export function HeroesTab() {
                     {stats.xp}
                   </TableCell>
                   <TableCell className="px-4 text-right font-mono text-[12.5px]">
-                    {stats.expeditions}
+                    {stats.runsTotal}
                   </TableCell>
                   <TableCell className="px-4 text-right font-mono text-[12.5px]">
-                    {stats.victories}
+                    {stats.runsSucceeded}
                   </TableCell>
                   <TableCell className="px-4 text-right font-mono text-[12.5px]">
-                    {stats.defeats}
+                    {stats.runsFailed}
                   </TableCell>
                   <TableCell className="px-4 text-right font-mono text-[12.5px]">
-                    {stats.monstersSlain}
+                    {stats.bugTasksCompleted}
                   </TableCell>
                   <TableCell className="text-muted-foreground px-4 text-[12.5px]">
                     {stats.topHarness ?? DELETED}
@@ -123,22 +131,22 @@ export function HeroesTab() {
 
 const ACCENT = "var(--accent-amber)";
 
-function HeroCard({ stats }: { stats: HeroStatsRecord }) {
+function AgentCard({ stats }: { stats: ExecutionStatsRecord }) {
   const { t, format } = useGlossary();
   const percent = levelPercent(stats);
 
   return (
     <article
       className="bg-card border-border flex flex-col gap-3.5 rounded-xl border p-4 shadow-sm"
-      data-hero-agent={stats.scopeId}
+      data-stats-agent={stats.scopeId}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-[15px] font-semibold">{stats.name ?? DELETED}</span>
           <span className="text-muted-foreground truncate text-[11.5px]">
             {stats.topHarness === null
-              ? t("hero.topHarness")
-              : `${t("hero.topHarness")}: ${stats.topHarness}`}
+              ? t("executionStats.topHarness")
+              : `${t("executionStats.topHarness")}: ${stats.topHarness}`}
           </span>
         </div>
 
@@ -150,7 +158,7 @@ function HeroCard({ stats }: { stats: HeroStatsRecord }) {
             color: ACCENT,
           }}
         >
-          {`${t("hero.level")} ${String(stats.level)}`}
+          {`${t("executionStats.level")} ${String(stats.level)}`}
         </span>
       </div>
 
@@ -163,17 +171,17 @@ function HeroCard({ stats }: { stats: HeroStatsRecord }) {
         </div>
         <span className="text-muted-foreground text-[11px]">
           {format("{xp} · {toNext}", {
-            xp: `${t("hero.xp")} ${String(stats.xp)}`,
-            toNext: `${t("hero.toNextLevel")}: ${String(stats.xpToNextLevel)}`,
+            xp: `${t("executionStats.xp")} ${String(stats.xp)}`,
+            toNext: `${t("executionStats.toNextLevel")}: ${String(stats.xpToNextLevel)}`,
           })}
         </span>
       </div>
 
       <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-        <Stat label={t("hero.expeditions")} value={stats.expeditions} />
-        <Stat label={t("hero.victories")} value={stats.victories} />
-        <Stat label={t("hero.defeats")} value={stats.defeats} />
-        <Stat label={t("hero.monstersSlain")} value={stats.monstersSlain} />
+        <Stat label={t("executionStats.runsTotal")} value={stats.runsTotal} />
+        <Stat label={t("executionStats.runsSucceeded")} value={stats.runsSucceeded} />
+        <Stat label={t("executionStats.runsFailed")} value={stats.runsFailed} />
+        <Stat label={t("agent.bugTasksCompleted")} value={stats.bugTasksCompleted} />
       </div>
     </article>
   );

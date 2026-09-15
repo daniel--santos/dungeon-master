@@ -126,11 +126,11 @@ function ProjectKnowledgePage() {
             </h1>
             <p className="text-muted-foreground max-w-3xl text-sm leading-5">
               {format(
-                "O que {project} já aprendeu com as {runs}. O {scribe} escreve; você decide o que entra.",
+                "O que {project} já aprendeu com as {runs}. O {distiller} escreve; você decide o que entra.",
                 {
                   project: detail.title,
                   runs: t("entity.run.plural"),
-                  scribe: t("knowledge.scribe"),
+                  distiller: t("knowledge.distiller"),
                 },
               )}
             </p>

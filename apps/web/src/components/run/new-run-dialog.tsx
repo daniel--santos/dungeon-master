@@ -374,10 +374,10 @@ export function NewRunDialog({ task, open, onOpenChange }: NewRunDialogProps) {
 
           {loadout !== undefined && (
             <span className="text-muted-foreground text-[11px] leading-4">
-              {format("{skills} · {tools} · {relics} vão junto.", {
+              {format("{skills} · {tools} · {mcpServers} vão junto.", {
                 skills: `${String(loadout.skillRefs.length)} ${t("entity.skill.plural")}`,
                 tools: `${String(loadout.toolRefs.length)} ${t("entity.tool.plural")}`,
-                relics: `${String(loadout.mcpServerRefs.length)} ${t("entity.mcpServer.plural")}`,
+                mcpServers: `${String(loadout.mcpServerRefs.length)} ${t("entity.mcpServer.plural")}`,
               })}
             </span>
           )}

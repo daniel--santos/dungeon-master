@@ -204,7 +204,7 @@ export function toCard(item: AchievementListItem): AchievementCard {
  * `tab` está aqui pelo mesmo motivo que o resto: a aba aberta é estado de
  * navegação, e um link para o Bestiário precisa abrir no Bestiário.
  */
-export const HALL_TABS = ["achievements", "heroes", "bestiary", "chronicle"] as const;
+export const HALL_TABS = ["achievements", "agents", "bugs", "history"] as const;
 export type HallTab = (typeof HALL_TABS)[number];
 
 export const hallSearchSchema = z.object({
@@ -248,7 +248,7 @@ export const achievementKeys = {
     ["achievements", "unlocks", page, pageSize] as const,
 };
 
-export const heroKeys = { stats: ["heroes", "stats"] as const };
+export const executionStatsKeys = { stats: ["execution-stats"] as const };
 
 export interface Hall {
   readonly cards: readonly AchievementCard[];

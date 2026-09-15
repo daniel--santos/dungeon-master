@@ -2,7 +2,7 @@ import type { components } from "@dungeon-master/api-client";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
-import { heroKeys } from "@/lib/achievements";
+import { executionStatsKeys } from "@/lib/achievements";
 import { fail } from "@/lib/problem";
 
 /**
@@ -17,17 +17,17 @@ import { fail } from "@/lib/problem";
  * apagá-la junto reescreveria o passado.
  */
 
-export type HeroStatsRecord = components["schemas"]["HeroStats"];
-type HeroStatsResponse = components["schemas"]["HeroStatsResponse"];
+export type ExecutionStatsRecord = components["schemas"]["ExecutionStats"];
+type ExecutionStatsResponse = components["schemas"]["ExecutionStatsResponse"];
 export type TaskReopeningRecord = components["schemas"]["TaskReopening"];
 type TaskReopeningList = components["schemas"]["TaskReopeningList"];
 type TaskKind = components["schemas"]["TaskKind"];
 
-export function useHeroStats(): UseQueryResult<HeroStatsResponse> {
+export function useExecutionStats(): UseQueryResult<ExecutionStatsResponse> {
   return useQuery({
-    queryKey: heroKeys.stats,
+    queryKey: executionStatsKeys.stats,
     queryFn: async () => {
-      const { data, error, response } = await api.GET("/api/v1/heroes/stats");
+      const { data, error, response } = await api.GET("/api/v1/execution-stats");
       if (data === undefined) fail(error, response.status, "Não foi possível ler as estatísticas");
       return data;
     },
@@ -35,7 +35,7 @@ export function useHeroStats(): UseQueryResult<HeroStatsResponse> {
 }
 
 /** A fração da barra de experiência dentro do nível corrente. */
-export function levelPercent(stats: HeroStatsRecord): number {
+export function levelPercent(stats: ExecutionStatsRecord): number {
   const span = stats.xp + stats.xpToNextLevel;
   if (span === 0) return 0;
   return Math.min(100, Math.round((stats.xp / span) * 100));

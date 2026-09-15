@@ -231,7 +231,7 @@ describe("bloco do Grimório em Settings", () => {
     // Radix abre no teclado; é o caminho estável no jsdom.
     fireEvent.keyDown(trigger, { key: "Enter" });
     const option = await screen.findByRole("option", {
-      name: dnd["settings.knowledge.loadout.default"].replace("{name}", dnd["knowledge.scribe"]),
+      name: dnd["settings.knowledge.loadout.default"].replace("{name}", dnd["knowledge.distiller"]),
     });
     fireEvent.click(option);
 
