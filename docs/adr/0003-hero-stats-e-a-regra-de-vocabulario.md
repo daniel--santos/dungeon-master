@@ -1,7 +1,7 @@
 # ADR 0003 — `hero_stats` e a regra de vocabulário temático
 
 - **Status**: **aceito** em 15/09/2026 e executado na branch `feat/adr-0003-vocabulario`
-  (migração `0019_vocabulario_canonico_agent_stats`)
+  (migração `0019_vocabulario_canonico_execution_stats`)
 - **Data**: 08/09/2026 (proposta); 15/09/2026 (decisão e execução)
 - **Contexto**: rodada de correção documentação × código de 08/09/2026; seção 1 do
   [`CLAUDE.md`](../../CLAUDE.md) ("o tema é um skin e **nunca** entra no código").

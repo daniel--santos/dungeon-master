@@ -82,15 +82,15 @@ describe("aba de Heróis", () => {
     expect(screen.getByText("Equipe de ataque")).toBeTruthy();
 
     // Os rótulos de número são do glossário, e mudam com o tema.
-    expect(screen.getAllByText(dnd["agent.bugTasksCompleted"]).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(dnd["executionStats.bugTasksCompleted"]).length).toBeGreaterThan(0);
     expect(screen.getAllByText(dnd["executionStats.runsSucceeded"]).length).toBeGreaterThan(0);
 
     act(() => {
       useGlossaryStore.getState().setTheme("plain");
     });
 
-    expect(screen.getAllByText(plain["agent.bugTasksCompleted"]).length).toBeGreaterThan(0);
-    expect(screen.queryByText(dnd["agent.bugTasksCompleted"])).toBeNull();
+    expect(screen.getAllByText(plain["executionStats.bugTasksCompleted"]).length).toBeGreaterThan(0);
+    expect(screen.queryByText(dnd["executionStats.bugTasksCompleted"])).toBeNull();
   });
 
   it("uma entidade apagada continua na lista, com o nome vazio", async () => {

@@ -89,7 +89,7 @@ export function AgentsTab() {
                   {t("executionStats.runsFailed")}
                 </TableHead>
                 <TableHead className="w-32 px-4 text-right">
-                  {t("agent.bugTasksCompleted")}
+                  {t("executionStats.bugTasksCompleted")}
                 </TableHead>
                 <TableHead className="w-36 px-4">{t("executionStats.topHarness")}</TableHead>
               </TableRow>
@@ -181,7 +181,7 @@ function AgentCard({ stats }: { stats: ExecutionStatsRecord }) {
         <Stat label={t("executionStats.runsTotal")} value={stats.runsTotal} />
         <Stat label={t("executionStats.runsSucceeded")} value={stats.runsSucceeded} />
         <Stat label={t("executionStats.runsFailed")} value={stats.runsFailed} />
-        <Stat label={t("agent.bugTasksCompleted")} value={stats.bugTasksCompleted} />
+        <Stat label={t("executionStats.bugTasksCompleted")} value={stats.bugTasksCompleted} />
       </div>
     </article>
   );

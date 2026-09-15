@@ -487,7 +487,7 @@ export const GLOSSARY_KEYS = [
   "executionStats.runsTotal",
   "executionStats.runsSucceeded",
   "executionStats.runsFailed",
-  "agent.bugTasksCompleted",
+  "executionStats.bugTasksCompleted",
   "executionStats.tokens",
   "executionStats.topHarness",
   "executionStats.byLoadout",

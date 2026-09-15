@@ -471,7 +471,7 @@ export const plain: Record<GlossaryKey, string> = {
   "executionStats.runsTotal": "Execuções",
   "executionStats.runsSucceeded": "Sucessos",
   "executionStats.runsFailed": "Falhas",
-  "agent.bugTasksCompleted": "Bugs resolvidos",
+  "executionStats.bugTasksCompleted": "Bugs resolvidos",
   "executionStats.tokens": "Tokens",
   "executionStats.topHarness": "Harness mais usado",
   "executionStats.byLoadout": "Por Loadout",

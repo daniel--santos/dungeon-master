@@ -487,7 +487,7 @@ export const dnd: Record<GlossaryKey, string> = {
   "executionStats.runsTotal": "Expedições",
   "executionStats.runsSucceeded": "Vitórias",
   "executionStats.runsFailed": "Derrotas",
-  "agent.bugTasksCompleted": "Monstros derrotados",
+  "executionStats.bugTasksCompleted": "Monstros derrotados",
   "executionStats.tokens": "Tokens",
   "executionStats.topHarness": "Guilda mais usada",
   "executionStats.byLoadout": "Por Equipamento",
