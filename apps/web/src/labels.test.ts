@@ -94,6 +94,14 @@ const SCANNED_PREFIXES = [
   "run.model.",
   "task.origin.",
   "diagnostic.",
+  // Fase 10B: a observabilidade avançada — janelas, tiles, séries, quebra por
+  // dimensão, custo com procedência, presença de Worker —, a aba de medidas do
+  // cockpit, o bloco de preços em Settings e o faturamento de um Provider.
+  "metrics.",
+  "run.tab.",
+  "run.metrics.",
+  "settings.prices.",
+  "provider.billing.",
 ] as const;
 
 /**
@@ -124,6 +132,22 @@ const SKIPPED_KEYS = new Set<string>([
   "loadout.compat.check",
   "loadout.compat.warnings",
   "run.frozen.none",
+  // Fase 10B: "Tokens", "Duração", "Versão", "Total", "Tempo" e "Workers" são
+  // rótulos de campo que o cockpit, a lista de Expedições, o Arsenal e
+  // Settings já escrevem à mão desde a Fase 2, fora de qualquer contexto de
+  // métrica — e são idênticos nos dois glossários, então a varredura não
+  // protegeria nada aqui. O mesmo critério de `context.items` e de
+  // `knowledge.filter.type`. As outras chaves de `metrics.` continuam varridas.
+  "metrics.tile.tokens",
+  "metrics.metric.tokens",
+  "run.metrics.tokens",
+  "metrics.tile.duration",
+  "metrics.metric.duration",
+  "metrics.worker.version",
+  "metrics.series.total",
+  "run.metrics.timing",
+  "metrics.worker.title",
+  "metrics.tile.workers",
 ]);
 
 const EXEMPT_FILES = new Set(["lib/glossary.ts", "lib/api-types.ts", "routeTree.gen.ts"]);

@@ -105,6 +105,11 @@ export const PROVIDER: ProviderRecord = {
   authEnvKeys: ["ANTHROPIC_API_KEY"],
   harnessKeys: ["CLAUDE_CODE", "PI"],
   docsUrl: "https://docs.anthropic.com/",
+  // O faturamento da Fase 10A: assinatura com mensalidade declarada, que é o
+  // caso em que o custo sai `ESTIMATED_SUBSCRIPTION` em vez de `PRICED`.
+  billingKind: "SUBSCRIPTION",
+  monthlyCost: 100,
+  currency: "USD",
   createdAt: EARLIER,
   updatedAt: EARLIER,
 };

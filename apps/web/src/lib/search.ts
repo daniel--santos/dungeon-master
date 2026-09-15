@@ -101,8 +101,12 @@ export const autonomySearchSchema = z.object({
 
 export type AutonomySearch = z.infer<typeof autonomySearchSchema>;
 
-/** Os filtros do Diário de uma Expedição, na URL do cockpit. */
+export const RUN_TABS = ["overview", "metrics"] as const;
+export type RunTab = (typeof RUN_TABS)[number];
+
+/** Os filtros do Diário de uma Expedição, e a aba aberta, na URL do cockpit. */
 export const runDetailSearchSchema = z.object({
+  tab: z.enum(RUN_TABS).default("overview").catch("overview"),
   events: z
     .enum(["all", "tools", "text", "workflow", "usage", "system", "diagnostic"])
     .default("all")
@@ -110,6 +114,38 @@ export const runDetailSearchSchema = z.object({
 });
 
 export type RunDetailSearch = z.infer<typeof runDetailSearchSchema>;
+
+const METRIC_WINDOW_VALUES = ["7d", "30d", "90d"] as const;
+const SERIES_METRIC_VALUES = ["runs", "tokens", "duration", "cost"] as const;
+const METRIC_DIMENSION_VALUES = [
+  "ALL",
+  "PROJECT",
+  "HARNESS",
+  "MODEL",
+  "PROVIDER",
+  "LOADOUT",
+  "CREATED_BY",
+  "TASK_KIND",
+  "EXECUTION_MODE",
+] as const;
+
+/**
+ * A tela de observabilidade (Fase 10B): janela, medida, dimensão e o recorte
+ * por Project, tudo na URL.
+ *
+ * Os valores são os canônicos do contrato — `30d`, `EXECUTION_MODE` —, e não os
+ * labels: a URL de um link compartilhado não muda com o interruptor de tema.
+ * `projectId` existe porque a tela de Campanha aponta para cá com o recorte já
+ * feito.
+ */
+export const observabilitySearchSchema = z.object({
+  window: z.enum(METRIC_WINDOW_VALUES).default("30d").catch("30d"),
+  metric: z.enum(SERIES_METRIC_VALUES).default("runs").catch("runs"),
+  dimension: z.enum(METRIC_DIMENSION_VALUES).default("ALL").catch("ALL"),
+  projectId: z.uuid().optional().catch(undefined),
+});
+
+export type ObservabilitySearch = z.infer<typeof observabilitySearchSchema>;
 
 export const projectSearchSchema = z.object({
   status: z.enum(["ACTIVE", "ARCHIVED"]).optional().catch(undefined),

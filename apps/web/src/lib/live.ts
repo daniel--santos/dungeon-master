@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { invalidateAutonomy } from "@/lib/autonomy";
 import { useEventsStore } from "@/lib/events";
 import { invalidateExecution } from "@/lib/execution";
+import { invalidateMetrics, invalidateWorkers } from "@/lib/metrics";
 import { invalidateRegistry } from "@/lib/registry";
 
 /**
@@ -144,6 +145,24 @@ export function useLiveQueries(): void {
         // que os decide.
         void queryClient.invalidateQueries({ queryKey: ["knowledge"] });
         void queryClient.invalidateQueries({ queryKey: ["knowledge-candidates"] });
+        return;
+      }
+
+      if (event.type === "metrics.updated") {
+        // O projetor fechou um lote (Fase 10A): os tiles, as séries, os custos
+        // e a quebra de cada Run mudaram de uma vez. A invalidação é do prefixo
+        // inteiro porque o evento não diz qual janela nem qual dimensão — e a
+        // API já limita a frequência dele, então isto não vira uma releitura
+        // por Expedição terminada.
+        invalidateMetrics(queryClient);
+        return;
+      }
+
+      if (event.type.startsWith("worker.")) {
+        // Presença: um Worker que entrou, silenciou ou desligou. Relê a lista e
+        // o tile de Workers do painel, e **não** as séries: um batimento não
+        // muda nenhum número de noventa dias de métrica.
+        invalidateWorkers(queryClient);
         return;
       }
 
