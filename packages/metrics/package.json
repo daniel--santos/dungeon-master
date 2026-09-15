@@ -1,0 +1,32 @@
+{
+  "name": "@dungeon-master/metrics",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cálculo puro das métricas: dimensões, rollup diário, custo e séries.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dungeon-master/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "26.5.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}

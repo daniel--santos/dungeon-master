@@ -1,4 +1,4 @@
-import type { HarnessKey, Provider, ProviderKind } from "@dungeon-master/contracts";
+import type { BillingKind, HarnessKey, Provider, ProviderKind } from "@dungeon-master/contracts";
 import { and, asc, count, eq, type SQL, sql } from "drizzle-orm";
 
 import type { Database } from "./client.js";
@@ -24,6 +24,13 @@ export function toProvider(row: ProviderRow): Provider {
     authEnvKeys: row.authEnvKeys,
     harnessKeys: row.harnessKeys,
     docsUrl: row.docsUrl,
+    billingKind: row.billingKind,
+    // `numeric` volta do `pg` como texto, para não perder casas no caminho. O
+    // contrato expõe número porque é o que a tela soma; a precisão que importa
+    // é a de duas casas de uma mensalidade, muito dentro do que um `double`
+    // representa.
+    monthlyCost: row.monthlyCost === null ? null : Number(row.monthlyCost),
+    currency: row.currency,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -153,6 +160,10 @@ export interface UpdateProviderPatch {
   authEnvKeys?: string[];
   harnessKeys?: HarnessKey[];
   docsUrl?: string | null;
+  /** Fase 10A: como o Provider cobra, e quanto, quando é por assinatura. */
+  billingKind?: BillingKind | null;
+  monthlyCost?: number | null;
+  currency?: string | null;
 }
 
 export async function updateProvider(
@@ -175,7 +186,7 @@ export async function updateProvider(
       novo !== undefined && JSON.stringify(atual) !== JSON.stringify(novo);
 
     const changed: string[] = [];
-    const values: UpdateProviderPatch = {};
+    const values: Partial<typeof providers.$inferInsert> = {};
 
     if (mudou(current.name, patch.name)) {
       values.name = patch.name;
@@ -196,6 +207,43 @@ export async function updateProvider(
     if (mudou(current.docsUrl, patch.docsUrl)) {
       values.docsUrl = patch.docsUrl;
       changed.push("docsUrl");
+    }
+
+    // ------------------------------------------------------ cobrança (10A)
+    //
+    // `monthly_cost` viaja como texto para o `numeric`: mandar `number` deixa o
+    // driver escolher a representação, e a representação de dinheiro é decisão
+    // nossa, não dele.
+    const custoAtual = current.monthlyCost === null ? null : Number(current.monthlyCost);
+
+    if (mudou(current.billingKind, patch.billingKind)) {
+      values.billingKind = patch.billingKind ?? null;
+      changed.push("billingKind");
+    }
+    if (mudou(custoAtual, patch.monthlyCost)) {
+      values.monthlyCost = patch.monthlyCost == null ? null : String(patch.monthlyCost);
+      changed.push("monthlyCost");
+    }
+    if (mudou(current.currency, patch.currency)) {
+      values.currency = patch.currency ?? null;
+      changed.push("currency");
+    }
+
+    // Sair de `SUBSCRIPTION` leva a mensalidade junto. O `CHECK` da tabela já
+    // recusaria a linha, e recusar aqui obrigaria o usuário a mandar três
+    // campos para mudar um; uma mensalidade pendurada num Provider que cobra
+    // por token não é um dado a preservar, é um número que ninguém mais lê.
+    const cobrancaFinal =
+      values.billingKind !== undefined ? values.billingKind : current.billingKind;
+    if (cobrancaFinal !== "SUBSCRIPTION") {
+      if (values.monthlyCost !== null && current.monthlyCost !== null) {
+        values.monthlyCost = null;
+        if (!changed.includes("monthlyCost")) changed.push("monthlyCost");
+      }
+      if (values.currency !== null && current.currency !== null) {
+        values.currency = null;
+        if (!changed.includes("currency")) changed.push("currency");
+      }
     }
 
     if (changed.length === 0) return ok(toProvider(current));

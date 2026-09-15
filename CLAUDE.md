@@ -66,8 +66,10 @@ Convenções por camada:
 São duas famílias de evento, e cada uma tem a sua convenção. `ExecutionEvent`
 (`packages/contracts/src/execution-event.ts`) é o que sai de um agente em execução, em
 `PascalCase`. O evento de painel (`packages/contracts/src/dashboard-event.ts`) é o que a
-web escuta pelo SSE e filtra por string: `recurso.acao` em snake_case, nos 26 tipos, e
-gravado assim na coluna `dashboard_event.type`. Ao acrescentar um evento, siga a
+web escuta pelo SSE e filtra por string: `recurso.acao` em snake_case, em todos os
+tipos de `DASHBOARD_EVENT_TYPE_VALUES`, e gravado assim na coluna `dashboard_event.type`.
+(Aqui havia uma contagem — "nos 26 tipos" — que já estava errada quando alguém foi conferir:
+o enum cresce a cada fase, e um número no meio de uma regra envelhece sem ninguém notar.) Ao acrescentar um evento, siga a
 convenção da família dele; não misture as duas no mesmo enum.
 
 O idioma da interface é português; os identificadores de código são em inglês. Comentários

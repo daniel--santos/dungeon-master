@@ -2093,6 +2093,174 @@ sobre `execution_stats`; o Hall abre igual nos dois temas.
 
 Inalterada em relação à v0.2, com um acréscimo: tokens são registrados desde a Fase 2 pelo `UsageReported`, mesmo para harnesses por assinatura sem custo monetário.
 
+## Andamento da Fase 10A (15/09/2026)
+
+O backend da observabilidade avançada entrou na branch `feat/fase10-metricas`. Toda Expedição
+terminal passa a ter uma linha de métrica com tokens, duração, contexto, ferramentas e custo —
+ou "não medido", que é uma resposta e não um zero. A web (10B) consome esta API; nada aqui
+renderiza nada.
+
+**O que entrou.**
+
+| Camada | O que passou a existir |
+|---|---|
+| Pacote puro | `packages/metrics`: dimensões de um Run, rollup diário, custo com procedência, séries contínuas, percentil por posto. Só `zod`, `node:*` e `@dungeon-master/contracts`, com a fronteira no ESLint. |
+| Banco | `run_metric` (uma linha por Run terminal), `metric_daily` (rollup por `(dia, dimensão, chave)`), `metric_cursor`, `model_price` (vigências append-only), `worker` (presença); `provider` ganhou `billing_kind`, `monthly_cost` e `currency`; `run` ganhou o índice parcial `run_user_finished_idx`. |
+| Projeção | `projectMetrics` e `rebuildMetrics` em `packages/database/src/metric-projector.ts`, com cursor próprio e lote transacional. |
+| Worker | Projetor no mesmo gatilho do de Conquistas; laço de batimento (`WORKER_HEARTBEAT_INTERVAL_MS`, padrão 10 s) que renova a presença, varre silenciosos e reconcilia órfãos. |
+| API | Nove rotas sob a tag `metrics`, mais `billingKind`/`monthlyCost`/`currency` em `PATCH /providers/{id}`. |
+| CLI | `pnpm dm metrics rebuild` e `pnpm dm metrics status`. |
+| Eventos de painel | `metrics.updated`, `worker.online`, `worker.stale`, `worker.offline`. |
+
+**As rotas**: `GET /api/v1/metrics/overview`, `/metrics/series`, `/metrics/costs`,
+`/projects/{id}/metrics`, `/runs/{id}/metrics`, `/model-prices`, `/models/{id}/prices`,
+`PUT /models/{id}/price` e `GET /workers`. Todas com schema **nomeado** na spec — a pendência
+de nomes anônimos das fases anteriores não se repete aqui.
+
+**Decisões, e o que cada uma evita.**
+
+1. **A fonte do projetor é `run.finished_at`, não o `run_event` terminal.** `applyRunStatus`
+   escreve `finished_at` em toda transição terminal, por qualquer caminho — inclusive o
+   cancelamento de um Run que nunca saiu da fila e por isso nunca produziu evento de execução.
+   Como os quatro estados terminais não têm saída na máquina de estados, isso dá exatamente uma
+   linha por Run: contar por ali é exatamente-uma-vez sem marca extra. É o mesmo raciocínio que
+   levou o projetor de Conquistas a preferir `activity` a `run_event`, com uma vantagem — a
+   linha do Run já traz todos os campos que a métrica copia. O `run_event` entra depois, como
+   detalhe do Run já selecionado: `Usage`, `ToolCall` e as aprovações.
+2. **`metric_daily` é derivado, nunca somado incrementalmente.** O custo de um Run depende do
+   preço vigente, e um preço cadastrado hoje muda o custo de ontem; com soma incremental o
+   único conserto seria reconstruir tudo. Um lote do projetor **recalcula** os dias que tocou, e
+   gravar um preço recalcula os dias daquele Model. A conta é a mesma função pura nos dois
+   casos, e é por isso que `rebuild` reproduz linha por linha o que a projeção ao vivo produziu.
+3. **`Usage` é acumulado, não incremento.** É o que o próprio `agent-runtime.ts` assume ao fazer
+   `usage = step.event.usage` a cada evento. Somar todos daria um número várias vezes maior que
+   o real. Num Run com Workflow o acumulado reinicia a cada tentativa de agente, então a regra é:
+   acompanhe enquanto cresce e, quando cair, deposite o valor da tentativa anterior. No caso
+   comum isso é "o último `Usage` vale".
+4. **Custo nunca é zero por ausência.** Todo valor sai com `status` (`PRICED`,
+   `ESTIMATED_SUBSCRIPTION`, `NOT_MEASURED`) e `currency`; sem preço, sem assinatura ou sem
+   tokens reportados o `amount` é nulo e a contagem vai em `notMeasuredRuns`. Somas acontecem só
+   dentro da mesma moeda — converter exigiria uma taxa de câmbio com data, que o sistema não tem.
+   Pela mesma régua, tokens não reportados são **nulos** nas colunas, e `tokens_known` fica ao
+   lado de toda soma: achatar "não reportou" em `0` faria a média de tokens por Run mentir para
+   baixo para sempre, sem nenhum sinal.
+5. **O rateio de assinatura é calculado na leitura, nunca gravado por Run.** A fatia de um
+   Provider muda a cada Run do mês, então um valor por Run nasceria errado. `/metrics/costs`
+   divide a mensalidade pela fatia de tokens do Provider no **mês civil UTC**, mês a mês, e um
+   Provider de assinatura **troca** a parcela por token pelo rateio em vez de somar as duas —
+   cobrar as duas coisas contaria o mesmo gasto duas vezes.
+6. **O total não é a soma dos Providers.** Um Run cujo Model não aponta para Provider nenhum tem
+   custo por token e não aparece em linha de Provider nenhuma; somar só os Providers deixaria
+   esse gasto de fora em silêncio. O total sai da dimensão `ALL`, que conta todo Run.
+7. **`ALL` é uma dimensão própria, e não a soma das outras.** Um Run sem Project, sem Model ou
+   sem Provider não produz linha naquele eixo — a alternativa seria inventar uma chave
+   "(sem Project)" que viraria uma entidade fantasma na tela, ordenada junto das reais.
+8. **A presença fecha a pendência do post-mortem #6.** Até a Fase 9 a reconciliação rodava só no
+   boot e respondia "o dono está vivo?" com um palpite: o PID, quando o host coincidia. O
+   comentário registrava que o conserto pedia coluna nova. `worker.id` **é** o `workerId` que já
+   ia em `run.claimed_by`, então "quem reclamou este Run?" virou um `join`, e órfão passou a ser
+   "sem linha, despedido ou silencioso há mais de três intervalos". A varredura roda no laço de
+   batimento, e não só na partida: o sobrevivente fecha o que o colega morto deixou sem precisar
+   ser reiniciado. A heurística de PID ficou, restrita ao caso que o lease não cobre — Run
+   reclamado antes da migração `0020` ou por um Worker de versão anterior.
+9. **`stopped_at` é escrito por último no desligamento**, depois dos Runs em voo. Gravá-lo antes
+   diria a um colega vivo que os Runs deste Worker são órfãos enquanto ele ainda estava
+   escrevendo o desfecho deles — e o colega os fecharia como `FAILED` por cima de um `SUCCEEDED`
+   a caminho.
+10. **O estado do Worker é calculado na leitura, nunca coluna.** Gravá-lo exigiria alguém
+    escrevendo `STALE` no segundo exato em que o prazo vence. `stale_at` existe para outra coisa:
+    marcar que o silêncio já foi **anunciado**, e é ela que faz `worker.stale` sair uma vez só
+    mesmo com vários Workers varrendo ao mesmo tempo.
+11. **`metrics.updated` sai por lote, com garganta de 5 s por usuário.** A tela de métricas é um
+    agregado: dez Expedições terminando juntas mudam os mesmos tiles uma vez só.
+12. **O filtro por Project recalcula os baldes em memória**, a partir de `run_metric`.
+    `metric_daily` não tem dimensão cruzada, e inventá-la multiplicaria a tabela por todas as
+    combinações para servir uma tela que filtra um Project por vez. O recálculo usa a mesma
+    função pura do projetor: o que muda é de onde as linhas vêm, não como são somadas.
+
+**A migração `0020_metricas_custo_e_presenca_de_worker`** foi gerada pelo `drizzle-kit generate`
+(sem `RENAME`, então sem TTY). O teste `migration-0020.test.ts` cria um banco irmão, aplica
+`0000`–`0019`, grava um Provider antigo, aplica a `0020` e prova que a linha sobrevive com as
+colunas de cobrança nulas, que uma mensalidade sem moeda é recusada pelo `CHECK` do banco e não
+só pelo Zod, e que o índice único parcial de `model_price` e o índice parcial de `run` existem.
+
+**Um bug encontrado pela prova manual, e não pelos testes**: o handler de
+`PATCH /providers/{id}` monta o patch campo a campo, e os três campos novos ficaram de fora — a
+resposta vinha `200` com a cobrança inalterada. O teste que existia olhava só a *forma* da lista
+de custos e passava. Agora o teste afirma que os três campos são gravados e que `null` apaga, e
+foi conferido vermelho antes da correção.
+
+**E uma segunda correção, apontada pela 10B**: `BillingKind` tinha `.meta({ id })` e mesmo assim
+não virava componente na spec. `.nullable()` devolve um schema **novo**, sem o `id`, e o gerador
+embutia o enum dentro de cada campo — `components.schemas.BillingKind` não existia e o cliente
+gerado ficava sem o tipo. `NullableBillingKindSchema` é a união com `z.null()`: mantém o membro
+nomeado e emite `anyOf: [$ref, null]`. É um sintoma parecido com o dos schemas anônimos das fases
+anteriores, com outra causa — ali o nome faltava, aqui ele existia e nunca era usado. O teste em
+`app.test.ts` percorre os 23 nomes da fase e confere que o campo anulável referencia o
+componente. `RunToolCalls`, citado no mesmo relato, já era `$ref` e não precisou de nada.
+`HarnessAuthStatus` (Fase 8B) e `AchievementRarity` (Fase 2.5) têm o mesmo sintoma e ficam como
+estão: consertá-los mudaria a spec de duas fases fechadas.
+
+**Prova manual** (banco irmão `dm_fase10a` no mesmo container, migrações `0000`–`0020` e seed;
+API em 3410; Worker apontando para o banco irmão; `dungeon_master` não foi tocado — segue com 20
+migrações):
+
+1. **Um Run real de Claude Code (2.1.272).** `GET /runs/{id}/metrics` respondeu `durationMs`
+   12379, `queueMs` 233, tokens `6/393/95746/11894` (`known: true`), contexto com 6 seções e 0
+   truncamentos, `toolCalls` `{ native: 2 }` e `cost.status` `NOT_MEASURED`. `GET
+   /metrics/overview?window=7d` trouxe `costs: [{ status: "NOT_MEASURED", amount: null }]` e
+   `notMeasuredRuns: 1`.
+2. **Preço.** `PUT /models/{id}/price` com `USD 3 / 15 / 0,3 / 3,75` por 1 M e vigência de
+   ontem: o custo do Run virou `{ status: "PRICED", currency: "USD", amount: 0.079239 }` e o
+   overview acompanhou **sem reconstrução**, com `notMeasuredRuns: 0`.
+3. **Assinatura.** Com o Model ligado ao Provider "Anthropic" e o Provider marcado
+   `SUBSCRIPTION` com `monthlyCost: 100 USD`, `GET /metrics/costs?window=30d` trouxe
+   `totals: [{ status: "ESTIMATED_SUBSCRIPTION", currency: "USD", amount: 100 }]`, com o rateio
+   mês a mês (`2026-08`: 0 tokens, 0; `2026-09`: 108039 de 108039 tokens, 100) — e a linha do
+   Model seguiu `PRICED` com os mesmos 0,079239, porque é o preço por token que ela mede.
+4. **`pnpm dm metrics rebuild` reproduz.** Um `psql` de `run_metric` e `metric_daily` antes e
+   depois da reconstrução deu `diff` vazio — 1 Run e 8 linhas de rollup, idênticas.
+5. **Dois Workers.** Com o Worker A (pid 24568, capacidade 2) executando um Run e o Worker B
+   (pid 54556) no ar, o Run permaneceu `RUNNING` com `claimed_by` de A por três amostragens
+   seguidas, e `GET /workers` mostrou `runs=1` em A e `runs=0` em B: **B não rouba Run de Worker
+   vivo**. Derrubado o A por `Stop-Process -Id 24568 -Force`, ele apareceu `STALE` em ~15 s e o
+   Run foi fechado pelo B em ~25 s, com `code: WORKER_LOST`, `reason: WORKER_STALE`,
+   `retryable: true`, `reconciledBy` do B e o worktree preservado. Saiu exatamente **um**
+   `worker.stale` no `dashboard_event`, e um terceiro Worker que também morreu foi anunciado uma
+   única vez pelo que estava vivo.
+6. **`pnpm dm metrics status`** listou as duas linhas de projeção e os quatro Workers com o
+   estado calculado.
+
+**O que a prova manual não conseguiu mostrar, e por quê.** O estado `OFFLINE` depende do
+desligamento gracioso, que no Windows exige um `Ctrl+C`/`Ctrl+Break` num console de verdade;
+num processo desanexado nem `taskkill` sem `/F`, nem `kill -INT` do MSYS, nem
+`GenerateConsoleCtrlEvent` num processo com saída redirecionada entregam o sinal — todos
+terminam o processo sem rodar os handlers, e o Worker fica `STALE` como qualquer morto. O
+caminho `stopped_at` → `OFFLINE` é o mesmo `worker.stop()` que o handler de sinal chama, e está
+coberto por teste automatizado em `apps/worker/test/presence.test.ts` e em
+`packages/database/test/metrics.test.ts`.
+
+**Verificação**: `install --frozen-lockfile` sem mudança, `lint` 22/22, `typecheck` 41/41,
+`test` 41/41, `build` 21/21, `gen:check` sem diff, `db:check` em dia e `format:check` limpo. O
+e2e da web é da 10B.
+
+**O que fica para a 10B (web) e depois.**
+
+- A tela: tiles, séries, custos, a quebra por Run e a lista de Workers. Os labels temáticos
+  ("Torre de Vigia") são do glossário, e nenhum identificador desta fase os usa.
+- **Custo por Project não inclui rateio de assinatura.** Não existe dimensão cruzada
+  Project × Provider, e atribuir a mensalidade pela fatia do Provider inteiro daria um número
+  que não é de ninguém. Com `projectId` sai o custo por token, e os Runs de assinatura entram em
+  `notMeasuredRuns`.
+- **A chave de Model é única por Harness**, e a dimensão `MODEL` do rollup é a chave. Dois
+  Harnesses que ofereçam a mesma chave compartilham a linha; o custo continua certo e o nome
+  resolvido é o do primeiro em ordem de Harness.
+- **Nenhum Provider nasce com `billing_kind`.** Os quatro do seed ficam desconhecidos até o
+  usuário dizer como cada um cobra — o que é honesto, e é o que faz o custo sair `NOT_MEASURED`
+  em vez de zero.
+- `metric_daily` não tem retenção: cresce um punhado de linhas por dia e por dimensão, e a
+  poda só fará sentido quando houver anos de histórico.
+
 ---
 
 # 7. Modelo de dados
@@ -2150,6 +2318,22 @@ Todas são projeções: podem ser truncadas e reconstruídas a partir de `run_ev
 skill · skill_version · tool · mcp_server · provider
 loadout_skill · loadout_tool · loadout_mcp · loadout_version
 ```
+
+## Fase 10A
+
+```text
+run_metric      # uma linha por Run terminal; chave run_id, e é ela que torna a projeção idempotente
+metric_daily    # rollup por (user_id, day, dimension, dimension_key); sempre recalculado de run_metric
+metric_cursor   # posição do projetor na fonte `run` (run.finished_at)
+model_price     # vigências de preço por Model, append-only: effective_to nulo é a corrente
+worker          # presença por batimento; id é o próprio workerId de run.claimed_by
+```
+
+`run_metric` e `metric_daily` são projeção: podem ser truncadas e reconstruídas de `run`,
+`run_event` e `run_context` por `pnpm dm metrics rebuild`. `model_price` **não** é — é cadastro
+digitado pelo usuário, e a reconstrução não o toca. `provider` ganhou `billing_kind`,
+`monthly_cost` e `currency`, e `run` ganhou o índice parcial `run_user_finished_idx`, que é o
+que o drain do projetor lê.
 
 ---
 

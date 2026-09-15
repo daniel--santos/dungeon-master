@@ -60,3 +60,7 @@ export * from "./routing-rule.js";
 export * from "./autonomy.js";
 export * from "./delegation.js";
 export * from "./dispatch.js";
+export * from "./metric-projector.js";
+export * from "./metrics.js";
+export * from "./model-price.js";
+export * from "./worker.js";

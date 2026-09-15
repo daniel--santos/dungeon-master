@@ -88,7 +88,17 @@ import {
   findToolRow,
   findWorkflowRow,
   getLoadout,
+  findModelRow,
   getProject,
+  listCurrentModelPrices,
+  listModelPriceHistory,
+  listWorkerPresence,
+  readMetricCosts,
+  readMetricSeries,
+  readMetricsOverview,
+  readRunMetrics,
+  setModelPrice,
+  staleAfterMs,
   getProposedTask,
   getRun,
   getRunContext,
@@ -165,6 +175,7 @@ import type {
   DashboardEventsPort,
   ExecutionPort,
   LoadoutPreflightPort,
+  MetricsPort,
   RunStreamHandle,
   SettingsPort,
   WorkPort,
@@ -344,6 +355,80 @@ export function createAchievementsPort(options: AchievementsPortOptions): Achiev
     renameForged: (definitionId, patch) =>
       renameForgedAchievement(db, { userId, definitionId, patch }),
     discardForged: (definitionId) => discardForgedAchievement(db, { userId, definitionId }),
+  };
+}
+
+// --------------------------------------------------------------------------
+// Métricas (Fase 10A)
+// --------------------------------------------------------------------------
+
+export interface MetricsPortOptions {
+  db: Database;
+  userId: string;
+  /**
+   * O intervalo de batimento do Worker. A API não bate — ela lê —, e precisa da
+   * mesma régua para separar `ONLINE` de `STALE`.
+   */
+  heartbeatIntervalMs: number;
+}
+
+/**
+ * Liga as métricas à projeção.
+ *
+ * Leitura, com uma escrita: o preço de Model, que é **cadastro** e não
+ * projeção — é por isso que `dm metrics rebuild` não o apaga. Gravar um preço
+ * recalcula o rollup dos dias daquele Model dentro do próprio repositório, e
+ * não aqui: quem sabe quais dias foram tocados é quem tem a tabela.
+ */
+export function createMetricsPort(options: MetricsPortOptions): MetricsPort {
+  const { db, userId } = options;
+  const staleMs = staleAfterMs(options.heartbeatIntervalMs);
+
+  return {
+    overview: (input) =>
+      readMetricsOverview(db, {
+        userId,
+        window: input.window,
+        projectId: input.projectId,
+        staleAfterMs: staleMs,
+      }),
+    series: (input) =>
+      readMetricSeries(db, {
+        userId,
+        metric: input.metric,
+        dimension: input.dimension,
+        window: input.window,
+        projectId: input.projectId,
+        currency: input.currency,
+      }),
+    costs: (input) => readMetricCosts(db, { userId, window: input.window }),
+    run: (runId) => readRunMetrics(db, { userId, runId }),
+    projectExists: async (projectId) => (await getProject(db, { userId, projectId })) !== null,
+    prices: () => listCurrentModelPrices(db, { userId }),
+    priceHistory: async (modelId) => {
+      const model = await findModelRow(db, { userId, modelId });
+      if (model === null) return null;
+      return await listModelPriceHistory(db, { userId, modelId });
+    },
+    setPrice: (modelId, input) =>
+      setModelPrice(db, {
+        userId,
+        modelId,
+        currency: input.currency,
+        inputPerMillion: input.inputPerMillion,
+        outputPerMillion: input.outputPerMillion,
+        ...(input.cacheReadPerMillion === undefined
+          ? {}
+          : { cacheReadPerMillion: input.cacheReadPerMillion }),
+        ...(input.cacheWritePerMillion === undefined
+          ? {}
+          : { cacheWritePerMillion: input.cacheWritePerMillion }),
+        ...(input.effectiveFrom === undefined
+          ? {}
+          : { effectiveFrom: new Date(input.effectiveFrom) }),
+        ...(input.note === undefined ? {} : { note: input.note ?? null }),
+      }),
+    workers: () => listWorkerPresence(db, { userId, staleAfterMs: staleMs }),
   };
 }
 

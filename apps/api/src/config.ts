@@ -51,6 +51,16 @@ export interface ApiConfig {
      */
     readonly fallbackIntervalMs: number;
   };
+  /**
+   * O intervalo de batimento do Worker, em milissegundos (Fase 10A).
+   *
+   * A API não bate — ela **lê** o batimento, e precisa da mesma régua para
+   * dizer quem está `ONLINE` e quem está `STALE`. A variável de ambiente tem o
+   * mesmo nome nos dois processos de propósito: um operador que aperta o
+   * intervalo no Worker e esquece a API veria Workers vivos marcados como
+   * silenciosos, o que é pior que o padrão não combinar.
+   */
+  readonly workerHeartbeatIntervalMs: number;
 }
 
 export function loadConfig(): ApiConfig {
@@ -82,6 +92,7 @@ export function loadConfig(): ApiConfig {
       heartbeatIntervalMs: readInt("API_SSE_HEARTBEAT_MS", 15_000),
       fallbackIntervalMs: readInt("API_SSE_FALLBACK_INTERVAL_MS", 5_000),
     },
+    workerHeartbeatIntervalMs: Math.max(readInt("WORKER_HEARTBEAT_INTERVAL_MS", 10_000), 1_000),
   };
 }
 

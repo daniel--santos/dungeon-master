@@ -27,6 +27,13 @@ import type {
   LoadoutPreflight,
   LoadoutVersion,
   McpServer,
+  MetricCosts,
+  MetricDimension,
+  MetricSeries,
+  MetricsOverview,
+  MetricWindow,
+  ModelPrice,
+  ModelPriceFailure,
   ProjectSummary,
   Model,
   Provider,
@@ -43,6 +50,10 @@ import type {
   RunCreatedBy,
   RunEvent,
   RunListItem,
+  RunMetrics,
+  SeriesMetric,
+  SetModelPrice,
+  WorkerPresence,
   RunStep,
   Skill,
   SkillDetail,
@@ -730,6 +741,36 @@ export interface AchievementsPort {
   ): Promise<Result<ForgedAchievement, ForgedAchievementWriteFailure> | null>;
 }
 
+/**
+ * Métricas, custo e presença de Worker (Fase 10A).
+ *
+ * Leitura de projeção, com uma escrita: o preço de Model, que é cadastro. Como
+ * o resto da API, o handler não sabe se atrás da porta existe PostgreSQL.
+ */
+export interface MetricsPort {
+  overview(input: { window: MetricWindow; projectId: string | null }): Promise<MetricsOverview>;
+  series(input: {
+    metric: SeriesMetric;
+    dimension: MetricDimension;
+    window: MetricWindow;
+    projectId: string | null;
+    currency?: string | undefined;
+  }): Promise<MetricSeries>;
+  costs(input: { window: MetricWindow }): Promise<MetricCosts>;
+  /** `null` quando o Run não terminou ou ainda não foi projetado: é o 404. */
+  run(runId: string): Promise<RunMetrics | null>;
+  /** Existe o Project? Separa "sem Run" (200 zerado) de "não existe" (404). */
+  projectExists(projectId: string): Promise<boolean>;
+  prices(): Promise<ModelPrice[]>;
+  /** `null` quando não existe Model com este id. */
+  priceHistory(modelId: string): Promise<ModelPrice[] | null>;
+  setPrice(
+    modelId: string,
+    input: SetModelPrice,
+  ): Promise<Result<ModelPrice, ModelPriceFailure> | null>;
+  workers(): Promise<WorkerPresence[]>;
+}
+
 /** As portas de trabalho juntas, para `createApp` receber uma dependência em vez de seis. */
 export interface WorkPort {
   readonly projects: ProjectsPort;
@@ -756,6 +797,7 @@ export function createSpecPorts(): {
   autonomy: AutonomyPort;
   achievements: AchievementCatalog;
   hall: AchievementsPort;
+  metrics: MetricsPort;
 } {
   const recusar = (recurso: string): never => {
     throw new Error(`Porta inerte: ${recurso} não está disponível nesta instância da app.`);
@@ -965,6 +1007,17 @@ export function createSpecPorts(): {
     // forma das rotas, e ler o disco ali faria a spec depender de um arquivo
     // que nada na spec descreve. O catálogo real entra por injeção no boot.
     achievements: { definitions: [], templates: [], invalid: [] },
+    metrics: {
+      overview: inerte("os tiles de métricas"),
+      series: inerte("as séries de métricas"),
+      costs: inerte("os custos por Provider e Model"),
+      run: inerte("a quebra de métricas de um Run"),
+      projectExists: inerte("a checagem de existência de Project"),
+      prices: inerte("os preços de Model"),
+      priceHistory: inerte("o histórico de preço de Model"),
+      setPrice: inerte("o cadastro de preço de Model"),
+      workers: inerte("a presença de Worker"),
+    },
     hall: {
       list: inerte("a listagem de Conquistas"),
       unlocks: inerte("a crônica de desbloqueios"),

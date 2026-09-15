@@ -7413,6 +7413,484 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/metrics/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Os tiles da janela
+         * @description Runs por desfecho, tokens, duração média e p95, custo por moeda, disjuntores abertos e Workers por estado. O custo nunca vem zerado por ausência: sem preço, sem assinatura ou sem tokens reportados, ele sai `NOT_MEASURED` com `amount` nulo e a contagem de Runs em `notMeasuredRuns`. Com `projectId`, o rateio de assinatura fica de fora — `metric_daily` não tem dimensão cruzada Project × Provider, e atribuir a mensalidade pela fatia do Provider inteiro seria um número que não é de ninguém.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Padrão: `30d`. */
+                    window?: "7d" | "30d" | "90d";
+                    /** @description Só os Runs deste Project. */
+                    projectId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Os tiles da janela. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MetricsOverview"];
+                    };
+                };
+                /** @description Janela ou filtro inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/metrics/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pontos por dia, por dimensão
+         * @description Um ponto por dia da janela, **inclusive nos dias sem Run**: uma série que pula os dias vazios desenha uma inclinação que não existiu. Zero aqui é um fato — 'nenhum Run neste dia' —, ao contrário do custo, onde zero seria mentira: a série de custo existe dentro de **uma** moeda, e os Runs sem preço ficam fora dela.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Padrão: `runs`. */
+                    metric?: "runs" | "tokens" | "duration" | "cost";
+                    /** @description Padrão: `ALL`. */
+                    dimension?: "ALL" | "PROJECT" | "HARNESS" | "MODEL" | "PROVIDER" | "LOADOUT" | "CREATED_BY" | "TASK_KIND" | "EXECUTION_MODE";
+                    /** @description Padrão: `30d`. */
+                    window?: "7d" | "30d" | "90d";
+                    projectId?: string;
+                    /** @description Só em `metric=cost`. Padrão: a moeda com maior custo na janela. */
+                    currency?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A série, das linhas de maior soma para as de menor. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MetricSeries"];
+                    };
+                };
+                /** @description Métrica, dimensão ou janela inválida. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/metrics/costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Custo por Provider e por Model
+         * @description Um Provider `PER_TOKEN` soma os preços vigentes na data de cada Run. Um `SUBSCRIPTION` com `monthlyCost` recebe o rateio da mensalidade pela fatia de tokens dele no mês civil UTC, mês a mês, e sai rotulado `ESTIMATED_SUBSCRIPTION` — nunca as duas coisas somadas, que contariam o mesmo gasto duas vezes. `totals` traz uma entrada por moeda; moedas diferentes não se somam, porque converter exigiria uma taxa de câmbio que o sistema não tem.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Padrão: `30d`. */
+                    window?: "7d" | "30d" | "90d";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Custos da janela, com a procedência de cada número. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MetricCosts"];
+                    };
+                };
+                /** @description Janela inválida. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Os tiles de um Project
+         * @description O mesmo recorte de `/metrics/overview`, restrito a um Project. Os baldes são recalculados a partir de `run_metric` pela mesma função pura do projetor: o que muda é de onde as linhas vêm, não como são somadas.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Padrão: `30d`. */
+                    window?: "7d" | "30d" | "90d";
+                };
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do recurso. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Os tiles do Project. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MetricsOverview"];
+                    };
+                };
+                /** @description Janela inválida. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Project com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{id}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A quebra de uma Expedição
+         * @description Tokens, contexto montado contra tokens de entrada, chamadas de ferramenta por servidor MCP, passos por tipo, aprovações por quem decidiu, filhos delegados e o custo com procedência. Só existe depois de o Run terminar **e** o projetor passar: antes disso é `404`, porque `run_metric` só tem Expedição acabada.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do recurso. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A quebra do Run. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunMetrics"];
+                    };
+                };
+                /** @description Não existe métrica para este Run: ele não terminou ou ainda não foi projetado. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/model-prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * As vigências correntes de preço
+         * @description Uma por Model que tem preço cadastrado, em ordem de nome de Model.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Os preços vigentes. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ModelPriceList"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/models/{id}/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * O histórico de preço de um Model
+         * @description Da vigência mais recente para a mais antiga. A corrente tem `effectiveTo` nulo.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do recurso. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O histórico. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ModelPriceList"];
+                    };
+                };
+                /** @description Não existe Model com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/models/{id}/price": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Abre uma vigência de preço
+         * @description O histórico é append-only: a vigência corrente é **fechada** e uma nova é aberta. Sobrescrever a linha faria o custo de março mudar sozinho no dia de um reajuste em abril. Gravar um preço recalcula o rollup dos dias em que aquele Model apareceu, para a tela não continuar mostrando `NOT_MEASURED` no que acabou de ganhar preço.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description UUIDv7 do recurso. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetModelPrice"];
+                };
+            };
+            responses: {
+                /** @description A vigência aberta. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ModelPrice"];
+                    };
+                };
+                /** @description Corpo inválido. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Não existe Model com este id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description A vigência nova precisa começar depois do início da corrente. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Os Workers conhecidos
+         * @description `status` é calculado na leitura, e não é coluna: gravá-lo exigiria alguém escrevendo `STALE` no segundo exato em que o prazo vence. `ONLINE` bateu dentro do prazo, `STALE` não bate há mais de três intervalos e não se despediu, e `OFFLINE` desligou graciosamente. `runningRuns` conta o que cada um ainda segura — inclusive um morto, e é justamente esse número que a reconciliação zera.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Os Workers, dos vivos para os desligados. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkerList"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -9492,7 +9970,7 @@ export interface components {
             /** @description Total de itens que casam com o filtro. */
             total: number;
         };
-        /** @description Quem serve os modelos e como se autentica nele. */
+        /** @description Quem serve os modelos, como se autentica e como cobra. */
         Provider: {
             /**
              * Format: uuid
@@ -9508,11 +9986,22 @@ export interface components {
             harnessKeys: components["schemas"]["HarnessKey"][];
             /** @description Onde está explicado como autenticar. */
             docsUrl: string | null;
+            /** @description Como o Provider **cobra** (Fase 10A). Não é o mesmo que `kind`, que diz como ele **autentica**: uma CLI por login pode cobrar por token, e uma chave de API pode vir de um plano fixo. Nulo é desconhecido, e desconhecido faz o custo sair `NOT_MEASURED` em vez de zero. */
+            billingKind: components["schemas"]["BillingKind"] | null;
+            /** @description A mensalidade, em `currency`. Só faz sentido em `SUBSCRIPTION`. */
+            monthlyCost: number | null;
+            /** @description ISO 4217 da mensalidade. */
+            currency: string | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
         };
+        /**
+         * @description Como o Provider cobra. `PER_TOKEN` usa `model_price`; `SUBSCRIPTION` usa `monthlyCost` rateado. Nulo é desconhecido, e desconhecido custa `NOT_MEASURED`.
+         * @enum {string}
+         */
+        BillingKind: "PER_TOKEN" | "SUBSCRIPTION";
         /** @description Corpo de `POST /api/v1/providers`. */
         CreateProvider: {
             name: string;
@@ -9531,6 +10020,11 @@ export interface components {
             authEnvKeys?: string[];
             harnessKeys?: components["schemas"]["HarnessKey"][];
             docsUrl?: string | null;
+            /** @description `null` volta a ser desconhecido. */
+            billingKind?: components["schemas"]["BillingKind"] | null;
+            /** @description A mensalidade. Exige `currency` e só é aceita em `SUBSCRIPTION`. */
+            monthlyCost?: number | null;
+            currency?: string | null;
         };
         /** @description O Run recém-criado, os avisos de capability e as decisões automáticas. */
         RunCreated: {
@@ -12153,6 +12647,365 @@ export interface components {
             description?: string;
             flavor?: string;
         };
+        /** @description Os tiles da janela: Runs, tokens, duração, custo, disjuntores e Workers. */
+        MetricsOverview: {
+            window: components["schemas"]["MetricWindow"];
+            /** @description Primeiro dia da janela, em UTC. */
+            from: string;
+            /** @description Último dia da janela, em UTC. É hoje. */
+            to: string;
+            /**
+             * Format: uuid
+             * @description O Project do filtro, quando houve um.
+             */
+            projectId: string | null;
+            runs: components["schemas"]["MetricRunCounts"];
+            tokens: components["schemas"]["MetricTokenCounts"];
+            duration: components["schemas"]["MetricDuration"];
+            /** @description Uma entrada por moeda, mais uma entrada `NOT_MEASURED` quando houve Run sem preço. Nunca um total único: moedas diferentes não se somam. */
+            costs: components["schemas"]["Money"][];
+            /** @description Runs sem custo medido, por falta de preço, de assinatura ou de tokens. */
+            notMeasuredRuns: number;
+            /** @description Disjuntores ligados que não estão `CLOSED` agora. */
+            openCircuitBreakers: number;
+            workers: components["schemas"]["MetricWorkerCounts"];
+        };
+        /**
+         * @description A janela de dias, contada para trás a partir de hoje em UTC, inclusive.
+         * @enum {string}
+         */
+        MetricWindow: "7d" | "30d" | "90d";
+        /** @description Runs terminais por desfecho. */
+        MetricRunCounts: {
+            /** @description Runs terminais na janela. */
+            total: number;
+            succeeded: number;
+            failed: number;
+            timedOut: number;
+            cancelled: number;
+            /** @description `succeeded / total`. Nulo quando não houve Run — não zero. */
+            successRate: number | null;
+        };
+        /** @description Tokens somados, com quantos Runs os reportaram. */
+        MetricTokenCounts: {
+            input: number;
+            output: number;
+            cacheRead: number;
+            cacheWrite: number;
+            /** @description A soma dos quatro. */
+            total: number;
+            /** @description Runs cujo harness reportou tokens. É o denominador honesto das somas. */
+            knownRuns: number;
+            /** @description Runs sem `Usage`. Os tokens deles não entram como zero em lugar nenhum. */
+            unknownRuns: number;
+        };
+        /** @description Duração das Expedições da janela. */
+        MetricDuration: {
+            /** @description Nulo quando nenhum Run foi medido. */
+            averageMs: number | null;
+            /** @description Percentil 95 por posto mais próximo, sobre os Runs medidos. */
+            p95Ms: number | null;
+            maxMs: number | null;
+            /** @description Tempo somado de execução na janela. */
+            totalMs: number;
+            /** @description Runs com início e fim conhecidos. */
+            measuredRuns: number;
+        };
+        /** @description Um custo com procedência. Sem `PRICED` ou assinatura, `amount` é nulo. */
+        Money: {
+            /** @description ISO 4217. Nulo quando o custo não foi medido. */
+            currency: string | null;
+            /** @description O valor na moeda. Nulo quando o custo não foi medido — nunca zero. */
+            amount: number | null;
+            status: components["schemas"]["CostStatus"];
+        };
+        /**
+         * @description De onde o custo saiu. `PRICED` é preço por token vigente na data do Run; `ESTIMATED_SUBSCRIPTION` é o rateio de uma mensalidade pela fatia de tokens do mês; `NOT_MEASURED` é ausência de preço ou de tokens reportados, nunca zero.
+         * @enum {string}
+         */
+        CostStatus: "PRICED" | "ESTIMATED_SUBSCRIPTION" | "NOT_MEASURED";
+        /** @description Presença de Worker no instante da leitura. */
+        MetricWorkerCounts: {
+            /** @description Com batimento dentro do prazo. */
+            online: number;
+            /** @description Sem batimento há mais de três intervalos e sem desligamento gracioso. */
+            stale: number;
+            /** @description Desligados graciosamente. */
+            offline: number;
+        };
+        /** @description Pontos por dia, por chave de dimensão. */
+        MetricSeries: {
+            metric: components["schemas"]["SeriesMetric"];
+            dimension: components["schemas"]["MetricDimension"];
+            window: components["schemas"]["MetricWindow"];
+            from: string;
+            to: string;
+            /** Format: uuid */
+            projectId: string | null;
+            /** @description Só em `metric=cost`: a moeda desenhada. Nulo quando nada foi precificado ou quando a métrica não é custo. */
+            currency: string | null;
+            /** @description A unidade do eixo: `runs`, `tokens`, `ms` ou o código da moeda. */
+            unit: string;
+            /** @description Da maior soma para a menor. */
+            series: components["schemas"]["MetricSeriesLine"][];
+        };
+        /**
+         * @description Qual medida a série traz por dia.
+         * @enum {string}
+         */
+        SeriesMetric: "runs" | "tokens" | "duration" | "cost";
+        /**
+         * @description O eixo de agrupamento de uma linha do rollup diário.
+         * @enum {string}
+         */
+        MetricDimension: "ALL" | "PROJECT" | "HARNESS" | "MODEL" | "PROVIDER" | "LOADOUT" | "CREATED_BY" | "TASK_KIND" | "EXECUTION_MODE";
+        /** @description Uma linha da série, por chave de dimensão. */
+        MetricSeriesLine: {
+            /** @description A chave da dimensão. `ALL` quando a dimensão é `ALL`. */
+            key: string;
+            /** @description Nome atual da entidade, resolvido na leitura. Cai para a chave quando sumiu. */
+            label: string;
+            /** @description A soma dos pontos, para ordenar as linhas sem refazer a conta. */
+            total: number;
+            /** @description Um ponto por dia da janela, em ordem. */
+            points: components["schemas"]["MetricSeriesPoint"][];
+        };
+        /** @description Um dia da série. */
+        MetricSeriesPoint: {
+            day: string;
+            /** @description Zero em dia sem dado: a série é contínua por construção. */
+            value: number;
+        };
+        /** @description Custo por Provider e por Model, com o rateio. */
+        MetricCosts: {
+            window: components["schemas"]["MetricWindow"];
+            from: string;
+            to: string;
+            /** @description Uma entrada por moeda; nunca um total único. */
+            totals: components["schemas"]["Money"][];
+            notMeasuredRuns: number;
+            /** @description Do maior custo para o menor. */
+            providers: components["schemas"]["ProviderCost"][];
+            /** @description Do maior custo para o menor. */
+            models: components["schemas"]["ModelCost"][];
+        };
+        /** @description O custo de um Provider na janela, com procedência. */
+        ProviderCost: {
+            /**
+             * Format: uuid
+             * @description Nulo agrupa os Runs cujo Model não tem Provider.
+             */
+            providerId: string | null;
+            providerName: string | null;
+            /** @description Nulo é desconhecido. */
+            billingKind: components["schemas"]["BillingKind"] | null;
+            /** @description A mensalidade declarada, em `currency`. */
+            monthlyCost: number | null;
+            runs: number;
+            /** @description Tokens dos Runs que reportaram. */
+            tokens: number;
+            cost: components["schemas"]["Money"];
+            /** @description O rateio, mês a mês. Vazio fora de `ESTIMATED_SUBSCRIPTION`. */
+            months: {
+                /** @description Mês civil UTC, `YYYY-MM`. */
+                month: string;
+                /** @description Tokens dentro da janela. */
+                windowTokens: number;
+                /** @description Tokens do mês inteiro. */
+                monthTokens: number;
+                /** @description A fatia da mensalidade atribuída à janela. */
+                amount: number;
+            }[];
+        };
+        /** @description O custo de um Model na janela. */
+        ModelCost: {
+            /** @description A chave gravada no Run, que sobrevive ao Model apagado. */
+            modelKey: string;
+            /** Format: uuid */
+            modelId: string | null;
+            modelName: string | null;
+            /** Format: uuid */
+            providerId: string | null;
+            providerName: string | null;
+            runs: number;
+            tokens: number;
+            cost: components["schemas"]["Money"];
+        };
+        /** @description A quebra de uma Expedição terminal. */
+        RunMetrics: {
+            /** Format: uuid */
+            runId: string;
+            /**
+             * @description O desfecho terminal.
+             * @enum {string}
+             */
+            status: "CREATED" | "QUEUED" | "PREPARING" | "RUNNING" | "WAITING_APPROVAL" | "WAITING_CHILD" | "SUCCEEDED" | "FAILED" | "TIMED_OUT" | "CANCELLED";
+            /** Format: uuid */
+            taskId: string;
+            taskKind: components["schemas"]["TaskKind"];
+            /** Format: uuid */
+            projectId: string | null;
+            harnessKey: components["schemas"]["HarnessKey"];
+            modelKey: string | null;
+            /** Format: uuid */
+            providerId: string | null;
+            providerName: string | null;
+            /** Format: uuid */
+            loadoutId: string;
+            loadoutVersion: number;
+            executionMode: components["schemas"]["ExecutionMode"];
+            createdBy: components["schemas"]["RunCreatedBy"];
+            /** Format: uuid */
+            parentRunId: string | null;
+            /** Format: date-time */
+            startedAt: string | null;
+            /** Format: date-time */
+            finishedAt: string;
+            durationMs: number | null;
+            /** @description Da criação ao início. Nulo quando o Run nunca chegou a começar. */
+            queueMs: number | null;
+            /** @description Nulos quando o harness não reportou; nunca zero fingido. */
+            tokens: {
+                input: number | null;
+                output: number | null;
+                cacheRead: number | null;
+                cacheWrite: number | null;
+                total: number | null;
+                /** @description O harness reportou `Usage`? Falso não é zero. */
+                known: boolean;
+            };
+            context: components["schemas"]["RunContextMetrics"];
+            toolCalls: components["schemas"]["RunToolCalls"];
+            /** @description Passos do Workflow por tipo. Vazio num Run sem Workflow. */
+            steps: {
+                type: string;
+                count: number;
+            }[];
+            /** @description Aprovações concedidas, separadas por quem decidiu. */
+            gates: {
+                grantedByUser: number;
+                grantedByPolicy: number;
+            };
+            /** @description Runs filhos que este abriu. */
+            childrenDelegated: number;
+            cost: components["schemas"]["Money"];
+        };
+        /** @description O que o contexto montado custou, para comparar com os tokens de entrada. */
+        RunContextMetrics: {
+            /** @description Tokens estimados do bloco de contexto. Nulo quando não houve contexto. */
+            estimatedTokens: number | null;
+            items: number | null;
+            sections: number | null;
+            /** @description Seções que o orçamento cortou. */
+            truncations: number | null;
+        };
+        /** @description Chamadas de ferramenta de um Run, por servidor. */
+        RunToolCalls: {
+            total: number;
+            /** @description Da mais chamada para a menos. */
+            byServer: {
+                /** @description O nome do servidor MCP, tirado do prefixo `mcp__<servidor>__`. `native` agrupa as ferramentas do próprio harness. */
+                server: string;
+                calls: number;
+            }[];
+        };
+        /** @description Preços de Model. */
+        ModelPriceList: {
+            items: components["schemas"]["ModelPrice"][];
+        };
+        /** @description Uma vigência de preço de um Model. O histórico é append-only: um preço novo fecha a vigência anterior e abre outra, e o custo de um Run usa a vigência da data dele. */
+        ModelPrice: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            modelId: string;
+            /** @description A chave do Model, para a listagem ser legível. */
+            modelKey: string | null;
+            modelName: string | null;
+            currency: string;
+            inputPerMillion: number;
+            outputPerMillion: number;
+            cacheReadPerMillion: number;
+            cacheWritePerMillion: number;
+            /** Format: date-time */
+            effectiveFrom: string;
+            /**
+             * Format: date-time
+             * @description Nulo é a vigência corrente.
+             */
+            effectiveTo: string | null;
+            note: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description Corpo de `PUT /api/v1/models/{id}/price`. */
+        SetModelPrice: {
+            currency: string;
+            /** @description Preço por 1 milhão de tokens, na moeda declarada. */
+            inputPerMillion: number;
+            /** @description Preço por 1 milhão de tokens, na moeda declarada. */
+            outputPerMillion: number;
+            /** @description Padrão: zero. */
+            cacheReadPerMillion?: number;
+            /** @description Padrão: zero. */
+            cacheWritePerMillion?: number;
+            /**
+             * Format: date-time
+             * @description Quando a vigência começa. Padrão: agora. Precisa ser depois da vigência atual.
+             */
+            effectiveFrom?: string;
+            note?: string | null;
+        };
+        /** @description Os Workers conhecidos, dos vivos para os desligados. */
+        WorkerList: {
+            items: components["schemas"]["WorkerPresence"][];
+        };
+        /** @description Um processo de Worker e o que ele está sustentando. */
+        WorkerPresence: {
+            /** @description O `workerId` do processo, o mesmo que vai em `run.claimed_by`: `host#pid#uuid`. */
+            id: string;
+            hostname: string;
+            pid: number;
+            /** @description Versão da app do Worker. */
+            version: string;
+            nodeVersion: string;
+            /** @description Teto de Runs simultâneos deste processo. */
+            capacity: number;
+            harnesses: components["schemas"]["WorkerHarness"][];
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            lastHeartbeatAt: string;
+            /**
+             * Format: date-time
+             * @description Preenchido só no desligamento gracioso.
+             */
+            stoppedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Quando a varredura anunciou o silêncio. É o que torna `worker.stale` idempotente.
+             */
+            staleAt: string | null;
+            status: components["schemas"]["WorkerStatus"];
+            /** @description Runs em `PREPARING` ou `RUNNING` que ainda apontam para este Worker. */
+            runningRuns: number;
+        };
+        /** @description Um Harness como este Worker o mediu no boot, nesta máquina. */
+        WorkerHarness: {
+            key: components["schemas"]["HarnessKey"];
+            /** @description A versão que a CLI respondeu no boot. */
+            version: string | null;
+            /**
+             * @description A credencial, como o boot a mediu.
+             * @enum {string|null}
+             */
+            authStatus: "AUTHENTICATED" | "NOT_AUTHENTICATED" | "UNKNOWN" | null;
+        };
+        /**
+         * @description `ONLINE` bateu dentro do prazo; `STALE` não bate há mais de três intervalos e não se despediu; `OFFLINE` desligou graciosamente.
+         * @enum {string}
+         */
+        WorkerStatus: "ONLINE" | "STALE" | "OFFLINE";
     };
     responses: never;
     parameters: never;

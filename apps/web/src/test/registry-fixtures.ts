@@ -105,6 +105,12 @@ export const PROVIDER: ProviderRecord = {
   authEnvKeys: ["ANTHROPIC_API_KEY"],
   harnessKeys: ["CLAUDE_CODE", "PI"],
   docsUrl: "https://docs.anthropic.com/",
+  // Cobrança desconhecida (Fase 10A): é o estado em que todo Provider já
+  // cadastrado nasce depois da migração `0020`, e o que a tela precisa saber
+  // desenhar sem inventar um custo.
+  billingKind: null,
+  monthlyCost: null,
+  currency: null,
   createdAt: EARLIER,
   updatedAt: EARLIER,
 };

@@ -185,11 +185,13 @@ atalho na raiz: `pnpm --filter @dungeon-master/database db:studio`.
 
 ### Operação (`pnpm dm`)
 
-| Comando                                                  | O que faz                                                                                  |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `pnpm dm achievements rebuild`                           | zera a projeção de Conquistas e reprojeta tudo do início                                   |
-| `pnpm dm knowledge distill [--project <id>] [--summary]` | roda um lote do Distiller agora, com o mesmo Escriba do Worker; `--summary` força o resumo |
-| `pnpm dm knowledge status`                               | candidatos pendentes por Project, itens por estado, últimos lotes e forjadas em revisão    |
+| Comando                                                  | O que faz                                                                                     |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `pnpm dm achievements rebuild`                           | zera a projeção de Conquistas e reprojeta tudo do início                                      |
+| `pnpm dm knowledge distill [--project <id>] [--summary]` | roda um lote do Distiller agora, com o mesmo Escriba do Worker; `--summary` força o resumo    |
+| `pnpm dm knowledge status`                               | candidatos pendentes por Project, itens por estado, últimos lotes e forjadas em revisão       |
+| `pnpm dm metrics rebuild`                                | zera `run_metric`, `metric_daily` e o cursor e reprojeta do início; não toca em `model_price` |
+| `pnpm dm metrics status`                                 | linhas de projeção e a presença de cada Worker conhecido                                      |
 
 O Distiller do Worker roda sozinho por ociosidade, timer (`knowledge.distillEveryMinutes` em
 Settings) e `NOTIFY`; a linha de comando existe para o operador não esperar. O `db:seed`
@@ -221,6 +223,7 @@ raiz. Na prática, ponha tudo na raiz e use o `.env` do pacote só para exceçõ
 | `WORKER_TICK_INTERVAL_MS`                    | `1000`                                                       | Worker                 |
 | `WORKER_SHUTDOWN_TIMEOUT_MS`                 | `30000`                                                      | Worker                 |
 | `WORKER_MAX_CONCURRENT_RUNS`                 | `2`                                                          | Worker                 |
+| `WORKER_HEARTBEAT_INTERVAL_MS`               | `10000` (mínimo `1000`; `STALE` após três intervalos)        | Worker **e API**       |
 | `WORKER_RUN_IDLE_TIMEOUT_MS`                 | `600000`                                                     | Worker                 |
 | `WORKER_RUN_COMPLETION_TIMEOUT_MS`           | `3600000`                                                    | Worker                 |
 | `WORKER_WORKTREES_ROOT`                      | `<pai do repositório>/.dm-worktrees/<nome do repositório>`   | Worker                 |
@@ -234,6 +237,10 @@ raiz. Na prática, ponha tudo na raiz e use o `.env` do pacote só para exceçõ
 | `VITE_API_PROXY_TARGET`                      | `http://127.0.0.1:3333`                                      | Web (dev)              |
 | `LOG_LEVEL`                                  | `info`                                                       | API, Worker            |
 | `NODE_ENV`                                   | `development`                                                | tudo                   |
+
+`WORKER_HEARTBEAT_INTERVAL_MS` é lida pelos **dois** processos de propósito: o Worker bate, a
+API lê o batimento, e as duas precisam da mesma régua para concordar sobre quem está `ONLINE`.
+Apertar o intervalo só no Worker faria a API marcar como silencioso um Worker vivo.
 
 Portas: **3333** API, **5173** Web, **5433** PostgreSQL de desenvolvimento. O e2e usa
 **3399** e **5273**, sobrescritíveis por `E2E_API_PORT` e `E2E_WEB_PORT`.

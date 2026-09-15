@@ -18,6 +18,7 @@ import { registerAutonomyRoutes } from "./handlers/autonomy.js";
 import { registerInboxRoutes } from "./handlers/inbox.js";
 import { registerKnowledgeRoutes } from "./handlers/knowledge.js";
 import { registerMcpServerRoutes } from "./handlers/mcp-servers.js";
+import { registerMetricRoutes } from "./handlers/metrics.js";
 import { registerPreflightRoutes } from "./handlers/preflight.js";
 import { registerProviderRoutes } from "./handlers/providers.js";
 import { registerProjectRoutes } from "./handlers/projects.js";
@@ -50,6 +51,7 @@ import {
   type DashboardEventsPort,
   type DatabaseProbe,
   type ExecutionPort,
+  type MetricsPort,
   type SettingsPort,
   type WorkPort,
 } from "./ports.js";
@@ -114,6 +116,13 @@ export interface CreateAppOptions {
    * versionado, sem usuário; isto é a projeção que o Worker mantém no banco.
    */
   hall: AchievementsPort;
+  /**
+   * Métricas, custo e presença de Worker (Fase 10A).
+   *
+   * Opcional pelo mesmo motivo de `autonomy`: quem instancia a app só pelas
+   * rotas antigas recebe a porta inerte, que lança se for chamada.
+   */
+  metrics?: MetricsPort;
   logger?: Logger;
   /** Instante do boot, usado para calcular `uptimeSeconds`. */
   startedAt?: number;
@@ -386,6 +395,10 @@ export function createApp(options: CreateAppOptions) {
 
   registerAchievementRoutes(app, options.achievements, options.hall);
 
+  // Fase 10A. A porta inerte entra quando a app é montada só pela forma das
+  // rotas — `pnpm gen` e os testes que só olham `/health`.
+  registerMetricRoutes(app, options.metrics ?? createSpecPorts().metrics);
+
   app.doc31(`${API_BASE_PATH}/openapi.json`, {
     openapi: "3.1.0",
     info: {
@@ -437,6 +450,12 @@ export function createApp(options: CreateAppOptions) {
         description:
           "Autonomia controlada (Fase 9A): políticas de aprovação, orçamentos, disjuntores, " +
           "regras de roteamento, o nível de autonomia do Project e as sugestões de uma Task.",
+      },
+      {
+        name: "metrics",
+        description:
+          "Observabilidade avançada (Fase 10A): tiles e séries por dimensão, custo com " +
+          "procedência, preço de Model por vigência e presença de Worker por batimento.",
       },
     ],
   });
