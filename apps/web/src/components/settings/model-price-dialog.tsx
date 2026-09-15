@@ -56,6 +56,26 @@ function parseAmount(text: string, optional = false): number | null {
   return Number.isFinite(value) && value >= 0 && value <= 1_000_000 ? value : null;
 }
 
+/**
+ * O começo da vigência, do campo de data para o instante ISO que o contrato
+ * pede. Vazio é "agora", que é o padrão da API.
+ *
+ * Meia-noite **UTC**, e não do fuso do browser: o custo de um Run usa a
+ * vigência da data dele, e as datas do domínio — o `day` do rollup, a janela
+ * das métricas — são todas UTC. Uma vigência que começasse às 3h da manhã UTC
+ * porque quem digitou mora em São Paulo deixaria os Runs daquela madrugada de
+ * fora, sem que ninguém entendesse por quê.
+ *
+ * `null` é data malformada; `""` é campo vazio.
+ */
+function parseEffectiveFrom(text: string): string | null {
+  const trimmed = text.trim();
+  if (trimmed === "") return "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  const at = new Date(`${trimmed}T00:00:00.000Z`);
+  return Number.isNaN(at.getTime()) ? null : at.toISOString();
+}
+
 export function ModelPriceDialog({ model, open, onOpenChange }: ModelPriceDialogProps) {
   const { t, format } = useGlossary();
   const setPrice = useSetModelPrice();
@@ -66,6 +86,7 @@ export function ModelPriceDialog({ model, open, onOpenChange }: ModelPriceDialog
   const [output, setOutput] = useState("");
   const [cacheRead, setCacheRead] = useState("");
   const [cacheWrite, setCacheWrite] = useState("");
+  const [effectiveFrom, setEffectiveFrom] = useState("");
   const [note, setNote] = useState("");
 
   useEffect(() => {
@@ -75,6 +96,7 @@ export function ModelPriceDialog({ model, open, onOpenChange }: ModelPriceDialog
     setOutput("");
     setCacheRead("");
     setCacheWrite("");
+    setEffectiveFrom("");
     setNote("");
   }, [open, model]);
 
@@ -85,7 +107,9 @@ export function ModelPriceDialog({ model, open, onOpenChange }: ModelPriceDialog
     cacheWrite: parseAmount(cacheWrite, true),
   };
   const currencyOk = /^[A-Za-z]{3}$/.test(currency.trim());
+  const desde = parseEffectiveFrom(effectiveFrom);
   const valid =
+    desde !== null &&
     currencyOk &&
     parsed.input !== null &&
     parsed.output !== null &&
@@ -104,6 +128,7 @@ export function ModelPriceDialog({ model, open, onOpenChange }: ModelPriceDialog
         outputPerMillion: parsed.output ?? 0,
         cacheReadPerMillion: parsed.cacheRead ?? 0,
         cacheWritePerMillion: parsed.cacheWrite ?? 0,
+        ...(desde === "" ? {} : { effectiveFrom: desde }),
         ...(note.trim() === "" ? {} : { note: note.trim() }),
       },
       {
@@ -170,6 +195,15 @@ export function ModelPriceDialog({ model, open, onOpenChange }: ModelPriceDialog
               onChange={setCacheWrite}
               testId="cache-write"
               value={cacheWrite}
+            />
+            <Field
+              id="model-price-effective-from"
+              invalid={desde === null}
+              label={t("settings.prices.effectiveFrom")}
+              onChange={setEffectiveFrom}
+              testId="effective-from"
+              type="date"
+              value={effectiveFrom}
             />
             <Field
               id="model-price-note"
@@ -268,6 +302,7 @@ function Field({
   onChange,
   invalid,
   testId,
+  type = "text",
 }: {
   readonly id: string;
   readonly label: string;
@@ -275,6 +310,7 @@ function Field({
   readonly onChange: (value: string) => void;
   readonly invalid: boolean;
   readonly testId: string;
+  readonly type?: "text" | "date";
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -286,6 +322,7 @@ function Field({
         onChange={(event) => {
           onChange(event.target.value);
         }}
+        type={type}
         value={value}
       />
     </div>
