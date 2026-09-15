@@ -68,7 +68,7 @@ afterEach(async () => {
   await repositorio.remover();
 });
 
-function presencaDe(workerId: string, pid: number) {
+function presencaDe(workerId: string, pid: number, intervaloMs = INTERVALO_MS) {
   return createWorkerPresence({
     db,
     userId: USER,
@@ -78,22 +78,29 @@ function presencaDe(workerId: string, pid: number) {
     version: "0.0.0-teste",
     nodeVersion: process.version,
     capacity: 2,
-    heartbeatIntervalMs: INTERVALO_MS,
+    heartbeatIntervalMs: intervaloMs,
   });
 }
 
-async function subir(input: { workerId: string; pid: number; start?: boolean }): Promise<Worker> {
+async function subir(input: {
+  workerId: string;
+  pid: number;
+  start?: boolean;
+  /** Intervalo de batimento deste Worker; a janela de silêncio que ele aplica aos outros é 3× isso. */
+  intervaloMs?: number;
+}): Promise<Worker> {
+  const intervaloMs = input.intervaloMs ?? INTERVALO_MS;
   const criado = createWorker({
     db,
     pool: handle.pool,
     userId: USER,
     adapters: [fakeHarness()],
     workspace: managerPara(repositorio),
-    presence: presencaDe(input.workerId, input.pid),
+    presence: presencaDe(input.workerId, input.pid, intervaloMs),
     config: {
       ...CONFIG_PADRAO,
       workerId: input.workerId,
-      heartbeatIntervalMs: INTERVALO_MS,
+      heartbeatIntervalMs: intervaloMs,
     },
   });
 
@@ -189,7 +196,14 @@ describe("reconciliação por batimento", () => {
       .where(and(eq(tasks.id, cenario.taskId), eq(tasks.userId, USER)));
 
     // O segundo sobe e reconcilia no boot: não pode encostar no Run do primeiro.
-    await subir({ workerId: newWorkerId(), pid: process.pid, start: false });
+    //
+    // post-mortem #27 (15/09/2026): com os dois Workers em INTERVALO_MS, a janela de
+    // silêncio era de 180 ms, e no runner do Windows do CI os dois UPDATEs acima mais o
+    // boot do segundo levaram mais do que isso — o primeiro, que não bate porque subiu
+    // com `start: false`, foi julgado silencioso e o Run fechou como FAILED. O julgamento
+    // usa a janela de quem reconcilia, então o segundo sobe com um intervalo largo: o que
+    // este teste prova é que um batimento recente protege o Run, não que 180 ms é o prazo.
+    await subir({ workerId: newWorkerId(), pid: process.pid, start: false, intervaloMs: 5_000 });
 
     const run = await getRun(db, { userId: USER, runId: criado.id });
     expect(run?.status).toBe("RUNNING");
