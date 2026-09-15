@@ -103,67 +103,73 @@ export const AchievementUnlockListQuerySchema = PageQuerySchema.meta({
 export type AchievementUnlockListQuery = z.infer<typeof AchievementUnlockListQuerySchema>;
 
 // --------------------------------------------------------------------------
-// Estatísticas de Herói
+// Estatísticas de Agent e de Loadout
 // --------------------------------------------------------------------------
 
-/** A quem as estatísticas pertencem. */
-export const HERO_SCOPE_VALUES = ["AGENT", "LOADOUT"] as const;
+/**
+ * A quem as estatísticas pertencem.
+ *
+ * ADR 0003: os nomes daqui são canônicos. O tema ("Herói", "Expedições",
+ * "Monstros derrotados") mora só no glossário, nas chaves `executionStats.*`.
+ * `xp` e `level` ficam: são vocabulário genérico de gamificação, não do tema.
+ */
+export const EXECUTION_STATS_SCOPE_VALUES = ["AGENT", "LOADOUT"] as const;
 
-export const HeroScopeSchema = z.enum(HERO_SCOPE_VALUES).meta({
-  id: "HeroScope",
-  description: "Se a estatística é de um Agent (Herói) ou de um Loadout (Equipamento).",
+export const ExecutionStatsScopeSchema = z.enum(EXECUTION_STATS_SCOPE_VALUES).meta({
+  id: "ExecutionStatsScope",
+  description: "Se a estatística é de um Agent ou de um Loadout.",
 });
 
-export type HeroScope = z.infer<typeof HeroScopeSchema>;
+export type ExecutionStatsScope = z.infer<typeof ExecutionStatsScopeSchema>;
 
 /**
- * O acumulado de um Herói ou de um Equipamento.
+ * O acumulado de um Agent ou de um Loadout.
  *
  * Tudo cosmético: nenhuma funcionalidade depende de nível (CLAUDE.md, seção
  * 12). `name` vem por junção na leitura, e não gravado: uma estatística
- * acompanha a renomeação do Herói. Nulo quando a entidade foi apagada — o que
- * ela fez continua tendo acontecido.
+ * acompanha a renomeação do Agent. Nulo quando a entidade foi apagada — o que
+ * ele fez continua tendo acontecido.
  */
-export const HeroStatsSchema = z
+export const ExecutionStatsSchema = z
   .object({
     scopeId: z.uuid().describe("Id do Agent ou do Loadout."),
     name: z.string().nullable().describe("Nome atual. Nulo quando a entidade foi apagada."),
     xp: z.number().int().nonnegative().describe("Experiência acumulada."),
     level: z.number().int().positive().describe("Nível derivado da experiência por fórmula fixa."),
     xpToNextLevel: z.number().int().nonnegative().describe("Quanto falta para o próximo nível."),
-    expeditions: z
+    runsTotal: z
       .number()
       .int()
       .nonnegative()
-      .describe("Runs terminados: vitórias, derrotas e cancelamentos."),
-    victories: z.number().int().nonnegative(),
-    defeats: z.number().int().nonnegative().describe("Runs em FAILED ou TIMED_OUT."),
-    monstersSlain: z
+      .describe("Runs terminados: sucessos, falhas e cancelamentos."),
+    runsSucceeded: z.number().int().nonnegative().describe("Runs em SUCCEEDED."),
+    runsFailed: z.number().int().nonnegative().describe("Runs em FAILED ou TIMED_OUT."),
+    bugTasksCompleted: z
       .number()
       .int()
       .nonnegative()
-      .describe("Runs vitoriosos que concluíram uma Task `BUG`."),
+      .describe("Runs bem-sucedidos que concluíram uma Task `BUG`."),
     tokens: z.number().int().nonnegative().describe("Tokens somados dos eventos `Usage`."),
     topHarness: z
       .string()
       .nullable()
       .describe("Harness mais usado. Empate desfeito pela ordem alfabética."),
   })
-  .meta({ id: "HeroStats", description: "O acumulado de um Agent ou de um Loadout." });
+  .meta({ id: "ExecutionStats", description: "O acumulado de um Agent ou de um Loadout." });
 
-export type HeroStats = z.infer<typeof HeroStatsSchema>;
+export type ExecutionStats = z.infer<typeof ExecutionStatsSchema>;
 
-export const HeroStatsResponseSchema = z
+export const ExecutionStatsResponseSchema = z
   .object({
-    agents: z.array(HeroStatsSchema).describe("Por Agent, do mais experiente para o menos."),
-    loadouts: z.array(HeroStatsSchema).describe("Por Loadout, na mesma ordem."),
+    agents: z.array(ExecutionStatsSchema).describe("Por Agent, do mais experiente para o menos."),
+    loadouts: z.array(ExecutionStatsSchema).describe("Por Loadout, na mesma ordem."),
   })
   .meta({
-    id: "HeroStatsResponse",
-    description: "As estatísticas de Herói e de Equipamento, ambas projeção.",
+    id: "ExecutionStatsResponse",
+    description: "As estatísticas de Agent e de Loadout, ambas projeção.",
   });
 
-export type HeroStatsResponse = z.infer<typeof HeroStatsResponseSchema>;
+export type ExecutionStatsResponse = z.infer<typeof ExecutionStatsResponseSchema>;
 
 // --------------------------------------------------------------------------
 // Conquistas forjadas (Fase 2.5C, depois da Fase 6)

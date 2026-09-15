@@ -8,9 +8,9 @@ import {
 } from "@dungeon-master/achievements";
 import {
   ACHIEVEMENT_REVIEW_STATUS_VALUES,
-  HERO_SCOPE_VALUES,
+  EXECUTION_STATS_SCOPE_VALUES,
   type ForgedAchievementProvenance,
-  type HeroScope,
+  type ExecutionStatsScope,
 } from "@dungeon-master/contracts";
 import { sql } from "drizzle-orm";
 import {
@@ -68,9 +68,9 @@ export const achievementReviewStatus = pgEnum(
 );
 
 /** Herói e Equipamento acumulam a mesma coisa; o que muda é a quem ela pertence. */
-export const heroScope = pgEnum("hero_scope", HERO_SCOPE_VALUES);
+export const executionStatsScope = pgEnum("execution_stats_scope", EXECUTION_STATS_SCOPE_VALUES);
 
-export type { HeroScope };
+export type { ExecutionStatsScope };
 
 /**
  * A Conquista concreta de um usuário: do catálogo, instanciada ou forjada.
@@ -263,23 +263,23 @@ export const achievementCursors = pgTable(
  * pertence. `scope_id` não tem chave estrangeira de propósito — o histórico de
  * um Herói apagado continua contando o que ele fez.
  */
-export const heroStats = pgTable(
-  "hero_stats",
+export const executionStats = pgTable(
+  "execution_stats",
   {
     id: uuid("id").primaryKey(),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    scope: heroScope("scope").notNull(),
+    scope: executionStatsScope("scope").notNull(),
     scopeId: uuid("scope_id").notNull(),
     xp: integer("xp").notNull().default(0),
     level: integer("level").notNull().default(1),
-    expeditions: integer("expeditions").notNull().default(0),
-    victories: integer("victories").notNull().default(0),
-    defeats: integer("defeats").notNull().default(0),
-    monstersSlain: integer("monsters_slain").notNull().default(0),
+    runsTotal: integer("runs_total").notNull().default(0),
+    runsSucceeded: integer("runs_succeeded").notNull().default(0),
+    runsFailed: integer("runs_failed").notNull().default(0),
+    bugTasksCompleted: integer("bug_tasks_completed").notNull().default(0),
     /** Vitórias em Masmorra selada. Guardadas porque o bônus só vale na primeira. */
-    dockerVictories: integer("docker_victories").notNull().default(0),
+    dockerRunsSucceeded: integer("docker_runs_succeeded").notNull().default(0),
     tokens: bigint("tokens", { mode: "number" }).notNull().default(0),
     harnessCounts: jsonb("harness_counts").$type<Record<string, number>>().notNull().default({}),
     /** Derivada de `harness_counts`, gravada para a leitura não recalcular. */
@@ -289,7 +289,7 @@ export const heroStats = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [unique("hero_stats_scope_uq").on(table.userId, table.scope, table.scopeId)],
+  (table) => [unique("execution_stats_scope_uq").on(table.userId, table.scope, table.scopeId)],
 );
 
 export type AchievementDefinitionRow = typeof achievementDefinitions.$inferSelect;
@@ -299,5 +299,5 @@ export type NewAchievementProgressRow = typeof achievementProgress.$inferInsert;
 export type AchievementUnlockRow = typeof achievementUnlocks.$inferSelect;
 export type NewAchievementUnlockRow = typeof achievementUnlocks.$inferInsert;
 export type AchievementCursorRow = typeof achievementCursors.$inferSelect;
-export type HeroStatsRow = typeof heroStats.$inferSelect;
-export type NewHeroStatsRow = typeof heroStats.$inferInsert;
+export type ExecutionStatsRow = typeof executionStats.$inferSelect;
+export type NewExecutionStatsRow = typeof executionStats.$inferInsert;

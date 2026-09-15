@@ -134,6 +134,13 @@
       "when": 1789403245792,
       "tag": "0018_delegacao_espera_por_filho_e_origem",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789490604322,
+      "tag": "0019_vocabulario_canonico_execution_stats",
+      "breakpoints": true
     }
   ]
 }

@@ -5,8 +5,8 @@ import {
   applyRunOutcome,
   applyUsage,
   type Condition,
-  EMPTY_HERO_STATS,
-  type HeroStatsState,
+  EMPTY_EXECUTION_STATS,
+  type ExecutionStatsState,
   parseCondition,
   type ProjectionEvent,
   type RunOutcome,
@@ -44,8 +44,8 @@ import {
   achievementProgress,
   type AchievementSource,
   achievementUnlocks,
-  heroStats,
-  type HeroScope,
+  executionStats,
+  type ExecutionStatsScope,
 } from "./schema/achievement.js";
 import { runs } from "./schema/run.js";
 import { tasks } from "./schema/task.js";
@@ -56,7 +56,7 @@ import { tasks } from "./schema/task.js";
  * Consome por cursor três fontes duráveis — `activity`, `run_event` e
  * `dashboard_event` —, avalia cada definição aplicável, grava progresso,
  * desbloqueia por tier de forma idempotente e atualiza as estatísticas de Herói
- * no mesmo passo. Os eventos `achievement.unlocked` e `hero_stats.updated` saem
+ * no mesmo passo. Os eventos `achievement.unlocked` e `execution_stats.updated` saem
  * em `dashboard_event` **dentro da mesma transação** do desbloqueio.
  *
  * ## Contrato: nunca lança
@@ -118,14 +118,14 @@ const DASHBOARD_TYPES = [
 // --------------------------------------------------------------------------
 
 /** O fato que altera estatísticas de Herói, separado do que altera Conquistas. */
-interface HeroDelta {
+interface StatsDelta {
   readonly agentId: string | null;
   readonly loadoutId: string;
   readonly outcome?: {
     readonly outcome: RunOutcome;
     readonly harness: string;
     readonly executionMode: ExecutionMode;
-    readonly monster: boolean;
+    readonly bug: boolean;
   };
   readonly tokens?: number;
 }
@@ -151,12 +151,12 @@ interface BatchCursor {
 
 interface Batch {
   readonly events: ProjectionEvent[];
-  readonly heroes: HeroDelta[];
+  readonly stats: StatsDelta[];
   readonly rows: number;
   readonly cursor: BatchCursor | null;
 }
 
-const EMPTY_BATCH: Batch = { events: [], heroes: [], rows: 0, cursor: null };
+const EMPTY_BATCH: Batch = { events: [], stats: [], rows: 0, cursor: null };
 
 // --------------------------------------------------------------------------
 // Contexto de um Run e de uma Task
@@ -248,10 +248,10 @@ function runOutcomeSource(status: string): ProjectionEvent["source"] | null {
   }
 }
 
-function heroOutcome(source: ProjectionEvent["source"]): RunOutcome {
-  if (source === "run.succeeded") return "VICTORY";
+function runOutcome(source: ProjectionEvent["source"]): RunOutcome {
+  if (source === "run.succeeded") return "SUCCEEDED";
   if (source === "run.cancelled") return "ABANDONED";
-  return "DEFEAT";
+  return "FAILED";
 }
 
 function readString(payload: unknown, key: string): string | null {
@@ -389,7 +389,7 @@ async function drainActivity(db: DatabaseExecutor, ctx: DrainContext): Promise<B
   const taskContexts = await loadTaskContexts(db, { userId: ctx.userId, taskIds });
 
   const events: ProjectionEvent[] = [];
-  const heroes: HeroDelta[] = [];
+  const stats: StatsDelta[] = [];
 
   for (const row of rows) {
     const at = new Date(row.created_at);
@@ -457,8 +457,7 @@ async function drainActivity(db: DatabaseExecutor, ctx: DrainContext): Promise<B
     const harness = harnessSlug(run.harnessKey);
     // Monstro derrotado é vitória **que fechou** um `BUG`: um Run que terminou
     // bem mas devolveu `blocked` deixou a Task viva, e o Monstro também.
-    const monster =
-      source === "run.succeeded" && task?.kind === "BUG" && task.status === "COMPLETED";
+    const bug = source === "run.succeeded" && task?.kind === "BUG" && task.status === "COMPLETED";
 
     events.push({
       source,
@@ -479,14 +478,14 @@ async function drainActivity(db: DatabaseExecutor, ctx: DrainContext): Promise<B
       metrics: { "run.durationMs": durationOf(run) },
     });
 
-    heroes.push({
+    stats.push({
       agentId: run.loadoutSnapshot.agent.id,
       loadoutId: run.loadoutId,
       outcome: {
-        outcome: heroOutcome(source),
+        outcome: runOutcome(source),
         harness,
         executionMode: run.executionMode,
-        monster,
+        bug,
       },
     });
   }
@@ -494,7 +493,7 @@ async function drainActivity(db: DatabaseExecutor, ctx: DrainContext): Promise<B
   const ultima = rows[rows.length - 1];
   return {
     events,
-    heroes,
+    stats,
     rows: rows.length,
     cursor: ultima === undefined ? null : { positionAt: ultima.position_at, positionId: ultima.id },
   };
@@ -528,7 +527,7 @@ async function drainRunEvents(db: DatabaseExecutor, ctx: DrainContext): Promise<
   const runIds = [...new Set(rows.map((row) => row.run_id))];
   const runContexts = await loadRunContexts(db, { userId: ctx.userId, runIds });
 
-  const heroes: HeroDelta[] = [];
+  const stats: StatsDelta[] = [];
 
   for (const row of rows) {
     const run = runContexts.get(row.run_id);
@@ -537,13 +536,13 @@ async function drainRunEvents(db: DatabaseExecutor, ctx: DrainContext): Promise<
     const tokens = totalTokens(row.payload);
     if (tokens === 0) continue;
 
-    heroes.push({ agentId: run.loadoutSnapshot.agent.id, loadoutId: run.loadoutId, tokens });
+    stats.push({ agentId: run.loadoutSnapshot.agent.id, loadoutId: run.loadoutId, tokens });
   }
 
   const ultima = rows[rows.length - 1];
   return {
     events: [],
-    heroes,
+    stats,
     rows: rows.length,
     cursor: ultima === undefined ? null : { positionAt: ultima.position_at, positionId: ultima.id },
   };
@@ -611,7 +610,7 @@ async function drainDashboardEvents(db: DatabaseExecutor, ctx: DrainContext): Pr
   const ultima = rows[rows.length - 1];
   return {
     events,
-    heroes: [],
+    stats: [],
     rows: rows.length,
     cursor: ultima === undefined ? null : { positionAt: null, positionId: String(ultima.sequence) },
   };
@@ -633,33 +632,33 @@ interface ApplyResult {
   readonly unlocked: number;
 }
 
-function heroKey(scope: HeroScope, scopeId: string): string {
+function statsKey(scope: ExecutionStatsScope, scopeId: string): string {
   return `${scope}:${scopeId}`;
 }
 
-async function loadHeroStates(
+async function loadStatsStates(
   db: DatabaseExecutor,
-  input: { userId: string; keys: readonly [HeroScope, string][] },
-): Promise<Map<string, HeroStatsState>> {
-  const estados = new Map<string, HeroStatsState>();
+  input: { userId: string; keys: readonly [ExecutionStatsScope, string][] },
+): Promise<Map<string, ExecutionStatsState>> {
+  const estados = new Map<string, ExecutionStatsState>();
   if (input.keys.length === 0) return estados;
 
   const ids = [...new Set(input.keys.map(([, scopeId]) => scopeId))];
 
   const rows = await db
     .select()
-    .from(heroStats)
-    .where(and(eq(heroStats.userId, input.userId), inArray(heroStats.scopeId, ids)));
+    .from(executionStats)
+    .where(and(eq(executionStats.userId, input.userId), inArray(executionStats.scopeId, ids)));
 
   for (const row of rows) {
-    estados.set(heroKey(row.scope, row.scopeId), {
+    estados.set(statsKey(row.scope, row.scopeId), {
       xp: row.xp,
       level: row.level,
-      expeditions: row.expeditions,
-      victories: row.victories,
-      defeats: row.defeats,
-      monstersSlain: row.monstersSlain,
-      dockerVictories: row.dockerVictories,
+      runsTotal: row.runsTotal,
+      runsSucceeded: row.runsSucceeded,
+      runsFailed: row.runsFailed,
+      bugTasksCompleted: row.bugTasksCompleted,
+      dockerRunsSucceeded: row.dockerRunsSucceeded,
       tokens: row.tokens,
       harnessCounts: row.harnessCounts,
     });
@@ -841,41 +840,41 @@ async function applyBatch(
   }
 
   // ------------------------------------------------------ estatísticas
-  const chaves: [HeroScope, string][] = [];
-  for (const delta of batch.heroes) {
+  const chaves: [ExecutionStatsScope, string][] = [];
+  for (const delta of batch.stats) {
     if (delta.agentId !== null) chaves.push(["AGENT", delta.agentId]);
     chaves.push(["LOADOUT", delta.loadoutId]);
   }
 
-  const heroEstados = await loadHeroStates(tx, { userId, keys: chaves });
+  const statsEstados = await loadStatsStates(tx, { userId, keys: chaves });
   // O que mudou, guardado com o par que o identifica em vez de com uma chave
   // a ser desmontada depois: o separador era um byte NUL literal no meio do
   // arquivo, o que fazia `grep` e `diff` tratarem o módulo como binário.
-  const heroAlterados = new Map<string, { scope: HeroScope; scopeId: string }>();
+  const statsAlterados = new Map<string, { scope: ExecutionStatsScope; scopeId: string }>();
 
-  const aplicar = (scope: HeroScope, scopeId: string, delta: HeroDelta): void => {
-    const chave = heroKey(scope, scopeId);
-    const atual = heroEstados.get(chave) ?? EMPTY_HERO_STATS;
+  const aplicar = (scope: ExecutionStatsScope, scopeId: string, delta: StatsDelta): void => {
+    const chave = statsKey(scope, scopeId);
+    const atual = statsEstados.get(chave) ?? EMPTY_EXECUTION_STATS;
     const proximo =
       delta.outcome !== undefined
         ? applyRunOutcome(atual, delta.outcome)
         : applyUsage(atual, delta.tokens ?? 0);
 
     if (proximo === atual) return;
-    heroEstados.set(chave, proximo);
-    heroAlterados.set(chave, { scope, scopeId });
+    statsEstados.set(chave, proximo);
+    statsAlterados.set(chave, { scope, scopeId });
   };
 
-  for (const delta of batch.heroes) {
+  for (const delta of batch.stats) {
     if (delta.agentId !== null) aplicar("AGENT", delta.agentId, delta);
     aplicar("LOADOUT", delta.loadoutId, delta);
   }
 
-  for (const [chave, { scope, scopeId }] of heroAlterados) {
-    const estado = heroEstados.get(chave);
+  for (const [chave, { scope, scopeId }] of statsAlterados) {
+    const estado = statsEstados.get(chave);
     if (estado === undefined) continue;
 
-    const guilda = topHarness(estado.harnessCounts);
+    const harnessName = topHarness(estado.harnessCounts);
     const values = {
       id: newId(),
       userId,
@@ -883,39 +882,39 @@ async function applyBatch(
       scopeId,
       xp: estado.xp,
       level: estado.level,
-      expeditions: estado.expeditions,
-      victories: estado.victories,
-      defeats: estado.defeats,
-      monstersSlain: estado.monstersSlain,
-      dockerVictories: estado.dockerVictories,
+      runsTotal: estado.runsTotal,
+      runsSucceeded: estado.runsSucceeded,
+      runsFailed: estado.runsFailed,
+      bugTasksCompleted: estado.bugTasksCompleted,
+      dockerRunsSucceeded: estado.dockerRunsSucceeded,
       tokens: estado.tokens,
       harnessCounts: estado.harnessCounts as Record<string, number>,
-      topHarness: guilda,
+      topHarness: harnessName,
     };
 
     const { id: _id, userId: _userId, scope: _scope, scopeId: _scopeId, ...atualizacao } = values;
 
     await tx
-      .insert(heroStats)
+      .insert(executionStats)
       .values(values)
       .onConflictDoUpdate({
-        target: [heroStats.userId, heroStats.scope, heroStats.scopeId],
+        target: [executionStats.userId, executionStats.scope, executionStats.scopeId],
         set: { ...atualizacao, updatedAt: new Date() },
       });
 
     await appendDashboardEvent(tx, {
       userId,
-      type: "hero_stats.updated",
+      type: "execution_stats.updated",
       payload: {
         scope,
         scopeId,
         xp: estado.xp,
         level: estado.level,
-        expeditions: estado.expeditions,
-        victories: estado.victories,
-        defeats: estado.defeats,
-        monstersSlain: estado.monstersSlain,
-        topHarness: guilda,
+        runsTotal: estado.runsTotal,
+        runsSucceeded: estado.runsSucceeded,
+        runsFailed: estado.runsFailed,
+        bugTasksCompleted: estado.bugTasksCompleted,
+        topHarness: harnessName,
       },
     });
   }
@@ -1099,7 +1098,7 @@ export async function rebuildAchievements(
     await db.transaction(async (tx) => {
       await tx.delete(achievementUnlocks).where(eq(achievementUnlocks.userId, options.userId));
       await tx.delete(achievementProgress).where(eq(achievementProgress.userId, options.userId));
-      await tx.delete(heroStats).where(eq(heroStats.userId, options.userId));
+      await tx.delete(executionStats).where(eq(executionStats.userId, options.userId));
       await tx.delete(achievementCursors).where(eq(achievementCursors.userId, options.userId));
     });
   } catch (error) {

@@ -6,10 +6,10 @@
  */
 
 /** Experiência por Expedição vitoriosa. */
-export const XP_PER_VICTORY = 100;
+export const XP_PER_SUCCEEDED_RUN = 100;
 
 /** Bônus por Monstro derrotado: Run vitorioso que conclui uma Task `BUG`. */
-export const XP_BONUS_MONSTER = 50;
+export const XP_BONUS_BUG_TASK = 50;
 
 /** Bônus pela primeira vitória em Masmorra selada, isto é, o primeiro Run `DOCKER`. */
 export const XP_BONUS_FIRST_DOCKER = 150;
@@ -24,8 +24,8 @@ export const XP_LEVEL_STEP = 50;
 
 /** As constantes de XP em um só objeto, para log e para a tela de Hall. */
 export const XP_RULES = {
-  perVictory: XP_PER_VICTORY,
-  bonusMonster: XP_BONUS_MONSTER,
+  perSucceededRun: XP_PER_SUCCEEDED_RUN,
+  bonusBugTask: XP_BONUS_BUG_TASK,
   bonusFirstDocker: XP_BONUS_FIRST_DOCKER,
   levelStep: XP_LEVEL_STEP,
 } as const;

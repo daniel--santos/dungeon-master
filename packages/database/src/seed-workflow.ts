@@ -22,7 +22,7 @@ import { workflows } from "./schema/workflow.js";
  * digitação no step derruba o `db:seed` na hora, em vez de gravar uma
  * definição que o motor recusaria no primeiro Run.
  */
-export const GUIDED_EXPEDITION_WORKFLOW: WorkflowDefinition = WorkflowDefinitionSchema.parse({
+export const GUIDED_RUN_WORKFLOW: WorkflowDefinition = WorkflowDefinitionSchema.parse({
   name: "Expedição guiada",
   description:
     "Analisa, planeja, espera a aprovação do plano, executa e valida. O passo de " +
@@ -83,7 +83,7 @@ export interface WorkflowSeedResult {
   readonly workflowsTotal: number;
 }
 
-const WORKFLOW_SEEDS: readonly WorkflowDefinition[] = [GUIDED_EXPEDITION_WORKFLOW];
+const WORKFLOW_SEEDS: readonly WorkflowDefinition[] = [GUIDED_RUN_WORKFLOW];
 
 /** Garante os Workflows de partida. Idempotente pelo nome; não reescreve o que existe. */
 export async function seedWorkflows(
