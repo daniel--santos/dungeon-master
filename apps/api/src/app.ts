@@ -431,7 +431,7 @@ export function createApp(options: CreateAppOptions) {
         description:
           "O catálogo versionado de Conquistas, a projeção de progresso e as forjadas em revisão.",
       },
-      { name: "heroes", description: "Estatísticas de Herói e de Equipamento. Projeção." },
+      { name: "execution-stats", description: "Estatísticas de Agent e de Loadout. Projeção." },
       {
         name: "autonomy",
         description:

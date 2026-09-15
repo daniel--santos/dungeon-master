@@ -58,7 +58,7 @@ import type {
   TaskStatus,
   TaskSuggestions,
   Tool,
-  HeroStatsResponse,
+  ExecutionStatsResponse,
   UserSettings,
   UserSettingsKey,
   Workflow,
@@ -714,7 +714,7 @@ export interface AchievementsPort {
   unlocks(page: PageRequest): Promise<PageResult<AchievementUnlockView>>;
   /** `null` quando não existe desbloqueio com este id: é o 404. */
   markSeen(unlockId: string): Promise<AchievementUnlockView | null>;
-  heroStats(): Promise<HeroStatsResponse>;
+  executionStats(): Promise<ExecutionStatsResponse>;
   /** As forjadas (Fase 2.5C). Sem filtro, as em revisão. */
   listForged(reviewStatus?: AchievementReviewStatus | undefined): Promise<ForgedAchievement[]>;
   approveForged(
@@ -969,7 +969,7 @@ export function createSpecPorts(): {
       list: inerte("a listagem de Conquistas"),
       unlocks: inerte("a crônica de desbloqueios"),
       markSeen: inerte("a marcação de desbloqueio visto"),
-      heroStats: inerte("as estatísticas de Herói"),
+      executionStats: inerte("as estatísticas de Agent"),
       listForged: inerte("a listagem de Conquistas forjadas"),
       approveForged: inerte("a aprovação de Conquista forjada"),
       renameForged: inerte("a renomeação de Conquista forjada"),

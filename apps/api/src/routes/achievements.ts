@@ -14,7 +14,7 @@ import {
   ForgedAchievementListQuerySchema,
   ForgedAchievementListSchema,
   ForgedAchievementSchema,
-  HeroStatsResponseSchema,
+  ExecutionStatsResponseSchema,
   paginatedSchema,
   ProblemDetailsSchema,
   RenameForgedAchievementSchema,
@@ -294,11 +294,15 @@ export const achievementUnlockSeenRoute = createRoute({
   },
 });
 
-export const heroStatsRoute = createRoute({
+/**
+ * Recurso próprio, e não `/agents/stats` (ADR 0003): a projeção cobre Agent
+ * **e** Loadout, e um segmento estático sob `/agents` disputaria com `{id}`.
+ */
+export const executionStatsRoute = createRoute({
   method: "get",
-  path: `${API_BASE_PATH}/heroes/stats`,
-  tags: ["heroes"],
-  summary: "As estatísticas de Herói e de Equipamento",
+  path: `${API_BASE_PATH}/execution-stats`,
+  tags: ["execution-stats"],
+  summary: "As estatísticas de Agent e de Loadout",
   description:
     "Projeção, como tudo na Fase 2.5, e cosmética: nenhuma funcionalidade " +
     "depende de nível. Os nomes vêm por junção na leitura, então acompanham " +
@@ -306,7 +310,7 @@ export const heroStatsRoute = createRoute({
   responses: {
     200: {
       description: "Os acumulados por Agent e por Loadout.",
-      content: { "application/json": { schema: HeroStatsResponseSchema } },
+      content: { "application/json": { schema: ExecutionStatsResponseSchema } },
     },
   },
 });

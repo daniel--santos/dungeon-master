@@ -9,7 +9,7 @@ import {
 import {
   createDatabase,
   type DatabaseHandle,
-  GUIDED_EXPEDITION_WORKFLOW,
+  GUIDED_RUN_WORKFLOW,
   LOCAL_USER_ID,
 } from "@dungeon-master/database";
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
@@ -180,7 +180,7 @@ describe(`POST ${API_BASE_PATH}/inbox/{id}/promote`, () => {
       app,
       method: "POST",
       path: `${API_BASE_PATH}/workflows`,
-      body: GUIDED_EXPEDITION_WORKFLOW,
+      body: GUIDED_RUN_WORKFLOW,
     });
     expect(criado.status).toBe(201);
     const workflowId = ((await criado.json()) as { id: string }).id;

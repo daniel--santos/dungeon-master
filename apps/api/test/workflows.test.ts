@@ -25,7 +25,7 @@ import {
   createApprovalGate,
   createDatabase,
   type DatabaseHandle,
-  GUIDED_EXPEDITION_WORKFLOW,
+  GUIDED_RUN_WORKFLOW,
   LOCAL_USER_ID,
   transitionRun,
   transitionRunStep,
@@ -121,7 +121,7 @@ async function criarLoadout(): Promise<string> {
 }
 
 function definicao(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
-  return { ...GUIDED_EXPEDITION_WORKFLOW, ...overrides };
+  return { ...GUIDED_RUN_WORKFLOW, ...overrides };
 }
 
 async function criarWorkflow(overrides: Partial<WorkflowDefinition> = {}): Promise<string> {
@@ -409,7 +409,7 @@ describe("captura congelada", () => {
       method: "PUT",
       path: `${API_BASE_PATH}/workflows/${id}`,
       body: definicao({
-        steps: GUIDED_EXPEDITION_WORKFLOW.steps.filter((step) => step.key !== "validate"),
+        steps: GUIDED_RUN_WORKFLOW.steps.filter((step) => step.key !== "validate"),
       }),
     });
     expect(editado.status).toBe(200);
@@ -498,7 +498,7 @@ describe(`${API_BASE_PATH}/approval-gates`, () => {
       taskId: task.id,
       taskTitle: "Guiada",
       workflowId: id,
-      workflowName: GUIDED_EXPEDITION_WORKFLOW.name,
+      workflowName: GUIDED_RUN_WORKFLOW.name,
       workflowVersion: 1,
     });
     expect(pagina.items[0]?.workflowVersionId).toMatch(/^[0-9a-f-]{36}$/);

@@ -240,16 +240,21 @@ describe(`${API_BASE_PATH}/achievements/unlocks`, () => {
   });
 });
 
-describe(`GET ${API_BASE_PATH}/heroes/stats`, () => {
+describe(`GET ${API_BASE_PATH}/execution-stats`, () => {
   it("devolve as duas listas, vazias enquanto nenhuma Expedição terminou", async () => {
     await criarProjectETask();
     await projetar();
 
-    const response = await pedir({ app, method: "GET", path: `${API_BASE_PATH}/heroes/stats` });
+    const response = await pedir({ app, method: "GET", path: `${API_BASE_PATH}/execution-stats` });
     expect(response.status).toBe(200);
 
     const body = await corpo<{ agents: unknown[]; loadouts: unknown[] }>(response);
     expect(body.agents).toEqual([]);
     expect(body.loadouts).toEqual([]);
+  });
+
+  it("a rota antiga `/heroes/stats` não existe mais, sem alias (ADR 0003)", async () => {
+    const response = await pedir({ app, method: "GET", path: `${API_BASE_PATH}/heroes/stats` });
+    expect(response.status).toBe(404);
   });
 });
