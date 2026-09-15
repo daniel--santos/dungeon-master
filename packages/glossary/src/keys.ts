@@ -251,7 +251,7 @@ export const GLOSSARY_KEYS = [
   // no tema), as decisões e os diálogos, o resumo do Project, os lotes de
   // destilação e o estado de cada candidato. As frases inteiras moram aqui
   // porque citam as entidades no tema.
-  "knowledge.scribe",
+  "knowledge.distiller",
   "knowledge.type.fact",
   "knowledge.type.decision",
   "knowledge.type.discovery",
@@ -478,19 +478,19 @@ export const GLOSSARY_KEYS = [
   "harness.capability.dockerExecution",
   "harness.capability.mcpServers",
 
-  // ------------------------------------------------------------------ hero
+  // ------------------------------------------------------- executionStats
   // Prefixo próprio, e não `hall.`, porque estes são rótulos de número: eles
   // reaparecem na ficha do Agent e na tabela por Loadout, fora do Hall.
-  "hero.xp",
-  "hero.level",
-  "hero.toNextLevel",
-  "hero.expeditions",
-  "hero.victories",
-  "hero.defeats",
-  "hero.monstersSlain",
-  "hero.tokens",
-  "hero.topHarness",
-  "hero.byLoadout",
+  "executionStats.xp",
+  "executionStats.level",
+  "executionStats.toNextLevel",
+  "executionStats.runsTotal",
+  "executionStats.runsSucceeded",
+  "executionStats.runsFailed",
+  "agent.bugTasksCompleted",
+  "executionStats.tokens",
+  "executionStats.topHarness",
+  "executionStats.byLoadout",
 
   // ----------------------------------------------------------------- infra
   "infra.worker",
@@ -517,9 +517,9 @@ export const GLOSSARY_KEYS = [
 
   // ------------------------------------------------------------------ hall
   "hall.tab.achievements",
-  "hall.tab.heroes",
-  "hall.tab.bestiary",
-  "hall.tab.chronicle",
+  "hall.tab.agents",
+  "hall.tab.bugs",
+  "hall.tab.history",
   "hall.filter.origin",
   "hall.filter.rarity",
   "hall.filter.state",
@@ -527,10 +527,10 @@ export const GLOSSARY_KEYS = [
   "hall.unseen",
   "hall.progressOf",
   "hall.tierOf",
-  "hall.bestiary.defeatedAt",
-  "hall.bestiary.slayer",
-  "hall.bestiary.nemesis",
-  "hall.chronicle.loadMore",
+  "hall.bugs.resolvedAt",
+  "hall.bugs.resolvedBy",
+  "hall.bugs.reopenings",
+  "hall.history.loadMore",
 
   // --------------------------------------------------------------- loadout
   // O aviso da tela de Equipamento para um Harness sem permissão nativa por
