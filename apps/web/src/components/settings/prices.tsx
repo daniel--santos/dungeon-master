@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { BillingKindRecord, ModelRecord, ProviderRecord } from "@/lib/api-types";
-import { formatDate } from "@/lib/datetime";
+import { formatUtcDate } from "@/lib/datetime";
 import { useModels } from "@/lib/execution";
 import { useGlossary } from "@/lib/glossary";
 import { useModelPrices } from "@/lib/metrics";
@@ -127,7 +127,7 @@ export function PricesSection() {
                         <TableCell className="text-right tabular-nums">
                           {price.cacheWritePerMillion}
                         </TableCell>
-                        <TableCell>{formatDate(price.effectiveFrom)}</TableCell>
+                        <TableCell>{formatUtcDate(price.effectiveFrom)}</TableCell>
                       </>
                     )}
                     <TableCell className="text-right">

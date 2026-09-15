@@ -59,3 +59,40 @@ export function formatDateTime(iso: string): string {
   const at = new Date(iso);
   return Number.isNaN(at.getTime()) ? "—" : DATE_TIME.format(at);
 }
+
+const UTC_DATE = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+const UTC_DATE_TIME = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "UTC",
+});
+
+/**
+ * A data em **UTC**, para o que é datado em UTC no domínio.
+ *
+ * As vigências de preço e os dias do rollup de métricas são UTC por
+ * construção: o custo de um Run usa a vigência da data dele, e o `day` de
+ * `metric_daily` é um dia civil UTC. Mostrar essas datas no fuso do browser
+ * fazia uma vigência aberta em 1º de setembro aparecer como 31 de agosto para
+ * quem está em São Paulo — a mesma linha, com dois dias diferentes conforme
+ * quem olha.
+ */
+export function formatUtcDate(iso: string): string {
+  const at = new Date(iso);
+  return Number.isNaN(at.getTime()) ? "—" : UTC_DATE.format(at);
+}
+
+/** A data com hora e minuto, em UTC. Acompanha `formatUtcDate`. */
+export function formatUtcDateTime(iso: string): string {
+  const at = new Date(iso);
+  return Number.isNaN(at.getTime()) ? "—" : `${UTC_DATE_TIME.format(at)} UTC`;
+}

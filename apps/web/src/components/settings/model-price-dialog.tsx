@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { ModelPriceRecord, ModelRecord } from "@/lib/api-types";
-import { formatDateTime } from "@/lib/datetime";
+import { formatUtcDateTime } from "@/lib/datetime";
 import { useGlossary } from "@/lib/glossary";
 import { useModelPriceHistory, useSetModelPrice } from "@/lib/metrics";
 
@@ -276,7 +276,7 @@ function PriceHistory({
             <TableRow key={price.id}>
               <TableCell>
                 <span className="flex flex-col">
-                  <span>{formatDateTime(price.effectiveFrom)}</span>
+                  <span>{formatUtcDateTime(price.effectiveFrom)}</span>
                   {price.effectiveTo === null && (
                     <span className="text-muted-foreground text-[10.5px]">
                       {t("settings.prices.history.current")}
