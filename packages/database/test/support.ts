@@ -122,6 +122,13 @@ export async function criarEquipamento(
  */
 export async function limparExecucao(handle: DatabaseHandle): Promise<void> {
   for (const tabela of [
+    // A projeção da Fase 10A sai antes do que ela referencia; `model_price` é
+    // cadastro, mas some junto porque a massa de teste cria Models próprios.
+    "run_metric",
+    "metric_daily",
+    "metric_cursor",
+    "model_price",
+    "worker",
     "proposed_task",
     "knowledge_candidate",
     "knowledge_item",

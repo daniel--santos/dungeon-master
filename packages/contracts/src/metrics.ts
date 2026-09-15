@@ -279,6 +279,8 @@ export const ProviderCostSchema = z
   })
   .meta({ id: "ProviderCost", description: "O custo de um Provider na janela, com procedência." });
 
+export type ProviderCost = z.infer<typeof ProviderCostSchema>;
+
 export const ModelCostSchema = z
   .object({
     modelKey: z.string().describe("A chave gravada no Run, que sobrevive ao Model apagado."),
@@ -291,6 +293,8 @@ export const ModelCostSchema = z
     cost: MoneySchema,
   })
   .meta({ id: "ModelCost", description: "O custo de um Model na janela." });
+
+export type ModelCost = z.infer<typeof ModelCostSchema>;
 
 export const MetricCostsSchema = z
   .object({
