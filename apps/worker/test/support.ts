@@ -213,6 +213,9 @@ export const CONFIG_PADRAO: Omit<WorkerRuntimeConfig, "workerId"> = {
   shutdownTimeoutMs: 20_000,
   runIdleTimeoutMs: 30_000,
   runCompletionTimeoutMs: 60_000,
+  // Curto como o tique: o laço de presença só sobe quando o teste injeta a
+  // porta, e quando sobe o teste quer ver o batimento acontecer.
+  heartbeatIntervalMs: 50,
   worktreesRoot: undefined,
 };
 
@@ -299,6 +302,11 @@ export async function limpar(handle: DatabaseHandle): Promise<void> {
   for (const tabela of [
     // As tabelas da projeção vêm primeiro: `achievement_unlock` referencia
     // `run` e `task`, e o `on delete set null` só cobre a coluna, não a linha.
+    "run_metric",
+    "metric_daily",
+    "metric_cursor",
+    "model_price",
+    "worker",
     "achievement_unlock",
     "achievement_progress",
     "achievement_cursor",

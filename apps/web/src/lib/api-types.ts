@@ -196,12 +196,7 @@ export type RunMetricsRecord = components["schemas"]["RunMetrics"];
 export type RunContextMetricsRecord = components["schemas"]["RunContextMetrics"];
 export type MoneyRecord = components["schemas"]["Money"];
 export type CostStatusRecord = components["schemas"]["CostStatus"];
-// `BillingKind` tem `.meta({ id })` em `packages/contracts`, mas não vira
-// componente na spec: em todo lugar onde aparece ele é `.nullable()`, e o
-// gerador embute o enum dentro do pai em vez de referenciá-lo. O apelido sai
-// de dentro do Provider, como `ProviderAuthRecord` acima. Pendência de API
-// registrada no relatório da Fase 10B.
-export type BillingKindRecord = NonNullable<components["schemas"]["Provider"]["billingKind"]>;
+export type BillingKindRecord = components["schemas"]["BillingKind"];
 export type MetricDimensionRecord = components["schemas"]["MetricDimension"];
 export type MetricWindowRecord = components["schemas"]["MetricWindow"];
 export type SeriesMetricRecord = components["schemas"]["SeriesMetric"];

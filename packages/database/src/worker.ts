@@ -257,15 +257,38 @@ export async function markStaleWorkers(
  * tique, e não só na partida: o sobrevivente fecha o que o colega morto deixou
  * sem precisar ser reiniciado.
  */
+export const DEAD_WORKER_REASON_VALUES = [
+  "NO_WORKER_ROW",
+  "WORKER_STOPPED",
+  "WORKER_STALE",
+] as const;
+
+export type DeadWorkerReason = (typeof DEAD_WORKER_REASON_VALUES)[number];
+
+export interface RunWithDeadWorker {
+  readonly run: RunRow;
+  readonly reason: DeadWorkerReason;
+}
+
 export async function listRunRowsWithDeadWorker(
   db: DatabaseExecutor,
   input: { userId: string; workerId: string; staleAfterMs: number; now?: Date },
-): Promise<RunRow[]> {
+): Promise<RunWithDeadWorker[]> {
   const agora = input.now ?? new Date();
   const limite = new Date(agora.getTime() - input.staleAfterMs);
 
   const rows = await db
-    .select({ run: runs })
+    .select({
+      run: runs,
+      // O motivo vem do banco, e não de uma segunda inspeção em memória: quem
+      // chama precisa dele para decidir se ainda aplica a heurística de PID
+      // (`NO_WORKER_ROW`) ou se o silêncio já é prova suficiente.
+      reason: sql<DeadWorkerReason>`case
+        when ${workers.id} is null then 'NO_WORKER_ROW'
+        when ${workers.stoppedAt} is not null then 'WORKER_STOPPED'
+        else 'WORKER_STALE'
+      end`,
+    })
     .from(runs)
     .leftJoin(workers, and(eq(workers.id, runs.claimedBy), eq(workers.userId, runs.userId)))
     .where(
@@ -280,7 +303,7 @@ export async function listRunRowsWithDeadWorker(
     )
     .orderBy(runs.createdAt, runs.id);
 
-  return rows.map((row) => row.run);
+  return rows.map((row) => ({ run: row.run, reason: row.reason }));
 }
 
 export interface ListWorkerPresenceInput {

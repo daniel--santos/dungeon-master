@@ -53,6 +53,28 @@ export const BillingKindSchema = z.enum(BILLING_KIND_VALUES).meta({
 
 export type BillingKind = z.infer<typeof BillingKindSchema>;
 
+/**
+ * `BillingKind` ou nulo, **preservando a referência ao componente**.
+ *
+ * `BillingKindSchema.nullable()` parece a forma óbvia e é a errada aqui:
+ * `.nullable()` devolve um schema **novo**, sem o `id` do `.meta()`, e o
+ * gerador então embute o enum dentro do campo em vez de emitir um
+ * `$ref`. O componente `BillingKind` simplesmente não aparecia em
+ * `components.schemas`, e o cliente gerado ficava sem o tipo — que é o que a
+ * web precisa importar para escrever um `Record<BillingKind, ...>`.
+ *
+ * O sintoma é o mesmo dos schemas anônimos das fases anteriores, com outra
+ * causa: aqui o nome existe e nunca é usado. Uma união com `z.null()` mantém o
+ * membro nomeado e emite `anyOf: [$ref, null]`, que é o que o cliente sabe
+ * transformar em `BillingKind | null`.
+ *
+ * **Isto não é geral.** `HarnessAuthStatus` e `AchievementRarity` têm o mesmo
+ * problema desde as Fases 8B e 2.5, e ficam como estão: mudá-los é mexer na
+ * spec de duas fases fechadas, e a web já contorna derivando o tipo do pai
+ * (`AchievementDefinition["rarity"]`).
+ */
+export const NullableBillingKindSchema = z.union([BillingKindSchema, z.null()]);
+
 /** Código ISO 4217, três letras maiúsculas. */
 export const CurrencySchema = z
   .string()

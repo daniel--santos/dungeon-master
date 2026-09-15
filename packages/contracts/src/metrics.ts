@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { BillingKindSchema, CurrencySchema, MoneySchema } from "./billing.js";
+import { CurrencySchema, MoneySchema, NullableBillingKindSchema } from "./billing.js";
 import { ExecutionModeSchema } from "./execution-profile.js";
 import { HarnessKeySchema } from "./harness.js";
 import { RunCreatedBySchema, RunStatusSchema } from "./run.js";
@@ -261,7 +261,7 @@ export const ProviderCostSchema = z
   .object({
     providerId: z.uuid().nullable().describe("Nulo agrupa os Runs cujo Model não tem Provider."),
     providerName: z.string().nullable(),
-    billingKind: BillingKindSchema.nullable().describe("Nulo é desconhecido."),
+    billingKind: NullableBillingKindSchema.describe("Nulo é desconhecido."),
     monthlyCost: z.number().nullable().describe("A mensalidade declarada, em `currency`."),
     runs: z.number().int().nonnegative(),
     tokens: z.number().int().nonnegative().describe("Tokens dos Runs que reportaram."),

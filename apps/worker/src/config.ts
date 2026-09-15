@@ -28,6 +28,15 @@ export function newWorkerId(): string {
   return `${hostname()}#${String(process.pid)}#${newId()}`;
 }
 
+/**
+ * A versão da app do Worker, gravada na linha de presença.
+ *
+ * Vem do ambiente que o `pnpm` monta ao rodar o script; fora dele, o valor
+ * declarado no `package.json` do app. É informação de operação — "o que está no
+ * ar nesta máquina?" —, e por isso um palpite errado não pode derrubar nada.
+ */
+export const WORKER_VERSION = process.env["npm_package_version"]?.trim() || "0.0.0";
+
 export interface WorkerConfig {
   readonly databaseUrl: string;
   readonly nodeEnv: string;
@@ -47,6 +56,21 @@ export interface WorkerConfig {
   readonly tickIntervalMs: number;
   /** Teto de Runs em execução ao mesmo tempo neste processo. */
   readonly maxConcurrentRuns: number;
+  /**
+   * Intervalo do batimento de presença (Fase 10A).
+   *
+   * Dez segundos, e não um: o batimento é um `UPDATE` de uma linha, e o que ele
+   * responde — "este processo ainda está de pé?" — não muda de segundo a
+   * segundo. Um Worker é considerado `STALE` depois de três intervalos sem
+   * bater, então o prazo padrão é meio minuto: curto o bastante para o
+   * sobrevivente fechar os Runs de um colega morto sem demora perceptível, e
+   * longo o bastante para uma pausa de GC ou um disco lento não derrubarem um
+   * Worker vivo.
+   *
+   * A mesma variável é lida pela API, que precisa da mesma régua para dizer
+   * quem está `ONLINE`.
+   */
+  readonly heartbeatIntervalMs: number;
   /**
    * Prazo do desligamento gracioso.
    *
@@ -102,6 +126,7 @@ export function loadConfig(): WorkerConfig {
     workerId: newWorkerId(),
     tickIntervalMs: readInt("WORKER_TICK_INTERVAL_MS", 1_000, 50),
     maxConcurrentRuns: readInt("WORKER_MAX_CONCURRENT_RUNS", 2, 1),
+    heartbeatIntervalMs: readInt("WORKER_HEARTBEAT_INTERVAL_MS", 10_000, 1_000),
     shutdownTimeoutMs: readInt("WORKER_SHUTDOWN_TIMEOUT_MS", 30_000, 100),
     runIdleTimeoutMs: readInt("WORKER_RUN_IDLE_TIMEOUT_MS", 600_000, 1_000),
     runCompletionTimeoutMs: readInt("WORKER_RUN_COMPLETION_TIMEOUT_MS", 3_600_000, 1_000),

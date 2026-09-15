@@ -105,11 +105,12 @@ export const PROVIDER: ProviderRecord = {
   authEnvKeys: ["ANTHROPIC_API_KEY"],
   harnessKeys: ["CLAUDE_CODE", "PI"],
   docsUrl: "https://docs.anthropic.com/",
-  // O faturamento da Fase 10A: assinatura com mensalidade declarada, que é o
-  // caso em que o custo sai `ESTIMATED_SUBSCRIPTION` em vez de `PRICED`.
-  billingKind: "SUBSCRIPTION",
-  monthlyCost: 100,
-  currency: "USD",
+  // Cobrança desconhecida (Fase 10A): é o estado em que todo Provider já
+  // cadastrado nasce depois da migração `0020`, e o que a tela precisa saber
+  // desenhar sem inventar um custo.
+  billingKind: null,
+  monthlyCost: null,
+  currency: null,
   createdAt: EARLIER,
   updatedAt: EARLIER,
 };

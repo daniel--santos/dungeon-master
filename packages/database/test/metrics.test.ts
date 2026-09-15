@@ -685,7 +685,9 @@ describe("presença de Worker", () => {
       staleAfterMs: 30_000,
       now: new Date(Date.now() + 120_000),
     });
-    expect(orfaos.map((linha) => linha.id)).toEqual([run.id]);
+    expect(orfaos.map((linha) => ({ id: linha.run.id, reason: linha.reason }))).toEqual([
+      { id: run.id, reason: "WORKER_STALE" },
+    ]);
   });
 
   it("um Run reclamado por um Worker sem linha continua sendo órfão", async () => {
@@ -714,7 +716,9 @@ describe("presença de Worker", () => {
       workerId: WORKER_B,
       staleAfterMs: 30_000,
     });
-    expect(orfaos.map((linha) => linha.id)).toEqual([run.id]);
+    expect(orfaos.map((linha) => ({ id: linha.run.id, reason: linha.reason }))).toEqual([
+      { id: run.id, reason: "NO_WORKER_ROW" },
+    ]);
   });
 
   it("os tiles contam Workers por estado", async () => {

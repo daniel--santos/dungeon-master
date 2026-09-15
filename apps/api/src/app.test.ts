@@ -124,6 +124,61 @@ describe("spec OpenAPI", () => {
     expect(Object.keys(paths)).toContain(`${API_BASE_PATH}/health`);
   });
 
+  /**
+   * Um schema com `.meta({ id })` que nunca vira componente é um nome que não
+   * existe para quem consome o cliente gerado.
+   *
+   * `BillingKindSchema.nullable()` produzia exatamente isso: `.nullable()`
+   * devolve um schema **novo**, sem o `id`, e o gerador embutia o enum dentro
+   * de cada campo. `components.schemas.BillingKind` não existia, e a web não
+   * tinha como escrever um `Record<BillingKind, …>`. A união com `z.null()`
+   * mantém o membro nomeado.
+   *
+   * A lista é dos nomes da Fase 10A. `HarnessAuthStatus` e `AchievementRarity`
+   * têm o mesmo sintoma desde as Fases 8B e 2.5 e ficam de fora de propósito:
+   * consertá-los muda a spec de duas fases fechadas.
+   */
+  it("os schemas da Fase 10A viram componentes nomeados, e não enums embutidos", () => {
+    const document = buildOpenApiDocument();
+    const componentes = (document["components"] as { schemas: Record<string, unknown> }).schemas;
+
+    for (const nome of [
+      "BillingKind",
+      "CostStatus",
+      "Money",
+      "MetricDimension",
+      "MetricWindow",
+      "SeriesMetric",
+      "MetricsOverview",
+      "MetricSeries",
+      "MetricSeriesLine",
+      "MetricSeriesPoint",
+      "MetricCosts",
+      "ProviderCost",
+      "ModelCost",
+      "RunMetrics",
+      "RunToolCalls",
+      "RunContextMetrics",
+      "ModelPrice",
+      "ModelPriceList",
+      "SetModelPrice",
+      "WorkerList",
+      "WorkerPresence",
+      "WorkerHarness",
+      "WorkerStatus",
+    ]) {
+      expect(Object.keys(componentes)).toContain(nome);
+    }
+
+    // E o campo anulável **referencia** o componente, em vez de repetir o enum.
+    const provider = componentes["Provider"] as {
+      properties: { billingKind: { anyOf?: { $ref?: string }[] } };
+    };
+    expect(provider.properties.billingKind.anyOf?.[0]?.$ref).toBe(
+      "#/components/schemas/BillingKind",
+    );
+  });
+
   it("a UI de documentação responde em /api/v1/docs", async () => {
     const response = await appWithDatabase(true).request(`${API_BASE_PATH}/docs`);
 

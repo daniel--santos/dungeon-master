@@ -1,5 +1,7 @@
 import "./load-env.js";
 
+import { hostname } from "node:os";
+
 import { createDatabase, LOCAL_USER_ID, pingDatabase } from "@dungeon-master/database";
 import {
   createAgentRuntime,
@@ -11,9 +13,11 @@ import { antigravityHostAdapters } from "@dungeon-master/runtime-antigravity";
 import { dockerAdapters, hostAdapters } from "@dungeon-master/runtime-sandcastle";
 
 import { createAchievementProjector } from "./achievements.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, WORKER_VERSION } from "./config.js";
 import { createKnowledgeDistiller, createDistillerRuntime } from "./distiller.js";
 import { createLogger } from "./logger.js";
+import { createMetricProjector } from "./metrics.js";
+import { createWorkerPresence } from "./presence.js";
 import { createWorker } from "./worker.js";
 
 const config = loadConfig();
@@ -70,6 +74,43 @@ logger.info(
     : "projetor de Conquistas falhou no boot; o Worker sobe assim mesmo",
 );
 
+// O projetor de métricas (Fase 10A). Como o de Conquistas, entra por injeção e
+// nunca alcança a execução de um Run: um erro dele vira log, o cursor não
+// avança e o passe seguinte refaz o mesmo lote.
+const metrics = createMetricProjector({
+  db: database.db,
+  userId: LOCAL_USER_ID,
+  logger,
+});
+
+// O primeiro passe das métricas põe em dia o que aconteceu enquanto nenhum
+// Worker estava no ar. Como o das Conquistas, falhar aqui não impede o boot: o
+// cursor não avançou e o laço tenta de novo.
+const metricas = await metrics.run();
+
+logger.info(
+  { runs: metricas.runs, buckets: metricas.buckets, error: metricas.error },
+  metricas.ok
+    ? "métricas em dia"
+    : "projetor de métricas falhou no boot; o Worker sobe assim mesmo",
+);
+
+// A presença deste processo. É ela que transforma "o dono deste Run está vivo?"
+// de palpite em consulta — e o que faz um Worker sobrevivente fechar, no tique,
+// os Runs que um colega morto deixou abertos.
+const presence = createWorkerPresence({
+  db: database.db,
+  userId: LOCAL_USER_ID,
+  workerId: config.workerId,
+  hostname: hostname(),
+  pid: process.pid,
+  version: WORKER_VERSION,
+  nodeVersion: process.version,
+  capacity: config.maxConcurrentRuns,
+  heartbeatIntervalMs: config.heartbeatIntervalMs,
+  logger,
+});
+
 const worker = createWorker({
   db: database.db,
   pool: database.pool,
@@ -85,6 +126,8 @@ const worker = createWorker({
   // (planejamento v0.4, Fase 3B).
   adapters: [...hostAdapters(), ...antigravityHostAdapters(), ...dockerAdapters()],
   achievements,
+  metrics,
+  presence,
   // A URL do banco vai ao servidor MCP do Grimório pelo ambiente do harness
   // (Fase 7): o mesmo banco deste Worker, escopado por Project e usuário.
   databaseUrl: config.databaseUrl,

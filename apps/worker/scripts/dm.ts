@@ -8,9 +8,14 @@ import {
   listForgedAchievements,
   listKnowledgeItems,
   listProjectsWithPendingCandidates,
+  listWorkerPresence,
   LOCAL_USER_ID,
+  countRunMetrics,
+  emitMetricsUpdated,
   rebuildAchievements,
+  rebuildMetrics,
   resolveDatabaseUrl,
+  staleAfterMs,
 } from "@dungeon-master/database";
 import {
   createAgentRuntime,
@@ -36,6 +41,13 @@ import { createKnowledgeDistiller, createDistillerRuntime } from "../src/distill
  *   no meio de um lote do mesmo Project, este é pulado.
  * - `pnpm dm knowledge status` mostra os pendentes por Project, os itens por
  *   estado, os últimos lotes e as forjadas em revisão.
+ * - `pnpm dm metrics rebuild` zera `run_metric`, `metric_daily` e o cursor, e
+ *   reprojeta tudo do início (planejamento v0.4, Fase 10A). **Não** apaga
+ *   `model_price`: preço é cadastro digitado pelo usuário, não projeção, e
+ *   apagá-lo aqui transformaria uma reconstrução de leitura numa perda de dado
+ *   que ninguém tem como recuperar.
+ * - `pnpm dm metrics status` mostra quantas linhas de projeção existem e a
+ *   presença de cada Worker conhecido.
  *
  * Mora no Worker, e não no pacote de banco, porque quem projeta e quem
  * destila é o Worker: os comandos leem o mesmo catálogo e montam o mesmo
@@ -75,6 +87,11 @@ try {
     if (comando === "distill") await destilar(handle.db, resto);
     else if (comando === "status") await status(handle.db);
     else fail(`comando desconhecido para knowledge: ${comando ?? "(nenhum)"}.`);
+  } else if (assunto === "metrics") {
+    if (resto.length > 0) fail(`argumento a mais: ${resto.join(" ")}.`);
+    if (comando === "rebuild") await reconstruirMetricas(handle.db);
+    else if (comando === "status") await statusDasMetricas(handle.db);
+    else fail(`comando desconhecido para metrics: ${comando ?? "(nenhum)"}.`);
   } else {
     fail(`assunto desconhecido: ${assunto}.`);
   }
@@ -233,5 +250,67 @@ async function status(db: Database): Promise<void> {
     console.log(`  ${forjada.id} «${forjada.name}» (${forjada.provenance.kind})`);
     console.log(`    ${forjada.description}`);
     console.log(`    ${forjada.flavor}`);
+  }
+}
+
+// --------------------------------------------------------------------------
+
+async function reconstruirMetricas(db: Database): Promise<void> {
+  const antes = await countRunMetrics(db, { userId: LOCAL_USER_ID });
+  console.log(
+    `[dm] reconstruindo métricas: ${String(antes.runs)} Run(s) projetado(s) e ` +
+      `${String(antes.buckets)} linha(s) de rollup no banco`,
+  );
+
+  const relatorio = await rebuildMetrics(db, { userId: LOCAL_USER_ID });
+
+  if (!relatorio.ok) {
+    // O contrato do projetor é não lançar, então a falha chega como relatório.
+    console.error(`[dm] a reconstrução falhou: ${relatorio.error ?? "erro desconhecido"}`);
+    console.error("[dm] o cursor não avançou; nada foi perdido.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const depois = await countRunMetrics(db, { userId: LOCAL_USER_ID });
+  console.log(
+    `[dm] reconstrução concluída: ${String(relatorio.runs)} Run(s) reprojetado(s), ` +
+      `${String(depois.buckets)} linha(s) de rollup`,
+  );
+  console.log("[dm] os preços de Model não foram tocados: preço é cadastro, não projeção.");
+
+  // Um anúncio só, no fim: a tela de métricas é um agregado, e uma reconstrução
+  // muda tudo de uma vez.
+  await emitMetricsUpdated(db, {
+    userId: LOCAL_USER_ID,
+    runs: relatorio.runs,
+    buckets: depois.buckets,
+  });
+}
+
+async function statusDasMetricas(db: Database): Promise<void> {
+  const contagem = await countRunMetrics(db, { userId: LOCAL_USER_ID });
+  console.log(
+    `[dm] projeção: ${String(contagem.runs)} Run(s) em run_metric, ` +
+      `${String(contagem.buckets)} linha(s) em metric_daily`,
+  );
+
+  // A régua é a mesma do Worker e da API; sem a variável, o padrão de dez
+  // segundos. Um `status` que usasse outra régua diria "STALE" sobre um Worker
+  // que o Worker ao lado considera vivo.
+  const intervalo = Number.parseInt(process.env["WORKER_HEARTBEAT_INTERVAL_MS"] ?? "", 10);
+  const limite = staleAfterMs(
+    Number.isFinite(intervalo) && intervalo >= 1_000 ? intervalo : 10_000,
+  );
+
+  const workers = await listWorkerPresence(db, { userId: LOCAL_USER_ID, staleAfterMs: limite });
+  console.log(`[dm] workers conhecidos: ${workers.length === 0 ? "nenhum" : ""}`);
+  for (const worker of workers) {
+    console.log(
+      `  ${worker.status.padEnd(7)} ${worker.id} pid=${String(worker.pid)} ` +
+        `capacidade=${String(worker.capacity)} runs=${String(worker.runningRuns)} ` +
+        `último batimento em ${worker.lastHeartbeatAt}` +
+        (worker.stoppedAt === null ? "" : ` (desligado em ${worker.stoppedAt})`),
+    );
   }
 }

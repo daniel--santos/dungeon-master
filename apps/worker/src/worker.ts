@@ -30,7 +30,9 @@ import { createDispatchLoop, type DispatchLoop } from "./dispatch.js";
 import { executeRun } from "./execute-run.js";
 import { startIdleLoop, type IdleLoop } from "./idle-loop.js";
 import type { Logger } from "./logger.js";
+import type { MetricProjector } from "./metrics.js";
 import { runBootPreflight, type PreflightOutcome } from "./preflight.js";
+import { harnessSummary, type WorkerPresence } from "./presence.js";
 import { reconcileOrphanRuns, type ReconciledRun } from "./reconcile.js";
 import { toRunEventInput, workerDiagnostic, workerRunCancelled } from "./run-events.js";
 import { createRunOutcomeWriter } from "./run-writers.js";
@@ -65,6 +67,8 @@ export interface WorkerRuntimeConfig {
   readonly tickIntervalMs: number;
   readonly maxConcurrentRuns: number;
   readonly shutdownTimeoutMs: number;
+  /** Intervalo do batimento de presença e da varredura de órfãos (Fase 10A). */
+  readonly heartbeatIntervalMs: number;
   readonly runIdleTimeoutMs: number;
   readonly runCompletionTimeoutMs: number;
   readonly worktreesRoot?: string | undefined;
@@ -88,6 +92,19 @@ export interface CreateWorkerOptions {
    * um teste de fila não deveria tocar arquivo, e a Fase 2.5 é cosmética.
    */
   readonly achievements?: AchievementProjector;
+  /**
+   * O projetor de métricas (Fase 10A). Sem ele o Worker roda igual, sem
+   * projetar — mesma injeção, mesmo motivo do projetor de Conquistas.
+   */
+  readonly metrics?: MetricProjector;
+  /**
+   * A presença deste processo (Fase 10A).
+   *
+   * Sem ela o Worker roda como antes: nenhuma linha em `worker`, e a
+   * reconciliação cai no fallback de PID para todo Run. Entra por injeção
+   * porque um teste de fila não deveria escrever presença.
+   */
+  readonly presence?: WorkerPresence;
   /** Injetáveis para teste; o padrão monta os de produção. */
   readonly runtime?: AgentRuntime;
   readonly workspace?: WorkspaceManager;
@@ -217,6 +234,7 @@ export function createWorker(options: CreateWorkerOptions): Worker {
         });
 
   let loop: IdleLoop | undefined;
+  let presenceLoop: IdleLoop | undefined;
   let stopping = false;
   let queueListener: PgNotifyListener | undefined;
   let cancelListener: PgNotifyListener | undefined;
@@ -239,6 +257,50 @@ export function createWorker(options: CreateWorkerOptions): Worker {
       options.achievements?.trigger();
     } catch (error) {
       logger?.error({ err: error }, "projetor de Conquistas falhou ao ser disparado; o laço segue");
+    }
+    try {
+      options.metrics?.trigger();
+    } catch (error) {
+      logger?.error({ err: error }, "projetor de métricas falhou ao ser disparado; o laço segue");
+    }
+  };
+
+  /**
+   * O batimento, a varredura de silenciosos e a reconciliação, no mesmo passo.
+   *
+   * Num laço próprio, com o intervalo do batimento, e não no tique de um
+   * segundo: a pergunta "algum colega morreu?" não muda de segundo a segundo, e
+   * a consulta é uma junção sobre a tabela de Runs. Rodar junto do batimento
+   * também mantém a ordem certa — este processo se declara vivo **antes** de
+   * julgar os outros.
+   *
+   * Nunca lança: presença é coordenação, e a fila não pode cair por causa dela.
+   */
+  const bater = async (): Promise<void> => {
+    if (options.presence === undefined || stopping) return;
+
+    await options.presence.beat();
+
+    try {
+      const reconciliados = await reconcileOrphanRuns({
+        db,
+        userId,
+        workerId: config.workerId,
+        staleAfterMs: options.presence.staleAfterMs,
+        ...(logger === undefined ? {} : { logger }),
+      });
+
+      if (reconciliados.length > 0) {
+        logger?.warn(
+          { runs: reconciliados.map((run) => ({ runId: run.runId, reason: run.reason })) },
+          "runs de um worker morto encerrados como FAILED retentável",
+        );
+        // O desfecho acabou de ser gravado: projetar agora coloca esses Runs nas
+        // métricas sem esperar o passe seguinte.
+        projetar();
+      }
+    } catch (error) {
+      logger?.error({ err: error }, "falha na varredura de runs órfãos; o laço segue");
     }
   };
 
@@ -622,10 +684,17 @@ export function createWorker(options: CreateWorkerOptions): Worker {
         );
       }
 
+      // A presença é gravada **antes** da reconciliação: este processo precisa
+      // estar declarado vivo antes de julgar quem não está, senão um colega que
+      // varra no mesmo instante encontraria um Run já reclamado por um Worker
+      // sem linha e o fecharia debaixo de nós.
+      await options.presence?.register(harnessSummary(preflight));
+
       const reconciled = await reconcileOrphanRuns({
         db,
         userId,
         workerId: config.workerId,
+        staleAfterMs: options.presence?.staleAfterMs ?? config.heartbeatIntervalMs * 3,
         ...(logger === undefined ? {} : { logger }),
       });
 
@@ -702,6 +771,20 @@ export function createWorker(options: CreateWorkerOptions): Worker {
           logger?.error({ err: error, tick }, "erro no tique do worker; o laço continua");
         },
       });
+
+      // Um laço próprio para a presença (Fase 10A). O tique da fila é de um
+      // segundo porque cancelamento precisa ser observado rápido; o batimento é
+      // de dez, porque "este processo está de pé?" não muda nesse ritmo — e a
+      // varredura que o acompanha é uma junção sobre a maior tabela de estado.
+      if (options.presence !== undefined && presenceLoop === undefined) {
+        presenceLoop = startIdleLoop({
+          intervalMs: config.heartbeatIntervalMs,
+          onTick: bater,
+          onError: (error, tick) => {
+            logger?.error({ err: error, tick }, "erro no batimento do worker; o laço continua");
+          },
+        });
+      }
     },
 
     pump,
@@ -715,6 +798,7 @@ export function createWorker(options: CreateWorkerOptions): Worker {
       queueListener?.stop();
       cancelListener?.stop();
       await loop?.stop();
+      await presenceLoop?.stop();
 
       // post-mortem #5 (08/09/2026): o desligamento **iniciava** Runs em vez de
       // encerrá-los. Um `pump` disparado pelo `NOTIFY` (`void drainNow()`, que
@@ -736,6 +820,12 @@ export function createWorker(options: CreateWorkerOptions): Worker {
         logger?.error({ err: error }, "projetor de Conquistas falhou no desligamento");
       }
 
+      try {
+        await options.metrics?.drain();
+      } catch (error) {
+        logger?.error({ err: error }, "projetor de métricas falhou no desligamento");
+      }
+
       // Cancelar antes de esperar: o `drain` só termina quando os Runs em voo
       // acabarem, e um agente de quarenta minutos não acaba sozinho porque o
       // Worker pediu licença.
@@ -750,27 +840,35 @@ export function createWorker(options: CreateWorkerOptions): Worker {
         logger?.error({ err: error }, "falha ao fechar os runs cancelados que esperavam na fila");
       }
 
-      if (emVoo.size === 0) return;
+      if (emVoo.size > 0) {
+        const prazo = new Promise<"timeout">((resolve) => {
+          const handle = setTimeout(() => resolve("timeout"), config.shutdownTimeoutMs);
+          handle.unref?.();
+        });
 
-      const prazo = new Promise<"timeout">((resolve) => {
-        const handle = setTimeout(() => resolve("timeout"), config.shutdownTimeoutMs);
-        handle.unref?.();
-      });
+        const resultado = await Promise.race([
+          capacity.drain().then(() => "drained" as const),
+          prazo,
+        ]);
 
-      const resultado = await Promise.race([
-        capacity.drain().then(() => "drained" as const),
-        prazo,
-      ]);
-
-      if (resultado === "timeout") {
-        // Os Runs que sobraram ficam para a reconciliação da próxima partida:
-        // forçar uma escrita terminal aqui gravaria um desfecho que ninguém
-        // confirmou, que é justamente o que o contrato proíbe.
-        logger?.error(
-          { timeoutMs: config.shutdownTimeoutMs, remaining: [...emVoo.keys()] },
-          "runs ainda em voo no fim do prazo de desligamento",
-        );
+        if (resultado === "timeout") {
+          // Os Runs que sobraram ficam para a reconciliação da próxima partida:
+          // forçar uma escrita terminal aqui gravaria um desfecho que ninguém
+          // confirmou, que é justamente o que o contrato proíbe.
+          logger?.error(
+            { timeoutMs: config.shutdownTimeoutMs, remaining: [...emVoo.keys()] },
+            "runs ainda em voo no fim do prazo de desligamento",
+          );
+        }
       }
+
+      // `stopped_at` **por último**, depois de os Runs em voo terem sido
+      // fechados ou terem estourado o prazo (Fase 10A). Gravá-lo antes diria a
+      // um colega vivo que os Runs deste Worker são órfãos enquanto ele ainda
+      // estava escrevendo o desfecho deles — e o colega os fecharia como
+      // `FAILED` por cima de um `SUCCEEDED` a caminho. Depois do prazo, o que
+      // sobrou é órfão de verdade, e o colega deve mesmo fechá-lo.
+      await options.presence?.stop();
     },
   };
 }
