@@ -447,6 +447,46 @@ describe("preço de Model", () => {
     expect([400, 422]).toContain(recusado.status);
     expect(recusado.headers.get("content-type")).toContain(PROBLEM_CONTENT_TYPE);
   });
+
+  it("o faturamento volta gravado, e sair de assinatura leva a mensalidade junto", async () => {
+    const providers = await corpo<{ items: { id: string }[] }>(
+      await pedir({ app, method: "GET", path: `${API_BASE_PATH}/providers` }),
+    );
+    const provider = providers.items[0];
+    if (provider === undefined) throw new Error("O seed não deixou nenhum Provider.");
+
+    // O `PATCH` respondia `200` com o Provider intacto: o handler validava os
+    // três campos e não os repassava ao repositório. Um `200` que não grava é
+    // pior do que um `400` — a tela mostra "salvo" e o número nunca aparece.
+    const assinatura = await corpo<{
+      billingKind: string | null;
+      monthlyCost: number | null;
+      currency: string | null;
+    }>(
+      await pedir({
+        app,
+        method: "PATCH",
+        path: `${API_BASE_PATH}/providers/${provider.id}`,
+        body: { billingKind: "SUBSCRIPTION", monthlyCost: 123.45, currency: "USD" },
+      }),
+    );
+
+    expect(assinatura.billingKind).toBe("SUBSCRIPTION");
+    expect(assinatura.monthlyCost).toBe(123.45);
+    expect(assinatura.currency).toBe("USD");
+
+    const porToken = await corpo<{ monthlyCost: number | null; currency: string | null }>(
+      await pedir({
+        app,
+        method: "PATCH",
+        path: `${API_BASE_PATH}/providers/${provider.id}`,
+        body: { billingKind: "PER_TOKEN" },
+      }),
+    );
+
+    expect(porToken.monthlyCost).toBeNull();
+    expect(porToken.currency).toBeNull();
+  });
 });
 
 describe("GET /api/v1/metrics/costs e /api/v1/workers", () => {

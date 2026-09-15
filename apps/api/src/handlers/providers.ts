@@ -53,6 +53,16 @@ export function registerProviderRoutes(app: OpenAPIHono, providers: ProvidersPor
     if (body.harnessKeys !== undefined) patch.harnessKeys = body.harnessKeys;
     if (Object.hasOwn(body, "docsUrl")) patch.docsUrl = body.docsUrl ?? null;
 
+    // Cobrança (Fase 10A). O contrato aceita os três campos e o repositório
+    // sabe gravá-los desde a 10A, mas este handler não os repassava: o `PATCH`
+    // respondia `200` com o Provider intacto, e a tela de preços da 10B
+    // "salvava" sem gravar nada. `hasOwn` e não `!== undefined` porque `null` é
+    // um valor com sentido nos três — é assim que um Provider volta a ser
+    // desconhecido, ou perde a mensalidade.
+    if (Object.hasOwn(body, "billingKind")) patch.billingKind = body.billingKind ?? null;
+    if (Object.hasOwn(body, "monthlyCost")) patch.monthlyCost = body.monthlyCost ?? null;
+    if (Object.hasOwn(body, "currency")) patch.currency = body.currency ?? null;
+
     const updated = await providers.update(id, patch);
     if (updated === null) throw notFoundProblem("Provider", id);
     if (!updated.ok) throw registryFailureProblem(updated.failure);
