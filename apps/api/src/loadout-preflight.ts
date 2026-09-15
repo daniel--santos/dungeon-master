@@ -16,7 +16,7 @@ import {
   findModelRow,
   findProviderForHarness,
   findProviderRow,
-  isKnowledgeScribeLoadout,
+  isKnowledgeDistillerLoadout,
   type ProviderRow,
   type Result,
   type RunWriteFailure,
@@ -206,7 +206,7 @@ export function createLoadoutPreflight(options: LoadoutPreflightOptions): Loadou
         executionProfile: { mode: profile.mode },
         intent: {
           resume: input.resume,
-          requiresStructuredOutput: await isKnowledgeScribeLoadout(db, { userId, loadout }),
+          requiresStructuredOutput: await isKnowledgeDistillerLoadout(db, { userId, loadout }),
         },
       });
 

@@ -167,12 +167,12 @@ export function createMemoryContextStore(
       if (options.failOn?.loadTaskLineage) throw options.failOn.loadTaskLineage;
       const task = tasks.get(taskId);
       if (task === undefined) return { parent: null, dependencies: [] };
-      const daCampanha = (outra: MemoryTask | undefined): MemoryTask | undefined =>
+      const doProjeto = (outra: MemoryTask | undefined): MemoryTask | undefined =>
         outra !== undefined && outra.projectId === task.projectId ? outra : undefined;
       const parent =
-        task.parentTaskId === null ? undefined : daCampanha(tasks.get(task.parentTaskId));
+        task.parentTaskId === null ? undefined : doProjeto(tasks.get(task.parentTaskId));
       const dependencies = task.dependsOn
-        .map((id) => daCampanha(tasks.get(id)))
+        .map((id) => doProjeto(tasks.get(id)))
         .filter((dependency): dependency is MemoryTask => dependency !== undefined)
         .map(toTaskSource);
       return { parent: parent === undefined ? null : toTaskSource(parent), dependencies };

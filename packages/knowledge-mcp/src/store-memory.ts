@@ -161,16 +161,16 @@ export function createInMemoryKnowledgeToolStore(
       // post-mortem #19 em `packages/database/src/run-context.ts`): uma aresta
       // entre Campanhas gravada por uma versão anterior não traz o título de
       // uma Task de outra Campanha para dentro do `get_task_context`.
-      const daCampanha = (t: MemoryTask): boolean =>
+      const doProjeto = (t: MemoryTask): boolean =>
         t.userId === userId && t.projectId === projectId;
-      const porId = new Map(tasks.filter(daCampanha).map((t) => [t.id, t]));
+      const porId = new Map(tasks.filter(doProjeto).map((t) => [t.id, t]));
       const parent = task.parentTaskId == null ? undefined : porId.get(task.parentTaskId);
       const dependencies = (task.dependsOn ?? [])
         .map((id) => porId.get(id))
         .filter((t): t is MemoryTask => t !== undefined)
         .map(toRef);
       const dependents = tasks
-        .filter((t) => daCampanha(t) && (t.dependsOn ?? []).includes(task.id))
+        .filter((t) => doProjeto(t) && (t.dependsOn ?? []).includes(task.id))
         .map(toRef);
 
       return {

@@ -70,7 +70,7 @@ import { runSteps } from "./schema/run-step.js";
 import { taskDependencies, tasks } from "./schema/task.js";
 import { insertRunEvent, type RunEventInput } from "./run-event.js";
 import { persistRunResultOutputs } from "./run-result-outputs.js";
-import { KNOWLEDGE_SCRIBE_LOADOUT_NAME } from "./seed-knowledge.js";
+import { KNOWLEDGE_DISTILLER_LOADOUT_NAME } from "./seed-knowledge.js";
 import { readUserSettings } from "./user-setting.js";
 import { captureWorkflowVersion } from "./workflow.js";
 import { releaseWorkspaceLock } from "./workspace-lock.js";
@@ -623,16 +623,16 @@ export function defaultRunPrompt(task: { title: string; description: string | nu
  * É o que decide `requiresStructuredOutput` no capability matching: o Escriba
  * responde JSON validado, e sem `structuredOutput` o lote não tem como ser
  * lido. Vale o escolhido em `knowledge.loadoutId` ou, na falta dele, o
- * semeado pelo nome — a mesma regra de `findKnowledgeScribeLoadout`.
+ * semeado pelo nome — a mesma regra de `findKnowledgeDistillerLoadout`.
  */
-export async function isKnowledgeScribeLoadout(
+export async function isKnowledgeDistillerLoadout(
   db: DatabaseExecutor,
   input: { userId: string; loadout: { id: string; name: string } },
 ): Promise<boolean> {
   const settings = await readUserSettings(db, { userId: input.userId });
   const escolhido = settings["knowledge.loadoutId"];
   if (escolhido !== null) return escolhido === input.loadout.id;
-  return input.loadout.name === KNOWLEDGE_SCRIBE_LOADOUT_NAME;
+  return input.loadout.name === KNOWLEDGE_DISTILLER_LOADOUT_NAME;
 }
 
 /**
@@ -993,7 +993,7 @@ export async function createRunWithin(
       executionProfile: { mode: profile.mode },
       intent: {
         resume: origem !== null,
-        requiresStructuredOutput: await isKnowledgeScribeLoadout(tx, {
+        requiresStructuredOutput: await isKnowledgeDistillerLoadout(tx, {
           userId: input.userId,
           loadout,
         }),

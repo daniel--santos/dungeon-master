@@ -4,7 +4,7 @@ import {
   appendDashboardEvent,
   checkBudgetsForRunningRun,
   getActiveRunByPath,
-  isKnowledgeScribeLoadout,
+  isKnowledgeDistillerLoadout,
   recordDomainEvent,
   updateRunExecutionFields,
   type ClaimedRun,
@@ -100,7 +100,7 @@ export async function prepareRun(input: PrepareRunInput): Promise<PreparationOut
   const check = checkRunCapabilities({
     run,
     measured,
-    requiresStructuredOutput: await isKnowledgeScribeLoadout(db, {
+    requiresStructuredOutput: await isKnowledgeDistillerLoadout(db, {
       userId,
       loadout: { id: run.loadoutSnapshot.loadoutId, name: run.loadoutSnapshot.name },
     }),

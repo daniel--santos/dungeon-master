@@ -12,7 +12,7 @@ import { dockerAdapters, hostAdapters } from "@dungeon-master/runtime-sandcastle
 
 import { createAchievementProjector } from "./achievements.js";
 import { loadConfig } from "./config.js";
-import { createKnowledgeDistiller, createScribeRuntime } from "./distiller.js";
+import { createKnowledgeDistiller, createDistillerRuntime } from "./distiller.js";
 import { createLogger } from "./logger.js";
 import { createWorker } from "./worker.js";
 
@@ -114,7 +114,7 @@ const distiller = config.distiller.enabled
       userId: LOCAL_USER_ID,
       logger,
       config: config.distiller,
-      runtime: createScribeRuntime({
+      runtime: createDistillerRuntime({
         db: database.db,
         userId: LOCAL_USER_ID,
         logger,
