@@ -172,15 +172,15 @@ export function detectNotableResult(facts: NotableFacts): NotableResult | null {
 
   const primeira = vitorias.find((run) => facts.firstVictoryRunIds.includes(run.runId));
   if (primeira !== undefined) {
-    const guilda = cleanTitle(primeira.harnessName);
+    const harnessName = cleanTitle(primeira.harnessName);
     return {
       kind: "FIRST_HARNESS_VICTORY",
       runId: primeira.runId,
       taskId: primeira.taskId,
       detail: `Primeiro Run bem-sucedido com o Harness ${primeira.harnessKey}: ${primeira.runId}.`,
-      themedFact: `A primeira Expedição vitoriosa da Guilda ${guilda}, na Missão «${cleanTitle(primeira.taskTitle)}».`,
-      plainName: plain(`Primeiro Run bem-sucedido com ${guilda}`),
-      plainDescription: plain(`Concluir o primeiro Run bem-sucedido com o Harness ${guilda}.`),
+      themedFact: `A primeira Expedição vitoriosa da Guilda ${harnessName}, na Missão «${cleanTitle(primeira.taskTitle)}».`,
+      plainName: plain(`Primeiro Run bem-sucedido com ${harnessName}`),
+      plainDescription: plain(`Concluir o primeiro Run bem-sucedido com o Harness ${harnessName}.`),
       icon: "swords",
       rarity: "RARE",
       condition: {

@@ -7,8 +7,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   CONDITION_PREDICATES,
   XP_BONUS_FIRST_DOCKER,
-  XP_BONUS_MONSTER,
-  XP_PER_VICTORY,
+  XP_BONUS_BUG_TASK,
+  XP_PER_SUCCEEDED_RUN,
   catalogFile,
   levelForXp,
   loadCatalog,
@@ -282,8 +282,8 @@ describe("carga fail-closed", () => {
 
 describe("experiência e nível", () => {
   it("expõe as constantes da Fase 2.5A", () => {
-    expect(XP_PER_VICTORY).toBe(100);
-    expect(XP_BONUS_MONSTER).toBe(50);
+    expect(XP_PER_SUCCEEDED_RUN).toBe(100);
+    expect(XP_BONUS_BUG_TASK).toBe(50);
     expect(XP_BONUS_FIRST_DOCKER).toBe(150);
   });
 

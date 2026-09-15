@@ -134,7 +134,7 @@ A Web deve controlar e visualizar:
 - decisões;
 - aprovações;
 - custos e métricas futuras;
-- conquistas e estatísticas de herói (Hall dos Heróis).
+- conquistas e estatísticas de Agent e de Loadout (o "Hall dos Heróis" do tema).
 
 Portanto, o chat é um recurso da plataforma, não sua estrutura principal.
 

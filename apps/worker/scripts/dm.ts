@@ -22,7 +22,7 @@ import { antigravityHostAdapters } from "@dungeon-master/runtime-antigravity";
 import { hostAdapters } from "@dungeon-master/runtime-sandcastle";
 
 import { loadAchievementCatalog } from "../src/achievements.js";
-import { createKnowledgeDistiller, createScribeRuntime } from "../src/distiller.js";
+import { createKnowledgeDistiller, createDistillerRuntime } from "../src/distiller.js";
 
 /**
  * `pnpm dm <assunto> <comando>` — a linha de comando do operador.
@@ -146,7 +146,7 @@ async function destilar(db: Database, args: readonly string[]): Promise<void> {
   const distiller = createKnowledgeDistiller({
     db,
     userId: LOCAL_USER_ID,
-    runtime: createScribeRuntime({ db, userId: LOCAL_USER_ID, runtime }),
+    runtime: createDistillerRuntime({ db, userId: LOCAL_USER_ID, runtime }),
   });
 
   const pendentes = await listProjectsWithPendingCandidates(db, { userId: LOCAL_USER_ID });

@@ -23,7 +23,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, i
 
 import {
   createKnowledgeDistiller,
-  createScribeRuntime,
+  createDistillerRuntime,
   type KnowledgeDistiller,
 } from "../src/distiller.js";
 import { abrirBanco, esperar, exigirOk, limpar, montarCenario, USER } from "./support.js";
@@ -243,7 +243,7 @@ describe("o laço do Distiller", () => {
     distiller = createKnowledgeDistiller({
       db,
       userId: USER,
-      runtime: createScribeRuntime({
+      runtime: createDistillerRuntime({
         db,
         userId: USER,
         runtime,

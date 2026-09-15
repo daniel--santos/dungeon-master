@@ -6,7 +6,7 @@ import { z } from "zod";
 import {
   achievementIcon,
   achievementKeys,
-  heroKeys,
+  executionStatsKeys,
   RARITY_COLOR,
   RARITY_LABEL,
   STATE_LABEL,
@@ -54,7 +54,7 @@ const UnlockPayloadSchema = z.object({
 export type UnlockPayload = z.infer<typeof UnlockPayloadSchema>;
 
 export const ACHIEVEMENT_UNLOCKED = "achievement.unlocked";
-export const HERO_STATS_UPDATED = "hero_stats.updated";
+export const EXECUTION_STATS_UPDATED = "execution_stats.updated";
 
 /** O que o toast mostra, resolvido no tema ativo. Separado para poder ser testado. */
 export interface UnlockToastContent {
@@ -171,7 +171,7 @@ function UnlockToast({ payload }: { payload: UnlockPayload }) {
  * qualquer tela, e é justamente esse o critério de conclusão da Fase 2.5.
  *
  * A invalidação é do prefixo inteiro das Conquistas, e não de uma chave exata,
- * porque o evento não diz qual filtro está aberto na grade. `hero_stats` entra
+ * porque o evento não diz qual filtro está aberto na grade. `execution_stats` entra
  * junto no seu próprio evento: um desbloqueio e um ganho de experiência vêm do
  * mesmo passe do projetor, mas nem todo passe produz os dois.
  */
@@ -181,15 +181,15 @@ export function useAchievementToasts(): void {
 
   useEffect(() => {
     return addListener((event) => {
-      if (event.type === HERO_STATS_UPDATED) {
-        void queryClient.invalidateQueries({ queryKey: heroKeys.stats });
+      if (event.type === EXECUTION_STATS_UPDATED) {
+        void queryClient.invalidateQueries({ queryKey: executionStatsKeys.stats });
         return;
       }
 
       if (event.type !== ACHIEVEMENT_UNLOCKED) return;
 
       void queryClient.invalidateQueries({ queryKey: achievementKeys.all });
-      void queryClient.invalidateQueries({ queryKey: heroKeys.stats });
+      void queryClient.invalidateQueries({ queryKey: executionStatsKeys.stats });
 
       const parsed = UnlockPayloadSchema.safeParse(event.payload);
       if (!parsed.success) {

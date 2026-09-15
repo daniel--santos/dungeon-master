@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/datetime";
 import { useGlossary } from "@/lib/glossary";
-import { useTaskReopenings } from "@/lib/heroes";
+import { useTaskReopenings } from "@/lib/execution-stats";
 import { useProjects } from "@/lib/projects";
 import { useRuns } from "@/lib/runs";
 import { useTasks } from "@/lib/tasks";
@@ -36,9 +36,9 @@ import { useTasks } from "@/lib/tasks";
  * reaberto — a célula mostra o traço em vez de um zero.
  */
 
-const DEFEATED_PAGE_SIZE = 100;
+const RESOLVED_PAGE_SIZE = 100;
 
-export function BestiaryTab() {
+export function BugsTab() {
   const { t, format } = useGlossary();
 
   const tasks = useTasks({
@@ -46,16 +46,16 @@ export function BestiaryTab() {
     status: ["COMPLETED"],
     sort: "updatedAt",
     order: "desc",
-    pageSize: DEFEATED_PAGE_SIZE,
+    pageSize: RESOLVED_PAGE_SIZE,
   });
 
   // Vitoriosos, do mais recente para o mais antigo: é o que a lista já ordena.
-  const runs = useRuns({ status: ["SUCCEEDED"], pageSize: DEFEATED_PAGE_SIZE });
-  const projects = useProjects({ pageSize: DEFEATED_PAGE_SIZE });
+  const runs = useRuns({ status: ["SUCCEEDED"], pageSize: RESOLVED_PAGE_SIZE });
+  const projects = useProjects({ pageSize: RESOLVED_PAGE_SIZE });
   const reopenings = useTaskReopenings("BUG");
 
   /** O primeiro Run vitorioso de cada Task, que é o que a derrotou. */
-  const slayer = useMemo(() => {
+  const resolvedBy = useMemo(() => {
     const byTask = new Map<string, string>();
     for (const run of runs.data?.items ?? []) {
       if (!byTask.has(run.taskId)) byTask.set(run.taskId, run.id);
@@ -88,7 +88,7 @@ export function BestiaryTab() {
   if (items.length === 0) {
     return (
       <Panel>
-        <EmptyState icon={BugIcon} title={t("hall.tab.bestiary")}>
+        <EmptyState icon={BugIcon} title={t("hall.tab.bugs")}>
           {format("Nada do tipo {bug} foi concluído ainda.", { bug: t("entity.task.kind.bug") })}
         </EmptyState>
       </Panel>
@@ -99,26 +99,26 @@ export function BestiaryTab() {
     <Panel>
       <PanelHeader
         aside={format("{count} no total", { count: tasks.data.total })}
-        title={t("hall.tab.bestiary")}
+        title={t("hall.tab.bugs")}
       />
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead className="px-4">{t("entity.task")}</TableHead>
             <TableHead className="w-56 px-4">{t("entity.project")}</TableHead>
-            <TableHead className="w-32 px-4">{t("hall.bestiary.defeatedAt")}</TableHead>
-            <TableHead className="w-52 px-4">{t("hall.bestiary.slayer")}</TableHead>
-            <TableHead className="w-28 px-4">{t("hall.bestiary.nemesis")}</TableHead>
+            <TableHead className="w-32 px-4">{t("hall.bugs.resolvedAt")}</TableHead>
+            <TableHead className="w-52 px-4">{t("hall.bugs.resolvedBy")}</TableHead>
+            <TableHead className="w-28 px-4">{t("hall.bugs.reopenings")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.map((task) => {
-            const runId = slayer.get(task.id);
+            const runId = resolvedBy.get(task.id);
             const at = task.completedAt ?? task.updatedAt;
             const reopened = reopenCount.get(task.id);
 
             return (
-              <TableRow key={task.id} data-bestiary-task={task.id}>
+              <TableRow key={task.id} data-bugs-task={task.id}>
                 <TableCell className="px-4">
                   <Link
                     className="hover:text-foreground block truncate underline-offset-2 hover:underline"
@@ -153,7 +153,7 @@ export function BestiaryTab() {
 
                 <TableCell
                   className="text-muted-foreground w-28 px-4 text-[12.5px]"
-                  data-bestiary-reopened={reopened ?? 0}
+                  data-bugs-reopened={reopened ?? 0}
                 >
                   {reopened === undefined
                     ? "—"

@@ -45,7 +45,7 @@ import {
   transitionRun,
   writeRunTerminalStatus,
 } from "../src/run.js";
-import { findKnowledgeScribeLoadout, seedKnowledgeLoadout } from "../src/seed-knowledge.js";
+import { findKnowledgeDistillerLoadout, seedKnowledgeLoadout } from "../src/seed-knowledge.js";
 import { createTask } from "../src/task.js";
 import {
   criarEquipamento,
@@ -104,7 +104,7 @@ async function limparConquistas(): Promise<void> {
     "achievement_unlock",
     "achievement_progress",
     "achievement_cursor",
-    "hero_stats",
+    "execution_stats",
     "achievement_definition",
   ]) {
     await handle.pool.query(`delete from ${tabela} where user_id = $1`, [USER]);
@@ -956,14 +956,17 @@ describe("infraestrutura do Distiller", () => {
     const segundo = await seedKnowledgeLoadout(handle.db, { userId: USER });
     expect(segundo).toEqual({ loadoutId: primeiro.loadoutId, created: false, reason: null });
 
-    const porNome = await findKnowledgeScribeLoadout(handle.db, { userId: USER, loadoutId: null });
+    const porNome = await findKnowledgeDistillerLoadout(handle.db, {
+      userId: USER,
+      loadoutId: null,
+    });
     expect(porNome?.id).toBe(primeiro.loadoutId);
-    const escolhido = await findKnowledgeScribeLoadout(handle.db, {
+    const escolhido = await findKnowledgeDistillerLoadout(handle.db, {
       userId: USER,
       loadoutId: equipamento.loadoutId,
     });
     expect(escolhido?.id).toBe(equipamento.loadoutId);
-    const inexistente = await findKnowledgeScribeLoadout(handle.db, {
+    const inexistente = await findKnowledgeDistillerLoadout(handle.db, {
       userId: USER,
       loadoutId: "01996d00-0000-7000-8000-0000000000ff",
     });

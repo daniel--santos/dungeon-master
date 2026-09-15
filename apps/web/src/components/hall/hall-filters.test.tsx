@@ -29,9 +29,12 @@ describe("filtros do Hall", () => {
       state: undefined,
     });
 
-    expect(
-      hallSearchSchema.parse({ origin: "TEMPLATE", state: "HIDDEN", tab: "bestiary" }),
-    ).toEqual({ tab: "bestiary", origin: "TEMPLATE", rarity: undefined, state: "HIDDEN" });
+    expect(hallSearchSchema.parse({ origin: "TEMPLATE", state: "HIDDEN", tab: "bugs" })).toEqual({
+      tab: "bugs",
+      origin: "TEMPLATE",
+      rarity: undefined,
+      state: "HIDDEN",
+    });
 
     // Um valor inválido cai no padrão em vez de derrubar a rota.
     expect(hallSearchSchema.parse({ rarity: "MITICA" }).rarity).toBeUndefined();
@@ -54,7 +57,7 @@ describe("filtros do Hall", () => {
 
   it("a aba não entra na query: trocar de aba não refaz a consulta", () => {
     const semAba = hallSearchSchema.parse({ rarity: "EPIC" });
-    const comAba = hallSearchSchema.parse({ rarity: "EPIC", tab: "chronicle" });
+    const comAba = hallSearchSchema.parse({ rarity: "EPIC", tab: "history" });
 
     expect(toAchievementQuery(comAba)).toEqual(toAchievementQuery(semAba));
   });

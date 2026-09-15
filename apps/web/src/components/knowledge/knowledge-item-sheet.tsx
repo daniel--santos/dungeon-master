@@ -88,7 +88,7 @@ export function KnowledgeItemSheet({ itemId, projectId, onOpenChange }: Knowledg
   const covered = useKnowledgeItems(provenance?.coveredItemIds ?? []);
   const task = useTask(provenance?.taskId ?? null);
 
-  function seal(current: KnowledgeItemRecord) {
+  function approveItem(current: KnowledgeItemRecord) {
     approve.mutate(
       { id: current.id },
       {
@@ -185,7 +185,7 @@ export function KnowledgeItemSheet({ itemId, projectId, onOpenChange }: Knowledg
                           data-knowledge-decision="approve"
                           disabled={approve.isPending}
                           onClick={() => {
-                            seal(data);
+                            approveItem(data);
                           }}
                           size="xs"
                           style={{

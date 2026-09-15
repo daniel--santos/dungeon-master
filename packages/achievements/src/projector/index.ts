@@ -10,6 +10,6 @@
  */
 
 export * from "./event.js";
-export * from "./hero-stats.js";
+export * from "./execution-stats.js";
 export * from "./instantiate.js";
 export * from "./progress.js";

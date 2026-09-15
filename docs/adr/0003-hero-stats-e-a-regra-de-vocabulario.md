@@ -1,11 +1,42 @@
 # ADR 0003 — `hero_stats` e a regra de vocabulário temático
 
-- **Status**: proposto — aguarda decisão do dono do projeto
-- **Data**: 08/09/2026
+- **Status**: **aceito** em 15/09/2026 e executado na branch `feat/adr-0003-vocabulario`
+  (migração `0019_vocabulario_canonico_execution_stats`)
+- **Data**: 08/09/2026 (proposta); 15/09/2026 (decisão e execução)
 - **Contexto**: rodada de correção documentação × código de 08/09/2026; seção 1 do
   [`CLAUDE.md`](../../CLAUDE.md) ("o tema é um skin e **nunca** entra no código").
 - **Decide**: se a projeção de Conquistas é renomeada para vocabulário canônico, ou se a
   regra da seção 1 passa a admitir explicitamente o que ela hoje proíbe.
+
+## Decisão do dono do projeto (15/09/2026)
+
+**O tema de RPG é só texto.** Todo identificador de código, banco, contrato, evento, rota,
+chave de JSON e chave de glossário passa a ser canônico, e a regra da seção 1 do `CLAUDE.md`
+passa a falar de conceito, não de grafia, com o teste operacional da seção 2 escrito nela.
+
+**Uma exceção, nomeada: `Achievement` continua como termo do produto.** Tipos, tabelas
+`achievement_*`, rotas `/achievements`, eventos `achievement.*`, chaves do catálogo
+(`monster_slayer`, `hero_veteran`), tipos de forjada (`VICTORY_STREAK`) e os nomes e textos
+das Conquistas não mudam. A Conquista é o tema; o que ela conta não é.
+
+**Nomes executados: a proposta literal da seção "O nome canônico proposto".** A tabela
+virou `execution_stats` (e não `agent_stats`, que mentiria sobre as linhas de escopo
+`LOADOUT`), o tipo `execution_stats_scope`, as colunas `runs_total`, `runs_succeeded`,
+`runs_failed`, `bug_tasks_completed` e `docker_runs_succeeded`; os tipos `ExecutionStats`,
+`ExecutionStatsResponse` e `ExecutionStatsScope`; a rota `GET /api/v1/execution-stats` (sem
+alias para a antiga: a API é local e single-user); o evento `execution_stats.updated`; as
+chaves de glossário `executionStats.*`. **`xp` e `level` ficam**, como recomendado abaixo e
+como a seção 14 do planejamento registra: vocabulário genérico de gamificação, não do tema.
+A auditoria de execução encontrou, além do que este ADR levantou, as abas do Hall na URL
+(`?tab=heroes|bestiary|chronicle` → `agents|bugs|history`), as chaves
+`hall.bestiary.*`/`hall.chronicle.*`, a chave `knowledge.scribe` e os identificadores
+`*Scribe*` do Distiller, o `RunOutcome` `VICTORY|DEFEAT` do projetor puro e o campo
+`monster`; tudo foi renomeado pelo mesmo critério. O registro completo está no bloco
+"Execução do ADR 0003" do [planejamento](../planejamento_dungeon_master_v0.4.md).
+
+O texto abaixo é a proposta original de 08/09/2026, mantida como foi escrita.
+
+---
 
 Este ADR **não** executa nada. Ele levanta a superfície, mede o custo e recomenda. A
 mudança atravessa banco, contrato, API e web ao mesmo tempo e é decisão do dono do

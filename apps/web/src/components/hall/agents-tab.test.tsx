@@ -3,10 +3,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { HeroesTab } from "@/components/hall/heroes-tab";
+import { AgentsTab } from "@/components/hall/agents-tab";
 import { api } from "@/lib/api";
 import { useGlossaryStore } from "@/lib/glossary";
-import { levelPercent, type HeroStatsRecord } from "@/lib/heroes";
+import { levelPercent, type ExecutionStatsRecord } from "@/lib/execution-stats";
 import { ok } from "@/test/execution-fixtures";
 
 /**
@@ -22,17 +22,17 @@ vi.mock("@/lib/api", () => ({
 
 const client = vi.mocked(api);
 
-function stats(overrides: Partial<HeroStatsRecord>): HeroStatsRecord {
+function stats(overrides: Partial<ExecutionStatsRecord>): ExecutionStatsRecord {
   return {
     scopeId: "0199aaaa-0000-7000-8000-000000000001",
     name: "Arquiteta",
     xp: 300,
     level: 3,
     xpToNextLevel: 100,
-    expeditions: 12,
-    victories: 9,
-    defeats: 2,
-    monstersSlain: 5,
+    runsTotal: 12,
+    runsSucceeded: 9,
+    runsFailed: 2,
+    bugTasksCompleted: 5,
     tokens: 128_000,
     topHarness: "Claude Code",
     ...overrides,
@@ -60,7 +60,7 @@ function montar(body: unknown) {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <HeroesTab />
+      <AgentsTab />
     </QueryClientProvider>,
   );
 }
@@ -77,33 +77,33 @@ describe("aba de Heróis", () => {
     montar(RESPONSE);
 
     expect(await screen.findByText("Arquiteta")).toBeTruthy();
-    expect(screen.getByText(`${dnd["hero.level"]} 3`)).toBeTruthy();
-    expect(screen.getByText(dnd["hero.byLoadout"])).toBeTruthy();
+    expect(screen.getByText(`${dnd["executionStats.level"]} 3`)).toBeTruthy();
+    expect(screen.getByText(dnd["executionStats.byLoadout"])).toBeTruthy();
     expect(screen.getByText("Equipe de ataque")).toBeTruthy();
 
     // Os rótulos de número são do glossário, e mudam com o tema.
-    expect(screen.getAllByText(dnd["hero.monstersSlain"]).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(dnd["hero.victories"]).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(dnd["executionStats.bugTasksCompleted"]).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(dnd["executionStats.runsSucceeded"]).length).toBeGreaterThan(0);
 
     act(() => {
       useGlossaryStore.getState().setTheme("plain");
     });
 
-    expect(screen.getAllByText(plain["hero.monstersSlain"]).length).toBeGreaterThan(0);
-    expect(screen.queryByText(dnd["hero.monstersSlain"])).toBeNull();
+    expect(screen.getAllByText(plain["executionStats.bugTasksCompleted"]).length).toBeGreaterThan(0);
+    expect(screen.queryByText(dnd["executionStats.bugTasksCompleted"])).toBeNull();
   });
 
   it("uma entidade apagada continua na lista, com o nome vazio", async () => {
     montar({ agents: [stats({ name: null, topHarness: null })], loadouts: [] });
 
-    expect(await screen.findByText(`${dnd["hero.level"]} 3`)).toBeTruthy();
-    expect(screen.getByText(dnd["hero.topHarness"])).toBeTruthy();
+    expect(await screen.findByText(`${dnd["executionStats.level"]} 3`)).toBeTruthy();
+    expect(screen.getByText(dnd["executionStats.topHarness"])).toBeTruthy();
   });
 
   it("sem nenhuma execução terminada, diz isso em vez de mostrar zeros", async () => {
     montar({ agents: [], loadouts: [] });
 
-    expect(await screen.findByText(dnd["hall.tab.heroes"])).toBeTruthy();
+    expect(await screen.findByText(dnd["hall.tab.agents"])).toBeTruthy();
   });
 });
 

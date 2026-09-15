@@ -24,22 +24,44 @@ WorkflowVersion · WorkflowStep · RunStep · ApprovalGate · Artifact · Knowle
 KnowledgeCandidate · Decision · ExecutionProfile · UserSetting · Achievement
 ```
 
-Nunca escreva `campanha`, `missao`, `expedicao`, `heroi`, `guilda`, `grimorio`,
-`espolio` ou `monstro` em nome de tipo, tabela, coluna, evento, rota ou chave de JSON.
-Esse vocabulário existe apenas como **label da interface**, vindo de
-`packages/glossary`, e nos nomes e textos de Conquistas.
+Nunca escreva o vocabulário temático — Campanha, Missão, Expedição, Herói, Guilda,
+Grimório, Espólio, Monstro, Masmorra, Ritual, Selo, Escriba, Arsenal, Relíquia, Patrono,
+Édito, Tesouro, Sentinela, Rédea, Bestiário, Crônica — **nem a tradução dele para outro
+idioma** em nome de tipo, tabela, coluna, evento, rota, chave de JSON, chave de glossário,
+nome de arquivo ou de componente, chave de query, parâmetro de URL ou atributo de teste. A
+regra é sobre o **conceito**, não sobre a grafia: `hero`, `expedition` e `monstersSlain`
+são tão temáticos quanto `heroi`, `expedicao` e `monstro`. Esse vocabulário existe apenas
+como **label da interface**, vindo de `packages/glossary`, e nos nomes e textos de
+Conquistas.
+
+O teste operacional é o da seção 2: **se trocar o glossário `dnd` pelo `plain` mudaria o
+label, mas não mudaria o identificador, o identificador está do lado errado da linha.**
+Foi assim que `hero_stats`, `GET /api/v1/heroes/stats`, a coluna `monsters_slain` e as
+chaves `hero.*` entraram na Fase 2.5: esta regra listava grafias em português, o autor
+conferiu a lista, não achou `hero` e seguiu — enquanto o `plain.ts` já traduzia
+`hero.expeditions` para "Execuções". Uma regra que um dicionário desarma não é uma regra.
+O [ADR 0003](./docs/adr/0003-hero-stats-e-a-regra-de-vocabulario.md) renomeou tudo para
+`execution_stats` e reescreveu este parágrafo.
+
+**Exceção, decidida pelo dono do projeto: `Achievement` é termo do produto**, não do
+tema. Os tipos, as tabelas `achievement_*`, as rotas `/achievements`, os eventos
+`achievement.*`, as chaves do catálogo (`monster_slayer`, `hero_veteran`), os tipos de
+forjada (`VICTORY_STREAK`) e os nomes e textos das Conquistas ficam como estão: a
+Conquista **é** o tema. A exceção não se estende a nada que a Conquista conte —
+`execution_stats` conta Runs de um Agent ou de um Loadout, e por isso é canônica. `xp` e
+`level` ficam: são vocabulário genérico de gamificação, não do tema de RPG de mesa.
 
 Convenções por camada:
 
-| Camada                    | Convenção                     | Exemplo                               |
-| ------------------------- | ----------------------------- | ------------------------------------- |
-| Tipos e schemas Zod       | `PascalCase` singular         | `RunEvent`, `TaskKind`                |
-| Campos de contrato e JSON | `camelCase`                   | `harnessSessionId`, `executionMode`   |
-| Tabelas e colunas         | `snake_case` singular         | `run_event`, `harness_session_id`     |
-| Enums de domínio          | `SCREAMING_SNAKE_CASE`        | `RUNNING`, `WAITING_APPROVAL`, `BUG`  |
-| Nomes de `ExecutionEvent` | `PascalCase`                  | `RunCompleted`, `RunTimedOut`         |
-| Nomes de evento de painel | `recurso.acao` em snake_case  | `task.proposed`, `hero_stats.updated` |
-| Rotas                     | `/api/v1/<recurso-no-plural>` | `/api/v1/tasks`                       |
+| Camada                    | Convenção                     | Exemplo                                    |
+| ------------------------- | ----------------------------- | ------------------------------------------ |
+| Tipos e schemas Zod       | `PascalCase` singular         | `RunEvent`, `TaskKind`                     |
+| Campos de contrato e JSON | `camelCase`                   | `harnessSessionId`, `executionMode`        |
+| Tabelas e colunas         | `snake_case` singular         | `run_event`, `harness_session_id`          |
+| Enums de domínio          | `SCREAMING_SNAKE_CASE`        | `RUNNING`, `WAITING_APPROVAL`, `BUG`       |
+| Nomes de `ExecutionEvent` | `PascalCase`                  | `RunCompleted`, `RunTimedOut`              |
+| Nomes de evento de painel | `recurso.acao` em snake_case  | `task.proposed`, `execution_stats.updated` |
+| Rotas                     | `/api/v1/<recurso-no-plural>` | `/api/v1/tasks`                            |
 
 São duas famílias de evento, e cada uma tem a sua convenção. `ExecutionEvent`
 (`packages/contracts/src/execution-event.ts`) é o que sai de um agente em execução, em

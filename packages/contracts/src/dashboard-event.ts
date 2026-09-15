@@ -112,12 +112,12 @@ export type RegistryChangedPayload = z.infer<typeof RegistryChangedPayloadSchema
  */
 export const ACHIEVEMENT_EVENT_TYPE_VALUES = [
   "achievement.unlocked",
-  "hero_stats.updated",
+  "execution_stats.updated",
 ] as const;
 
 export const AchievementEventTypeSchema = z.enum(ACHIEVEMENT_EVENT_TYPE_VALUES).meta({
   id: "AchievementEventType",
-  description: "Eventos de projeção das Conquistas: desbloqueio e estatísticas de Herói.",
+  description: "Eventos de projeção das Conquistas: desbloqueio e estatísticas de Agent.",
 });
 
 export type AchievementEventType = z.infer<typeof AchievementEventTypeSchema>;

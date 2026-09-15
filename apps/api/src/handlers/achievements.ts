@@ -1,4 +1,4 @@
-import type { HeroStatsResponse } from "@dungeon-master/contracts";
+import type { ExecutionStatsResponse } from "@dungeon-master/contracts";
 import type { OpenAPIHono } from "@hono/zod-openapi";
 
 import { resolvePage } from "../pagination.js";
@@ -13,7 +13,7 @@ import {
   forgedAchievementDiscardRoute,
   forgedAchievementRenameRoute,
   forgedAchievementsListRoute,
-  heroStatsRoute,
+  executionStatsRoute,
 } from "../routes/achievements.js";
 import { forgedAchievementFailureProblem, notFoundProblem } from "./failures.js";
 
@@ -62,8 +62,10 @@ export function registerAchievementRoutes(
     return c.json(unlock, 200);
   });
 
-  app.openapi(heroStatsRoute, async (c) => {
-    const stats: HeroStatsResponse = await achievements.heroStats();
+  // ADR 0003: recurso próprio (`/execution-stats`), e não `/agents/stats`, que
+  // colidiria com `/agents/{id}` e mentiria sobre as linhas por Loadout.
+  app.openapi(executionStatsRoute, async (c) => {
+    const stats: ExecutionStatsResponse = await achievements.executionStats();
     return c.json(stats, 200);
   });
 

@@ -228,7 +228,7 @@ export const plain: Record<GlossaryKey, string> = {
   "graph.openProposals": "Tem propostas em aberto",
 
   // -------------------------------------------------------------- knowledge
-  "knowledge.scribe": "Distiller",
+  "knowledge.distiller": "Distiller",
   "knowledge.type.fact": "Fato",
   "knowledge.type.decision": "Decisão",
   "knowledge.type.discovery": "Descoberta",
@@ -464,17 +464,17 @@ export const plain: Record<GlossaryKey, string> = {
   "harness.capability.dockerExecution": "Docker",
   "harness.capability.mcpServers": "Servidores MCP por Run",
 
-  // ------------------------------------------------------------------ hero
-  "hero.xp": "Pontos",
-  "hero.level": "Nível",
-  "hero.toNextLevel": "Para o próximo nível",
-  "hero.expeditions": "Execuções",
-  "hero.victories": "Sucessos",
-  "hero.defeats": "Falhas",
-  "hero.monstersSlain": "Bugs resolvidos",
-  "hero.tokens": "Tokens",
-  "hero.topHarness": "Harness mais usado",
-  "hero.byLoadout": "Por Loadout",
+  // ------------------------------------------------------- executionStats
+  "executionStats.xp": "Pontos",
+  "executionStats.level": "Nível",
+  "executionStats.toNextLevel": "Para o próximo nível",
+  "executionStats.runsTotal": "Execuções",
+  "executionStats.runsSucceeded": "Sucessos",
+  "executionStats.runsFailed": "Falhas",
+  "executionStats.bugTasksCompleted": "Bugs resolvidos",
+  "executionStats.tokens": "Tokens",
+  "executionStats.topHarness": "Harness mais usado",
+  "executionStats.byLoadout": "Por Loadout",
 
   // ----------------------------------------------------------------- infra
   "infra.worker": "Worker",
@@ -498,9 +498,9 @@ export const plain: Record<GlossaryKey, string> = {
 
   // ------------------------------------------------------------------ hall
   "hall.tab.achievements": "Conquistas",
-  "hall.tab.heroes": "Agentes",
-  "hall.tab.bestiary": "Bugs resolvidos",
-  "hall.tab.chronicle": "Histórico",
+  "hall.tab.agents": "Agentes",
+  "hall.tab.bugs": "Bugs resolvidos",
+  "hall.tab.history": "Histórico",
   "hall.filter.origin": "Origem",
   "hall.filter.rarity": "Raridade",
   "hall.filter.state": "Estado",
@@ -508,10 +508,10 @@ export const plain: Record<GlossaryKey, string> = {
   "hall.unseen": "Ainda não visto",
   "hall.progressOf": "{current} de {target}",
   "hall.tierOf": "Tier {label}",
-  "hall.bestiary.defeatedAt": "Concluído em",
-  "hall.bestiary.slayer": "Execução que resolveu",
-  "hall.bestiary.nemesis": "Reincidente",
-  "hall.chronicle.loadMore": "Carregar mais",
+  "hall.bugs.resolvedAt": "Concluído em",
+  "hall.bugs.resolvedBy": "Execução que resolveu",
+  "hall.bugs.reopenings": "Reincidente",
+  "hall.history.loadMore": "Carregar mais",
 
   // --------------------------------------------------------------- loadout
   "loadout.noNativePermissions.title": "Este harness não impõe permissão por comando",

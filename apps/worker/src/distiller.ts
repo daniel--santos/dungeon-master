@@ -15,7 +15,7 @@ import {
   type Database,
   findAgentRow,
   findHarnessRow,
-  findKnowledgeScribeLoadout,
+  findKnowledgeDistillerLoadout,
   listProjectsWithPendingCandidates,
   newId,
   readUserSettings,
@@ -98,7 +98,7 @@ export interface CreateKnowledgeDistillerOptions {
   readonly pool?: Pool;
   /**
    * O runtime que executa o Escriba. Em produção é o `AgentRuntime` do
-   * Worker, traduzido por `createScribeRuntime`; em teste, um roteirizado.
+   * Worker, traduzido por `createDistillerRuntime`; em teste, um roteirizado.
    */
   readonly runtime: KnowledgeAgentRuntime;
   /** Injetável para teste; o padrão é o store de banco. */
@@ -170,7 +170,7 @@ export function createKnowledgeDistiller(
 
   const lote = async (input: DistillOnceInput): Promise<DistillProjectOutcome> => {
     const atual = await settings();
-    const loadout = await findKnowledgeScribeLoadout(db, {
+    const loadout = await findKnowledgeDistillerLoadout(db, {
       userId,
       loadoutId: atual["knowledge.loadoutId"],
     });
@@ -326,7 +326,7 @@ export function createKnowledgeDistiller(
 // O Escriba sobre o AgentRuntime
 // --------------------------------------------------------------------------
 
-export interface ScribeRuntimeOptions {
+export interface DistillerRuntimeOptions {
   readonly db: Database;
   readonly userId: string;
   readonly runtime: AgentRuntime;
@@ -347,7 +347,7 @@ export interface ScribeRuntimeOptions {
  * vira "nenhuma ferramenta liberada". **Nunca lança**: toda falha volta em
  * `ok: false`, e é o Distiller quem a registra no lote.
  */
-export function createScribeRuntime(options: ScribeRuntimeOptions): KnowledgeAgentRuntime {
+export function createDistillerRuntime(options: DistillerRuntimeOptions): KnowledgeAgentRuntime {
   const { db, userId, runtime, logger } = options;
   const timeouts = options.timeouts ?? {
     idleMs: DEFAULT_DISTILLER_CONFIG.llmIdleTimeoutMs,
@@ -365,7 +365,7 @@ export function createScribeRuntime(options: ScribeRuntimeOptions): KnowledgeAge
       let workspace: string | undefined;
       try {
         const settings = await readUserSettings(db, { userId });
-        const loadout = await findKnowledgeScribeLoadout(db, {
+        const loadout = await findKnowledgeDistillerLoadout(db, {
           userId,
           loadoutId: settings["knowledge.loadoutId"],
         });

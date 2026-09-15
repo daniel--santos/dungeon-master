@@ -28,10 +28,10 @@ import {
  * escolhe outro Loadout; nulo usa este.
  */
 
-export const KNOWLEDGE_SCRIBE_LOADOUT_NAME = "Escriba do Grimório" as const;
-export const KNOWLEDGE_SCRIBE_AGENT_NAME = "Escriba do Grimório" as const;
+export const KNOWLEDGE_DISTILLER_LOADOUT_NAME = "Escriba do Grimório" as const;
+export const KNOWLEDGE_DISTILLER_AGENT_NAME = "Escriba do Grimório" as const;
 
-const SCRIBE_INSTRUCTIONS = [
+const DISTILLER_INSTRUCTIONS = [
   "Você é o Escriba do Grimório: transforma o que os agentes aprenderam nas Expedições em",
   "páginas curtas, independentes do contexto e classificadas, e consolida o resumo do",
   "projeto. Você não executa tarefas de código: não leia arquivos, não rode comandos, não",
@@ -46,7 +46,7 @@ export interface KnowledgeSeedResult {
 }
 
 /** O primeiro Harness ligado que produz resultado estruturado, na ordem da semente. */
-async function findScribeHarness(db: DatabaseExecutor, userId: string) {
+async function findDistillerHarness(db: DatabaseExecutor, userId: string) {
   const rows = await db
     .select()
     .from(harnesses)
@@ -64,10 +64,10 @@ export async function seedKnowledgeLoadout(
   const [existente] = await db
     .select()
     .from(loadouts)
-    .where(and(eq(loadouts.userId, userId), eq(loadouts.name, KNOWLEDGE_SCRIBE_LOADOUT_NAME)));
+    .where(and(eq(loadouts.userId, userId), eq(loadouts.name, KNOWLEDGE_DISTILLER_LOADOUT_NAME)));
   if (existente !== undefined) return { loadoutId: existente.id, created: false, reason: null };
 
-  const harness = await findScribeHarness(db, userId);
+  const harness = await findDistillerHarness(db, userId);
   if (harness === null) {
     return {
       loadoutId: null,
@@ -93,16 +93,16 @@ export async function seedKnowledgeLoadout(
   const [agente] = await db
     .select()
     .from(agents)
-    .where(and(eq(agents.userId, userId), eq(agents.name, KNOWLEDGE_SCRIBE_AGENT_NAME)));
+    .where(and(eq(agents.userId, userId), eq(agents.name, KNOWLEDGE_DISTILLER_AGENT_NAME)));
   let agentId = agente?.id;
   if (agentId === undefined) {
     agentId = newId();
     await db.insert(agents).values({
       id: agentId,
       userId,
-      name: KNOWLEDGE_SCRIBE_AGENT_NAME,
+      name: KNOWLEDGE_DISTILLER_AGENT_NAME,
       role: "REVIEWER",
-      instructions: SCRIBE_INSTRUCTIONS,
+      instructions: DISTILLER_INSTRUCTIONS,
       description: "Quem escreve o Grimório: destila candidatos e consolida o resumo do projeto.",
     });
   }
@@ -112,7 +112,7 @@ export async function seedKnowledgeLoadout(
   // não é edição.
   const loadout = await insertLoadoutRecord(db, {
     userId,
-    name: KNOWLEDGE_SCRIBE_LOADOUT_NAME,
+    name: KNOWLEDGE_DISTILLER_LOADOUT_NAME,
     agentId,
     harnessId: harness.id,
     modelId: null,
@@ -132,7 +132,7 @@ export async function seedKnowledgeLoadout(
  * senão o semeado pelo nome. `null` quando não há nenhum dos dois — o lote
  * falha com o motivo e os candidatos ficam `PENDING`.
  */
-export async function findKnowledgeScribeLoadout(
+export async function findKnowledgeDistillerLoadout(
   db: DatabaseExecutor,
   input: { userId: string; loadoutId: string | null },
 ): Promise<LoadoutRow | null> {
@@ -148,7 +148,7 @@ export async function findKnowledgeScribeLoadout(
     .select()
     .from(loadouts)
     .where(
-      and(eq(loadouts.userId, input.userId), eq(loadouts.name, KNOWLEDGE_SCRIBE_LOADOUT_NAME)),
+      and(eq(loadouts.userId, input.userId), eq(loadouts.name, KNOWLEDGE_DISTILLER_LOADOUT_NAME)),
     );
   return semeado ?? null;
 }

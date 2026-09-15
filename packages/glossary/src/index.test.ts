@@ -29,12 +29,81 @@ describe("chaves", () => {
     }
   });
 
-  it("não vaza vocabulário temático para as chaves", () => {
-    const tematico =
-      /campanha|missao|missão|expedicao|expedição|heroi|herói|guilda|grimorio|grimório|espolio|espólio|monstro/i;
+  it("não vaza vocabulário temático para as chaves, em nenhum idioma", () => {
+    // ADR 0003: a regra é sobre o conceito, não sobre a grafia. `hero.*`
+    // passou por uma lista só em português; a lista agora cobre a tradução.
+    // A comparação é por palavra do camelCase, e não por substring: "mission"
+    // mora dentro de "permissions" sem ser tema.
+    const tematico = [
+      "campanha",
+      "missao",
+      "missão",
+      "expedicao",
+      "expedição",
+      "heroi",
+      "herói",
+      "guilda",
+      "grimorio",
+      "grimório",
+      "espolio",
+      "espólio",
+      "monstro",
+      "masmorra",
+      "hero",
+      "expedition",
+      "guild",
+      "grimoire",
+      "spoil",
+      "loot",
+      "monster",
+      "dungeon",
+      "bestiar",
+      "chronicle",
+      "scribe",
+      "relic",
+      "patron",
+      "edict",
+      "treasur",
+      "sentinel",
+      "rein",
+      "campaign",
+      "mission",
+      "ritual",
+      "seal",
+    ];
+    const palavras = (key: string): string[] =>
+      key
+        .split(".")
+        .flatMap((segmento) => segmento.split(/(?=[A-Z])/))
+        .map((palavra) => palavra.toLowerCase());
+
     for (const key of GLOSSARY_KEYS) {
-      expect(key).not.toMatch(tematico);
+      for (const palavra of palavras(key)) {
+        expect(
+          tematico.some((termo) => palavra.startsWith(termo)),
+          `${key}: "${palavra}"`,
+        ).toBe(false);
+      }
     }
+  });
+
+  it("a varredura de chaves de fato enxerga uma chave temática", () => {
+    const palavras = (key: string): string[] =>
+      key
+        .split(".")
+        .flatMap((segmento) => segmento.split(/(?=[A-Z])/))
+        .map((palavra) => palavra.toLowerCase());
+    expect(palavras("hero.monstersSlain")).toEqual(["hero", "monsters", "slain"]);
+    expect(palavras("harness.capability.nativePermissions")).toEqual([
+      "harness",
+      "capability",
+      "native",
+      "permissions",
+    ]);
+    expect(palavras("hero.monstersSlain").some((p) => p.startsWith("monster"))).toBe(true);
+    expect(
+      palavras("harness.capability.nativePermissions").some((p) => p.startsWith("mission")),
+    ).toBe(false);
   });
 });
 
@@ -174,8 +243,8 @@ describe("tema", () => {
   it("t resolve o label no tema pedido", () => {
     expect(t("dnd", "entity.project.plural")).toBe("Campanhas");
     expect(t("plain", "entity.project.plural")).toBe("Projetos");
-    expect(t("dnd", "hall.tab.bestiary")).toBe("Bestiário");
-    expect(t("plain", "hall.tab.bestiary")).toBe("Bugs resolvidos");
+    expect(t("dnd", "hall.tab.bugs")).toBe("Bestiário");
+    expect(t("plain", "hall.tab.bugs")).toBe("Bugs resolvidos");
   });
 
   it("isThemeId aceita só os temas conhecidos", () => {

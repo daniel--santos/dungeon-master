@@ -4,10 +4,10 @@ import { useMemo } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { AchievementCard } from "@/components/hall/achievement-card";
-import { BestiaryTab } from "@/components/hall/bestiary-tab";
-import { ChronicleTab } from "@/components/hall/chronicle-tab";
+import { BugsTab } from "@/components/hall/bugs-tab";
+import { HistoryTab } from "@/components/hall/history-tab";
 import { ForgeSection } from "@/components/hall/forge-section";
-import { HeroesTab } from "@/components/hall/heroes-tab";
+import { AgentsTab } from "@/components/hall/agents-tab";
 import { PageHeader } from "@/components/page-header";
 import { Panel } from "@/components/panel";
 import {
@@ -130,9 +130,9 @@ function HallPage() {
       >
         <TabsList>
           <TabsTrigger value="achievements">{t("hall.tab.achievements")}</TabsTrigger>
-          <TabsTrigger value="heroes">{t("hall.tab.heroes")}</TabsTrigger>
-          <TabsTrigger value="bestiary">{t("hall.tab.bestiary")}</TabsTrigger>
-          <TabsTrigger value="chronicle">{t("hall.tab.chronicle")}</TabsTrigger>
+          <TabsTrigger value="agents">{t("hall.tab.agents")}</TabsTrigger>
+          <TabsTrigger value="bugs">{t("hall.tab.bugs")}</TabsTrigger>
+          <TabsTrigger value="history">{t("hall.tab.history")}</TabsTrigger>
         </TabsList>
 
         <TabsContent className="flex flex-col gap-4" value="achievements">
@@ -227,16 +227,16 @@ function HallPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="heroes">
-          <HeroesTab />
+        <TabsContent value="agents">
+          <AgentsTab />
         </TabsContent>
 
-        <TabsContent value="bestiary">
-          <BestiaryTab />
+        <TabsContent value="bugs">
+          <BugsTab />
         </TabsContent>
 
-        <TabsContent value="chronicle">
-          <ChronicleTab />
+        <TabsContent value="history">
+          <HistoryTab />
         </TabsContent>
       </Tabs>
     </>

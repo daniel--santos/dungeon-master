@@ -7168,7 +7168,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/heroes/stats": {
+    "/api/v1/execution-stats": {
         parameters: {
             query?: never;
             header?: never;
@@ -7176,7 +7176,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * As estatísticas de Herói e de Equipamento
+         * As estatísticas de Agent e de Loadout
          * @description Projeção, como tudo na Fase 2.5, e cosmética: nenhuma funcionalidade depende de nível. Os nomes vêm por junção na leitura, então acompanham uma renomeação; ficam nulos quando a entidade foi apagada.
          */
         get: {
@@ -7194,7 +7194,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["HeroStatsResponse"];
+                        "application/json": components["schemas"]["ExecutionStatsResponse"];
                     };
                 };
             };
@@ -12112,15 +12112,15 @@ export interface components {
              */
             seenAt: string | null;
         };
-        /** @description As estatísticas de Herói e de Equipamento, ambas projeção. */
-        HeroStatsResponse: {
+        /** @description As estatísticas de Agent e de Loadout, ambas projeção. */
+        ExecutionStatsResponse: {
             /** @description Por Agent, do mais experiente para o menos. */
-            agents: components["schemas"]["HeroStats"][];
+            agents: components["schemas"]["ExecutionStats"][];
             /** @description Por Loadout, na mesma ordem. */
-            loadouts: components["schemas"]["HeroStats"][];
+            loadouts: components["schemas"]["ExecutionStats"][];
         };
         /** @description O acumulado de um Agent ou de um Loadout. */
-        HeroStats: {
+        ExecutionStats: {
             /**
              * Format: uuid
              * @description Id do Agent ou do Loadout.
@@ -12134,13 +12134,14 @@ export interface components {
             level: number;
             /** @description Quanto falta para o próximo nível. */
             xpToNextLevel: number;
-            /** @description Runs terminados: vitórias, derrotas e cancelamentos. */
-            expeditions: number;
-            victories: number;
+            /** @description Runs terminados: sucessos, falhas e cancelamentos. */
+            runsTotal: number;
+            /** @description Runs em SUCCEEDED. */
+            runsSucceeded: number;
             /** @description Runs em FAILED ou TIMED_OUT. */
-            defeats: number;
-            /** @description Runs vitoriosos que concluíram uma Task `BUG`. */
-            monstersSlain: number;
+            runsFailed: number;
+            /** @description Runs bem-sucedidos que concluíram uma Task `BUG`. */
+            bugTasksCompleted: number;
             /** @description Tokens somados dos eventos `Usage`. */
             tokens: number;
             /** @description Harness mais usado. Empate desfeito pela ordem alfabética. */

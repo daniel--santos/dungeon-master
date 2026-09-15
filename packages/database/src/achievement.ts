@@ -30,8 +30,8 @@ import {
   type AchievementProgressRow,
   achievementUnlocks,
   type AchievementUnlockRow,
-  heroStats,
-  type HeroStatsRow,
+  executionStats,
+  type ExecutionStatsRow,
 } from "./schema/achievement.js";
 import { agents, loadouts } from "./schema/execution.js";
 import { projects } from "./schema/project.js";
@@ -854,37 +854,41 @@ export async function markAchievementUnlockSeen(
 // Estatísticas de Herói
 // --------------------------------------------------------------------------
 
-export interface HeroStatsView {
+export interface ExecutionStatsView {
   readonly scopeId: string;
   /** Nome atual do Agent ou do Loadout. Nulo quando a entidade foi apagada. */
   readonly name: string | null;
   readonly xp: number;
   readonly level: number;
   readonly xpToNextLevel: number;
-  readonly expeditions: number;
-  readonly victories: number;
-  readonly defeats: number;
-  readonly monstersSlain: number;
+  readonly runsTotal: number;
+  readonly runsSucceeded: number;
+  readonly runsFailed: number;
+  readonly bugTasksCompleted: number;
   readonly tokens: number;
   readonly topHarness: string | null;
 }
 
-export interface HeroStatsResult {
-  readonly agents: HeroStatsView[];
-  readonly loadouts: HeroStatsView[];
+export interface ExecutionStatsResult {
+  readonly agents: ExecutionStatsView[];
+  readonly loadouts: ExecutionStatsView[];
 }
 
-function toHeroView(row: HeroStatsRow, name: string | null, xpToNext: number): HeroStatsView {
+function toExecutionStatsView(
+  row: ExecutionStatsRow,
+  name: string | null,
+  xpToNext: number,
+): ExecutionStatsView {
   return {
     scopeId: row.scopeId,
     name,
     xp: row.xp,
     level: row.level,
     xpToNextLevel: xpToNext,
-    expeditions: row.expeditions,
-    victories: row.victories,
-    defeats: row.defeats,
-    monstersSlain: row.monstersSlain,
+    runsTotal: row.runsTotal,
+    runsSucceeded: row.runsSucceeded,
+    runsFailed: row.runsFailed,
+    bugTasksCompleted: row.bugTasksCompleted,
     tokens: row.tokens,
     topHarness: row.topHarness,
   };
@@ -898,15 +902,15 @@ function toHeroView(row: HeroStatsRow, name: string | null, xpToNext: number): H
  * do Herói. Um Herói apagado mantém as estatísticas com o nome nulo — o que ele
  * fez continua tendo acontecido.
  */
-export async function readHeroStats(
+export async function readExecutionStats(
   db: DatabaseExecutor,
   input: { userId: string; xpToNextLevel: (xp: number) => number },
-): Promise<HeroStatsResult> {
+): Promise<ExecutionStatsResult> {
   const rows = await db
     .select()
-    .from(heroStats)
-    .where(eq(heroStats.userId, input.userId))
-    .orderBy(desc(heroStats.xp), asc(heroStats.scopeId));
+    .from(executionStats)
+    .where(eq(executionStats.userId, input.userId))
+    .orderBy(desc(executionStats.xp), asc(executionStats.scopeId));
 
   const nomes = new Map<string, string>();
 
@@ -928,11 +932,15 @@ export async function readHeroStats(
     for (const loadout of encontrados) nomes.set(`LOADOUT:${loadout.id}`, loadout.name);
   }
 
-  const view = (scope: "AGENT" | "LOADOUT"): HeroStatsView[] =>
+  const view = (scope: "AGENT" | "LOADOUT"): ExecutionStatsView[] =>
     rows
       .filter((row) => row.scope === scope)
       .map((row) =>
-        toHeroView(row, nomes.get(`${scope}:${row.scopeId}`) ?? null, input.xpToNextLevel(row.xp)),
+        toExecutionStatsView(
+          row,
+          nomes.get(`${scope}:${row.scopeId}`) ?? null,
+          input.xpToNextLevel(row.xp),
+        ),
       );
 
   return { agents: view("AGENT"), loadouts: view("LOADOUT") };

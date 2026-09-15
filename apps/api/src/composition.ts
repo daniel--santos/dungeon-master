@@ -45,7 +45,7 @@ import {
   markAchievementUnlockSeen,
   getKnowledgeItem,
   getProjectSummary,
-  readHeroStats,
+  readExecutionStats,
   rejectKnowledgeItem,
   renameForgedAchievement,
   requestDistillation,
@@ -337,7 +337,7 @@ export function createAchievementsPort(options: AchievementsPortOptions): Achiev
     list: (filters) => listAchievementViews(db, { userId, filters }),
     unlocks: (page) => listAchievementUnlockPage(db, { userId, ...page }),
     markSeen: (unlockId) => markAchievementUnlockSeen(db, { userId, unlockId }),
-    heroStats: () => readHeroStats(db, { userId, xpToNextLevel }),
+    executionStats: () => readExecutionStats(db, { userId, xpToNextLevel }),
     listForged: (reviewStatus) => listForgedAchievements(db, { userId, reviewStatus }),
     approveForged: (definitionId, patch) =>
       approveForgedAchievement(db, { userId, definitionId, patch }),

@@ -237,7 +237,7 @@ export const dnd: Record<GlossaryKey, string> = {
   "graph.openProposals": "Tem Pistas em aberto",
 
   // -------------------------------------------------------------- knowledge
-  "knowledge.scribe": "Escriba do Grimório",
+  "knowledge.distiller": "Escriba do Grimório",
   "knowledge.type.fact": "Fato",
   "knowledge.type.decision": "Decreto",
   "knowledge.type.discovery": "Descoberta",
@@ -480,17 +480,17 @@ export const dnd: Record<GlossaryKey, string> = {
   "harness.capability.dockerExecution": "Masmorra selada",
   "harness.capability.mcpServers": "Relíquias por Expedição",
 
-  // ------------------------------------------------------------------ hero
-  "hero.xp": "Experiência",
-  "hero.level": "Nível",
-  "hero.toNextLevel": "Para o próximo nível",
-  "hero.expeditions": "Expedições",
-  "hero.victories": "Vitórias",
-  "hero.defeats": "Derrotas",
-  "hero.monstersSlain": "Monstros derrotados",
-  "hero.tokens": "Tokens",
-  "hero.topHarness": "Guilda mais usada",
-  "hero.byLoadout": "Por Equipamento",
+  // ------------------------------------------------------- executionStats
+  "executionStats.xp": "Experiência",
+  "executionStats.level": "Nível",
+  "executionStats.toNextLevel": "Para o próximo nível",
+  "executionStats.runsTotal": "Expedições",
+  "executionStats.runsSucceeded": "Vitórias",
+  "executionStats.runsFailed": "Derrotas",
+  "executionStats.bugTasksCompleted": "Monstros derrotados",
+  "executionStats.tokens": "Tokens",
+  "executionStats.topHarness": "Guilda mais usada",
+  "executionStats.byLoadout": "Por Equipamento",
 
   // ----------------------------------------------------------------- infra
   "infra.worker": "Worker",
@@ -514,9 +514,9 @@ export const dnd: Record<GlossaryKey, string> = {
 
   // ------------------------------------------------------------------ hall
   "hall.tab.achievements": "Conquistas",
-  "hall.tab.heroes": "Heróis",
-  "hall.tab.bestiary": "Bestiário",
-  "hall.tab.chronicle": "Crônica",
+  "hall.tab.agents": "Heróis",
+  "hall.tab.bugs": "Bestiário",
+  "hall.tab.history": "Crônica",
   "hall.filter.origin": "Origem",
   "hall.filter.rarity": "Raridade",
   "hall.filter.state": "Estado",
@@ -524,10 +524,10 @@ export const dnd: Record<GlossaryKey, string> = {
   "hall.unseen": "Ainda não vista",
   "hall.progressOf": "{current} de {target}",
   "hall.tierOf": "Grau {label}",
-  "hall.bestiary.defeatedAt": "Derrotado em",
-  "hall.bestiary.slayer": "Quem derrotou",
-  "hall.bestiary.nemesis": "Nêmesis",
-  "hall.chronicle.loadMore": "Carregar mais",
+  "hall.bugs.resolvedAt": "Derrotado em",
+  "hall.bugs.resolvedBy": "Quem derrotou",
+  "hall.bugs.reopenings": "Nêmesis",
+  "hall.history.loadMore": "Carregar mais",
 
   // --------------------------------------------------------------- loadout
   "loadout.noNativePermissions.title": "Esta Guilda não impõe permissão por comando",

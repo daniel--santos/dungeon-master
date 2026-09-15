@@ -1,11 +1,11 @@
-import { loadCatalog, loadTemplates, XP_PER_VICTORY } from "@dungeon-master/achievements";
+import { loadCatalog, loadTemplates, XP_PER_SUCCEEDED_RUN } from "@dungeon-master/achievements";
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
 import {
   listAchievementUnlockPage,
   listAchievementViews,
   markAchievementUnlockSeen,
-  readHeroStats,
+  readExecutionStats,
 } from "../src/achievement.js";
 import { projectAchievements, rebuildAchievements } from "../src/achievement-projector.js";
 import { createDatabase, type DatabaseHandle } from "../src/client.js";
@@ -64,7 +64,7 @@ async function limparConquistas(): Promise<void> {
     "achievement_unlock",
     "achievement_progress",
     "achievement_cursor",
-    "hero_stats",
+    "execution_stats",
     "achievement_definition",
   ]) {
     await handle.pool.query(`delete from ${tabela} where user_id = $1`, [USER]);
@@ -293,7 +293,7 @@ describe("desbloqueio", () => {
     expect(taskId).toBeTruthy();
   });
 
-  it("emite `achievement.unlocked` e `hero_stats.updated` na mesma transação", async () => {
+  it("emite `achievement.unlocked` e `execution_stats.updated` na mesma transação", async () => {
     await expedicao({ title: "Fechar a fenda", kind: "BUG", status: "SUCCEEDED" });
     await projetar();
 
@@ -312,7 +312,7 @@ describe("desbloqueio", () => {
       plain: "Concluir a primeira execução com sucesso.",
     });
 
-    const stats = await eventosDeDashboard("hero_stats.updated");
+    const stats = await eventosDeDashboard("execution_stats.updated");
     expect(stats.length).toBeGreaterThanOrEqual(2);
 
     // A prova de "mesma transação" é a tabela: o evento só existe porque o
@@ -438,20 +438,20 @@ describe("estatísticas de Herói", () => {
 
     await projetar();
 
-    const stats = await readHeroStats(handle.db, { userId: USER, xpToNextLevel: () => 0 });
-    const heroi = stats.agents.find((item) => item.scopeId === equipamento.agentId);
+    const stats = await readExecutionStats(handle.db, { userId: USER, xpToNextLevel: () => 0 });
+    const agente = stats.agents.find((item) => item.scopeId === equipamento.agentId);
 
-    expect(heroi).toBeDefined();
-    expect(heroi?.victories).toBe(2);
-    expect(heroi?.defeats).toBe(1);
-    expect(heroi?.expeditions).toBe(4);
-    expect(heroi?.monstersSlain).toBe(1);
-    expect(heroi?.topHarness).toBe("claude");
-    expect(heroi?.xp).toBeGreaterThanOrEqual(2 * XP_PER_VICTORY);
-    expect(heroi?.name).toContain("Engenheiro");
+    expect(agente).toBeDefined();
+    expect(agente?.runsSucceeded).toBe(2);
+    expect(agente?.runsFailed).toBe(1);
+    expect(agente?.runsTotal).toBe(4);
+    expect(agente?.bugTasksCompleted).toBe(1);
+    expect(agente?.topHarness).toBe("claude");
+    expect(agente?.xp).toBeGreaterThanOrEqual(2 * XP_PER_SUCCEEDED_RUN);
+    expect(agente?.name).toContain("Engenheiro");
 
     const equipe = stats.loadouts.find((item) => item.scopeId === equipamento.loadoutId);
-    expect(equipe?.victories).toBe(2);
+    expect(equipe?.runsSucceeded).toBe(2);
   });
 
   it("soma os tokens dos eventos `Usage` do log de execução", async () => {
@@ -476,7 +476,7 @@ describe("estatísticas de Herói", () => {
 
     await projetar();
 
-    const stats = await readHeroStats(handle.db, { userId: USER, xpToNextLevel: () => 0 });
+    const stats = await readExecutionStats(handle.db, { userId: USER, xpToNextLevel: () => 0 });
     expect(stats.agents.find((item) => item.scopeId === equipamento.agentId)?.tokens).toBe(125);
   });
 });
@@ -494,7 +494,10 @@ describe("reconstrução", () => {
       page: 1,
       pageSize: 100,
     });
-    const statsAntes = await readHeroStats(handle.db, { userId: USER, xpToNextLevel: () => 0 });
+    const statsAntes = await readExecutionStats(handle.db, {
+      userId: USER,
+      xpToNextLevel: () => 0,
+    });
 
     const relatorio = await rebuildAchievements(handle.db, {
       userId: USER,
@@ -515,7 +518,10 @@ describe("reconstrução", () => {
 
     expect(depois.items.map(chave)).toEqual(antes.items.map(chave));
 
-    const statsDepois = await readHeroStats(handle.db, { userId: USER, xpToNextLevel: () => 0 });
+    const statsDepois = await readExecutionStats(handle.db, {
+      userId: USER,
+      xpToNextLevel: () => 0,
+    });
     expect(statsDepois.agents).toEqual(statsAntes.agents);
 
     const progresso = await listAchievementViews(handle.db, { userId: USER });

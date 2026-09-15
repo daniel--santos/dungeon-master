@@ -2,7 +2,7 @@ import { dnd } from "@dungeon-master/glossary";
 import { cleanup, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { BestiaryTab } from "@/components/hall/bestiary-tab";
+import { BugsTab } from "@/components/hall/bugs-tab";
 import { api } from "@/lib/api";
 import type { TaskRecord } from "@/lib/api-types";
 import { ok } from "@/test/execution-fixtures";
@@ -59,7 +59,7 @@ function montar() {
     return Promise.resolve(ok({ items: [], page: 1, pageSize: 100, total: 0 }));
   }) as never);
 
-  return renderInRouter(<BestiaryTab />, "/hall");
+  return renderInRouter(<BugsTab />, "/hall");
 }
 
 afterEach(() => {
@@ -72,12 +72,12 @@ describe("Bestiário", () => {
     montar();
 
     expect(await screen.findByText(NEMESIS.title)).toBeTruthy();
-    expect(screen.getByText(dnd["hall.bestiary.nemesis"])).toBeTruthy();
+    expect(screen.getByText(dnd["hall.bugs.reopenings"])).toBeTruthy();
 
-    const nemesis = document.querySelector(`[data-bestiary-task="${NEMESIS.id}"]`);
-    const ordinario = document.querySelector(`[data-bestiary-task="${ORDINARIO.id}"]`);
-    expect(nemesis?.querySelector("[data-bestiary-reopened]")?.textContent).toBe("3 reaberturas");
-    expect(ordinario?.querySelector("[data-bestiary-reopened]")?.textContent).toBe("—");
+    const nemesis = document.querySelector(`[data-bugs-task="${NEMESIS.id}"]`);
+    const ordinario = document.querySelector(`[data-bugs-task="${ORDINARIO.id}"]`);
+    expect(nemesis?.querySelector("[data-bugs-reopened]")?.textContent).toBe("3 reaberturas");
+    expect(ordinario?.querySelector("[data-bugs-reopened]")?.textContent).toBe("—");
 
     // A leitura é uma só para a aba, filtrada pelo tipo que o Bestiário mostra.
     expect(client.GET).toHaveBeenCalledWith("/api/v1/task-reopenings", {

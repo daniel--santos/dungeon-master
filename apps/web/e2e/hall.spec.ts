@@ -107,8 +107,8 @@ test("concluir um Monstro pela tela põe o Caçador em progresso 1 de 10", async
   await expect(caçador.getByText(dnd["achievement.state.inProgress"])).toBeVisible();
 
   // O Bestiário mostra o Monstro derrotado, na mesma tela.
-  await page.goto("/hall?tab=bestiary");
-  await expect(page.locator(`[data-bestiary-task="${taskId}"]`)).toBeVisible();
+  await page.goto("/hall?tab=bugs");
+  await expect(page.locator(`[data-bugs-task="${taskId}"]`)).toBeVisible();
 });
 
 test("a Crônica sai de vazia para cheia quando existe um desbloqueio", async ({
@@ -117,9 +117,9 @@ test("a Crônica sai de vazia para cheia quando existe um desbloqueio", async ({
 }) => {
   await setTheme(page, true);
 
-  await page.goto("/hall?tab=chronicle");
-  await expect(page.getByText(dnd["hall.tab.chronicle"]).first()).toBeVisible();
-  await expect(page.locator("[data-chronicle-unlock]")).toHaveCount(0);
+  await page.goto("/hall?tab=history");
+  await expect(page.getByText(dnd["hall.tab.history"]).first()).toBeVisible();
+  await expect(page.locator("[data-history-unlock]")).toHaveCount(0);
 
   // "Cartógrafo" é o desbloqueio mais barato do catálogo: uma dependência entre
   // Missões, sem precisar de execução. "Primeira Expedição" exigiria um Run
@@ -133,8 +133,8 @@ test("a Crônica sai de vazia para cheia quando existe um desbloqueio", async ({
 
   projectAchievements();
 
-  await page.goto("/hall?tab=chronicle");
-  await expect(page.locator("[data-chronicle-unlock]")).not.toHaveCount(0);
+  await page.goto("/hall?tab=history");
+  await expect(page.locator("[data-history-unlock]")).not.toHaveCount(0);
   await expect(page.getByText("Cartógrafo").first()).toBeVisible();
 
   // E a mesma Conquista aparece desbloqueada na grade.

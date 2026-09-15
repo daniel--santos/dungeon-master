@@ -11,7 +11,7 @@ import { createDatabase, type DatabaseHandle } from "../src/client.js";
 import { listRunEventsSince } from "../src/run-event.js";
 import { listRunSteps, transitionRunStep } from "../src/run-step.js";
 import { claimNextQueuedRun, createRun, getRun, transitionRun } from "../src/run.js";
-import { GUIDED_EXPEDITION_WORKFLOW, seedWorkflows } from "../src/seed-workflow.js";
+import { GUIDED_RUN_WORKFLOW, seedWorkflows } from "../src/seed-workflow.js";
 import { createTask, getTaskDetail, updateTask } from "../src/task.js";
 import {
   canonicalJson,
@@ -63,7 +63,7 @@ afterAll(async () => {
 });
 
 function definicao(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
-  return WorkflowDefinitionSchema.parse({ ...GUIDED_EXPEDITION_WORKFLOW, ...overrides });
+  return WorkflowDefinitionSchema.parse({ ...GUIDED_RUN_WORKFLOW, ...overrides });
 }
 
 async function criarWorkflow(overrides: Partial<WorkflowDefinition> = {}): Promise<string> {
@@ -325,7 +325,7 @@ describe("captura congelada", () => {
 
     // Edita o Workflow: tira o step de validação.
     const semValidate = definicao({
-      steps: GUIDED_EXPEDITION_WORKFLOW.steps.filter((step) => step.key !== "validate"),
+      steps: GUIDED_RUN_WORKFLOW.steps.filter((step) => step.key !== "validate"),
     });
     exigirOk(
       await updateWorkflow(handle.db, { userId: USER, workflowId: id, definition: semValidate }),
@@ -672,7 +672,7 @@ describe("ApprovalGate", () => {
     expect(pendentes.items[0]).toMatchObject({
       workflowId: id,
       workflowVersionId: run?.workflowVersionId,
-      workflowName: GUIDED_EXPEDITION_WORKFLOW.name,
+      workflowName: GUIDED_RUN_WORKFLOW.name,
       workflowVersion: 1,
     });
 
@@ -705,7 +705,7 @@ describe("seedWorkflows", () => {
     expect(primeira).toEqual({ workflowsCreated: 1, workflowsTotal: 1 });
 
     const page = await listWorkflows(handle.db, { userId: USER, page: 1, pageSize: 10 });
-    const guiada = page.items.find((item) => item.name === GUIDED_EXPEDITION_WORKFLOW.name);
+    const guiada = page.items.find((item) => item.name === GUIDED_RUN_WORKFLOW.name);
     expect(guiada?.definition.steps.map((step) => step.key)).toEqual([
       "analyze",
       "plan",

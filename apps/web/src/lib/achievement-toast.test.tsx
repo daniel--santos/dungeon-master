@@ -7,12 +7,12 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import {
   ACHIEVEMENT_UNLOCKED,
-  HERO_STATS_UPDATED,
+  EXECUTION_STATS_UPDATED,
   useAchievementToasts,
   unlockToastContent,
   type UnlockPayload,
 } from "@/lib/achievement-toast";
-import { achievementKeys, heroKeys } from "@/lib/achievements";
+import { achievementKeys, executionStatsKeys } from "@/lib/achievements";
 import { useEventsStore } from "@/lib/events";
 import { useGlossary, useGlossaryStore } from "@/lib/glossary";
 
@@ -133,7 +133,7 @@ describe("toast de desbloqueio", () => {
 
     const invalidated = invalidate.mock.calls.map(([options]) => options?.queryKey);
     expect(invalidated).toContainEqual(achievementKeys.all);
-    expect(invalidated).toContainEqual(heroKeys.stats);
+    expect(invalidated).toContainEqual(executionStatsKeys.stats);
   });
 
   it("com o tema desligado, mostra o nome plain e nenhuma fala de anúncio", async () => {
@@ -179,12 +179,12 @@ describe("toast de desbloqueio", () => {
     expect(await screen.findByText(dnd["nav.hall"])).toBeTruthy();
 
     act(() => {
-      source.emit(HERO_STATS_UPDATED, { scope: "AGENT", scopeId: "x", xp: 10, level: 1 });
+      source.emit(EXECUTION_STATS_UPDATED, { scope: "AGENT", scopeId: "x", xp: 10, level: 1 });
     });
 
     await waitFor(() => {
       expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toContainEqual(
-        heroKeys.stats,
+        executionStatsKeys.stats,
       );
     });
     expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).not.toContainEqual(

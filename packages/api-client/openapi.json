@@ -13663,20 +13663,20 @@
         ],
         "description": "Um desbloqueio, com a Conquista resolvida."
       },
-      "HeroStatsResponse": {
+      "ExecutionStatsResponse": {
         "type": "object",
         "properties": {
           "agents": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/HeroStats"
+              "$ref": "#/components/schemas/ExecutionStats"
             },
             "description": "Por Agent, do mais experiente para o menos."
           },
           "loadouts": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/HeroStats"
+              "$ref": "#/components/schemas/ExecutionStats"
             },
             "description": "Por Loadout, na mesma ordem."
           }
@@ -13685,9 +13685,9 @@
           "agents",
           "loadouts"
         ],
-        "description": "As estatísticas de Herói e de Equipamento, ambas projeção."
+        "description": "As estatísticas de Agent e de Loadout, ambas projeção."
       },
-      "HeroStats": {
+      "ExecutionStats": {
         "type": "object",
         "properties": {
           "scopeId": {
@@ -13717,24 +13717,25 @@
             "minimum": 0,
             "description": "Quanto falta para o próximo nível."
           },
-          "expeditions": {
+          "runsTotal": {
             "type": "integer",
             "minimum": 0,
-            "description": "Runs terminados: vitórias, derrotas e cancelamentos."
+            "description": "Runs terminados: sucessos, falhas e cancelamentos."
           },
-          "victories": {
+          "runsSucceeded": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Runs em SUCCEEDED."
           },
-          "defeats": {
+          "runsFailed": {
             "type": "integer",
             "minimum": 0,
             "description": "Runs em FAILED ou TIMED_OUT."
           },
-          "monstersSlain": {
+          "bugTasksCompleted": {
             "type": "integer",
             "minimum": 0,
-            "description": "Runs vitoriosos que concluíram uma Task `BUG`."
+            "description": "Runs bem-sucedidos que concluíram uma Task `BUG`."
           },
           "tokens": {
             "type": "integer",
@@ -13755,10 +13756,10 @@
           "xp",
           "level",
           "xpToNextLevel",
-          "expeditions",
-          "victories",
-          "defeats",
-          "monstersSlain",
+          "runsTotal",
+          "runsSucceeded",
+          "runsFailed",
+          "bugTasksCompleted",
           "tokens",
           "topHarness"
         ],
@@ -21669,12 +21670,12 @@
         }
       }
     },
-    "/api/v1/heroes/stats": {
+    "/api/v1/execution-stats": {
       "get": {
         "tags": [
-          "heroes"
+          "execution-stats"
         ],
-        "summary": "As estatísticas de Herói e de Equipamento",
+        "summary": "As estatísticas de Agent e de Loadout",
         "description": "Projeção, como tudo na Fase 2.5, e cosmética: nenhuma funcionalidade depende de nível. Os nomes vêm por junção na leitura, então acompanham uma renomeação; ficam nulos quando a entidade foi apagada.",
         "responses": {
           "200": {
@@ -21682,7 +21683,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HeroStatsResponse"
+                  "$ref": "#/components/schemas/ExecutionStatsResponse"
                 }
               }
             }
