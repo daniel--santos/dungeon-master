@@ -1001,6 +1001,40 @@ Pendências que ficam registradas:
 
 **Fases 0 a 9 concluídas.** A Fase 10 (Observabilidade avançada) aguarda decisão.
 
+## Fechamento da Fase 10 (15/09/2026)
+
+**Critério de conclusão da Fase 10 cumprido**: toda Expedição terminal aparece nas métricas com tokens, duração, contexto, ferramentas e custo com procedência ou "não medido"; séries por dia e por dimensão; Workers com presença por batimento e reconciliação por silêncio; tudo reconstruível do zero. Provado com Claude Code real: um Run apareceu em `/runs/{id}/metrics` com 12,4 s de execução, 233 ms de fila, tokens medidos, duas chamadas nativas e custo "não medido"; um preço cadastrado levou o custo a "preço vigente" sem reconstrução; um Patronato por assinatura apareceu rateado pela fatia de tokens do mês; `pnpm dm metrics rebuild` reproduziu linha por linha; com dois Workers, o segundo não encostou no Run do primeiro vivo e, morto o primeiro pelo PID, o fechou como retentável em cerca de 25 s, com um único `worker.stale`; na web, o mesmo tile passou de "não medido" a "preço vigente" pelo diálogo de Preços, nos dois temas na mesma URL.
+
+O que entrou, em duas ondas:
+
+- **10A, medida**: pacote puro `packages/metrics`; `run_metric` (uma linha por Expedição terminal, com `run.finished_at` como fonte), `metric_daily` recalculado dos fatos e nunca somado (um preço de hoje corrige o custo de ontem), `metric_cursor`; `model_price` com vigências append-only; Patronato com `billing_kind`, `monthly_cost` e `currency`, e o rateio de assinatura calculado na leitura pelo mês civil UTC; custo sempre com procedência (`PRICED`, `ESTIMATED_SUBSCRIPTION`, `NOT_MEASURED`) e tokens não reportados nulos, nunca zero; tabela `worker` com batimento, `STALE` após três intervalos e reconciliação de órfãos por silêncio no próprio laço, o que fecha o post-mortem #6; nove rotas `metrics`, `PUT /models/{id}/price`, `GET /workers`, todas com schema nomeado; eventos `metrics.updated` (garganta de 5 s) e `worker.online|stale|offline`; `pnpm dm metrics rebuild|status`; migração `0020`.
+- **10B, leitura**: Torre de Vigia / Observabilidade em `/observability` com janela, medida, dimensão e Campanha na URL; sete tiles com o denominador ao lado; série por dia em `recharts` 3.10.1 com paleta única dos tokens de `styles.css`, legenda por forma, sem animação e com tabela equivalente para leitor de tela; quebra por dimensão; Workers com batimento; cockpit em duas abas, com Medidas; Preços em Settings com vigência, histórico e faturamento por Patronato; bloco de medidas na Campanha; `MoneyValue` como o único lugar que desenha custo; `seedMetrics` por SQL e 26 suítes de ponta a ponta.
+
+Correções no fechamento: `PATCH /providers/{id}` validava e descartava os campos de cobrança, respondendo 200 (as duas ondas acharam na prova manual; corrigido com teste vermelho antes); `BillingKind` virou componente nomeado na spec (`.nullable()` devolve um schema novo sem o `id`; a união com `z.null()` preserva a referência); vigência de preço exibida em UTC, porque em São Paulo uma vigência de 01/09 aparecia como 31/08.
+
+Pendências que ficam registradas:
+
+- Custo por Campanha sem rateio de assinatura (não há dimensão Project × Provider); dimensão `MODEL` chaveada pela chave do Model, compartilhada entre Guildas; Patronatos do seed sem `billing_kind`; `metric_daily` sem retenção; `RunMetrics` sem tokens por passo (só passos por tipo e tokens do Run).
+- `OFFLINE` por desligamento gracioso coberto só por teste: no Windows nenhum sinal chega a um processo desanexado; o Worker "vivo" da fixture e2e vira `STALE` em menos de um minuto sem processo real.
+- `HarnessAuthStatus` e `AchievementRarity` continuam embutidos na spec pela mesma causa do `BillingKind`; dez chaves de glossário ficaram em `SKIPPED_KEYS` da varredura por serem palavras idênticas nos dois temas; o teste de ordenação de Tasks por `createdAt` oscilou uma vez.
+
+**Fases 0 a 10 concluídas.** O plano v0.4 termina aqui.
+
+## Encerramento do plano v0.4 (15/09/2026)
+
+O v0.4 saiu do papel em onze fases (0 a 10), entre 07/09 e 15/09/2026, com o CI verde em Windows e macOS a cada merge. O que existe hoje: execução em quatro Guildas (Claude Code, Codex, Pi, Antigravity), no host e em Masmorra selada para Claude Code e Pi; Worker com fila, travas, cancelamento, retomada, presença por batimento e reconciliação por silêncio; Rituais com Selo por CAS; Pistas e Mapa da Campanha; Grimório com Distiller e revisão; Provisões congeladas por Expedição e MCP de conhecimento; Arsenal com Habilidades versionadas, Itens, Relíquias, Patronatos e Equipamento por referência com preflight; Autonomia com Rédea, Éditos, Tesouros, Sentinelas, Encaminhamentos e delegação entre agentes que sobrevive a restart; Conquistas como projeção; métricas, custo com procedência e Torre de Vigia. Vinte e uma migrações (`0000` a `0020`), 26 post-mortems no código, três ADRs, tema só textual desde o ADR 0003.
+
+O que fica em aberto, agrupado por assunto, para o dono do projeto escolher o que entra num **v0.5**:
+
+1. **Higiene de contrato**: schemas sem nome na spec (`ProviderAuth`, `CliPreflight`, `PolicyDecision`, `BreakerAdmission`, `RoutingDecision`, `HarnessAuthStatus`, `AchievementRarity`); `ProposedTask` sem quem decidiu; `GET /runs` sem filtro por mãe; `GET /runs/{id}/context` com 404 ambíguo; `BreakerAdmission` sem `openedAt`; `Harness.auth*` ainda opcional; `MODEL_SELECTION_UNSUPPORTED` avisando quando o Model é só o padrão da Guilda.
+2. **Masmorra de verdade**: delegação, `command` e `validation` provados em Docker; preflight `DOCKER` medindo o Antigravity; credencial por Patronato medida no boot também em Docker; sandbox do Codex no Windows barrando o commit; `contract-docker` sem depender da cota do Gemini.
+3. **Execução**: retentativa de `delegate` após restart com o filho em voo; `retry` para `delegate`; `GET /budgets/{id}/usage` em `PER_RUN`; `dispatch.skipped` ruidoso; `await_run` sondando o banco a cada segundo; Task filha herdando tipo e prioridade da mãe; desligamento gracioso do Worker no Windows provado à mão; token do MCP saindo do caminho da URL para cabeçalho; `envKeys` para Relíquia HTTP.
+4. **Métricas, segunda volta**: tokens por passo em `run_metric`; rateio de assinatura por Campanha ou dimensão Project × Provider; Model chaveado por id e não por chave; retenção de `metric_daily`; Patronatos conhecidos nascendo com `billing_kind`; exportação (CSV) das séries.
+5. **Produto**: Escriba pré-selecionado na Nova Expedição (`purpose` no Equipamento); Sentinela e Tesouro no Hall; busca na paleta por Expedição e Missão; notificações de Conquista desbloqueada fora do Hall.
+6. **Operação**: app de desenvolvimento como serviço com PIDs guardados; limpeza das branches locais mescladas; auditoria periódica pelo estagiário como rotina.
+
+A recomendação é abrir o v0.5 como arquivo novo (`planejamento_dungeon_master_v0.5.md`), com os itens 1 e 4 primeiro, porque são pequenos e fecham dívidas que as fases seguintes herdariam, e o item 2 como a única fase grande.
+
 ## Andamento anterior da Fase 2 (histórico)
 
 Mergeadas e verdes no CI: 2A (modelo, banco, API), 2B (runtime e adapters de host; ADR em `packages/runtime-sandcastle/README.md`: os adapters não dependem do Sandcastle em runtime), o Worker (laço, reconciliação, cancelamento confirmado, shutdown gracioso, `resumeFromRunId`, marca d'água do poller) e as telas (cadastros, Nova Expedição com aceite do modo host, Expedições, Cristal de Visão com diário ao vivo e AlertDialog de cancelamento).
