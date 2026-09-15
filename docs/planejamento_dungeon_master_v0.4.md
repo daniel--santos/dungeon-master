@@ -2029,6 +2029,66 @@ um `NOTIFY`; a interface não mostra filhos, espera nem delegação (9C).
 
 ---
 
+## Execução do ADR 0003 (15/09/2026)
+
+O dono do projeto decidiu: **o tema de RPG é só texto**, todo identificador passa a ser
+canônico, e **`Achievement` continua como termo do produto**. O
+[ADR 0003](./adr/0003-hero-stats-e-a-regra-de-vocabulario.md) foi marcado como aceito e
+executado na branch `feat/adr-0003-vocabulario`, num commit largo por camada. A auditoria
+varreu o repositório inteiro (fora de `node_modules`, `dist`, `drizzle/meta` antigos e os
+textos de Conquistas) por vocabulário temático em qualquer idioma, inclusive dentro de
+identificadores compostos (`GUIDED_EXPEDITION_WORKFLOW`), e aplicou o teste da seção 2 do
+`CLAUDE.md`: se trocar `dnd` por `plain` mudaria o label mas não o identificador, o
+identificador está do lado errado.
+
+**O que mudou** (antes → depois, por camada):
+
+| Camada | Antes | Depois |
+|---|---|---|
+| Banco | tabela `hero_stats`; tipo `hero_scope`; colunas `expeditions`, `victories`, `defeats`, `monsters_slain`, `docker_victories`; constraints `hero_stats_pkey`, `hero_stats_scope_uq`, `hero_stats_user_id_user_id_fk` | `execution_stats`; `execution_stats_scope`; `runs_total`, `runs_succeeded`, `runs_failed`, `bug_tasks_completed`, `docker_runs_succeeded`; `execution_stats_*` (`xp`, `level`, `tokens`, `scope` ficam) |
+| Evento de painel | `hero_stats.updated` (e as linhas já gravadas em `dashboard_event`) | `execution_stats.updated` (`UPDATE` na migração) |
+| Contrato | `HeroScope`, `HeroStats`, `HeroStatsResponse`; chaves `expeditions`, `victories`, `defeats`, `monstersSlain` | `ExecutionStatsScope`, `ExecutionStats`, `ExecutionStatsResponse`; `runsTotal`, `runsSucceeded`, `runsFailed`, `bugTasksCompleted` (`xp`, `xpToNextLevel`, `level` ficam) |
+| API | `GET /api/v1/heroes/stats`, tag `heroes`, porta `heroStats()` | `GET /api/v1/execution-stats` (recurso próprio; sem alias, a antiga responde 404), tag `execution-stats`, `executionStats()` |
+| Projeção pura | `xp.ts` (`XP_PER_VICTORY`, `XP_BONUS_MONSTER`), `hero-stats.ts` (`HeroStatsState`, `EMPTY_HERO_STATS`, `RunOutcome` `VICTORY\|DEFEAT`, campo `monster`) | `xp.ts` (`XP_PER_SUCCEEDED_RUN`, `XP_BONUS_BUG_TASK`; `levelForXp` e `xpToNextLevel` ficam), `execution-stats.ts` (`ExecutionStatsState`, `EMPTY_EXECUTION_STATS`, `SUCCEEDED\|FAILED`, campo `bug`) |
+| Repositório | `readHeroStats`, `HeroStatsView`, `HeroDelta`, `heroKey`, `loadHeroStates` | `readExecutionStats`, `ExecutionStatsView`, `StatsDelta`, `statsKey`, `loadStatsStates` |
+| Glossário (chaves; os **valores** não mudam) | `hero.*` (dez), `hall.tab.heroes`, `hall.tab.bestiary`, `hall.tab.chronicle`, `hall.bestiary.defeatedAt/slayer/nemesis`, `hall.chronicle.loadMore`, `knowledge.scribe` | `executionStats.*` (`xp`, `level`, `toNextLevel`, `runsTotal`, `runsSucceeded`, `runsFailed`, `bugTasksCompleted`, `tokens`, `topHarness`, `byLoadout`), `hall.tab.agents`, `hall.tab.bugs`, `hall.tab.history`, `hall.bugs.resolvedAt/resolvedBy/reopenings`, `hall.history.loadMore`, `knowledge.distiller` |
+| Web | `?tab=heroes\|bestiary\|chronicle`; `heroes-tab.tsx`, `bestiary-tab.tsx`, `chronicle-tab.tsx`; `lib/heroes.ts`, `useHeroStats`, `heroKeys` `["heroes","stats"]`, `HERO_STATS_UPDATED`; `data-hero-*`, `data-bestiary-*`, `data-chronicle*`; placeholders `{scribe}`, `{relics}`; locais `seal()` | `?tab=agents\|bugs\|history`; `agents-tab.tsx`, `bugs-tab.tsx`, `history-tab.tsx`; `lib/execution-stats.ts`, `useExecutionStats`, `executionStatsKeys` `["execution-stats"]`, `EXECUTION_STATS_UPDATED`; `data-stats-*`, `data-bugs-*`, `data-history*`; `{distiller}`, `{mcpServers}`; `approveItem()` |
+| Distiller | `createScribeRuntime`, `ScribeRuntimeOptions`, `findKnowledgeScribeLoadout`, `isKnowledgeScribeLoadout`, `KNOWLEDGE_SCRIBE_*_NAME`, `SCRIBE_INSTRUCTIONS` | `createDistillerRuntime`, `DistillerRuntimeOptions`, `findKnowledgeDistillerLoadout`, `isKnowledgeDistillerLoadout`, `KNOWLEDGE_DISTILLER_*_NAME`, `DISTILLER_INSTRUCTIONS` (o valor semeado "Escriba do Grimório" é dado e fica) |
+| Miúdos | `GUIDED_EXPEDITION_WORKFLOW`; locais `guilda`, `daCampanha`, `heroi`, `slayer`, `DEFEATED_PAGE_SIZE` | `GUIDED_RUN_WORKFLOW`; `harnessName`, `doProjeto`, `agente`, `resolvedBy`, `RESOLVED_PAGE_SIZE` |
+
+**O que não mudou, e por quê:**
+
+- **Conquistas**, por decisão do dono: tabelas `achievement_*`, rotas `/achievements`, eventos `achievement.unlocked`/`achievement.forged`, as chaves do catálogo (`first_expedition`, `monster_slayer`, `hero_veteran`, `grimoire_scribe`, `campaign_guardian`), os tipos de forjada (`NEMESIS_DEFEATED`, `VICTORY_STREAK`, `FIRST_HARNESS_VICTORY`) e os fatos que os alimentam (`victoryStreak`, `firstVictoryRunIds`), e todos os nomes e textos. As `condition`s do catálogo já usavam vocabulário canônico e não referenciam nada renomeado.
+- **Migrações já aplicadas** nunca são renomeadas: `0008_masmorra_selada_habilitada`, `0010_rituais_passos_e_selos`, `0012_grimorio_distiller_e_forjadas` ficam com o nome do journal.
+- **Helpers de teste em português** (`criarHeroi`, `criarMonstro`, `RITUAL_COM_SELO`, `ritualComDelegacao`, `nomeDaCampanha`) e os nomes de arquivos de teste que não espelham um módulo renomeado: teste é prosa sobre o domínio, e a regra é sobre identificadores do produto.
+- **Comentários, textos de UI, prompts** (a voz da forja) e o mock de design `docs/design/fase2/listas.mjs`.
+- `xp` e `level` (vocabulário genérico de gamificação, como o ADR recomendou e a seção 14 já registrava), `tokens`, `scope`, `hall` e `nav.hall` já eram canônicos.
+- O nome `agent_stats`, cogitado no brief, foi descartado pelo argumento do próprio ADR: a tabela cobre Agent **e** Loadout, e `agent_stats` mentiria sobre metade das linhas. De quebra, `GET /agents/stats` colidiria com `GET /agents/{id}` (o Hono executa os handlers na ordem de registro e validaria "stats" como UUID); `/execution-stats` é recurso próprio.
+
+**A migração `0019_vocabulario_canonico_execution_stats`** foi escrita à mão (o gerador emitiria
+`DROP` + `CREATE` e apagaria os acumulados): `RENAME` de tabela, tipo, cinco colunas e três
+constraints, mais o `UPDATE` de `dashboard_event.type`. O snapshot do Drizzle foi derivado
+do `0018` porque `drizzle-kit generate` pede um TTY para perguntar "renomeado ou recriado?";
+uma segunda geração confirma "No schema changes". O teste `migration-0019.test.ts` cria um
+banco irmão, aplica `0000`–`0018`, grava duas linhas em `hero_stats` e um
+`hero_stats.updated`, aplica a `0019` e prova que as linhas, os valores, a unicidade por
+escopo e o tipo do evento sobreviveram — e que fica vermelho sem o `UPDATE`.
+
+**A regra da seção 1 do `CLAUDE.md` foi reescrita**: fala do conceito e não da grafia, cita
+o teste do interruptor, registra o erro que aconteceu (`hero_stats` passou porque a lista
+era de grafias em português) e a exceção nomeada de `Achievement`. A lição que fica: **uma
+regra por grafia é contornada por tradução**; o teste do glossário passa a recusar as chaves
+temáticas em qualquer idioma, palavra por palavra do camelCase (`nativePermissions` não é
+`mission`).
+
+**Verificação**: `lint` 21/21, `typecheck` 39/39, `test` 39/39, `build` 20/20, `gen:check`
+sem diff, `db:check` em dia, `format:check` limpo e o e2e completo. Prova manual num banco
+irmão `dm_adr0003` (migrações `0000`–`0019` e seed): `GET /api/v1/execution-stats` responde
+200 e `GET /api/v1/heroes/stats` 404; `pnpm dm achievements rebuild` reproduz a projeção
+sobre `execution_stats`; o Hall abre igual nos dois temas.
+
+---
+
 # Fase 10 — Observabilidade avançada
 
 Inalterada em relação à v0.2, com um acréscimo: tokens são registrados desde a Fase 2 pelo `UsageReported`, mesmo para harnesses por assinatura sem custo monetário.
@@ -2079,7 +2139,7 @@ achievement_definition  # origem CATALOG | TEMPLATE | FORGED, escopo, condição
 achievement_progress    # (definition_id, user_id) → contador, melhor marca, sequência
 achievement_unlock      # UNIQUE (definition_id, user_id, tier); run_id, task_id, seen_at
 achievement_cursor      # posição do projetor em run_event e nos eventos de domínio
-hero_stats              # por agent_id e por loadout_id: xp, nível, expedições, vitórias, derrotas, monstros
+execution_stats         # por (scope AGENT | LOADOUT, scope_id): xp, level, runs_total, runs_succeeded, runs_failed, bug_tasks_completed (ADR 0003; era hero_stats até a 0019)
 ```
 
 Todas são projeções: podem ser truncadas e reconstruídas a partir de `run_event`, `task` e `project`.
@@ -2357,8 +2417,10 @@ O tema é um skin, e é opcional. A coluna canônica é a única que aparece em 
 | Run Cockpit | Cristal de Visão | Painel da execução | |
 | Execution timeline | Diário da Expedição | Linha do tempo | |
 | Achievement | Conquista | Conquista | Nomes das conquistas também têm as duas versões |
-| Hall | Hall dos Heróis | Conquistas | Abas: Conquistas, Heróis, Bestiário, Crônica; sem tema: Conquistas, Agentes, Bugs resolvidos, Histórico |
-| XP / Level | Experiência / Nível | Pontos / Nível | Cosméticos nos dois modos |
+| Hall | Hall dos Heróis | Conquistas | Abas `achievements`, `agents`, `bugs`, `history`: Conquistas, Heróis, Bestiário, Crônica; sem tema: Conquistas, Agentes, Bugs resolvidos, Histórico |
+| Execution stats (`execution_stats`) | Ficha do Herói | Estatísticas do Agente | Projeção por Agent e por Loadout: `xp`, `level`, `runs_total`, `runs_succeeded`, `runs_failed`, `bug_tasks_completed`; chaves `executionStats.*` (ADR 0003) |
+| XP / Level | Experiência / Nível | Pontos / Nível | Cosméticos nos dois modos; vocabulário genérico de gamificação, não do tema (ADR 0003) |
+| Distiller | Escriba do Grimório | Distiller | O agente que destila o Grimório (Fase 6); chave `knowledge.distiller` |
 | Worker, Queue, API, Runtime | sem tema | sem tema | Infraestrutura não é tematizada |
 
 Regras:
@@ -2367,6 +2429,7 @@ Regras:
 - **O interruptor troca só texto.** Rotas, URLs, atalhos, ícones, layout e dados são idênticos nos dois modos; alternar não recarrega a página.
 - **Texto de sabor é só do tema.** Descrições narrativas de Conquistas e as Conquistas forjadas por LLM não têm versão `plain`; com o tema desligado, o sabor fica oculto e o nome `plain` aparece.
 - **Paridade em tempo de tipo.** Os dois glossários são `Record<GlossaryKey, string>` sobre a mesma união de chaves; faltar uma chave em qualquer um é erro de compilação.
+- **A regra é sobre o conceito, não sobre a grafia** (ADR 0003, 15/09/2026). `hero`, `expedition` e `bestiary` são tão temáticos quanto `heroi`, `expedicao` e `bestiario`, e o teste é o do interruptor: se trocar `dnd` por `plain` mudaria o label mas não o identificador, o identificador está do lado errado. A única exceção é `Achievement`, termo do produto por decisão do dono.
 
 ---
 
