@@ -7,6 +7,7 @@ import {
 import { type App, createApp } from "../src/app.js";
 import {
   createAchievementsPort,
+  createMetricsPort,
   createAutonomyPort,
   createExecutionPort,
   createRunEventsRuntime,
@@ -62,6 +63,11 @@ export function criarApp(
     autonomy: createAutonomyPort({ db: handle.db, userId: LOCAL_USER_ID }),
     achievements: inertes.achievements,
     hall: createAchievementsPort({ db: handle.db, userId: LOCAL_USER_ID }),
+    metrics: createMetricsPort({
+      db: handle.db,
+      userId: LOCAL_USER_ID,
+      heartbeatIntervalMs: 10_000,
+    }),
     pingEnabled: false,
   });
 }
@@ -81,6 +87,12 @@ export function criarApp(
  */
 export async function limparTudo(handle: DatabaseHandle): Promise<void> {
   for (const tabela of [
+    // A projeção da Fase 10A sai antes do que ela referencia.
+    "run_metric",
+    "metric_daily",
+    "metric_cursor",
+    "model_price",
+    "worker",
     "achievement_unlock",
     "achievement_progress",
     "achievement_cursor",

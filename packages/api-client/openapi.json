@@ -5647,6 +5647,32 @@
             ],
             "description": "Onde está explicado como autenticar."
           },
+          "billingKind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PER_TOKEN",
+              "SUBSCRIPTION",
+              null
+            ],
+            "description": "Como o Provider **cobra** (Fase 10A). Não é o mesmo que `kind`, que diz como ele **autentica**: uma CLI por login pode cobrar por token, e uma chave de API pode vir de um plano fixo. Nulo é desconhecido, e desconhecido faz o custo sair `NOT_MEASURED` em vez de zero."
+          },
+          "monthlyCost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "A mensalidade, em `currency`. Só faz sentido em `SUBSCRIPTION`."
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 4217 da mensalidade."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -5663,10 +5689,13 @@
           "authEnvKeys",
           "harnessKeys",
           "docsUrl",
+          "billingKind",
+          "monthlyCost",
+          "currency",
           "createdAt",
           "updatedAt"
         ],
-        "description": "Quem serve os modelos e como se autentica nele."
+        "description": "Quem serve os modelos, como se autentica e como cobra."
       },
       "CreateProvider": {
         "type": "object",
@@ -5743,6 +5772,34 @@
             ],
             "maxLength": 2000,
             "pattern": "^https?:\\/\\//i"
+          },
+          "billingKind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PER_TOKEN",
+              "SUBSCRIPTION",
+              null
+            ],
+            "description": "`null` volta a ser desconhecido."
+          },
+          "monthlyCost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "A mensalidade. Exige `currency` e só é aceita em `SUBSCRIPTION`."
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[A-Z]{3}$"
           }
         },
         "description": "Corpo de `PATCH /api/v1/providers/{id}`."
@@ -13785,6 +13842,1221 @@
           }
         },
         "description": "Corpo de `POST /api/v1/achievements/{id}/rename` e, opcionalmente, de `/approve`: o texto que o usuário reescreveu."
+      },
+      "MetricsOverview": {
+        "type": "object",
+        "properties": {
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Primeiro dia da janela, em UTC."
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Último dia da janela, em UTC. É hoje."
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "O Project do filtro, quando houve um."
+          },
+          "runs": {
+            "$ref": "#/components/schemas/MetricRunCounts"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/MetricTokenCounts"
+          },
+          "duration": {
+            "$ref": "#/components/schemas/MetricDuration"
+          },
+          "costs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Money"
+            },
+            "description": "Uma entrada por moeda, mais uma entrada `NOT_MEASURED` quando houve Run sem preço. Nunca um total único: moedas diferentes não se somam."
+          },
+          "notMeasuredRuns": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Runs sem custo medido, por falta de preço, de assinatura ou de tokens."
+          },
+          "openCircuitBreakers": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Disjuntores ligados que não estão `CLOSED` agora."
+          },
+          "workers": {
+            "$ref": "#/components/schemas/MetricWorkerCounts"
+          }
+        },
+        "required": [
+          "window",
+          "from",
+          "to",
+          "projectId",
+          "runs",
+          "tokens",
+          "duration",
+          "costs",
+          "notMeasuredRuns",
+          "openCircuitBreakers",
+          "workers"
+        ],
+        "description": "Os tiles da janela: Runs, tokens, duração, custo, disjuntores e Workers."
+      },
+      "MetricWindow": {
+        "type": "string",
+        "enum": [
+          "7d",
+          "30d",
+          "90d"
+        ],
+        "description": "A janela de dias, contada para trás a partir de hoje em UTC, inclusive."
+      },
+      "MetricRunCounts": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Runs terminais na janela."
+          },
+          "succeeded": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "timedOut": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cancelled": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "successRate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "`succeeded / total`. Nulo quando não houve Run — não zero."
+          }
+        },
+        "required": [
+          "total",
+          "succeeded",
+          "failed",
+          "timedOut",
+          "cancelled",
+          "successRate"
+        ],
+        "description": "Runs terminais por desfecho."
+      },
+      "MetricTokenCounts": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "output": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cacheRead": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cacheWrite": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "A soma dos quatro."
+          },
+          "knownRuns": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Runs cujo harness reportou tokens. É o denominador honesto das somas."
+          },
+          "unknownRuns": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Runs sem `Usage`. Os tokens deles não entram como zero em lugar nenhum."
+          }
+        },
+        "required": [
+          "input",
+          "output",
+          "cacheRead",
+          "cacheWrite",
+          "total",
+          "knownRuns",
+          "unknownRuns"
+        ],
+        "description": "Tokens somados, com quantos Runs os reportaram."
+      },
+      "MetricDuration": {
+        "type": "object",
+        "properties": {
+          "averageMs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Nulo quando nenhum Run foi medido."
+          },
+          "p95Ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Percentil 95 por posto mais próximo, sobre os Runs medidos."
+          },
+          "maxMs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "totalMs": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Tempo somado de execução na janela."
+          },
+          "measuredRuns": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Runs com início e fim conhecidos."
+          }
+        },
+        "required": [
+          "averageMs",
+          "p95Ms",
+          "maxMs",
+          "totalMs",
+          "measuredRuns"
+        ],
+        "description": "Duração das Expedições da janela."
+      },
+      "Money": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 4217. Nulo quando o custo não foi medido."
+          },
+          "amount": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "O valor na moeda. Nulo quando o custo não foi medido — nunca zero."
+          },
+          "status": {
+            "$ref": "#/components/schemas/CostStatus"
+          }
+        },
+        "required": [
+          "currency",
+          "amount",
+          "status"
+        ],
+        "description": "Um custo com procedência. Sem `PRICED` ou assinatura, `amount` é nulo."
+      },
+      "CostStatus": {
+        "type": "string",
+        "enum": [
+          "PRICED",
+          "ESTIMATED_SUBSCRIPTION",
+          "NOT_MEASURED"
+        ],
+        "description": "De onde o custo saiu. `PRICED` é preço por token vigente na data do Run; `ESTIMATED_SUBSCRIPTION` é o rateio de uma mensalidade pela fatia de tokens do mês; `NOT_MEASURED` é ausência de preço ou de tokens reportados, nunca zero."
+      },
+      "MetricWorkerCounts": {
+        "type": "object",
+        "properties": {
+          "online": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Com batimento dentro do prazo."
+          },
+          "stale": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Sem batimento há mais de três intervalos e sem desligamento gracioso."
+          },
+          "offline": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Desligados graciosamente."
+          }
+        },
+        "required": [
+          "online",
+          "stale",
+          "offline"
+        ],
+        "description": "Presença de Worker no instante da leitura."
+      },
+      "MetricSeries": {
+        "type": "object",
+        "properties": {
+          "metric": {
+            "$ref": "#/components/schemas/SeriesMetric"
+          },
+          "dimension": {
+            "$ref": "#/components/schemas/MetricDimension"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Só em `metric=cost`: a moeda desenhada. Nulo quando nada foi precificado ou quando a métrica não é custo."
+          },
+          "unit": {
+            "type": "string",
+            "description": "A unidade do eixo: `runs`, `tokens`, `ms` ou o código da moeda."
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetricSeriesLine"
+            },
+            "description": "Da maior soma para a menor."
+          }
+        },
+        "required": [
+          "metric",
+          "dimension",
+          "window",
+          "from",
+          "to",
+          "projectId",
+          "currency",
+          "unit",
+          "series"
+        ],
+        "description": "Pontos por dia, por chave de dimensão."
+      },
+      "SeriesMetric": {
+        "type": "string",
+        "enum": [
+          "runs",
+          "tokens",
+          "duration",
+          "cost"
+        ],
+        "description": "Qual medida a série traz por dia."
+      },
+      "MetricDimension": {
+        "type": "string",
+        "enum": [
+          "ALL",
+          "PROJECT",
+          "HARNESS",
+          "MODEL",
+          "PROVIDER",
+          "LOADOUT",
+          "CREATED_BY",
+          "TASK_KIND",
+          "EXECUTION_MODE"
+        ],
+        "description": "O eixo de agrupamento de uma linha do rollup diário."
+      },
+      "MetricSeriesLine": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "A chave da dimensão. `ALL` quando a dimensão é `ALL`."
+          },
+          "label": {
+            "type": "string",
+            "description": "Nome atual da entidade, resolvido na leitura. Cai para a chave quando sumiu."
+          },
+          "total": {
+            "type": "number",
+            "description": "A soma dos pontos, para ordenar as linhas sem refazer a conta."
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetricSeriesPoint"
+            },
+            "description": "Um ponto por dia da janela, em ordem."
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "total",
+          "points"
+        ],
+        "description": "Uma linha da série, por chave de dimensão."
+      },
+      "MetricSeriesPoint": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "value": {
+            "type": "number",
+            "description": "Zero em dia sem dado: a série é contínua por construção."
+          }
+        },
+        "required": [
+          "day",
+          "value"
+        ],
+        "description": "Um dia da série."
+      },
+      "MetricCosts": {
+        "type": "object",
+        "properties": {
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Money"
+            },
+            "description": "Uma entrada por moeda; nunca um total único."
+          },
+          "notMeasuredRuns": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderCost"
+            },
+            "description": "Do maior custo para o menor."
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelCost"
+            },
+            "description": "Do maior custo para o menor."
+          }
+        },
+        "required": [
+          "window",
+          "from",
+          "to",
+          "totals",
+          "notMeasuredRuns",
+          "providers",
+          "models"
+        ],
+        "description": "Custo por Provider e por Model, com o rateio."
+      },
+      "ProviderCost": {
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Nulo agrupa os Runs cujo Model não tem Provider."
+          },
+          "providerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "billingKind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PER_TOKEN",
+              "SUBSCRIPTION",
+              null
+            ],
+            "description": "Nulo é desconhecido."
+          },
+          "monthlyCost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "A mensalidade declarada, em `currency`."
+          },
+          "runs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tokens dos Runs que reportaram."
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "months": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "month": {
+                  "type": "string",
+                  "description": "Mês civil UTC, `YYYY-MM`."
+                },
+                "windowTokens": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Tokens dentro da janela."
+                },
+                "monthTokens": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Tokens do mês inteiro."
+                },
+                "amount": {
+                  "type": "number",
+                  "description": "A fatia da mensalidade atribuída à janela."
+                }
+              },
+              "required": [
+                "month",
+                "windowTokens",
+                "monthTokens",
+                "amount"
+              ]
+            },
+            "description": "O rateio, mês a mês. Vazio fora de `ESTIMATED_SUBSCRIPTION`."
+          }
+        },
+        "required": [
+          "providerId",
+          "providerName",
+          "billingKind",
+          "monthlyCost",
+          "runs",
+          "tokens",
+          "cost",
+          "months"
+        ],
+        "description": "O custo de um Provider na janela, com procedência."
+      },
+      "ModelCost": {
+        "type": "object",
+        "properties": {
+          "modelKey": {
+            "type": "string",
+            "description": "A chave gravada no Run, que sobrevive ao Model apagado."
+          },
+          "modelId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "modelName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "providerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "required": [
+          "modelKey",
+          "modelId",
+          "modelName",
+          "providerId",
+          "providerName",
+          "runs",
+          "tokens",
+          "cost"
+        ],
+        "description": "O custo de um Model na janela."
+      },
+      "RunMetrics": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "QUEUED",
+              "PREPARING",
+              "RUNNING",
+              "WAITING_APPROVAL",
+              "WAITING_CHILD",
+              "SUCCEEDED",
+              "FAILED",
+              "TIMED_OUT",
+              "CANCELLED"
+            ],
+            "description": "O desfecho terminal."
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskKind": {
+            "$ref": "#/components/schemas/TaskKind"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "harnessKey": {
+            "$ref": "#/components/schemas/HarnessKey"
+          },
+          "modelKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "providerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "loadoutId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "loadoutVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "executionMode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/RunCreatedBy"
+          },
+          "parentRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "durationMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "queueMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Da criação ao início. Nulo quando o Run nunca chegou a começar."
+          },
+          "tokens": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "output": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "cacheRead": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "cacheWrite": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "total": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "known": {
+                "type": "boolean",
+                "description": "O harness reportou `Usage`? Falso não é zero."
+              }
+            },
+            "required": [
+              "input",
+              "output",
+              "cacheRead",
+              "cacheWrite",
+              "total",
+              "known"
+            ],
+            "description": "Nulos quando o harness não reportou; nunca zero fingido."
+          },
+          "context": {
+            "$ref": "#/components/schemas/RunContextMetrics"
+          },
+          "toolCalls": {
+            "$ref": "#/components/schemas/RunToolCalls"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "type",
+                "count"
+              ]
+            },
+            "description": "Passos do Workflow por tipo. Vazio num Run sem Workflow."
+          },
+          "gates": {
+            "type": "object",
+            "properties": {
+              "grantedByUser": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "grantedByPolicy": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "grantedByUser",
+              "grantedByPolicy"
+            ],
+            "description": "Aprovações concedidas, separadas por quem decidiu."
+          },
+          "childrenDelegated": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Runs filhos que este abriu."
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "required": [
+          "runId",
+          "status",
+          "taskId",
+          "taskKind",
+          "projectId",
+          "harnessKey",
+          "modelKey",
+          "providerId",
+          "providerName",
+          "loadoutId",
+          "loadoutVersion",
+          "executionMode",
+          "createdBy",
+          "parentRunId",
+          "startedAt",
+          "finishedAt",
+          "durationMs",
+          "queueMs",
+          "tokens",
+          "context",
+          "toolCalls",
+          "steps",
+          "gates",
+          "childrenDelegated",
+          "cost"
+        ],
+        "description": "A quebra de uma Expedição terminal."
+      },
+      "RunContextMetrics": {
+        "type": "object",
+        "properties": {
+          "estimatedTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Tokens estimados do bloco de contexto. Nulo quando não houve contexto."
+          },
+          "items": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "sections": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "truncations": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Seções que o orçamento cortou."
+          }
+        },
+        "required": [
+          "estimatedTokens",
+          "items",
+          "sections",
+          "truncations"
+        ],
+        "description": "O que o contexto montado custou, para comparar com os tokens de entrada."
+      },
+      "RunToolCalls": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "byServer": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "server": {
+                  "type": "string",
+                  "description": "O nome do servidor MCP, tirado do prefixo `mcp__<servidor>__`. `native` agrupa as ferramentas do próprio harness."
+                },
+                "calls": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "server",
+                "calls"
+              ]
+            },
+            "description": "Da mais chamada para a menos."
+          }
+        },
+        "required": [
+          "total",
+          "byServer"
+        ],
+        "description": "Chamadas de ferramenta de um Run, por servidor."
+      },
+      "ModelPriceList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelPrice"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "Preços de Model."
+      },
+      "ModelPrice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "modelId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "modelKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A chave do Model, para a listagem ser legível."
+          },
+          "modelName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "inputPerMillion": {
+            "type": "number"
+          },
+          "outputPerMillion": {
+            "type": "number"
+          },
+          "cacheReadPerMillion": {
+            "type": "number"
+          },
+          "cacheWritePerMillion": {
+            "type": "number"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effectiveTo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Nulo é a vigência corrente."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "modelId",
+          "modelKey",
+          "modelName",
+          "currency",
+          "inputPerMillion",
+          "outputPerMillion",
+          "cacheReadPerMillion",
+          "cacheWritePerMillion",
+          "effectiveFrom",
+          "effectiveTo",
+          "note",
+          "createdAt"
+        ],
+        "description": "Uma vigência de preço de um Model. O histórico é append-only: um preço novo fecha a vigência anterior e abre outra, e o custo de um Run usa a vigência da data dele."
+      },
+      "SetModelPrice": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "inputPerMillion": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Preço por 1 milhão de tokens, na moeda declarada."
+          },
+          "outputPerMillion": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Preço por 1 milhão de tokens, na moeda declarada."
+          },
+          "cacheReadPerMillion": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Padrão: zero."
+          },
+          "cacheWritePerMillion": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Padrão: zero."
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Quando a vigência começa. Padrão: agora. Precisa ser depois da vigência atual."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "currency",
+          "inputPerMillion",
+          "outputPerMillion"
+        ],
+        "description": "Corpo de `PUT /api/v1/models/{id}/price`."
+      },
+      "WorkerList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkerPresence"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "Os Workers conhecidos, dos vivos para os desligados."
+      },
+      "WorkerPresence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "O `workerId` do processo, o mesmo que vai em `run.claimed_by`: `host#pid#uuid`."
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "pid": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "version": {
+            "type": "string",
+            "description": "Versão da app do Worker."
+          },
+          "nodeVersion": {
+            "type": "string"
+          },
+          "capacity": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Teto de Runs simultâneos deste processo."
+          },
+          "harnesses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkerHarness"
+            }
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastHeartbeatAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "stoppedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Preenchido só no desligamento gracioso."
+          },
+          "staleAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Quando a varredura anunciou o silêncio. É o que torna `worker.stale` idempotente."
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkerStatus"
+          },
+          "runningRuns": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Runs em `PREPARING` ou `RUNNING` que ainda apontam para este Worker."
+          }
+        },
+        "required": [
+          "id",
+          "hostname",
+          "pid",
+          "version",
+          "nodeVersion",
+          "capacity",
+          "harnesses",
+          "startedAt",
+          "lastHeartbeatAt",
+          "stoppedAt",
+          "staleAt",
+          "status",
+          "runningRuns"
+        ],
+        "description": "Um processo de Worker e o que ele está sustentando."
+      },
+      "WorkerHarness": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/HarnessKey"
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A versão que a CLI respondeu no boot."
+          },
+          "authStatus": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "AUTHENTICATED",
+              "NOT_AUTHENTICATED",
+              "UNKNOWN",
+              null
+            ],
+            "description": "A credencial, como o boot a mediu."
+          }
+        },
+        "required": [
+          "key",
+          "version",
+          "authStatus"
+        ],
+        "description": "Um Harness como este Worker o mediu no boot, nesta máquina."
+      },
+      "WorkerStatus": {
+        "type": "string",
+        "enum": [
+          "ONLINE",
+          "STALE",
+          "OFFLINE"
+        ],
+        "description": "`ONLINE` bateu dentro do prazo; `STALE` não bate há mais de três intervalos e não se despediu; `OFFLINE` desligou graciosamente."
       }
     },
     "parameters": {}
@@ -21886,6 +23158,491 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/metrics/overview": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Os tiles da janela",
+        "description": "Runs por desfecho, tokens, duração média e p95, custo por moeda, disjuntores abertos e Workers por estado. O custo nunca vem zerado por ausência: sem preço, sem assinatura ou sem tokens reportados, ele sai `NOT_MEASURED` com `amount` nulo e a contagem de Runs em `notMeasuredRuns`. Com `projectId`, o rateio de assinatura fica de fora — `metric_daily` não tem dimensão cruzada Project × Provider, e atribuir a mensalidade pela fatia do Provider inteiro seria um número que não é de ninguém.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "7d",
+                "30d",
+                "90d"
+              ],
+              "description": "Padrão: `30d`."
+            },
+            "required": false,
+            "description": "Padrão: `30d`.",
+            "name": "window",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Só os Runs deste Project."
+            },
+            "required": false,
+            "description": "Só os Runs deste Project.",
+            "name": "projectId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Os tiles da janela.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsOverview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Janela ou filtro inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/metrics/series": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Pontos por dia, por dimensão",
+        "description": "Um ponto por dia da janela, **inclusive nos dias sem Run**: uma série que pula os dias vazios desenha uma inclinação que não existiu. Zero aqui é um fato — 'nenhum Run neste dia' —, ao contrário do custo, onde zero seria mentira: a série de custo existe dentro de **uma** moeda, e os Runs sem preço ficam fora dela.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "runs",
+                "tokens",
+                "duration",
+                "cost"
+              ],
+              "description": "Padrão: `runs`."
+            },
+            "required": false,
+            "description": "Padrão: `runs`.",
+            "name": "metric",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ALL",
+                "PROJECT",
+                "HARNESS",
+                "MODEL",
+                "PROVIDER",
+                "LOADOUT",
+                "CREATED_BY",
+                "TASK_KIND",
+                "EXECUTION_MODE"
+              ],
+              "description": "Padrão: `ALL`."
+            },
+            "required": false,
+            "description": "Padrão: `ALL`.",
+            "name": "dimension",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "7d",
+                "30d",
+                "90d"
+              ],
+              "description": "Padrão: `30d`."
+            },
+            "required": false,
+            "description": "Padrão: `30d`.",
+            "name": "window",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "projectId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "description": "Só em `metric=cost`. Padrão: a moeda com maior custo na janela."
+            },
+            "required": false,
+            "description": "Só em `metric=cost`. Padrão: a moeda com maior custo na janela.",
+            "name": "currency",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A série, das linhas de maior soma para as de menor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricSeries"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Métrica, dimensão ou janela inválida.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/metrics/costs": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Custo por Provider e por Model",
+        "description": "Um Provider `PER_TOKEN` soma os preços vigentes na data de cada Run. Um `SUBSCRIPTION` com `monthlyCost` recebe o rateio da mensalidade pela fatia de tokens dele no mês civil UTC, mês a mês, e sai rotulado `ESTIMATED_SUBSCRIPTION` — nunca as duas coisas somadas, que contariam o mesmo gasto duas vezes. `totals` traz uma entrada por moeda; moedas diferentes não se somam, porque converter exigiria uma taxa de câmbio que o sistema não tem.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "7d",
+                "30d",
+                "90d"
+              ],
+              "description": "Padrão: `30d`."
+            },
+            "required": false,
+            "description": "Padrão: `30d`.",
+            "name": "window",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Custos da janela, com a procedência de cada número.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricCosts"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Janela inválida.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/metrics": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Os tiles de um Project",
+        "description": "O mesmo recorte de `/metrics/overview`, restrito a um Project. Os baldes são recalculados a partir de `run_metric` pela mesma função pura do projetor: o que muda é de onde as linhas vêm, não como são somadas.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do recurso."
+            },
+            "required": true,
+            "description": "UUIDv7 do recurso.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "7d",
+                "30d",
+                "90d"
+              ],
+              "description": "Padrão: `30d`."
+            },
+            "required": false,
+            "description": "Padrão: `30d`.",
+            "name": "window",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Os tiles do Project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsOverview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Janela inválida.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Project com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{id}/metrics": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "A quebra de uma Expedição",
+        "description": "Tokens, contexto montado contra tokens de entrada, chamadas de ferramenta por servidor MCP, passos por tipo, aprovações por quem decidiu, filhos delegados e o custo com procedência. Só existe depois de o Run terminar **e** o projetor passar: antes disso é `404`, porque `run_metric` só tem Expedição acabada.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do recurso."
+            },
+            "required": true,
+            "description": "UUIDv7 do recurso.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A quebra do Run.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunMetrics"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe métrica para este Run: ele não terminou ou ainda não foi projetado.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/model-prices": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "As vigências correntes de preço",
+        "description": "Uma por Model que tem preço cadastrado, em ordem de nome de Model.",
+        "responses": {
+          "200": {
+            "description": "Os preços vigentes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelPriceList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/models/{id}/prices": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "O histórico de preço de um Model",
+        "description": "Da vigência mais recente para a mais antiga. A corrente tem `effectiveTo` nulo.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do recurso."
+            },
+            "required": true,
+            "description": "UUIDv7 do recurso.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O histórico.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelPriceList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Model com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/models/{id}/price": {
+      "put": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Abre uma vigência de preço",
+        "description": "O histórico é append-only: a vigência corrente é **fechada** e uma nova é aberta. Sobrescrever a linha faria o custo de março mudar sozinho no dia de um reajuste em abril. Gravar um preço recalcula o rollup dos dias em que aquele Model apareceu, para a tela não continuar mostrando `NOT_MEASURED` no que acabou de ganhar preço.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUIDv7 do recurso."
+            },
+            "required": true,
+            "description": "UUIDv7 do recurso.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetModelPrice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A vigência aberta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelPrice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não existe Model com este id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A vigência nova precisa começar depois do início da corrente.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workers": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Os Workers conhecidos",
+        "description": "`status` é calculado na leitura, e não é coluna: gravá-lo exigiria alguém escrevendo `STALE` no segundo exato em que o prazo vence. `ONLINE` bateu dentro do prazo, `STALE` não bate há mais de três intervalos e não se despediu, e `OFFLINE` desligou graciosamente. `runningRuns` conta o que cada um ainda segura — inclusive um morto, e é justamente esse número que a reconciliação zera.",
+        "responses": {
+          "200": {
+            "description": "Os Workers, dos vivos para os desligados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerList"
                 }
               }
             }
