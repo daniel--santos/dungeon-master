@@ -182,3 +182,28 @@ export type RoutingDecisionRecord = NonNullable<
 >;
 export type ProjectAutonomyRecord = components["schemas"]["ProjectAutonomy"];
 export type TaskSuggestionsRecord = components["schemas"]["TaskSuggestions"];
+
+// A observabilidade avançada da Fase 10A: os tiles, as séries, o custo com
+// procedência, a quebra de um Run, o preço de Model e a presença de Worker.
+export type MetricsOverviewRecord = components["schemas"]["MetricsOverview"];
+export type MetricSeriesRecord = components["schemas"]["MetricSeries"];
+export type MetricSeriesLineRecord = components["schemas"]["MetricSeriesLine"];
+export type MetricSeriesPointRecord = components["schemas"]["MetricSeriesPoint"];
+export type MetricCostsRecord = components["schemas"]["MetricCosts"];
+export type ProviderCostRecord = components["schemas"]["ProviderCost"];
+export type ModelCostRecord = components["schemas"]["ModelCost"];
+export type RunMetricsRecord = components["schemas"]["RunMetrics"];
+export type RunContextMetricsRecord = components["schemas"]["RunContextMetrics"];
+export type MoneyRecord = components["schemas"]["Money"];
+export type CostStatusRecord = components["schemas"]["CostStatus"];
+export type BillingKindRecord = components["schemas"]["BillingKind"];
+export type MetricDimensionRecord = components["schemas"]["MetricDimension"];
+export type MetricWindowRecord = components["schemas"]["MetricWindow"];
+export type SeriesMetricRecord = components["schemas"]["SeriesMetric"];
+export type ModelPriceRecord = components["schemas"]["ModelPrice"];
+export type ModelPriceListRecord = components["schemas"]["ModelPriceList"];
+export type SetModelPriceBody = components["schemas"]["SetModelPrice"];
+export type WorkerListRecord = components["schemas"]["WorkerList"];
+export type WorkerPresenceRecord = components["schemas"]["WorkerPresence"];
+export type WorkerHarnessRecord = components["schemas"]["WorkerHarness"];
+export type WorkerStatusRecord = components["schemas"]["WorkerStatus"];

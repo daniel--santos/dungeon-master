@@ -2261,6 +2261,107 @@ e2e da web é da 10B.
 - `metric_daily` não tem retenção: cresce um punhado de linhas por dia e por dimensão, e a
   poda só fará sentido quando houver anos de histórico.
 
+## Andamento da Fase 10B (15/09/2026)
+
+Entregue na branch `feat/fase10-web`, sobre a `feat/fase10-metricas` da 10A: a leitura da
+projeção de métricas na interface. Nada aqui calcula métrica — a web consome
+`GET /metrics/*`, `GET /runs/{id}/metrics`, `GET /model-prices` e `GET /workers`, e o que
+ela acrescenta é a disciplina de **nunca transformar ausência em zero** no ponto onde o
+número vira pixel.
+
+**A tela `/observability`.** Janela (7d/30d/90d), medida e dimensão vivem na URL, em valores
+canônicos: um link compartilhado reproduz a mesma tela e o interruptor de tema não o altera.
+Sete tiles, cada um com o denominador ao lado — Expedições por desfecho, taxa de sucesso
+(travessão, e não 0%, quando não houve Run), tokens com "n de m Expedições com tokens
+medidos", custo por moeda com o rótulo da procedência, duração média/p95/máxima com quantas
+foram medidas, disjuntores abertos e Workers por estado. Abaixo, a série por dia com as nove
+dimensões (`ALL`, Campanha, Guilda, Patrono, Patronato, Equipamento, origem, tipo de Missão,
+modo de execução), a quebra da dimensão escolhida com total e percentual, e a lista de
+Workers com o batimento. O vazio honesto aparece quando nenhuma Expedição terminou na
+janela: a frase diz isso, em vez de um painel de zeros.
+
+**`MoneyValue` é o único lugar que desenha custo**, e é ele que sustenta a regra da 10A: um
+`amount` nulo vira o rótulo do status, nunca zero. Um zero somado fecharia a conta e estaria
+errado para baixo sem nenhum sinal — e era exatamente o erro que esta fase existe para não
+cometer. Somas saem em lista por moeda; duas moedas nunca viram uma.
+
+**Gráficos: `recharts` `3.10.1`**, pinado, compatível com React 19, sem binário nativo —
+mesma instalação em Windows e macOS. Três regras que o componente sustenta: uma paleta só,
+derivada dos tokens `--accent-*` de `styles.css` (que já têm valor próprio em claro e
+escuro, então não há uma segunda tabela de cores); a cor **nunca** carrega sozinha o
+significado — cada linha tem marcador de forma na legenda e existe de novo na quebra por
+dimensão e numa tabela dia a dia dentro de um `details`, que é o que um leitor de tela
+percorre; e nenhuma animação, porque uma transição de 400 ms deixa o e2e lendo um SVG a meio
+caminho. Eixos rotulados na unidade da medida (duração vira "2 min", não "120000"), tooltip
+próprio formatado pelo locale, `role="img"` com descrição textual no desenho. A série
+desenha no máximo seis linhas, o tamanho da paleta; o que sobra continua na quebra, com o
+total.
+
+**Cockpit com duas abas.** O cabeçalho — estado, ambiente, relógio ao vivo — fica **fora**
+delas: quem olha a quebra de medidas continua precisando ver se a Expedição está de pé. A
+aba de Medidas traz tokens, provisões contra prompt (tokens estimados do bloco, itens,
+seções, cortes, contra os tokens de entrada reportados), ferramentas por servidor MCP,
+passos por tipo, Selos por quem decidiu, filhos delegados, duração e fila, e o custo com
+procedência. Um `404` ali não é falha de tela: é "ainda não medido", e a aba diz isso.
+
+**Settings ganhou "Preços".** Vigência por Model, append-only, com o histórico dentro do
+próprio diálogo — sem ele, "abrir uma vigência" pareceria edição, e alguém cadastraria um
+reajuste de abril esperando que março ficasse como estava. O campo de início da vigência
+grava **meia-noite UTC**: sem ele o preço valeria só de agora em diante e nenhum Run passado
+seria precificado, o que é correto e inútil para quem acabou de cadastrar o preço do que já
+rodou. Ao lado, o faturamento por Provider, com a mensalidade desabilitada fora de
+`SUBSCRIPTION` (o `CHECK` da tabela já a recusaria) e o aviso de que assinatura é estimativa
+rateada. A tela de Patronatos mostra o faturamento como chip quando alguém o declarou.
+
+**Campanha.** Bloco de medidas com o overview reduzido, o link para a tela inteira já
+filtrada e a nota de que o rateio de assinatura **não desce ao nível de Project**: lá as
+Expedições de Patronato por assinatura entram como não medidas, porque `metric_daily` não
+tem dimensão cruzada Project × Provider e atribuir a fatia do Provider inteiro a uma
+Campanha seria um número que não é de ninguém.
+
+**Tempo real.** `metrics.updated` invalida o prefixo `metrics` inteiro (o evento não diz
+qual janela nem qual dimensão, e a API já limita a frequência dele); `worker.*` invalida só
+a presença e o tile de Workers — um batimento não muda nenhum número de noventa dias.
+
+**Duas correções fora da tela, achadas ao integrar.** A primeira é de API: o
+`PATCH /providers/{id}` validava `billingKind`, `monthlyCost` e `currency` e depois os
+descartava — o handler montava o patch campo a campo e nunca copiou os três. Respondia `200`
+com o Provider intacto, e o repositório, que sabe gravá-los desde a 10A, nunca era chamado
+com eles; um `200` que não grava é pior do que um `400`. Corrigido com teste que falha sem a
+correção. A segunda é de tela: a vigência de preço aparecia um dia antes para quem está em
+São Paulo, porque a data do domínio é UTC e a tabela formatava no fuso do browser —
+`formatUtcDate` passou a existir ao lado das formas locais.
+
+**E2E.** `seedMetrics` em `apps/web/e2e/helpers.ts` escreve por SQL o que o projetor
+escreveria: `run_metric` com os fatos de cada Run e o rollup diário derivado dessas mesmas
+linhas, pela conta do pacote puro reescrita no helper porque a web não importa
+`packages/database`. Grava também um Worker ativo e um silencioso — só o relógio do
+batimento os separa, já que `status` é calculado na leitura. A fixture **não** semeia custo:
+os dias nascem não precificados, e é cadastrando o preço pela interface que a suíte vê a API
+recalcular o rollup e o mesmo tile passar de "não medido" a "preço vigente". Um painel que
+mostrasse zero no primeiro passo passaria no teste sem ter medido nada.
+
+**Verificação.** `pnpm turbo run build lint typecheck test` verde (87 tarefas; 307 testes de
+unidade na web, 264 na API), `pnpm gen:check`, `pnpm db:check` e `pnpm format:check` verdes,
+e as 26 suítes de ponta a ponta passando, inclusive as duas novas.
+
+**Prova manual** (banco `dm_fase10b`, API 3420, web 5320, dados de `seedMetrics` com seis
+Expedições em seis dias): a tela nos dois temas na mesma URL — "Torre de Vigia" e
+"Observabilidade" —, troca de janela de 7d para 30d e de dimensão para tipo de Missão, com a
+quebra mostrando Monstro 79,2%, Manutenção 19,4%, Exploração 1,1% e Missão 0,3%. O custo
+abriu em "— não medido · 6 sem custo medido"; cadastrado o preço (USD 3 de entrada, 15 de
+saída, vigente desde 01/09), o mesmo tile passou a "US$ 1,03 · preço vigente" e a contagem
+de não medidos caiu para 1 — a Expedição cuja Guilda não reportou tokens, que continua sem
+custo em vez de virar zero. A aba de Medidas do cockpit trouxe 170.000 tokens, 5.400 de
+provisões contra 120.000 de entrada, 12 chamadas nativas e 3 do servidor de conhecimento, um
+Selo do usuário e dois por Édito, uma filha, 1 min 35 s de execução e 4 s de fila. Na
+dimensão de modo de execução, a legenda e a tabela mostram "Host · sem isolamento" nos dois
+temas: a regra de segurança da seção 14 vale também numa legenda de gráfico, onde não há
+badge para acompanhar o nome. Os Workers apareceram `ONLINE` e `STALE` — o segundo com o
+batimento envelhecido por SQL. Um detalhe do ambiente: o prazo de silêncio é curto (três
+intervalos de batimento), então o Worker "vivo" da fixture vira `STALE` em menos de um
+minuto sem um processo real renovando o batimento; é a leitura correta, não um defeito.
+
 ---
 
 # 7. Modelo de dados
@@ -2353,7 +2454,13 @@ Rotas e código usam o nome canônico. O label exibido vem do glossário ativo, 
 | Loadouts | Equipamentos | Loadouts |
 | Workflows | Rituais | Workflows |
 | Hall | Hall dos Heróis | Conquistas |
+| Observability | Torre de Vigia | Observabilidade |
 | Settings | Configurações | Configurações |
+
+A rota `/observability` (Fase 10B) carrega janela, medida, dimensão e o recorte por Project
+em parâmetros de busca tipados, sempre em valores canônicos — `window=30d`,
+`dimension=EXECUTION_MODE` —, de modo que o link reproduz a mesma tela e o interruptor de
+tema não o altera.
 
 ## Run Cockpit
 
@@ -2605,7 +2712,12 @@ O tema é um skin, e é opcional. A coluna canônica é a única que aparece em 
 | Execution stats (`execution_stats`) | Ficha do Herói | Estatísticas do Agente | Projeção por Agent e por Loadout: `xp`, `level`, `runs_total`, `runs_succeeded`, `runs_failed`, `bug_tasks_completed`; chaves `executionStats.*` (ADR 0003) |
 | XP / Level | Experiência / Nível | Pontos / Nível | Cosméticos nos dois modos; vocabulário genérico de gamificação, não do tema (ADR 0003) |
 | Distiller | Escriba do Grimório | Distiller | O agente que destila o Grimório (Fase 6); chave `knowledge.distiller` |
-| Worker, Queue, API, Runtime | sem tema | sem tema | Infraestrutura não é tematizada |
+| Observabilidade (`metrics`) | Torre de Vigia | Observabilidade | A tela da Fase 10B; chaves `metrics.*` e `nav.observability` |
+| Custo medido / estimado / não medido (`CostStatus`) | preço vigente / rateio de assinatura / não medido | idem | O rótulo acompanha **todo** valor; `NOT_MEASURED` mostra travessão, nunca zero |
+| Faturamento (`BillingKind`) | Por token / Assinatura | idem | Chaves `provider.billing.*`; a mensalidade só existe em `SUBSCRIPTION` |
+| Preço de Model (`model_price`) | Preços | Preços | Bloco de Settings; vigência append-only, datada em UTC; chaves `settings.prices.*` |
+| Run metrics | Medidas | Métricas | A aba do cockpit; chaves `run.tab.*` e `run.metrics.*` |
+| Worker, Queue, API, Runtime | sem tema | sem tema | Infraestrutura não é tematizada; `WorkerStatus` tem label (`Ativo`/`Silencioso`/`Desligado`), o estado canônico não |
 
 Regras:
 

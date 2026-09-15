@@ -9,6 +9,7 @@ import {
   ListChecks,
   Package,
   Settings,
+  Telescope,
   Trophy,
   Users,
   WandSparkles,
@@ -59,6 +60,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   { to: "/workflows", label: "nav.workflows", icon: WandSparkles },
   { to: "/hall", label: "nav.hall", icon: Trophy, startsGroup: true },
+  // A observabilidade avançada da Fase 10B: fica no fim da barra, junto do Hall
+  // e de Settings, porque é tela de olhar o sistema, não de trabalhar nele.
+  { to: "/observability", label: "nav.observability", icon: Telescope },
   { to: "/settings", label: "nav.settings", icon: Settings },
 ];
 

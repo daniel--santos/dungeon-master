@@ -448,6 +448,48 @@ describe("preço de Model", () => {
     expect([400, 422]).toContain(recusado.status);
     expect(recusado.headers.get("content-type")).toContain(PROBLEM_CONTENT_TYPE);
   });
+
+  it("trocar para `PER_TOKEN` leva a mensalidade junto", async () => {
+    const providers = await corpo<{ items: { id: string }[] }>(
+      await pedir({ app, method: "GET", path: `${API_BASE_PATH}/providers` }),
+    );
+    const provider = providers.items[0];
+    if (provider === undefined) throw new Error("O seed não deixou nenhum Provider.");
+
+    // O teste vizinho prova que `null` apaga os três; este prova o outro
+    // caminho de saída da assinatura — mudar para `PER_TOKEN` sem falar da
+    // mensalidade. Uma mensalidade pendurada num Provider que cobra por token
+    // não é um dado a preservar, é um número que ninguém mais lê, e o `CHECK`
+    // da tabela recusaria a linha.
+    const assinatura = await corpo<{
+      billingKind: string | null;
+      monthlyCost: number | null;
+      currency: string | null;
+    }>(
+      await pedir({
+        app,
+        method: "PATCH",
+        path: `${API_BASE_PATH}/providers/${provider.id}`,
+        body: { billingKind: "SUBSCRIPTION", monthlyCost: 123.45, currency: "USD" },
+      }),
+    );
+
+    expect(assinatura.billingKind).toBe("SUBSCRIPTION");
+    expect(assinatura.monthlyCost).toBe(123.45);
+    expect(assinatura.currency).toBe("USD");
+
+    const porToken = await corpo<{ monthlyCost: number | null; currency: string | null }>(
+      await pedir({
+        app,
+        method: "PATCH",
+        path: `${API_BASE_PATH}/providers/${provider.id}`,
+        body: { billingKind: "PER_TOKEN" },
+      }),
+    );
+
+    expect(porToken.monthlyCost).toBeNull();
+    expect(porToken.currency).toBeNull();
+  });
 });
 
 describe("GET /api/v1/metrics/costs e /api/v1/workers", () => {

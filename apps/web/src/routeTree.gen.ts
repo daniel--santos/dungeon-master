@@ -16,6 +16,7 @@ import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as LoadoutsRouteImport } from './routes/loadouts'
 import { Route as McpServersRouteImport } from './routes/mcp-servers'
+import { Route as ObservabilityRouteImport } from './routes/observability'
 import { Route as ProvidersRouteImport } from './routes/providers'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ToolsRouteImport } from './routes/tools'
@@ -66,6 +67,11 @@ const LoadoutsRoute = LoadoutsRouteImport.update({
 const McpServersRoute = McpServersRouteImport.update({
   id: '/mcp-servers',
   path: '/mcp-servers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ObservabilityRoute = ObservabilityRouteImport.update({
+  id: '/observability',
+  path: '/observability',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProvidersRoute = ProvidersRouteImport.update({
@@ -157,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/knowledge': typeof KnowledgeRoute
   '/loadouts': typeof LoadoutsRoute
   '/mcp-servers': typeof McpServersRoute
+  '/observability': typeof ObservabilityRoute
   '/providers': typeof ProvidersRoute
   '/settings': typeof SettingsRoute
   '/tools': typeof ToolsRoute
@@ -182,6 +189,7 @@ export interface FileRoutesByTo {
   '/knowledge': typeof KnowledgeRoute
   '/loadouts': typeof LoadoutsRoute
   '/mcp-servers': typeof McpServersRoute
+  '/observability': typeof ObservabilityRoute
   '/providers': typeof ProvidersRoute
   '/settings': typeof SettingsRoute
   '/tools': typeof ToolsRoute
@@ -208,6 +216,7 @@ export interface FileRoutesById {
   '/knowledge': typeof KnowledgeRoute
   '/loadouts': typeof LoadoutsRoute
   '/mcp-servers': typeof McpServersRoute
+  '/observability': typeof ObservabilityRoute
   '/providers': typeof ProvidersRoute
   '/settings': typeof SettingsRoute
   '/tools': typeof ToolsRoute
@@ -235,6 +244,7 @@ export interface FileRouteTypes {
     | '/knowledge'
     | '/loadouts'
     | '/mcp-servers'
+    | '/observability'
     | '/providers'
     | '/settings'
     | '/tools'
@@ -260,6 +270,7 @@ export interface FileRouteTypes {
     | '/knowledge'
     | '/loadouts'
     | '/mcp-servers'
+    | '/observability'
     | '/providers'
     | '/settings'
     | '/tools'
@@ -285,6 +296,7 @@ export interface FileRouteTypes {
     | '/knowledge'
     | '/loadouts'
     | '/mcp-servers'
+    | '/observability'
     | '/providers'
     | '/settings'
     | '/tools'
@@ -311,6 +323,7 @@ export interface RootRouteChildren {
   KnowledgeRoute: typeof KnowledgeRoute
   LoadoutsRoute: typeof LoadoutsRoute
   McpServersRoute: typeof McpServersRoute
+  ObservabilityRoute: typeof ObservabilityRoute
   ProvidersRoute: typeof ProvidersRoute
   SettingsRoute: typeof SettingsRoute
   ToolsRoute: typeof ToolsRoute
@@ -378,6 +391,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp-servers'
       fullPath: '/mcp-servers'
       preLoaderRoute: typeof McpServersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/observability': {
+      id: '/observability'
+      path: '/observability'
+      fullPath: '/observability'
+      preLoaderRoute: typeof ObservabilityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/providers': {
@@ -503,6 +523,7 @@ const rootRouteChildren: RootRouteChildren = {
   KnowledgeRoute: KnowledgeRoute,
   LoadoutsRoute: LoadoutsRoute,
   McpServersRoute: McpServersRoute,
+  ObservabilityRoute: ObservabilityRoute,
   ProvidersRoute: ProvidersRoute,
   SettingsRoute: SettingsRoute,
   ToolsRoute: ToolsRoute,

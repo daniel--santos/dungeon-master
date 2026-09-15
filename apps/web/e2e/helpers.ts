@@ -1355,3 +1355,386 @@ export async function seedAutonomy(input: SeedAutonomyInput): Promise<SeedAutono
     await client.end();
   }
 }
+
+export interface SeedMetricsRunInput {
+  /** Um Run criado pela API. A fixture o leva a um desfecho terminal. */
+  readonly runId: string;
+  readonly status: "SUCCEEDED" | "FAILED" | "TIMED_OUT" | "CANCELLED";
+  /** Quantos dias atrás, em UTC, a Expedição terminou. */
+  readonly daysAgo: number;
+  readonly durationMs: number;
+  readonly queueMs?: number;
+  /**
+   * Os tokens que a Guilda reportou. `null` é Guilda que **não** reportou, e é
+   * o caso que a tela precisa distinguir de zero.
+   */
+  readonly tokens?: {
+    readonly input: number;
+    readonly output: number;
+    readonly cacheRead?: number;
+    readonly cacheWrite?: number;
+  } | null;
+  readonly context?: {
+    readonly estimatedTokens: number;
+    readonly items: number;
+    readonly sections: number;
+    readonly truncations: number;
+  };
+  /** Chamadas por servidor MCP. `native` são as ferramentas da própria Guilda. */
+  readonly toolCallsByServer?: Readonly<Record<string, number>>;
+  readonly stepsByType?: Readonly<Record<string, number>>;
+  readonly gates?: { readonly user: number; readonly policy: number };
+  readonly childrenDelegated?: number;
+}
+
+export interface SeedMetricsWorkerInput {
+  readonly suffix: string;
+  /** Há quantos minutos o Worker silencioso bateu pela última vez. */
+  readonly staleMinutes?: number;
+}
+
+export interface SeedMetricsInput {
+  readonly runs: readonly SeedMetricsRunInput[];
+  /** Grava um Worker ativo e um silencioso, com o batimento coerente. */
+  readonly workers?: SeedMetricsWorkerInput;
+  /** Deixa um Provider faturando por assinatura, com mensalidade declarada. */
+  readonly subscription?: {
+    readonly providerId: string;
+    readonly monthlyCost: number;
+    readonly currency: string;
+  };
+}
+
+export interface SeedMetricsResult {
+  /** Os dias UTC tocados, do mais antigo para o mais novo. */
+  readonly days: readonly string[];
+  readonly onlineWorkerId: string | null;
+  readonly staleWorkerId: string | null;
+  /** Linhas de `metric_daily` escritas. */
+  readonly buckets: number;
+}
+
+/** As medidas de uma linha de `metric_daily`, como o pacote puro as define. */
+interface DailyMeasures {
+  runsTotal: number;
+  runsSucceeded: number;
+  runsFailed: number;
+  runsTimedOut: number;
+  runsCancelled: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  tokensKnownRuns: number;
+  durationMsTotal: number;
+  durationMsMax: number;
+  durationRuns: number;
+  toolCalls: number;
+  unpricedRuns: number;
+}
+
+function medidasVazias(): DailyMeasures {
+  return {
+    runsTotal: 0,
+    runsSucceeded: 0,
+    runsFailed: 0,
+    runsTimedOut: 0,
+    runsCancelled: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    tokensKnownRuns: 0,
+    durationMsTotal: 0,
+    durationMsMax: 0,
+    durationRuns: 0,
+    toolCalls: 0,
+    unpricedRuns: 0,
+  };
+}
+
+type DailyBucket = DailyMeasures & {
+  readonly day: string;
+  readonly dimension: string;
+  readonly key: string;
+};
+
+const MILLIS_PER_DAY = 86_400_000;
+
+function somaFerramentas(byServer: Readonly<Record<string, number>> | undefined): number {
+  return Object.values(byServer ?? {}).reduce((soma, valor) => soma + valor, 0);
+}
+
+/**
+ * Deixa a observabilidade com Expedições medidas, Workers e assinatura, por SQL
+ * no banco do e2e (Fase 10B).
+ *
+ * Quem escreve `run_metric` e `metric_daily` em produção é o projetor do
+ * Worker, e a configuração do Playwright não sobe Worker de propósito. A
+ * fixture escreve o que o projetor escreveria: o Run vai a um desfecho
+ * terminal, vira uma linha de `run_metric` com os fatos dele, e o rollup diário
+ * é derivado dessas mesmas linhas — pela mesma conta do pacote puro, reescrita
+ * aqui porque a web não importa `packages/database` (CLAUDE.md, seção 3).
+ *
+ * **Nenhum custo é semeado.** Os dias nascem com `unpriced_runs` igual ao total
+ * e `cost_by_currency` vazio, que é o estado `NOT_MEASURED` da tela. É
+ * cadastrando um preço pela interface que o teste vê a API recalcular o rollup
+ * e o custo virar `PRICED` — que é justamente o caminho que a suíte prova.
+ *
+ * As dimensões são as do projetor: `ALL`, `HARNESS`, `LOADOUT`, `CREATED_BY`,
+ * `TASK_KIND` e `EXECUTION_MODE` sempre; `PROJECT`, `MODEL` e `PROVIDER` só
+ * quando o Run tem aquele valor. Uma dimensão sem valor não vira linha, e é por
+ * isso que `ALL` existe como dimensão própria em vez de ser a soma das outras.
+ */
+export async function seedMetrics(input: SeedMetricsInput): Promise<SeedMetricsResult> {
+  const databaseUrl = process.env["DATABASE_URL"];
+  if (databaseUrl === undefined) {
+    throw new Error("DATABASE_URL não está no ambiente: rode pelo run-e2e.mjs.");
+  }
+
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+
+    const user = await client.query<{ id: string }>(`SELECT id FROM "user" LIMIT 1`);
+    const userId = user.rows[0]?.id;
+    if (userId === undefined) throw new Error("O banco do e2e não tem o usuário local.");
+
+    const dias = new Set<string>();
+    const baldes = new Map<string, DailyBucket>();
+
+    const acumular = (
+      day: string,
+      dimension: string,
+      key: string,
+      run: SeedMetricsRunInput,
+    ): void => {
+      const chave = `${day}|${dimension}|${key}`;
+      const atual = baldes.get(chave) ?? { day, dimension, key, ...medidasVazias() };
+      const tokens = run.tokens ?? null;
+
+      atual.runsTotal += 1;
+      if (run.status === "SUCCEEDED") atual.runsSucceeded += 1;
+      if (run.status === "FAILED") atual.runsFailed += 1;
+      if (run.status === "TIMED_OUT") atual.runsTimedOut += 1;
+      if (run.status === "CANCELLED") atual.runsCancelled += 1;
+      atual.inputTokens += tokens?.input ?? 0;
+      atual.outputTokens += tokens?.output ?? 0;
+      atual.cacheReadTokens += tokens?.cacheRead ?? 0;
+      atual.cacheWriteTokens += tokens?.cacheWrite ?? 0;
+      if (tokens !== null) atual.tokensKnownRuns += 1;
+      atual.durationMsTotal += run.durationMs;
+      atual.durationMsMax = Math.max(atual.durationMsMax, run.durationMs);
+      atual.durationRuns += 1;
+      atual.toolCalls += somaFerramentas(run.toolCallsByServer);
+      // Sem preço cadastrado, todo Run é não precificado. Zero de custo seria
+      // mentira; ausência de custo é a verdade.
+      atual.unpricedRuns += 1;
+
+      baldes.set(chave, atual);
+    };
+
+    for (const run of input.runs) {
+      const fim = new Date(Date.now() - run.daysAgo * MILLIS_PER_DAY);
+      const inicio = new Date(fim.getTime() - run.durationMs);
+      const day = fim.toISOString().slice(0, 10);
+      dias.add(day);
+
+      const fatos = await client.query<{
+        task_id: string;
+        project_id: string | null;
+        kind: string;
+        harness_key: string;
+        model_key: string | null;
+        provider_id: string | null;
+        loadout_id: string;
+        loadout_version: number;
+        execution_mode: string;
+        created_by: string;
+        parent_run_id: string | null;
+      }>(
+        `SELECT r.task_id, t.project_id, t.kind, r.harness_key, r.model_key,
+                m.provider_id, r.loadout_id, r.loadout_version, r.execution_mode,
+                r.created_by, r.parent_run_id
+           FROM run r
+           JOIN task t ON t.id = r.task_id
+           LEFT JOIN model m ON m.key = r.model_key AND m.user_id = r.user_id
+          WHERE r.id = $1 AND r.user_id = $2
+          FOR UPDATE OF r`,
+        [run.runId, userId],
+      );
+      const fato = fatos.rows[0];
+      if (fato === undefined) throw new Error(`O Run ${run.runId} não existe.`);
+
+      await client.query(
+        `UPDATE run
+            SET status = $2::run_status, started_at = $3, finished_at = $4, updated_at = now()
+          WHERE id = $1`,
+        [run.runId, run.status, inicio.toISOString(), fim.toISOString()],
+      );
+
+      const tokens = run.tokens ?? null;
+      await client.query(
+        `INSERT INTO run_metric
+           (run_id, user_id, project_id, task_id, task_kind, harness_key, model_key, provider_id,
+            loadout_id, loadout_version, execution_mode, created_by, parent_run_id, status,
+            started_at, finished_at, duration_ms, queue_ms,
+            input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, tokens_known,
+            context_tokens, context_items, context_sections, context_truncations,
+            tool_calls_by_server, tool_calls, steps_by_type,
+            gates_granted_user, gates_granted_policy, children_delegated, day)
+         VALUES ($1, $2, $3, $4, $5::task_kind, $6::harness_key, $7, $8,
+                 $9, $10, $11::execution_mode, $12::run_created_by, $13, $14::run_status,
+                 $15, $16, $17, $18,
+                 $19, $20, $21, $22, $23,
+                 $24, $25, $26, $27,
+                 $28::jsonb, $29, $30::jsonb,
+                 $31, $32, $33, $34::date)
+         ON CONFLICT (run_id) DO NOTHING`,
+        [
+          run.runId,
+          userId,
+          fato.project_id,
+          fato.task_id,
+          fato.kind,
+          fato.harness_key,
+          fato.model_key,
+          fato.provider_id,
+          fato.loadout_id,
+          fato.loadout_version,
+          fato.execution_mode,
+          fato.created_by,
+          fato.parent_run_id,
+          run.status,
+          inicio.toISOString(),
+          fim.toISOString(),
+          run.durationMs,
+          run.queueMs ?? null,
+          tokens?.input ?? null,
+          tokens?.output ?? null,
+          tokens?.cacheRead ?? null,
+          tokens?.cacheWrite ?? null,
+          tokens !== null,
+          run.context?.estimatedTokens ?? null,
+          run.context?.items ?? null,
+          run.context?.sections ?? null,
+          run.context?.truncations ?? null,
+          JSON.stringify(run.toolCallsByServer ?? {}),
+          somaFerramentas(run.toolCallsByServer),
+          JSON.stringify(run.stepsByType ?? {}),
+          run.gates?.user ?? 0,
+          run.gates?.policy ?? 0,
+          run.childrenDelegated ?? 0,
+          day,
+        ],
+      );
+
+      acumular(day, "ALL", "ALL", run);
+      acumular(day, "HARNESS", fato.harness_key, run);
+      acumular(day, "LOADOUT", fato.loadout_id, run);
+      acumular(day, "CREATED_BY", fato.created_by, run);
+      acumular(day, "TASK_KIND", fato.kind, run);
+      acumular(day, "EXECUTION_MODE", fato.execution_mode, run);
+      if (fato.project_id !== null) acumular(day, "PROJECT", fato.project_id, run);
+      if (fato.model_key !== null) acumular(day, "MODEL", fato.model_key, run);
+      if (fato.provider_id !== null) acumular(day, "PROVIDER", fato.provider_id, run);
+    }
+
+    // O rollup é derivado, nunca incremental: os dias tocados são reescritos
+    // inteiros, que é exatamente o que o projetor e o `rebuild` fazem.
+    const listaDias = [...dias].sort();
+    if (listaDias.length > 0) {
+      await client.query(`DELETE FROM metric_daily WHERE user_id = $1 AND day = ANY($2::date[])`, [
+        userId,
+        listaDias,
+      ]);
+    }
+
+    for (const balde of baldes.values()) {
+      await client.query(
+        `INSERT INTO metric_daily
+           (user_id, day, dimension, dimension_key, runs_total, runs_succeeded, runs_failed,
+            runs_timed_out, runs_cancelled, input_tokens, output_tokens, cache_read_tokens,
+            cache_write_tokens, tokens_known_runs, duration_ms_total, duration_ms_max,
+            duration_runs, tool_calls, cost_by_currency, priced_runs, unpriced_runs)
+         VALUES ($1, $2::date, $3::metric_dimension, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+                 $14, $15, $16, $17, $18, '{}'::jsonb, 0, $19)`,
+        [
+          userId,
+          balde.day,
+          balde.dimension,
+          balde.key,
+          balde.runsTotal,
+          balde.runsSucceeded,
+          balde.runsFailed,
+          balde.runsTimedOut,
+          balde.runsCancelled,
+          balde.inputTokens,
+          balde.outputTokens,
+          balde.cacheReadTokens,
+          balde.cacheWriteTokens,
+          balde.tokensKnownRuns,
+          balde.durationMsTotal,
+          balde.durationMsMax,
+          balde.durationRuns,
+          balde.toolCalls,
+          balde.unpricedRuns,
+        ],
+      );
+    }
+
+    let onlineWorkerId: string | null = null;
+    let staleWorkerId: string | null = null;
+
+    if (input.workers !== undefined) {
+      const staleMinutes = input.workers.staleMinutes ?? 30;
+      onlineWorkerId = `e2e-online-${input.workers.suffix}#4242#${randomUUID()}`;
+      staleWorkerId = `e2e-stale-${input.workers.suffix}#4343#${randomUUID()}`;
+
+      // `status` não é coluna: é calculado na leitura, pela distância até o
+      // último batimento. Um batimento antigo é tudo que separa um `STALE` de um
+      // `ONLINE`, e é por isso que a fixture mexe só no relógio.
+      await client.query(
+        `INSERT INTO worker
+           (id, user_id, hostname, pid, version, node_version, capacity, harnesses,
+            started_at, last_heartbeat_at, stopped_at, stale_at)
+         VALUES ($1, $2, $3, 4242, '0.0.0-e2e', 'v22.22.2', 2, $4::jsonb,
+                 now() - interval '2 hours', now(), NULL, NULL),
+                ($5, $2, $6, 4343, '0.0.0-e2e', 'v22.22.2', 2, $4::jsonb,
+                 now() - interval '4 hours', now() - ($7 || ' minutes')::interval, NULL, NULL)`,
+        [
+          onlineWorkerId,
+          userId,
+          `torre-viva-${input.workers.suffix}`,
+          JSON.stringify([{ key: "CLAUDE_CODE", version: "1.0.0", authStatus: "AUTHENTICATED" }]),
+          staleWorkerId,
+          `torre-muda-${input.workers.suffix}`,
+          String(staleMinutes),
+        ],
+      );
+    }
+
+    if (input.subscription !== undefined) {
+      await client.query(
+        `UPDATE provider
+            SET billing_kind = 'SUBSCRIPTION', monthly_cost = $2, currency = $3, updated_at = now()
+          WHERE id = $1 AND user_id = $4`,
+        [
+          input.subscription.providerId,
+          input.subscription.monthlyCost,
+          input.subscription.currency,
+          userId,
+        ],
+      );
+    }
+
+    await client.query("COMMIT");
+    return { days: listaDias, onlineWorkerId, staleWorkerId, buckets: baldes.size };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    await client.end();
+  }
+}

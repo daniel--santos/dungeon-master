@@ -12,6 +12,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/empty-state";
+import { ProjectMetrics } from "@/components/metrics/project-metrics";
 import { Panel, PanelHeader } from "@/components/panel";
 import { ActivityLog } from "@/components/projects/activity-log";
 import { ProjectDialog } from "@/components/projects/project-dialog";
@@ -227,6 +228,10 @@ function ProjectDetailPage() {
           </p>
         )}
       </Panel>
+
+      {/* As medidas da Campanha (Fase 10B): overview reduzido, com o link para a
+          tela inteira já filtrada por este Project. */}
+      <ProjectMetrics projectId={id} />
 
       <ProposalsPanel projectId={id} showOriginTask />
 
