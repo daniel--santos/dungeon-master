@@ -17,6 +17,8 @@ import tseslint from "typescript-eslint";
  * - `packages/glossary` e `packages/achievements` são puros: só `zod` e
  *   `node:*` (para ler os próprios arquivos de catálogo). Sem banco, sem rede,
  *   sem outro pacote do workspace.
+ * - `packages/metrics` é puro pela mesma régua, com `@dungeon-master/contracts`
+ *   a mais: o vocabulário canônico do domínio não é redeclarado aqui.
  * - `packages/platform` importa somente builtins do Node e módulos do próprio
  *   pacote. É a casa do código que depende do sistema operacional.
  *
@@ -44,6 +46,9 @@ const WORKFLOW_BOUNDARY_MESSAGE =
 
 const KNOWLEDGE_BOUNDARY_MESSAGE =
   "Fronteira: packages/knowledge não importa banco, ORM, HTTP, logger, o writer de eventos nem os pacotes de runtime; persistência, advisory lock, modelo e relógio entram por contrato (ports.ts).";
+
+const METRICS_BOUNDARY_MESSAGE =
+  "Fronteira: packages/metrics é puro — só zod, node:* e @dungeon-master/contracts. Quem lê e grava é packages/database.";
 
 const CONTEXT_BOUNDARY_MESSAGE =
   "Fronteira: packages/context é puro — não importa banco, ORM, HTTP, logger, runtime, knowledge nem builtins do Node; a leitura do Grimório, da linhagem e dos artefatos entra por contrato (ports.ts).";
@@ -348,6 +353,37 @@ export default tseslint.config(
             {
               group: ["**/packages/database/**", "**/packages/runtime*/**", "**/apps/**"],
               message: CONTEXT_BOUNDARY_MESSAGE,
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // --------------------------------------------------------- packages/metrics
+  //
+  // O pacote calcula: quais dimensões um Run alimenta, como um dia é somado,
+  // quanto ele custou, como uma série vira contínua. Quem lê `run`, `run_event`
+  // e `run_context` e grava `run_metric` e `metric_daily` é `packages/database`.
+  //
+  // A lista de permissão é a de `achievements` mais `@dungeon-master/contracts`:
+  // o vocabulário do domínio — `RunStatus`, `TaskKind`, `MetricDimension` — é
+  // canônico e mora em contracts, e redeclará-lo aqui criaria duas verdades
+  // sobre os mesmos enums, que é exatamente o que a seção 5 do CLAUDE.md proíbe.
+  {
+    files: ["packages/metrics/src/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(?!\\.\\.?/|node:|zod$|@dungeon-master/contracts$)",
+              message: METRICS_BOUNDARY_MESSAGE,
+            },
+            {
+              group: ["../../*", "**/packages/**", "**/apps/**"],
+              message: METRICS_BOUNDARY_MESSAGE,
             },
           ],
         },

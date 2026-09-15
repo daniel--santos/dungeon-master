@@ -46,3 +46,5 @@ export * from "./budget.js";
 export * from "./circuit-breaker.js";
 export * from "./routing-rule.js";
 export * from "./suggestion.js";
+export * from "./metrics.js";
+export * from "./worker.js";

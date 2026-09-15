@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { HarnessKeySchema } from "./harness.js";
 import { EnvKeysSchema } from "./mcp-server.js";
+import { BillingKindSchema, CurrencySchema } from "./metrics.js";
 import { PageQuerySchema, paginatedSchema } from "./pagination.js";
 
 /**
@@ -45,10 +46,21 @@ export const ProviderSchema = z
       .describe("Nomes das variáveis que carregam a credencial. Qualquer uma presente basta."),
     harnessKeys: z.array(HarnessKeySchema).describe("Os Harnesses que usam este Provider."),
     docsUrl: z.string().nullable().describe("Onde está explicado como autenticar."),
+    billingKind: BillingKindSchema.nullable().describe(
+      "Como o Provider **cobra** (Fase 10A). Não é o mesmo que `kind`, que diz " +
+        "como ele **autentica**: uma CLI por login pode cobrar por token, e uma " +
+        "chave de API pode vir de um plano fixo. Nulo é desconhecido, e desconhecido " +
+        "faz o custo sair `NOT_MEASURED` em vez de zero.",
+    ),
+    monthlyCost: z
+      .number()
+      .nullable()
+      .describe("A mensalidade, em `currency`. Só faz sentido em `SUBSCRIPTION`."),
+    currency: z.string().nullable().describe("ISO 4217 da mensalidade."),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
   })
-  .meta({ id: "Provider", description: "Quem serve os modelos e como se autentica nele." });
+  .meta({ id: "Provider", description: "Quem serve os modelos, como se autentica e como cobra." });
 
 export type Provider = z.infer<typeof ProviderSchema>;
 
@@ -71,6 +83,14 @@ export const UpdateProviderSchema = z
     authEnvKeys: EnvKeysSchema.optional(),
     harnessKeys: z.array(HarnessKeySchema).optional(),
     docsUrl: DocsUrlSchema.nullish(),
+    billingKind: BillingKindSchema.nullish().describe("`null` volta a ser desconhecido."),
+    monthlyCost: z
+      .number()
+      .nonnegative()
+      .max(1_000_000)
+      .nullish()
+      .describe("A mensalidade. Exige `currency` e só é aceita em `SUBSCRIPTION`."),
+    currency: CurrencySchema.nullish(),
   })
   .meta({ id: "UpdateProvider", description: "Corpo de `PATCH /api/v1/providers/{id}`." });
 

@@ -226,6 +226,38 @@ export const AutonomyEventTypeSchema = z.enum(AUTONOMY_EVENT_TYPE_VALUES).meta({
 
 export type AutonomyEventType = z.infer<typeof AutonomyEventTypeSchema>;
 
+/**
+ * O que a observabilidade avançada emite (planejamento v0.4, Fase 10A).
+ *
+ * `metrics.updated` sai do projetor de métricas, na transação do lote, **com
+ * throttle**: um por usuário a cada {@link METRICS_UPDATED_THROTTLE_MS}, e não
+ * um por Run. A tela de métricas é um agregado — dez Runs terminando juntos
+ * mudam os mesmos tiles uma vez só, e dez eventos só custariam dez invalidações
+ * de consulta.
+ *
+ * Os três de `worker.*` são presença: `worker.online` na primeira linha gravada
+ * pelo processo, `worker.offline` no desligamento gracioso e `worker.stale`
+ * quando uma varredura descobre que alguém parou de bater. O `stale` sai **uma
+ * vez por Worker**, por quem o detectar: a coluna `worker.stale_at` é a marca
+ * que torna a emissão idempotente entre vários Workers vivos.
+ */
+export const METRICS_EVENT_TYPE_VALUES = [
+  "metrics.updated",
+  "worker.online",
+  "worker.stale",
+  "worker.offline",
+] as const;
+
+export const MetricsEventTypeSchema = z.enum(METRICS_EVENT_TYPE_VALUES).meta({
+  id: "MetricsEventType",
+  description: "Eventos da observabilidade avançada: projeção de métricas e presença de Worker.",
+});
+
+export type MetricsEventType = z.infer<typeof MetricsEventTypeSchema>;
+
+/** Intervalo mínimo entre dois `metrics.updated` do mesmo usuário. */
+export const METRICS_UPDATED_THROTTLE_MS = 5_000;
+
 export const DASHBOARD_EVENT_TYPE_VALUES = [
   "system.ping",
   "settings.changed",
@@ -236,6 +268,7 @@ export const DASHBOARD_EVENT_TYPE_VALUES = [
   ...PROPOSAL_EVENT_TYPE_VALUES,
   ...KNOWLEDGE_EVENT_TYPE_VALUES,
   ...AUTONOMY_EVENT_TYPE_VALUES,
+  ...METRICS_EVENT_TYPE_VALUES,
 ] as const;
 
 export const DashboardEventTypeSchema = z
