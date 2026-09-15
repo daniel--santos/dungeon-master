@@ -6,6 +6,7 @@ import { ContextSection } from "@/components/settings/context";
 import { DiagnosticsSection } from "@/components/settings/diagnostics";
 import { ExecutionSection } from "@/components/settings/execution";
 import { KnowledgeSection } from "@/components/settings/knowledge";
+import { PricesSection } from "@/components/settings/prices";
 import { useGlossary } from "@/lib/glossary";
 
 export const Route = createFileRoute("/settings")({
@@ -25,6 +26,9 @@ function SettingsPage() {
       <ExecutionSection />
       <KnowledgeSection />
       <ContextSection />
+      {/* Fase 10B: quanto custa um token de cada Model, e como cada Provider
+          fatura. Sem isto, todo custo da Torre de Vigia fica `NOT_MEASURED`. */}
+      <PricesSection />
       <DiagnosticsSection />
     </>
   );

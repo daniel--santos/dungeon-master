@@ -23,12 +23,14 @@ import { ResultPanel } from "@/components/run/result-panel";
 import { RunContextPanel } from "@/components/run/run-context-panel";
 import { RunOriginPanel } from "@/components/run/run-origin-panel";
 import { ResumeRunDialog } from "@/components/run/resume-run-dialog";
+import { RunMetricsPanel } from "@/components/run/run-metrics-panel";
 import { RunOutcomePanel } from "@/components/run/run-outcome-panel";
 import { RunStepsPanel } from "@/components/run/run-steps-panel";
 import { RuntimeCard, SessionCard, TimeCard } from "@/components/run/runtime-column";
 import { Timeline } from "@/components/run/timeline";
 import { KindChip, PriorityText, StatusChip } from "@/components/task/chips";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { RunRecord } from "@/lib/api-types";
 import { useRunGates } from "@/lib/approvals";
 import { formatDateTime } from "@/lib/datetime";
@@ -40,7 +42,7 @@ import { useProject } from "@/lib/projects";
 import { useRunEvents } from "@/lib/run-events";
 import { gateDecisions, hasWorkflowEventAfter } from "@/lib/run-timeline";
 import { canResumeRun, runKeys, useRun } from "@/lib/runs";
-import { runDetailSearchSchema } from "@/lib/search";
+import { runDetailSearchSchema, type RunTab } from "@/lib/search";
 import { useTask } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
 import { useWorkflowVersion } from "@/lib/workflows";
@@ -270,132 +272,168 @@ function Cockpit({ run }: { run: RunRecord }) {
         />
       )}
 
-      <div className="grid min-h-150 items-stretch gap-5 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
-        <div className="flex min-h-0 flex-col gap-4">
-          <Panel className="flex flex-col gap-2 px-4 pt-3.5 pb-4">
-            <div className="flex items-center gap-2">
-              <ListChecks aria-hidden className="text-muted-foreground size-3.5" />
-              <span className="text-[13px] font-medium">{t("entity.task")}</span>
-            </div>
+      {/* As duas abas da Fase 10B. O cabeçalho fica fora delas de propósito: o
+          estado, o ambiente e o relógio ao vivo continuam à vista enquanto
+          alguém olha a quebra de medidas. A aba mora na URL, como o filtro do
+          Diário, então o link reproduz a mesma tela. */}
+      <Tabs
+        onValueChange={(next) => {
+          void navigate({
+            search: () => ({ tab: next as RunTab, events: search.events }),
+            replace: true,
+            to: "/runs/$id",
+            params: { id: run.id },
+          });
+        }}
+        value={search.tab}
+      >
+        <TabsList>
+          <TabsTrigger value="overview">{t("run.tab.overview")}</TabsTrigger>
+          <TabsTrigger data-run-tab-metrics value="metrics">
+            {t("run.tab.metrics")}
+          </TabsTrigger>
+        </TabsList>
 
-            <MetaRow label={t("entity.project")}>
-              {run.projectId === null ? (
-                <span className="text-muted-foreground">—</span>
-              ) : (
-                <Link
-                  className="underline-offset-2 hover:underline"
-                  params={{ id: run.projectId }}
-                  to="/projects/$id"
-                >
-                  {project.data?.title ?? "…"}
-                </Link>
-              )}
-            </MetaRow>
-            <MetaRow label={t("entity.workflow")}>
-              {!guided ? (
-                <span className="text-muted-foreground">{t("workflow.none")}</span>
-              ) : version.data === undefined ? (
-                "…"
-              ) : (
-                <Link
-                  className="underline-offset-2 hover:underline"
-                  data-run-workflow={version.data.workflowId}
-                  params={{ id: version.data.workflowId }}
-                  to="/workflows/$id"
-                >
-                  {`${version.data.definition.name} · v${String(version.data.version)}`}
-                </Link>
-              )}
-            </MetaRow>
-            {task.data !== undefined && (
-              <>
-                <MetaRow label="Status">
-                  <StatusChip status={task.data.status} />
-                </MetaRow>
-                <MetaRow label="Prioridade">
-                  <PriorityText priority={task.data.priority} />
-                </MetaRow>
-                <MetaRow label={t("entity.subtask.plural")}>
-                  {format("{done} de {total}", {
-                    done: task.data.children.filter(
-                      (child) => child.status === "COMPLETED" || child.status === "CANCELLED",
-                    ).length,
-                    total: task.data.children.length,
-                  })}
-                </MetaRow>
-              </>
-            )}
-          </Panel>
+        <TabsContent className="flex flex-col gap-5" value="metrics">
+          <RunMetricsPanel runId={run.id} />
+        </TabsContent>
 
-          {/* A origem e o parentesco (Fase 9C): quem abriu esta Expedição, a
+        <TabsContent className="flex flex-col gap-5" value="overview">
+          <div className="grid min-h-150 items-stretch gap-5 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
+            <div className="flex min-h-0 flex-col gap-4">
+              <Panel className="flex flex-col gap-2 px-4 pt-3.5 pb-4">
+                <div className="flex items-center gap-2">
+                  <ListChecks aria-hidden className="text-muted-foreground size-3.5" />
+                  <span className="text-[13px] font-medium">{t("entity.task")}</span>
+                </div>
+
+                <MetaRow label={t("entity.project")}>
+                  {run.projectId === null ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    <Link
+                      className="underline-offset-2 hover:underline"
+                      params={{ id: run.projectId }}
+                      to="/projects/$id"
+                    >
+                      {project.data?.title ?? "…"}
+                    </Link>
+                  )}
+                </MetaRow>
+                <MetaRow label={t("entity.workflow")}>
+                  {!guided ? (
+                    <span className="text-muted-foreground">{t("workflow.none")}</span>
+                  ) : version.data === undefined ? (
+                    "…"
+                  ) : (
+                    <Link
+                      className="underline-offset-2 hover:underline"
+                      data-run-workflow={version.data.workflowId}
+                      params={{ id: version.data.workflowId }}
+                      to="/workflows/$id"
+                    >
+                      {`${version.data.definition.name} · v${String(version.data.version)}`}
+                    </Link>
+                  )}
+                </MetaRow>
+                {task.data !== undefined && (
+                  <>
+                    <MetaRow label="Status">
+                      <StatusChip status={task.data.status} />
+                    </MetaRow>
+                    <MetaRow label="Prioridade">
+                      <PriorityText priority={task.data.priority} />
+                    </MetaRow>
+                    <MetaRow label={t("entity.subtask.plural")}>
+                      {format("{done} de {total}", {
+                        done: task.data.children.filter(
+                          (child) => child.status === "COMPLETED" || child.status === "CANCELLED",
+                        ).length,
+                        total: task.data.children.length,
+                      })}
+                    </MetaRow>
+                  </>
+                )}
+              </Panel>
+
+              {/* A origem e o parentesco (Fase 9C): quem abriu esta Expedição, a
               mãe quando houver, as filhas, e o orçamento por Expedição. */}
-          <RunOriginPanel now={now} run={run} />
+              <RunOriginPanel now={now} run={run} />
 
-          <Panel className="flex flex-col gap-2 px-4 pt-3.5 pb-4">
-            <div className="flex items-center gap-2">
-              <GitBranch aria-hidden className="text-muted-foreground size-3.5" />
-              <span className="text-[13px] font-medium">{t("entity.executionProfile")}</span>
+              <Panel className="flex flex-col gap-2 px-4 pt-3.5 pb-4">
+                <div className="flex items-center gap-2">
+                  <GitBranch aria-hidden className="text-muted-foreground size-3.5" />
+                  <span className="text-[13px] font-medium">{t("entity.executionProfile")}</span>
+                </div>
+                <MetaRow label="Nome">{profile.name}</MetaRow>
+                <MetaRow label="Workspace">
+                  {t(WORKSPACE_STRATEGY[profile.workspaceStrategy])}
+                </MetaRow>
+                <MetaRow label="Comandos">{profile.permissionPolicy.commandExecution}</MetaRow>
+                <MetaRow label="Rede">{profile.networkPolicy.access}</MetaRow>
+              </Panel>
+
+              <Panel className="flex flex-col gap-2 px-4 pt-3.5 pb-4">
+                <span className="text-[13px] font-medium">Prompt</span>
+                <p className="text-muted-foreground m-0 max-h-40 overflow-auto text-[12px] leading-4.5 whitespace-pre-wrap">
+                  {run.prompt}
+                </p>
+              </Panel>
             </div>
-            <MetaRow label="Nome">{profile.name}</MetaRow>
-            <MetaRow label="Workspace">{t(WORKSPACE_STRATEGY[profile.workspaceStrategy])}</MetaRow>
-            <MetaRow label="Comandos">{profile.permissionPolicy.commandExecution}</MetaRow>
-            <MetaRow label="Rede">{profile.networkPolicy.access}</MetaRow>
-          </Panel>
 
-          <Panel className="flex flex-col gap-2 px-4 pt-3.5 pb-4">
-            <span className="text-[13px] font-medium">Prompt</span>
-            <p className="text-muted-foreground m-0 max-h-40 overflow-auto text-[12px] leading-4.5 whitespace-pre-wrap">
-              {run.prompt}
-            </p>
-          </Panel>
-        </div>
+            <Timeline
+              filter={search.events}
+              live={live}
+              onFilterChange={(next) => {
+                // A aba viaja junto: desde a Fase 10B a URL carrega as duas chaves,
+                // e trocar o filtro do Diário não pode jogar quem está lendo de
+                // volta para a aba padrão. O objeto é escrito por extenso porque
+                // `useNavigate` aqui não fixa a rota de origem, e um `previous`
+                // seria a união dos parâmetros de todas as telas.
+                void navigate({
+                  search: () => ({ tab: search.tab, events: next }),
+                  replace: true,
+                  to: "/runs/$id",
+                  params: { id: run.id },
+                });
+              }}
+              state={events}
+            />
 
-        <Timeline
-          filter={search.events}
-          live={live}
-          onFilterChange={(next) => {
-            void navigate({
-              search: () => ({ events: next }),
-              replace: true,
-              to: "/runs/$id",
-              params: { id: run.id },
-            });
-          }}
-          state={events}
-        />
+            <div className="flex min-h-0 flex-col gap-4">
+              <RuntimeCard run={run} />
+              <SessionCard run={run} />
+              <TimeCard
+                now={now}
+                onCancel={() => {
+                  setCancelling(true);
+                }}
+                run={run}
+              />
+            </div>
+          </div>
 
-        <div className="flex min-h-0 flex-col gap-4">
-          <RuntimeCard run={run} />
-          <SessionCard run={run} />
-          <TimeCard
-            now={now}
-            onCancel={() => {
-              setCancelling(true);
-            }}
-            run={run}
-          />
-        </div>
-      </div>
+          {guided && <RunStepsPanel live={live} now={now} runId={run.id} />}
 
-      {guided && <RunStepsPanel live={live} now={now} runId={run.id} />}
-
-      {/* O Equipamento como foi congelado na partida (Fase 8C): Habilidades
+          {/* O Equipamento como foi congelado na partida (Fase 8C): Habilidades
           com versão e texto, Itens e Relíquias com a definição. */}
-      <FrozenLoadoutPanel run={run} />
+          <FrozenLoadoutPanel run={run} />
 
-      <RunContextPanel run={run} />
+          <RunContextPanel run={run} />
 
-      {!live && <RunOutcomePanel run={run} />}
+          {!live && <RunOutcomePanel run={run} />}
 
-      {run.status === "SUCCEEDED" && <ResultPanel run={run} />}
-      {(run.status === "FAILED" || run.status === "TIMED_OUT") && (
-        <FailurePanel
-          onResume={() => {
-            setResuming(true);
-          }}
-          run={run}
-        />
-      )}
+          {run.status === "SUCCEEDED" && <ResultPanel run={run} />}
+          {(run.status === "FAILED" || run.status === "TIMED_OUT") && (
+            <FailurePanel
+              onResume={() => {
+                setResuming(true);
+              }}
+              run={run}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
 
       <CancelRunDialog onOpenChange={setCancelling} open={cancelling} run={run} />
       <ResumeRunDialog onOpenChange={setResuming} open={resuming} run={run} />

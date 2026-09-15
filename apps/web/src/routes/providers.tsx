@@ -14,6 +14,7 @@ import type { LoadoutRecord, ProviderRecord } from "@/lib/api-types";
 import { relativeTime } from "@/lib/datetime";
 import { useHarnesses, useLoadouts, useModels } from "@/lib/execution";
 import { useGlossary } from "@/lib/glossary";
+import { BILLING_KIND } from "@/lib/metrics-domain";
 import { useProviderAuth } from "@/lib/provider-auth";
 import { fetchLoadoutPreflight, useDeleteProvider, useProviders } from "@/lib/registry";
 import { PROVIDER_KIND, REGISTRY_COLOR } from "@/lib/registry-domain";
@@ -207,6 +208,20 @@ function ProviderRow({
             {t(PROVIDER_KIND[provider.kind])}
           </span>
           <ProviderAuthBadge status={auth?.auth.status ?? "UNKNOWN"} />
+          {/* Como este Patronato fatura (Fase 10B). Aparece só quando alguém
+              declarou: "desconhecido" já é o estado de quem nunca mexeu, e um
+              chip a mais dizendo isso em cada linha não informa nada. O
+              cadastro em si mora no bloco de preços em Settings. */}
+          {provider.billingKind !== null && (
+            <span
+              className="border-border inline-flex h-[20px] w-fit items-center rounded-lg border bg-white/[0.04] px-2 text-[11px]"
+              data-provider-billing-kind={provider.billingKind}
+            >
+              {provider.monthlyCost === null
+                ? t(BILLING_KIND[provider.billingKind])
+                : `${t(BILLING_KIND[provider.billingKind])} · ${String(provider.monthlyCost)} ${provider.currency ?? ""}`.trim()}
+            </span>
+          )}
           {auth !== undefined && (
             <span className="text-muted-foreground text-[11px]" data-provider-checked-at>
               {format(t("provider.auth.checkedAt"), { when: relativeTime(auth.checkedAt) })}
