@@ -390,6 +390,9 @@ importers:
       '@dungeon-master/knowledge':
         specifier: workspace:*
         version: link:../knowledge
+      '@dungeon-master/metrics':
+        specifier: workspace:*
+        version: link:../metrics
       '@dungeon-master/platform':
         specifier: workspace:*
         version: link:../platform

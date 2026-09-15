@@ -15,3 +15,5 @@ export * from "./distillation.js";
 export * from "./knowledge-candidate.js";
 export * from "./run-context.js";
 export * from "./autonomy.js";
+export * from "./metrics.js";
+export * from "./worker.js";

@@ -141,6 +141,15 @@ export const runs = pgTable(
     // "Quais Runs este Run delegou?" é a pergunta da 9B; sem índice seria
     // varredura da maior tabela de estado do sistema.
     index("run_parent_idx").on(table.parentRunId),
+    // O drain do projetor de métricas (Fase 10A) lê "deste usuário, na ordem em
+    // que terminou, depois deste par". Sem ele, cada passe é um seq scan mais um
+    // sort da tabela de Runs inteira — e o passe acontece a cada tique.
+    //
+    // Parcial porque só Run terminal tem `finished_at`: o índice cobre
+    // exatamente as linhas que o projetor lê, e nenhuma da fila.
+    index("run_user_finished_idx")
+      .on(table.userId, table.finishedAt, table.id)
+      .where(sql`finished_at is not null`),
     check("run_parent_step_ck", sql`"parent_step_key" is null or "parent_run_id" is not null`),
   ],
 );

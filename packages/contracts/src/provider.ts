@@ -1,8 +1,8 @@
 import { z } from "zod";
 
+import { BillingKindSchema, CurrencySchema } from "./billing.js";
 import { HarnessKeySchema } from "./harness.js";
 import { EnvKeysSchema } from "./mcp-server.js";
-import { BillingKindSchema, CurrencySchema } from "./metrics.js";
 import { PageQuerySchema, paginatedSchema } from "./pagination.js";
 
 /**
@@ -91,6 +91,13 @@ export const UpdateProviderSchema = z
       .nullish()
       .describe("A mensalidade. Exige `currency` e só é aceita em `SUBSCRIPTION`."),
     currency: CurrencySchema.nullish(),
+  })
+  // Uma mensalidade sem moeda é um número sem unidade. A regra vive aqui, e não
+  // só no `CHECK` da tabela, para o usuário receber um `422` com o campo em vez
+  // de um `500` vindo do banco.
+  .refine((patch) => patch.monthlyCost == null || patch.currency != null, {
+    message: "Uma mensalidade precisa vir com a moeda (`currency`).",
+    path: ["currency"],
   })
   .meta({ id: "UpdateProvider", description: "Corpo de `PATCH /api/v1/providers/{id}`." });
 

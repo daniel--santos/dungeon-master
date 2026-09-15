@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { BillingKindSchema, CurrencySchema, MoneySchema } from "./billing.js";
 import { ExecutionModeSchema } from "./execution-profile.js";
 import { HarnessKeySchema } from "./harness.js";
 import { RunCreatedBySchema, RunStatusSchema } from "./run.js";
@@ -14,22 +15,9 @@ import { TaskKindSchema } from "./task.js";
  * canônico (CLAUDE.md, seção 1): `metrics`, `worker`, `model_price` — a "Torre
  * de Vigia" existe só como label do glossário.
  *
- * ## A regra do custo
- *
- * Um número de custo só aparece acompanhado de `costStatus` e de `currency`, e
- * **nunca** de um zero inventado:
- *
- * - `PRICED` — há preço vigente para o Model na data do Run e o harness
- *   reportou tokens. O valor é a conta.
- * - `ESTIMATED_SUBSCRIPTION` — o Provider é de assinatura e tem `monthlyCost`.
- *   O valor é o rateio da mensalidade pela fatia de tokens do Provider no mês
- *   civil UTC, calculado na leitura (a fatia muda até o mês fechar) e por isso
- *   nunca gravado por Run.
- * - `NOT_MEASURED` — não há preço nem assinatura, **ou** o harness não reportou
- *   tokens. `amount` e `currency` vêm nulos.
- *
- * Somas só acontecem dentro da mesma moeda: toda resposta de custo é uma lista
- * por moeda, nunca um total único.
+ * O vocabulário de dinheiro — `CostStatus`, `BillingKind`, `Money` — mora em
+ * `billing.ts`, que é módulo folha: `provider.ts` também precisa dele, e
+ * declará-lo aqui fecharia um ciclo de imports.
  */
 
 // --------------------------------------------------------------------------
@@ -66,29 +54,6 @@ export type MetricDimension = z.infer<typeof MetricDimensionSchema>;
 /** A chave da dimensão `ALL`. Uma constante, para não virar string solta. */
 export const METRIC_DIMENSION_ALL_KEY = "ALL" as const;
 
-export const COST_STATUS_VALUES = ["PRICED", "ESTIMATED_SUBSCRIPTION", "NOT_MEASURED"] as const;
-
-export const CostStatusSchema = z.enum(COST_STATUS_VALUES).meta({
-  id: "CostStatus",
-  description:
-    "De onde o custo saiu. `PRICED` é preço por token vigente na data do Run; " +
-    "`ESTIMATED_SUBSCRIPTION` é o rateio de uma mensalidade pela fatia de tokens " +
-    "do mês; `NOT_MEASURED` é ausência de preço ou de tokens reportados, nunca zero.",
-});
-
-export type CostStatus = z.infer<typeof CostStatusSchema>;
-
-export const BILLING_KIND_VALUES = ["PER_TOKEN", "SUBSCRIPTION"] as const;
-
-export const BillingKindSchema = z.enum(BILLING_KIND_VALUES).meta({
-  id: "BillingKind",
-  description:
-    "Como o Provider cobra. `PER_TOKEN` usa `model_price`; `SUBSCRIPTION` usa " +
-    "`monthlyCost` rateado. Nulo é desconhecido, e desconhecido custa `NOT_MEASURED`.",
-});
-
-export type BillingKind = z.infer<typeof BillingKindSchema>;
-
 export const METRIC_WINDOW_VALUES = ["7d", "30d", "90d"] as const;
 
 export const MetricWindowSchema = z.enum(METRIC_WINDOW_VALUES).meta({
@@ -113,37 +78,10 @@ export const SeriesMetricSchema = z.enum(SERIES_METRIC_VALUES).meta({
 
 export type SeriesMetric = z.infer<typeof SeriesMetricSchema>;
 
-/** Código ISO 4217, três letras maiúsculas. */
-export const CurrencySchema = z
-  .string()
-  .trim()
-  .toUpperCase()
-  .regex(/^[A-Z]{3}$/, "A moeda é um código ISO 4217 de três letras, como USD ou BRL.");
-
 /** Um dia civil em UTC, `YYYY-MM-DD`. */
 export const MetricDaySchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "O dia é uma data UTC no formato YYYY-MM-DD.");
-
-// --------------------------------------------------------------------------
-// Custo
-// --------------------------------------------------------------------------
-
-export const MoneySchema = z
-  .object({
-    currency: z.string().nullable().describe("ISO 4217. Nulo quando o custo não foi medido."),
-    amount: z
-      .number()
-      .nullable()
-      .describe("O valor na moeda. Nulo quando o custo não foi medido — nunca zero."),
-    status: CostStatusSchema,
-  })
-  .meta({
-    id: "Money",
-    description: "Um custo com procedência. Sem `PRICED` ou assinatura, `amount` é nulo.",
-  });
-
-export type Money = z.infer<typeof MoneySchema>;
 
 // --------------------------------------------------------------------------
 // Tiles do painel

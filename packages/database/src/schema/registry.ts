@@ -1,4 +1,5 @@
 import {
+  BILLING_KIND_VALUES,
   type HarnessKey,
   MCP_TRANSPORT_VALUES,
   PROVIDER_KIND_VALUES,
@@ -11,6 +12,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   text,
@@ -37,6 +39,7 @@ import { users } from "./user.js";
 export const toolKind = pgEnum("tool_kind", TOOL_KIND_VALUES);
 export const providerKind = pgEnum("provider_kind", PROVIDER_KIND_VALUES);
 export const mcpTransport = pgEnum("mcp_transport", MCP_TRANSPORT_VALUES);
+export const billingKind = pgEnum("billing_kind", BILLING_KIND_VALUES);
 
 /**
  * Skill: o registro. O conteúdo mora em `skill_version`.
@@ -116,13 +119,36 @@ export const providers = pgTable(
     authEnvKeys: jsonb("auth_env_keys").$type<string[]>().notNull(),
     harnessKeys: jsonb("harness_keys").$type<HarnessKey[]>().notNull(),
     docsUrl: text("docs_url"),
+    /**
+     * Como o Provider **cobra** (Fase 10A). Não é o mesmo que `kind`, que diz
+     * como ele **autentica**: uma CLI que entra por login pode cobrar por
+     * token, e uma chave de API pode vir de um plano fixo. Nulo é desconhecido,
+     * e desconhecido faz o custo sair `NOT_MEASURED` em vez de zero.
+     */
+    billingKind: billingKind("billing_kind"),
+    monthlyCost: numeric("monthly_cost", { precision: 20, scale: 8 }),
+    currency: text("currency"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [unique("provider_user_name_uq").on(table.userId, table.name)],
+  (table) => [
+    unique("provider_user_name_uq").on(table.userId, table.name),
+    // Uma mensalidade sem moeda é um número sem unidade, e o contrário é uma
+    // moeda sem valor: o `CHECK` prende os dois juntos no banco, e não só no
+    // Zod. Mensalidade só faz sentido em assinatura.
+    check(
+      "provider_monthly_cost_ck",
+      sql`("monthly_cost" is null) = ("currency" is null) and ("monthly_cost" is null or "billing_kind" = 'SUBSCRIPTION')`,
+    ),
+    check(
+      "provider_monthly_cost_nonnegative_ck",
+      sql`"monthly_cost" is null or "monthly_cost" >= 0`,
+    ),
+    check("provider_currency_ck", sql`"currency" is null or "currency" ~ '^[A-Z]{3}$'`),
+  ],
 );
 
 /**
