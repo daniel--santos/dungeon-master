@@ -2190,6 +2190,17 @@ resposta vinha `200` com a cobrança inalterada. O teste que existia olhava só 
 de custos e passava. Agora o teste afirma que os três campos são gravados e que `null` apaga, e
 foi conferido vermelho antes da correção.
 
+**E uma segunda correção, apontada pela 10B**: `BillingKind` tinha `.meta({ id })` e mesmo assim
+não virava componente na spec. `.nullable()` devolve um schema **novo**, sem o `id`, e o gerador
+embutia o enum dentro de cada campo — `components.schemas.BillingKind` não existia e o cliente
+gerado ficava sem o tipo. `NullableBillingKindSchema` é a união com `z.null()`: mantém o membro
+nomeado e emite `anyOf: [$ref, null]`. É um sintoma parecido com o dos schemas anônimos das fases
+anteriores, com outra causa — ali o nome faltava, aqui ele existia e nunca era usado. O teste em
+`app.test.ts` percorre os 23 nomes da fase e confere que o campo anulável referencia o
+componente. `RunToolCalls`, citado no mesmo relato, já era `$ref` e não precisou de nada.
+`HarnessAuthStatus` (Fase 8B) e `AchievementRarity` (Fase 2.5) têm o mesmo sintoma e ficam como
+estão: consertá-los mudaria a spec de duas fases fechadas.
+
 **Prova manual** (banco irmão `dm_fase10a` no mesmo container, migrações `0000`–`0020` e seed;
 API em 3410; Worker apontando para o banco irmão; `dungeon_master` não foi tocado — segue com 20
 migrações):
