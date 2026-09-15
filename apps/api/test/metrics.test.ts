@@ -12,6 +12,7 @@ import {
   ModelPriceListSchema,
   ModelPriceSchema,
   ProblemDetailsSchema,
+  ProviderSchema,
   RunMetricsSchema,
   WorkerListSchema,
 } from "@dungeon-master/contracts";
@@ -458,6 +459,38 @@ describe("GET /api/v1/metrics/costs e /api/v1/workers", () => {
     );
     const provider = providers.items[0];
     if (provider === undefined) throw new Error("O seed não deixou nenhum Provider.");
+
+    // O `PATCH` precisa **gravar** os três campos: a primeira versão do handler
+    // montava o patch campo a campo e simplesmente ignorava os novos, e a
+    // resposta 200 escondia isso. A prova manual pegou; este `expect` prende.
+    const marcado = ProviderSchema.parse(
+      await (
+        await pedir({
+          app,
+          method: "PATCH",
+          path: `${API_BASE_PATH}/providers/${provider.id}`,
+          body: { billingKind: "SUBSCRIPTION", monthlyCost: 100, currency: "USD" },
+        })
+      ).json(),
+    );
+    expect(marcado.billingKind).toBe("SUBSCRIPTION");
+    expect(marcado.monthlyCost).toBe(100);
+    expect(marcado.currency).toBe("USD");
+
+    // E `null` apaga, em vez de ser lido como omissão.
+    const limpo = ProviderSchema.parse(
+      await (
+        await pedir({
+          app,
+          method: "PATCH",
+          path: `${API_BASE_PATH}/providers/${provider.id}`,
+          body: { billingKind: null },
+        })
+      ).json(),
+    );
+    expect(limpo.billingKind).toBeNull();
+    expect(limpo.monthlyCost).toBeNull();
+    expect(limpo.currency).toBeNull();
 
     await pedir({
       app,
