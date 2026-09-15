@@ -113,19 +113,52 @@ async function escolher(page: Page, rotulo: string, opcao: RegExp | string): Pro
   await page.getByRole("option", { name: opcao }).click();
 }
 
-/** Arrasta da alça direita de um nó do Mapa até a alça esquerda de outro. */
+/**
+ * Arrasta da alça direita de um nó do Mapa até a alça esquerda de outro, e só volta
+ * quando o Mapa respondeu: a ligação existe ou a recusa por ciclo apareceu.
+ *
+ * post-mortem #28 (15/09/2026): no runner do macOS do CI o terceiro nó ficava abaixo da
+ * dobra do viewport de 1280×720; `boundingBox()` devolve coordenadas fora da tela sem
+ * reclamar, o `mouse.up()` caía fora do Mapa e nenhuma aresta nascia — duas tentativas
+ * seguidas, "3 Missões · 0 ligações" na captura. As alças agora são roladas para dentro
+ * da tela antes de ler as caixas, e o arrasto é repetido até três vezes quando o Mapa não
+ * responde, porque um redesenho no meio do gesto também o perde.
+ */
 async function ligar(page: Page, fromId: string, toId: string): Promise<void> {
   const source = page.locator(`[data-task-node="${fromId}"] [data-task-handle="source"]`);
   const target = page.locator(`[data-task-node="${toId}"] [data-task-handle="target"]`);
-  const from = await source.boundingBox();
-  const to = await target.boundingBox();
-  if (from === null || to === null) throw new Error("as alças do Mapa não estão visíveis");
+  const aresta = page.locator(`[data-remove-edge="dep:${fromId}->${toId}"]`);
+  const ciclo = page.getByText(dnd["graph.cycle"].split("{path}")[0]!.trim(), { exact: false });
 
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(from.x + from.width / 2 + 24, from.y + from.height / 2, { steps: 4 });
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 16 });
-  await page.mouse.up();
+  for (let tentativa = 1; ; tentativa++) {
+    await target.scrollIntoViewIfNeeded();
+    await source.scrollIntoViewIfNeeded();
+    const from = await source.boundingBox();
+    const to = await target.boundingBox();
+    if (from === null || to === null) throw new Error("as alças do Mapa não estão visíveis");
+
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(from.x + from.width / 2 + 24, from.y + from.height / 2, { steps: 4 });
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 16 });
+    await page.mouse.up();
+
+    const respondeu = await expect
+      .poll(async () => (await aresta.count()) > 0 || (await ciclo.count()) > 0, {
+        timeout: 3_000,
+      })
+      .toBe(true)
+      .then(
+        () => true,
+        () => false,
+      );
+    if (respondeu) return;
+    if (tentativa === 3) {
+      throw new Error(
+        `o arrasto ${fromId} → ${toId} não produziu ligação nem recusa em 3 tentativas`,
+      );
+    }
+  }
 }
 
 async function dependenciasDe(request: APIRequestContext, taskId: string): Promise<string[]> {
