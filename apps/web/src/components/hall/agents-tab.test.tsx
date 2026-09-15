@@ -89,7 +89,9 @@ describe("aba de Heróis", () => {
       useGlossaryStore.getState().setTheme("plain");
     });
 
-    expect(screen.getAllByText(plain["executionStats.bugTasksCompleted"]).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(plain["executionStats.bugTasksCompleted"]).length).toBeGreaterThan(
+      0,
+    );
     expect(screen.queryByText(dnd["executionStats.bugTasksCompleted"])).toBeNull();
   });
 
