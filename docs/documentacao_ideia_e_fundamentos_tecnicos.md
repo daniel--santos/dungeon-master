@@ -8,6 +8,8 @@
 
 **Revisão 0.4 (07/09/2026).** O sistema ganha nome, Dungeon Master, e um toque de gamificação: vocabulário de RPG como skin da UI (seção 47), Conquistas com catálogo fixo, templates por usuário e forjadas por LLM, e um Hall para vê-las. Task ganha o campo `kind`. O planejamento correspondente está em `planejamento_dungeon_master_v0.4.md`.
 
+**Revisão 0.5 (15/09/2026).** O plano v0.4 foi executado por inteiro (Fases 0 a 10) e o texto abaixo continua sendo o porquê de cada escolha; o que a execução mudou está registrado nos blocos de andamento e de fechamento do próprio plano, e três pontos merecem nota aqui. **O tema é só textual** (ADR 0003): a regra da seção 47 passou a valer sobre o conceito, em qualquer idioma, e `hero_stats` virou `execution_stats`; a Conquista é a única exceção, por ser termo do produto. **A presença do Worker é medida por batimento** (Fase 10A): a reconciliação de órfãos deixou de ser um palpite por PID na partida e passou a ser um `join` com a tabela `worker`, no laço, e um segundo Worker só assume o que o primeiro deixou de renovar. **Custo tem procedência** (Fase 10A): a questão 9 da seção 44 se resolveu com preço por vigência de Model, mensalidade de Provider rateada pela fatia de tokens do mês, e a regra de que ausência nunca vira zero. A seção 44 marca as questões que a execução fechou. O planejamento seguinte está em `planejamento_dungeon_master_v0.5.md`.
+
 ---
 
 # 1. Visão
@@ -1702,17 +1704,19 @@ Estas decisões não precisam ser resolvidas antes de começar, mas devem ser re
 
 **Ainda abertas**
 
-1. Drizzle vs SQL mais explícito em módulos críticos. O TencentDB usa Drizzle com migrações nunca geradas; se Drizzle, a disciplina de migração é obrigatória desde a Fase 0.
-2. `pg-boss` vs queue própria simples no primeiro Worker.
+1. ~~Drizzle vs SQL mais explícito em módulos críticos.~~ → Drizzle com migração gerada e commitada para toda mudança de schema, `db:check` no CI e migração de dados escrita à mão quando o gerador não alcança (Fase 0; `CLAUDE.md`, seção 4). As consultas críticas (reclamação de Run, projeções) usam SQL explícito dentro do Drizzle.
+2. ~~`pg-boss` vs queue própria simples no primeiro Worker.~~ → a fila é a própria tabela `run`, reclamada com `SELECT ... FOR UPDATE SKIP LOCKED`, um candidato por vez (Fase 2; post-mortem #26).
 3. Como armazenar artifacts grandes: filesystem inicialmente ou object storage.
-4. Qual policy model será comum entre harnesses.
-5. Se Antigravity deverá virar provider Sandcastle ou permanecer adapter direto.
-6. Como fornecer autenticação do Antigravity em Docker.
+4. ~~Qual policy model será comum entre harnesses.~~ → capabilities medidas por harness e casadas com o que o Loadout pede (Fase 8), `ExecutionProfile` com nível de enforcement (Fase 2) e políticas de aprovação como dados com vocabulário fechado (Fase 9).
+5. ~~Se Antigravity deverá virar provider Sandcastle ou permanecer adapter direto.~~ → adapter direto, `packages/runtime-antigravity` (Fase 3).
+6. ~~Como fornecer autenticação do Antigravity em Docker.~~ → não se fornece: o Antigravity entra no modo `DOCKER` como experimental com `dockerExecution: false`, e o preflight bloqueia antes de partir (ADR 0002; Fase 8). Continua em aberto como item da Fase 14 do v0.5.
 7. Quando introduzir embeddings.
-8. Quando e como implementar Skills como artefatos executáveis/versionados.
-9. Como medir custo de harnesses que usam subscriptions em vez de API metered. O Sandcastle captura `usage` dos streams de Claude e Codex; o `UsageEvent` pode registrar tokens mesmo sem custo monetário.
-10. Como expor structured output de forma uniforme quando um harness não o suportar nativamente (prompt + validação + retry no adapter).
-11. Se Conquistas forjadas por LLM são publicadas automaticamente ou passam pelo Selo da Guilda antes de aparecer no Hall.
+8. ~~Quando e como implementar Skills como artefatos executáveis/versionados.~~ → `skill` e `skill_version` imutáveis, publicação append-only, pin por Loadout (Fase 8A).
+9. ~~Como medir custo de harnesses que usam subscriptions em vez de API metered.~~ → tokens são gravados sempre; o custo sai com procedência: `PRICED` pelo preço vigente do Model, `ESTIMATED_SUBSCRIPTION` pela mensalidade do Provider rateada pela fatia de tokens do mês civil, ou `NOT_MEASURED` (Fase 10A).
+10. ~~Como expor structured output de forma uniforme.~~ → bloco `<result>` validado pelo schema `TaskExecutionResult`, com síntese do desfecho quando o harness não sabe produzi-lo (Fase 2).
+11. ~~Se Conquistas forjadas por LLM são publicadas automaticamente.~~ → passam por revisão antes de aparecer no Hall (Fase 6).
+
+**Abertas depois do v0.4** (registradas em `proximos_passos_e_ideias.md`): retenção do histórico de métricas; rateio de assinatura por Project; desligamento gracioso do Worker no Windows; execução em Docker para delegação e para os passos de comando e validação.
 
 ---
 

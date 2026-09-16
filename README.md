@@ -10,20 +10,28 @@ O tema de RPG é um _skin_ opcional. Código, contratos, tabelas, eventos e logs
 sempre os nomes canônicos (Project, Task, Run, Agent). O vocabulário temático mora só em
 `packages/glossary` e alcança apenas labels da interface.
 
-O planejamento completo está em [`docs/planejamento_dungeon_master_v0.4.md`](./docs/planejamento_dungeon_master_v0.4.md)
-e os fundamentos técnicos em [`docs/documentacao_ideia_e_fundamentos_tecnicos.md`](./docs/documentacao_ideia_e_fundamentos_tecnicos.md).
+O roadmap em andamento está em [`docs/planejamento_dungeon_master_v0.5.md`](./docs/planejamento_dungeon_master_v0.5.md),
+o plano anterior, já executado, em [`docs/planejamento_dungeon_master_v0.4.md`](./docs/planejamento_dungeon_master_v0.4.md),
+os fundamentos técnicos em [`docs/documentacao_ideia_e_fundamentos_tecnicos.md`](./docs/documentacao_ideia_e_fundamentos_tecnicos.md)
+e a lista do que ficou em aberto em [`docs/proximos_passos_e_ideias.md`](./docs/proximos_passos_e_ideias.md).
 
 ## Estado atual
 
-**Fases 0 a 7 concluídas** (08/09/2026). Estão de pé: o esqueleto do monorepo, o modelo e
-o CRUD de Project e Task, a execução de agentes com os harnesses de host e o modo
-container, o Worker com fila e cancelamento confirmado, o stream SSE, o glossário, as
-Conquistas, o motor de Workflow, o Grimório com o Distiller e o Context Engine com o
-servidor MCP.
+**Plano v0.4 concluído: Fases 0 a 10** (15/09/2026). Estão de pé: o monorepo com dezoito
+pacotes; Project, Task e Run com máquinas de estado; execução em quatro harnesses (Claude
+Code, Codex, Pi e Antigravity) no host e em container para Claude Code e Pi; o Worker com
+fila, travas, cancelamento, retomada, presença por batimento e reconciliação de órfãos por
+silêncio; Workflows com aprovação por CAS; Pistas e o Mapa da Campanha; o Grimório com o
+Distiller e revisão; o Context Engine com o servidor MCP de conhecimento; Skills
+versionadas, Tools, servidores MCP, Providers e Loadouts por referência com preflight;
+autonomia com políticas, orçamentos, disjuntores, roteamento e delegação entre agentes que
+sobrevive a restart; Conquistas como projeção; métricas, custo com procedência e a tela de
+observabilidade. Vinte e uma migrações (`0000` a `0020`), 28 post-mortems no código, três
+ADRs e o tema de RPG só textual desde o ADR 0003.
 
-A **Fase 8** (Loadouts avançados, Skills e Tools) aguarda decisão. O bloco de fechamento
-de cada fase, com o que ficou pendente, está no fim de
-[`docs/planejamento_dungeon_master_v0.4.md`](./docs/planejamento_dungeon_master_v0.4.md).
+O **plano v0.5** (Fases 11 a 15) começa pela higiene de contrato e pela segunda volta das
+métricas; o que ficou pendente de cada fase anterior está no bloco de fechamento dela, no
+fim de [`docs/planejamento_dungeon_master_v0.4.md`](./docs/planejamento_dungeon_master_v0.4.md).
 
 ## Pré-requisitos
 
@@ -268,6 +276,7 @@ packages/
   events/       transporte SSE, drain por cursor e ponte de NOTIFY
   glossary/     canônico → tema; fonte única dos labels da UI (dnd e plain)
   achievements/ catálogo, templates e vocabulário de condições de Conquistas
+  metrics/      dimensões de um Run, rollup diário, custo com procedência e séries; puro
   runs/         teto de concorrência e ordenação por chave de recurso
   runtime/      AgentRuntime, HarnessAdapter, capabilities, preflight e workspace
   runtime-sandcastle/  adapters de Claude Code, Codex e Pi para execução no host
@@ -281,7 +290,7 @@ docs/         planejamento, fundamentos, ADRs e as análises das referências
 docker/       o Dockerfile do agente e o contrato da imagem
 ```
 
-São dezessete pacotes. Código novo de execução de agente vai em `packages/runtime` ou num
+São dezoito pacotes. Código novo de execução de agente vai em `packages/runtime` ou num
 adapter; tipo de step novo, em `packages/workflow`. Nada disso mora em `apps/worker`, que
 só faz a fiação — a fronteira de lint da seção 3 do [`CLAUDE.md`](./CLAUDE.md) recusa o
 contrário.

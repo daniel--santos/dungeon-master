@@ -5,7 +5,8 @@ projeto aplica por ferramenta e as que dependem de disciplina.
 
 Contexto obrigatório em qualquer tarefa não trivial:
 
-- [`docs/planejamento_dungeon_master_v0.4.md`](./docs/planejamento_dungeon_master_v0.4.md) — roadmap, fases e decisões.
+- [`docs/planejamento_dungeon_master_v0.5.md`](./docs/planejamento_dungeon_master_v0.5.md) — roadmap em andamento (Fases 11 a 15).
+- [`docs/planejamento_dungeon_master_v0.4.md`](./docs/planejamento_dungeon_master_v0.4.md) — as Fases 0 a 10, já executadas: decisões, blocos de andamento e de fechamento com as pendências de cada fase.
 - [`docs/documentacao_ideia_e_fundamentos_tecnicos.md`](./docs/documentacao_ideia_e_fundamentos_tecnicos.md) — o porquê de cada escolha.
 - [`README.md`](./README.md) — como subir e quais comandos existem.
 
@@ -107,7 +108,8 @@ Aplicadas pelo ESLint em `eslint.config.mjs`. Quebrar qualquer uma falha em `pnp
   não importam os pacotes de runtime; o `context` também não importa `knowledge` nem
   builtins do Node: a sanitização copiada do TencentDB mora no `context` e é o `knowledge`
   que importa dela — o sentido inverso seria um ciclo.
-- **`packages/glossary` e `packages/achievements`** são puros: só `zod` e `node:*`.
+- **`packages/glossary`, `packages/achievements` e `packages/metrics`** são puros: só `zod`,
+  `node:*` e, no `metrics`, os tipos de `@dungeon-master/contracts`.
 - **`packages/platform`** importa somente builtins do Node e módulos do próprio pacote.
 - **`packages/events`** não depende de Hono nem de `pg`: writer, fonte e notificador entram
   por injeção.
@@ -298,7 +300,8 @@ caracteres:
 
 Tipos: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `ci`, `perf`, `build`.
 Escopos usuais: `api`, `web`, `worker`, `database`, `contracts`, `api-client`, `domain`,
-`platform`, `glossary`, `achievements`, `events`.
+`platform`, `glossary`, `achievements`, `metrics`, `events`, `runtime`, `workflow`,
+`knowledge`, `context`.
 
 Commits pequenos, um assunto cada. Nunca misture artefato gerado com mudança de lógica
 sem explicar no corpo.

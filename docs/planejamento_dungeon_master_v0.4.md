@@ -4,9 +4,10 @@
 
 **Versão:** 0.4  
 **Data:** 07/09/2026  
-**Status:** Pronto para iniciar a Fase 0. Inclui a camada de gamificação e a Fase 2.5 de Conquistas  
+**Status:** **Encerrado em 15/09/2026 — Fases 0 a 10 concluídas.** Mantido como histórico: os blocos "Andamento", "Fechamento" e "Encerramento do plano v0.4" registram o que entrou, as decisões e as pendências de cada fase  
+**Sucessor:** `planejamento_dungeon_master_v0.5.md` (Fases 11 a 15)  
 **Substitui:** `planejamento_plataforma_agentic_v0.3.md` (v0.3) e `planejamento_plataforma_agentic.md` (v0.2), mantidos apenas como histórico  
-**Documento companheiro:** `documentacao_ideia_e_fundamentos_tecnicos.md` (v0.4)
+**Documento companheiro:** `documentacao_ideia_e_fundamentos_tecnicos.md` (v0.4, revisão 0.5)
 
 ---
 
